@@ -1,0 +1,68 @@
+{
+  "id": "mmaudio_ambience",
+  "kind": "ambience",
+  "label": "MMAudio large 44k v2 (ambience)",
+  "short": "MMAudio",
+  "default_rank": 1,
+  "code": "prompt.py",
+
+  "capabilities": {
+    "_note": "Text only (no video: the sampler's `images` input left empty), 44.1 kHz. Judged on four places 2026-11-01 (docs/SOUND.md 'Measured: ambience beds'): the clear winner by ear (the diner's refrigerator hum far better than Stable Audio 3's), and the steadiest (the diner, rooftop and park within 0.5-1.8 dB second to second), so it loops best. Takes came out at -17 to -22 LUFS; a bed is brought to BED_LUFS when it lands (seriesmith/ambience.py). MIT (the weights and the node pack).",
+    "mode": "t2a",
+    "max_seconds": 20
+  },
+
+  "template": {
+    "_note": "Seconds, as MMAudioSampler's duration takes them. A take is 10 s: the bed is its middle (1.5 s off each end), looped under the place's shots.",
+    "default_seconds": 10.0,
+    "min_seconds": 4.0,
+    "max_seconds": 20.0
+  },
+
+  "binding": {
+    "_note": "kijai's ComfyUI-MMAudio, text to audio: MMAudioModelLoader (the large 44k v2 model, fp16), MMAudioFeatureUtilsLoader (its VAE, synchformer and CLIP, 44k mode; BigVGAN v2 is fetched by the pack on first use into models/mmaudio/nvidia), MMAudioSampler at 25 steps, cfg 4.5, SaveAudio (flac; the take is converted to wav and finished when it comes back). Validated on local ComfyUI 0.43, 2026-11-01.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_mmaudio_ambience.json",
+    "env": "SERIESMITH_MMAUDIO_AMBIENCE_WORKFLOW",
+    "saver": {"class_type": "SaveAudio", "replace": {"class_type": "SaveAudio"}},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "MMAudioModelLoader", "field": "mmaudio_model"},
+      "vae": {"class_type": "MMAudioFeatureUtilsLoader", "field": "vae_model"},
+      "synchformer": {"class_type": "MMAudioFeatureUtilsLoader", "field": "synchformer_model"},
+      "clip": {"class_type": "MMAudioFeatureUtilsLoader", "field": "clip_model"},
+      "prompt": {"class_type": "MMAudioSampler", "field": "prompt"},
+      "negative": {"class_type": "MMAudioSampler", "field": "negative_prompt"},
+      "seconds": {"class_type": "MMAudioSampler", "field": "duration"},
+      "steps": {"class_type": "MMAudioSampler", "field": "steps"},
+      "seed": {"class_type": "MMAudioSampler", "field": "seed"},
+      "cfg": {"class_type": "MMAudioSampler", "field": "cfg"}
+    }
+  },
+
+  "models": {
+    "model": {"family": "mmaudio", "patterns": ["*mmaudio*large*44k*"], "tier": "required", "folder": "mmaudio"},
+    "vae": {"family": "mmaudio-vae", "patterns": ["*mmaudio*vae*44k*"], "tier": "required", "folder": "mmaudio"},
+    "synchformer": {"family": "mmaudio-synchformer", "patterns": ["*synchformer*"], "tier": "required", "folder": "mmaudio"},
+    "clip": {"family": "dfn5b-clip", "patterns": ["*DFN5B*CLIP*"], "tier": "required", "folder": "mmaudio"}
+  },
+
+  "presets": {
+    "final": {
+      "model": "mmaudio_large_44k_v2_fp16.safetensors",
+      "vae": "mmaudio_vae_44k_fp16.safetensors",
+      "synchformer": "mmaudio_synchformer_fp16.safetensors",
+      "clip": "apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors",
+      "steps": 25, "cfg": 4.5,
+      "negative": "music, melody, singing, speech, talking, voices"
+    }
+  },
+
+  "downloads": {
+    "_note": "The files ComfyUI-MMAudio's README points to (huggingface.co/Kijai/MMAudio_safetensors, listed 2026-11-01). Its node pack is https://github.com/kijai/ComfyUI-MMAudio (features.PACKS).",
+    "mmaudio_large_44k_v2_fp16.safetensors": {"folder": "mmaudio", "url": "https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_large_44k_v2_fp16.safetensors", "source": "the Hugging Face repo Kijai/MMAudio_safetensors (ComfyUI-MMAudio's README)"},
+    "mmaudio_vae_44k_fp16.safetensors": {"folder": "mmaudio", "url": "https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_vae_44k_fp16.safetensors", "source": "the Hugging Face repo Kijai/MMAudio_safetensors (ComfyUI-MMAudio's README)"},
+    "mmaudio_synchformer_fp16.safetensors": {"folder": "mmaudio", "url": "https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_synchformer_fp16.safetensors", "source": "the Hugging Face repo Kijai/MMAudio_safetensors (ComfyUI-MMAudio's README)"},
+    "apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors": {"folder": "mmaudio", "url": "https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors", "source": "the Hugging Face repo Kijai/MMAudio_safetensors (ComfyUI-MMAudio's README)"}
+  }
+}

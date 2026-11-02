@@ -52,6 +52,7 @@ class LoadingTest(unittest.TestCase):
                                ("video", "seedance_2_5"),
                                ("video", "wan22_ti2v"), ("video", "wan22_vace"), ("image", "krea2"),
                                ("music", "stable_audio3"), ("music", "ace_step15"),
+                               ("ambience", "mmaudio_ambience"), ("ambience", "sa3_sfx_ambience"),
                                ("image", "z_image_turbo"), ("image", "flux2_klein"),
                                ("image", "flux2_klein_edit"), ("image", "flux_kontext"),
                                ("image", "flux3_klein"), ("image", "flux3_klein_turbo"),
@@ -427,7 +428,7 @@ class TargetsRouteTest(ApiTest):
         by = {t["id"]: t for t in data["targets"]}
         self.assertEqual(set(by) - ROUTER, {H3, "hold", "h3_singularity", "h3_singularity_fl2va", "fasth3_fl2va", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", "krea2",
                                    "wan22_i2v", "wan22_ti2v", "wan22_vace", "z_image_turbo",
-                                   "stable_audio3", "ace_step15",
+                                   "stable_audio3", "ace_step15", "mmaudio_ambience", "sa3_sfx_ambience",
                                    "flux2_klein", "flux2_klein_edit", "flux_kontext",
                                    "flux3_klein", "flux3_klein_turbo",
                                    "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio",
@@ -491,7 +492,8 @@ class TargetsRouteTest(ApiTest):
         self.assertIn("ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors",
                       lt["downloads"])
         self.assertEqual(data["default"],
-                         {"video": H3, "image": "krea2", "audio": "ltx2_voice", "music": "stable_audio3"})
+                         {"video": H3, "image": "krea2", "audio": "ltx2_voice", "music": "stable_audio3",
+                          "ambience": "mmaudio_ambience"})
         images = self.ok(A.get_targets(self.ctx, {"kind": "image"}))["targets"]
         self.assertEqual([t["id"] for t in images if t["id"] not in ROUTER],
                          ["fasth3_omni_still", "fibo2_dev", "fibo2_edit_turbo",

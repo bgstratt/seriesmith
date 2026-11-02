@@ -7,7 +7,8 @@ targets — everything model-specific, one folder per model.
 
 `kind` is "video" (a shot model: story IR -> shotlist entries), "image" (a
 reference model: a ref request -> a picture), "audio" (a voice model: a
-voice ref -> a wav) or "music" (a score model: a cue -> a wav; docs/SOUND.md). The core (core, build,
+voice ref -> a wav), "music" (a score model: a cue -> a wav; docs/SOUND.md) or "ambience"
+(a place's words -> its ambience bed, a wav: docs/SOUND.md phase 3). The core (core, build,
 jobs, refs, the routes) only talks to a target through this module:
 
     load_target(id)            -> Target            (cached; TargetError if unknown)
@@ -52,6 +53,10 @@ or, for a music target (targets/music/common.py):
 
     cue_prompt(cue)                                 -> {"prompt", "negative", "values"}
 
+or, for an ambience target (targets/ambience/common.py):
+
+    ambience_prompt(words, seconds)                 -> {"prompt", "negative", "values"}
+
 or, for an audio target:
 
     voice_prompt(name, voice, design, line, seconds) -> the brief for one voice
@@ -92,14 +97,16 @@ from seriesmith.core import framing
 from seriesmith.core import paths as P
 
 HERE =os.path.dirname(os.path.abspath(__file__))
-KINDS = ("video", "image", "audio", "music")
+KINDS = ("video", "image", "audio", "music", "ambience")
 TIERS = ("required", "accelerator", "optional")
 DEFAULT_VIDEO_TARGET = "minimax_h3_ref2va"
 DEFAULT_IMAGE_TARGET = "krea2"
 DEFAULT_AUDIO_TARGET = "ltx2_voice"
 DEFAULT_MUSIC_TARGET = "stable_audio3"
+DEFAULT_AMBIENCE_TARGET = "mmaudio_ambience"
 DEFAULT_TARGETS = {"video": DEFAULT_VIDEO_TARGET, "image": DEFAULT_IMAGE_TARGET,
-                   "audio": DEFAULT_AUDIO_TARGET, "music": DEFAULT_MUSIC_TARGET}
+                   "audio": DEFAULT_AUDIO_TARGET, "music": DEFAULT_MUSIC_TARGET,
+                   "ambience": DEFAULT_AMBIENCE_TARGET}
 PASSES = ("final", "proxy")
 # Where a job can run (docs/DESIGN.md, "Backends"): your own ComfyUI, Comfy
 # Cloud, a Comfy API deployment of the target's workflow, or a hosted model
@@ -767,6 +774,13 @@ class Target:
                     "lyrics": bool(caps.get("lyrics")),
                     "max_seconds": float(caps.get("max_seconds") or hi),
                     "min_seconds": lo, "default_seconds": default}
+        if self.kind == "ambience":
+            caps = self.spec.get("capabilities") or {}
+            default, hi, lo = self.seconds_range()
+            return {**common, "mode": caps.get("mode") or "t2a",
+                    "max_seconds": float(caps.get("max_seconds") or hi),
+                    "min_seconds": lo, "default_seconds": default,
+                    "negative_prompt": bool(self.binding.specs("negative"))}
         if self.kind == "audio":
             caps = self.spec.get("capabilities") or {}
             default, hi, lo = self.seconds_range()
@@ -821,6 +835,12 @@ class Target:
         """A cue's brief on this model: {"prompt", "negative", "values"}
         (targets/music/common.py)."""
         return self._need("cue_prompt")(self, cue)
+
+    # ambience
+    def ambience_prompt(self, words: str, seconds: float) -> dict:
+        """A place's bed on this model: {"prompt", "negative", "values"}
+        (targets/ambience/common.py)."""
+        return self._need("ambience_prompt")(self, words, seconds)
 
     # audio
     def voice_prompt(self, name: str, voice: str = "", design: str = "",
@@ -1330,13 +1350,14 @@ DEFAULT_KEYFRAME_TARGET = "flux2_klein_edit"   # when it is ready, else the refs
 
 
 REFS_TARGET_KINDS = {"target": "image", "keyframe_target": "image",
-                     "voice_target": "audio"}
+                     "voice_target": "audio", "ambience_target": "ambience"}
 
 
 def refs_block(series_cfg: dict | None) -> dict:
     """The series config's `refs` block ({"target", "keyframe_target",
-    "voice_target"}), validated: the first two must name an image target,
-    `voice_target` an audio one. ValueError otherwise."""
+    "voice_target", "ambience_target"}), validated: the first two must name an
+    image target, `voice_target` an audio one, `ambience_target` an ambience one
+    (a place's bed). ValueError otherwise."""
     raw = (series_cfg or {}).get("refs") or {}
     if not isinstance(raw, dict):
         raise ValueError("series.json `refs` must be an object: {\"target\": \"<image target>\", "

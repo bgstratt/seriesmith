@@ -773,7 +773,37 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `t5gemma_b_b_ul2.safetensors` | `models/text_encoders/` | required | `stable_audio3` | [Comfy-Org/stable-audio-3](https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/text_encoders/t5gemma_b_b_ul2.safetensors) |
+| `t5gemma_b_b_ul2.safetensors` | `models/text_encoders/` | required | `stable_audio3`, `sa3_sfx_ambience` | [Comfy-Org/stable-audio-3](https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/text_encoders/t5gemma_b_b_ul2.safetensors) |
+
+**mmaudio** (`mmaudio`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `mmaudio_large_44k_v2_fp16.safetensors` | `models/mmaudio/` | required | `mmaudio_ambience` | [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_large_44k_v2_fp16.safetensors) |
+
+**mmaudio-vae** (`mmaudio-vae`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `mmaudio_vae_44k_fp16.safetensors` | `models/mmaudio/` | required | `mmaudio_ambience` | [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_vae_44k_fp16.safetensors) |
+
+**mmaudio-synchformer** (`mmaudio-synchformer`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `mmaudio_synchformer_fp16.safetensors` | `models/mmaudio/` | required | `mmaudio_ambience` | [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_synchformer_fp16.safetensors) |
+
+**dfn5b-clip** (`dfn5b-clip`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors` | `models/mmaudio/` | required | `mmaudio_ambience` | [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors) |
+
+**stable-audio-3-sfx** (`stable-audio-3-sfx`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `stable_audio_3_small_sfx.safetensors` | `models/checkpoints/` | required | `sa3_sfx_ambience` | [Comfy-Org/stable-audio-3](https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/checkpoints/stable_audio_3_small_sfx.safetensors) |
 
 ### For upscaling (optional)
 

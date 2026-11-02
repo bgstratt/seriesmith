@@ -2537,8 +2537,12 @@ def put_cut(ctx: Context, body):
 def get_mix(ctx: Context, query: dict):
     """A pass's mix (mix.py, docs/SOUND.md): `mix` as mix.json holds it, `files` each item
     file's length in seconds (None: not there or no sound), `series` the
-    series config's `sound` defaults under it, and `defaults` what a track, the ducking
-    and the loudness are when neither says (the editor draws the lanes from these)."""
+    series config's `sound` defaults under it, `defaults` what a track, the ducking
+    and the loudness are when neither says (the editor draws the lanes from these), and
+    `beds` the places' ambience beds laid under the cut (ambience.laid: worked out from
+    the cut and the series config, never stored): [{"place", "label", "path" (relative
+    to the episode), "exists", "words", "shots", "in", "out" (anchors), "start", "end"
+    (seconds of the cut), "gain_db", "mute"}]. Nothing is decoded."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query.get("pass"))
     try:
@@ -2552,7 +2556,13 @@ def get_mix(ctx: Context, query: dict):
         full = os.path.normpath(os.path.join(ep, *it["path"].split("/")))
         info = PK.media_info(full) if os.path.isfile(full) else {}
         files[it["path"]] = info.get("duration") if info.get("audio") else None
-    return 200, {"mix": mix, "files": files,
+    from seriesmith import ambience as AMB
+    layout, fps = CU.cut_layout(ep, pass_)
+    beds = [{**{k: b[k] for k in ("place", "label", "exists", "words", "shots", "in", "out",
+                                  "gain_db", "mute")},
+             "path": b["rel"], "start": round(b["start"] / fps, 4), "end": round(b["end"] / fps, 4)}
+            for b in AMB.laid(ep, layout, J.series_config(ep), mix)]
+    return 200, {"mix": mix, "files": files, "beds": beds,
                  "series": {k: snd[k] for k in ("tracks", "loudness") if k in snd},
                  "defaults": {"tracks": list(MX.TRACKS), "gain_db": MX.GAIN_DEFAULT,
                               "duck_db": MX.DUCK_DEFAULT,
@@ -4042,6 +4052,26 @@ def get_refs_owner_takes(ctx: Context, query: dict):
 
 
 @handler
+def get_refs_one(ctx: Context, query: dict):
+    """One ref as the listing gives it, with its takes (refs.get_ref_json): what a row
+    of the Refs tab's Ambience section fetches when it opens (a place's bed isn't in
+    GET /seriesmith/refs). 404 for no such ref."""
+    ep = check_ep(ctx, query.get("ep"))
+    _series(ep)
+    return 200, seeds_out(R.get_ref_json(ep, query.get("ref")))
+
+
+@handler
+def get_ambience(ctx: Context, query: dict):
+    """Every place's ambience bed (docs/SOUND.md phase 3; refs.ambience_listing): its
+    words, its file, how many takes, which is picked, what it's made on. Each is a ref
+    (`ambience:<place>`): made, picked and discarded through the refs routes."""
+    ep = check_ep(ctx, query.get("ep"))
+    _series(ep)
+    return 200, R.ambience_listing(ep)
+
+
+@handler
 def get_refs_shared_takes(ctx: Context, query: dict):
     """A shared ref's candidates in the other episodes that share it (the
     gallery): `from` names them, comma-separated, as the listing's
@@ -5150,6 +5180,8 @@ ROUTES = [
     ("GET", "/seriesmith/refs", get_refs, "query"),
     ("GET", "/seriesmith/refs/shared-takes", get_refs_shared_takes, "query"),
     ("GET", "/seriesmith/refs/owner-takes", get_refs_owner_takes, "query"),
+    ("GET", "/seriesmith/refs/one", get_refs_one, "query"),
+    ("GET", "/seriesmith/ambience", get_ambience, "query"),
     ("POST", "/seriesmith/refs/generate", post_refs_generate, "body"),
     ("POST", "/seriesmith/refs/tour", post_refs_tour, "body"),
     ("POST", "/seriesmith/refs/copy-take", post_refs_copy_take, "body"),

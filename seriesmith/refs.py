@@ -17,6 +17,12 @@ from refs_todo, so a character nobody uses yet can still be generated:
                             is picked. Imported, generated on an audio target
                             (targets/audio/), or cut out of a take's sound
                             (voice_from_take)
+    ambience:<place>        a place's ambience bed (docs/SOUND.md phase 3): the
+                            series config's `ambience` words of a location's
+                            place made into a wav on an ambience target
+                            (targets/ambience/), finished as it lands
+                            (ambience.finish_bed) and picked into its
+                            `ambience_bed` path (core.series_config.ambience_bed_of)
     shot:<shot>:first|last  a shot's first / last keyframe, at
                             refs/shots/<shot>/<first|last>.png: imported, or
                             cut out of another shot's take (keyframe_from_take:
@@ -195,7 +201,7 @@ def ep_rel(ep: str, path: str | None) -> str | None:
 class Ref:
     id: str
     scope: str              # series | shot
-    kind: str               # character | prop | vehicle | ... | location | voice | keyframe
+    kind: str               # character | prop | vehicle | ... | location | voice | ambience | keyframe
     name: str
     path: str               # as the series config names it (relative to `home`); "" if none
     home: str
@@ -221,7 +227,7 @@ class Ref:
 
     @property
     def is_audio(self) -> bool:
-        return self.kind == "voice"
+        return self.kind in ("voice", "ambience")
 
 
 def ref_key(ref_id: str) -> str:
@@ -263,6 +269,10 @@ def _series_refs(s: Series) -> list[Ref]:
         if e.get("voice_sample") or e.get("kind", "character") == "character":
             out.append(Ref(f"voice:{sid}", "series", "voice", e.get("name", sid),
                            e.get("voice_sample") or "", s.home, e, sid))
+    # a place's ambience bed: only where the series config says what's heard there
+    for bid, b in SC.ambience_beds(s.series_cfg).items():
+        out.append(Ref(f"ambience:{bid}", "series", "ambience", b["name"], b["path"], s.home,
+                       {"ambience": b["words"], "locations": list(b["locations"])}))
     return out
 
 
@@ -455,9 +465,9 @@ def find_ref(s: Series, ref_id) -> Ref:
     for r in series_refs(s):
         if r.id == ref_id:
             return r
-    if not re.match(r"(subject|location|voice):", ref_id):
+    if not re.match(r"(subject|location|voice|ambience):", ref_id):
         raise RefError(f"unknown kind of ref {ref_id!r}: subject:<id>, location:<id>, "
-                       f"voice:<id> or shot:<shot>:first|last")
+                       f"voice:<id>, ambience:<place> or shot:<shot>:first|last")
     raise UnknownRef(f"{ref_id} is not in {os.path.basename(s.config_file)}")
 
 
@@ -554,6 +564,8 @@ def image_defaults(s: Series, ready=None) -> dict:
             t = TG.load_target(TG.DEFAULT_KEYFRAME_TARGET, "image")
             kt = t.id if (ready is None or ready(t)) else out["target"]
             out.update(keyframe_target=kt, keyframe_target_source="default")
+        out.update(ambience_target=block.get("ambience_target") or TG.machine_default("ambience"),
+                   ambience_target_source="series" if block.get("ambience_target") else "default")
         heard = {t.id for t in TG.list_targets("audio")}
         ev = T.episode_field(ov, "voice_target")
         if ev and ev in heard:
@@ -569,8 +581,8 @@ def image_defaults(s: Series, ready=None) -> dict:
 
 def ref_target_kind(ref: Ref) -> str:
     """The kind of target that generates this ref: "audio" for a voice,
-    "image" for everything else."""
-    return "audio" if ref.kind == "voice" else "image"
+    "ambience" for a place's bed, "image" for everything else."""
+    return {"voice": "audio", "ambience": "ambience"}.get(ref.kind, "image")
 
 
 def image_target_for(s: Series, ref: Ref, requested: str | None = None,
@@ -582,7 +594,8 @@ def image_target_for(s: Series, ref: Ref, requested: str | None = None,
     (an audio target), `keyframe_target` for a shot keyframe, `target` for
     anything else. RefError for a name that isn't a target of that kind."""
     kind = ref_target_kind(ref)
-    key = {"voice": "voice_target", "keyframe": "keyframe_target"}.get(ref.kind, "target")
+    key = {"voice": "voice_target", "keyframe": "keyframe_target",
+           "ambience": "ambience_target"}.get(ref.kind, "target")
     try:
         if requested:
             return TG.load_target(requested, kind)
@@ -816,6 +829,8 @@ def built_prompt(s: Series, ref: Ref, view: str | None = None,
             return None
     if ref.kind == "voice":
         return voice_brief(s, ref, target)[0]
+    if ref.kind == "ambience":
+        return ambience_brief(s, ref, target)[0] if e.get("ambience") else None
     if ref.kind == "location":
         if not e.get("description"):
             return None
@@ -906,6 +921,23 @@ def voice_brief(s: Series, ref: Ref, target=None, seconds: float | None = None
             line, source)
 
 
+def ambience_brief(s: Series, ref: Ref, target=None, seconds: float | None = None
+                   ) -> tuple[str, str | None, float]:
+    """(the prompt, the negative (None: the preset's), seconds) a bed's generate
+    uses: the place's words and "No music, no voices, no speech."
+    (targets/ambience/common.py), the target's default length."""
+    try:
+        target = target or image_target_for(s, ref)
+    except RefError:
+        target = None
+    if target is None or target.kind != "ambience":
+        from seriesmith.targets.ambience.common import bed_words
+        return bed_words(ref.entry.get("ambience") or ""), None, 0.0
+    secs = float(seconds if seconds is not None else target.seconds_range()[0])
+    brief = target.ambience_prompt(ref.entry.get("ambience") or "", secs)
+    return brief["prompt"], brief.get("negative"), secs
+
+
 def gen_size(ref: Ref, view_size: tuple[int, int] | None = None, target=None,
              s: Series | None = None, pass_: str = "final") -> tuple[int, int]:
     """The size a generate makes: the image target's (template view_size /
@@ -971,6 +1003,8 @@ def stable_seed(ref: Ref) -> int:
     in the clothes."""
     if ref.kind == "character":
         return seed_for(ref.entry.get("of") or ref.subject)
+    if ref.kind == "ambience":
+        return seed_for(ref.id)                 # the place's id, wherever its bed is kept
     return seed_for(ref.path or ref.id)
 
 
@@ -984,6 +1018,16 @@ def can_generate(s: Series, ref: Ref) -> str | None:
         if t.kind != "audio":
             return "no audio target generates voices: import a recording"
         return None
+    if ref.kind == "ambience":
+        if not (ref.entry.get("ambience") or "").strip():
+            return (f"{ref.id} names a bed file but no `ambience` words to make one from: "
+                    f"import a recording, or say what's heard there in "
+                    f"{os.path.basename(s.config_file)}")
+        try:
+            t = image_target_for(s, ref)
+        except RefError as e:
+            return str(e)
+        return None if t.kind == "ambience" else "no ambience target makes beds"
     if ref.kind == "keyframe":
         shot, _ = ref_shot(ref)
         if shot_ir(s.ep, shot)[0] is None:
@@ -2548,7 +2592,7 @@ class GenJob:
 
     @property
     def is_audio(self) -> bool:
-        return self.target is not None and self.target.kind == "audio"
+        return self.target is not None and self.target.kind in ("audio", "ambience")
 
     @property
     def name(self) -> str:
@@ -2640,6 +2684,17 @@ def plan_generate(s: Series, req: GenRequest, overrides: dict | None = None,
         seconds, frames, fps = target.snap_seconds(want if want is not None
                                                    else voice_seconds(s, ref, target))
         w = h = 0
+    elif ref.kind == "ambience":
+        if target.kind != "ambience":
+            raise RefError(f"{target.id} is a {target.kind} target: a bed needs an ambience "
+                           f"one ({', '.join(t.id for t in TG.list_targets('ambience'))})")
+        default, hi, lo = target.seconds_range()
+        want = req.seconds
+        if want is not None and (isinstance(want, bool) or not isinstance(want, (int, float))
+                                 or not lo <= float(want) <= hi):
+            raise RefError(f"seconds must be between {lo:g} and {hi:g} on {target.short}")
+        seconds = float(want if want is not None else default)
+        w = h = 0
     elif ref.kind == "keyframe":
         gw, gh, rw, rh, video_target = keyframe_size(s, ref, target, req.pass_)
         w, h, render_size = gw, gh, (rw, rh)
@@ -2655,7 +2710,12 @@ def plan_generate(s: Series, req: GenRequest, overrides: dict | None = None,
     cfg = float(req.cfg if req.cfg is not None
                 else (preset.extra.get("cfg", CFG) if preset is not None else CFG))
     default_steps = int(preset.steps) if (preset is not None and preset.steps) else STEPS
-    if target.binding.specs("negative") or target.id == TG.DEFAULT_IMAGE_TARGET:
+    if ref.kind == "ambience":
+        # a bed's negative is its model's (no music, no voices), never the pictures'
+        negative = req.negative if req.negative is not None else (
+            preset.extra.get("negative") if preset is not None else "") or ""
+        neg_source = ("request" if req.negative is not None else "preset") if negative else "none"
+    elif target.binding.specs("negative") or target.id == TG.DEFAULT_IMAGE_TARGET:
         negative, neg_source = J.negative_for(
             s.ep, preset.extra.get("negative") if preset is not None else "",
             requested=req.negative, series_cfg=s.series_cfg)
@@ -2705,6 +2765,8 @@ def plan_generate(s: Series, req: GenRequest, overrides: dict | None = None,
                 base_prompt = keyframe_prompt(s, ref, target, refs)
             elif ref.kind == "voice":
                 base_prompt, line, line_source = voice_brief(s, ref, target, seconds)
+            elif ref.kind == "ambience":
+                base_prompt = ambience_brief(s, ref, target, seconds)[0]
             else:
                 # a variant's view edits the base's SAME view, so its reference
                 # -- and so its wording -- is per view, not per ref
@@ -2714,7 +2776,7 @@ def plan_generate(s: Series, req: GenRequest, overrides: dict | None = None,
             # P4: the picture's size, cfg, negative and sampler knobs, each
             # the request's, else the override's, else what the target says
             vw, vh = w, h
-            size = pick("size", None, req.size) if ref.kind not in ("voice", "keyframe") else None
+            size = pick("size", None, req.size) if ref.kind not in ("voice", "keyframe", "ambience") else None
             if size:
                 vw, vh = parse_override_size(size)
             vcfg = float(pick("cfg", cfg, req.cfg))
@@ -2723,6 +2785,8 @@ def plan_generate(s: Series, req: GenRequest, overrides: dict | None = None,
                 used.append("negative")
                 vneg, vneg_source = ov["negative"], "override"
             vals = _preset_values(target)
+            if ref.kind == "ambience":
+                vals["seconds"] = seconds
             if ref.kind == "keyframe":
                 # a keyframe is the shot's frame, not an edit of its first
                 # reference: a target that would start from the references'
@@ -3897,6 +3961,8 @@ def generate_missing(s: Series, comfy, pass_: str = "proxy", kinds=MISSING_KINDS
     ready = target_ready(listing)
 
     def queue(ref: Ref, view, tid, method):
+        if ref_target_kind(ref) != "image":
+            tid = None                   # the image target asked for isn't a voice's or a bed's
         req = GenRequest(ref.id, view, target=tid, pass_=pass_, note="generate missing")
         try:
             if dry_run:
@@ -4066,6 +4132,15 @@ def used_by(s: Series, refs: list[Ref]) -> dict[str, dict[str, list[str]]]:
             for rid in by_path.get(_norm(item.get("path", "")), []):
                 for sh in item.get("blocks_shots", []):
                     add(rid, ps, sh)
+    # a place's bed plays under every shot of a sequence set there (the story IR)
+    beds = [r for r in refs if r.kind == "ambience"]
+    if beds:
+        from seriesmith import ambience as AMB
+        for shot, lid in AMB.shot_locations(s.ep).items():
+            b = SC.ambience_bed_of(s.series_cfg, lid) if lid else None
+            if b is not None:
+                for ps in T.PASSES:
+                    add(f"ambience:{b['id']}", ps, shot)
     return out
 
 
@@ -4371,7 +4446,9 @@ def _refs_listing(ep: str, view_size, ready) -> dict:
     except RefError:
         defaults = None
     needs = keyframe_needs(s.ep)
-    refs = series_refs(s) + keyframe_refs(s.ep, needs)
+    # a place's ambience bed is the Refs tab's Ambience section's (ambience_listing),
+    # its takes fetched when its row opens
+    refs = [r for r in series_refs(s) if r.kind != "ambience"] + keyframe_refs(s.ep, needs)
     usage = used_by(s, refs)
     shared = shared_context(s.ep)
     cache: dict[str, tuple[dict, dict]] = {}
@@ -4382,6 +4459,41 @@ def _refs_listing(ep: str, view_size, ready) -> dict:
         ov, pk = cache[r.home]
         out.append(ref_json(s, r, usage, ov, pk, view_size, needs, ready, defaults, shared))
     return {"refs": out, "defaults": defaults}
+
+
+def ambience_listing(ep: str) -> dict:
+    """GET /seriesmith/ambience: {"beds": every place's ambience bed (an `ambience:<place>`
+    ref), without its takes: [{"ref", "place", "name", "words", "path" (relative to the
+    episode), "exists", "locations", "used_by", "takes" (how many), "ok" (finished),
+    "queued", "picked", "can_generate", "why_not", "target"}], "target": the episode's
+    ambience target}. One look at each bed's takes folder; the takes themselves are
+    GET /seriesmith/refs/one's, when a row opens."""
+    s = load_series(ep)
+    beds = [r for r in series_refs(s) if r.kind == "ambience"]
+    usage = used_by(s, beds) if beds else {}
+    try:
+        defaults = image_defaults(s)
+    except RefError:
+        defaults = {}
+    picks: dict[str, dict] = {}
+    out = []
+    for r in beds:
+        if r.home not in picks:
+            picks[r.home] = read_picks(r.home)
+        takes = list_takes(r)
+        why = can_generate(s, r)
+        out.append({"ref": r.id, "place": r.id.split(":", 1)[1], "name": r.name,
+                    "words": r.entry.get("ambience") or "", "path": ep_rel(s.ep, r.file),
+                    "exists": bool(r.file and os.path.isfile(r.file)),
+                    "locations": list(r.entry.get("locations") or []),
+                    "used_by": (usage.get(r.id) or {}).get("final", []),
+                    "takes": len(takes), "ok": sum(1 for t in takes if t.usable),
+                    "queued": sum(1 for t in takes if t.status == "queued"),
+                    "picked": picked_take(picks[r.home], r.id),
+                    "can_generate": why is None, "why_not": why,
+                    "target": (ref_override(load_overrides(r.home), r.id).get("target")
+                               or defaults.get("ambience_target"))})
+    return {"beds": out, "target": defaults.get("ambience_target")}
 
 
 def list_refs(ep: str, view_size=VIEW_SIZE, ready=None) -> list[dict]:

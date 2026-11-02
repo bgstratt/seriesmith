@@ -63,6 +63,9 @@ PACKS: dict[str, dict] = {
     "ComfyUI-LTX2.5-MSR": {
         "repo": "https://github.com/liconstudio/ComfyUI-LTX2.5-MSR",
         "classes": ["ComfyUILTX25MSRICLoRALoader", "ComfyUILTX25MSRMultiReferenceGuide"]},
+    "ComfyUI-MMAudio": {
+        "repo": "https://github.com/kijai/ComfyUI-MMAudio",
+        "classes": ["MMAudioModelLoader", "MMAudioFeatureUtilsLoader", "MMAudioSampler"]},
     "ComfyUI-PromptRelay": {
         "repo": "https://github.com/kijai/ComfyUI-PromptRelay",
         "classes": ["PromptRelayEncode"]},
@@ -139,7 +142,7 @@ GROUPS = [
     ("video", "Video models", "What shots render on. seriesmith uses the first one installed."),
     ("pictures", "Picture models", "What draws characters, places, props and keyframes."),
     ("h3", "MiniMax H3 extras", "For H3 at full quality and for the location tours."),
-    ("sound", "Sound", "Generated voices and recorded dialogue."),
+    ("sound", "Sound", "Generated voices, recorded dialogue and ambience beds."),
     ("upscale", "Upscaling", "Upscale takes (Upscale, Export 2x, master). Pick the methods you want."),
     ("post", "Post-processing", "Enhancement and motion blur after the upscale."),
     ("refs", "360s and turned views", "The Refs tab's Make 360 and a character's Turn."),
@@ -262,6 +265,14 @@ def catalog() -> list[Feature]:
                 "A voice per character, that `clone` shots speak in: ComfyUI-LTXVideo and three LTX-2.5 "
                 "files (gated). It also lets LTX-2.5 read reference sheets.",
                 [_pack("ComfyUI-LTXVideo")] + _target_items("ltx2_voice"), restart=True),
+        Feature("sound.ambience", "sound", "Ambience beds (MMAudio)",
+                "A place's room tone or air, made once from its `ambience` words and looped under "
+                "its shots: kijai's ComfyUI-MMAudio and its four files (MIT). The default.",
+                [_pack("ComfyUI-MMAudio")] + _target_items("mmaudio_ambience"), restart=True),
+        target_feature("sound.ambience_sfx", "sound", "sa3_sfx_ambience",
+                       "Ambience beds (Stable Audio 3 Small SFX)",
+                       "Livelier beds, second choice to MMAudio: Stable Audio 3's small sound-effects "
+                       "model (Stability AI Community License)."),
         Feature("sound.align", "sound", "Recorded dialogue",
                 "faster-whisper, for align and the Recording window, in the Python align runs on.",
                 [Item("pip", "faster-whisper", where="align", module="faster_whisper"),

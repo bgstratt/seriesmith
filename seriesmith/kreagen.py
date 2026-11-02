@@ -77,22 +77,28 @@ def collect(s: R.Series, todo: list | None, only: set[str] | None,
     refs_todo.json (None: every image ref in the series config). `voices`
     adds the voice refs (an audio target generates them: --voices)."""
     refs = [r for r in R.series_refs(s) if not r.is_audio]
-    heard = [r for r in R.series_refs(s) if r.is_audio] if voices else []
-    usage = R.used_by(s, refs + heard)
+    heard = [r for r in R.series_refs(s) if r.kind == "voice"] if voices else []
+    # a place's ambience bed (docs/SOUND.md phase 3): made with the pictures, from
+    # refs_todo's "ambience bed" entries (every bed the series config has, with --all)
+    beds = [r for r in R.series_refs(s) if r.kind == "ambience"]
+    if todo is not None:
+        listed = {_norm(i["path"]) for i in todo if i.get("kind") == "ambience bed"}
+        beds = [r for r in beds if _norm(r.path) in listed]
+    usage = R.used_by(s, refs + heard + beds)
     by_path = {_norm(r.path): r for r in refs if r.path}
     picked: list[tuple[R.Ref, int]] = []
     if todo is None:
         picked = [(r, len(usage[r.id]["final"])) for r in refs]
     else:
         for item in todo:
-            if item["kind"] == "voice sample":
+            if item["kind"] in ("voice sample", "ambience bed"):
                 continue
             r = by_path.get(_norm(item["path"]))
             if r is None:
                 print(f"  ! nothing in series.json names {item['path']} — skipping it")
                 continue
             picked.append((r, len(item.get("blocks_shots", []))))
-    picked += [(r, len(usage[r.id]["final"])) for r in heard]
+    picked += [(r, len(usage[r.id]["final"])) for r in heard + beds]
     out = []
     for r, blocks in picked:
         why = R.can_generate(s, r)
@@ -103,6 +109,7 @@ def collect(s: R.Series, todo: list | None, only: set[str] | None,
                 print(f"  ! {why} — skipping {r.path or r.id}")
             continue
         name = r.subject if r.kind == "character" else \
+            r.id if r.kind == "ambience" else \
             f"voice:{r.subject}" if r.is_audio else \
             os.path.splitext(os.path.basename(r.path))[0] if r.path else r.id
         out.append({"ref": r, "name": name, "blocks": blocks})
@@ -118,6 +125,8 @@ def request(j: dict, args, negative: str | None) -> R.GenRequest:
     beats negative.txt, the series config and the preset for this run), or
     None. A voice ref takes the audio target (--voice-target) and its own
     length (--voice-seconds); the image flags are not its."""
+    if j["ref"].kind == "ambience":
+        return R.GenRequest(ref=j["ref"].id, steps=args.steps, cfg=args.cfg)
     if j["ref"].is_audio:
         return R.GenRequest(ref=j["ref"].id, steps=args.steps, cfg=args.cfg,
                             negative=negative, target=args.voice_target or None,

@@ -389,6 +389,7 @@ class Runner:
         title = f"{_ep_name(ep)} {job.ref.id}{' ' + job.view if job.view else ''} t{take.take:02d}"
         res = {"kind": "ref", "ep": ep, "ref": job.ref.id, "view": job.view, "take": take.take,
                "want": want, "savers": savers, "hosted": hosted, "is_audio": job.is_audio,
+               "bed": job.ref.kind == "ambience",
                "model": call[0] if hosted else None, "asked": asked()}
 
         def work(qjob: QJob, report) -> str:
@@ -895,13 +896,33 @@ def collect_ref(take, run, status: str, res: dict, backend_name: str) -> str:
             # ComfyUI's own SaveAudio writes flac; a voice sample is a wav (as
             # h3pipe's saver made it), so it is converted here
             ext = ".wav" if _to_wav(tmp) else ext
-        with open(tmp, "rb") as fh:
-            data = fh.read()
+        bed = None
+        if res.get("bed"):
+            # a place's ambience bed is finished as it lands: its ends off, brought to
+            # the bed level (ambience.finish_bed)
+            from seriesmith import ambience as AMB
+            done = tmp + ".bed.wav"
+            try:
+                bed = AMB.finish_bed(tmp, done)
+                ext = ".wav"
+                with open(done, "rb") as fh:
+                    data = fh.read()
+            finally:
+                if os.path.exists(done):
+                    os.remove(done)
+        else:
+            with open(tmp, "rb") as fh:
+                data = fh.read()
     finally:
         os.remove(tmp)
     if not is_audio and hosted:
         ext = R.image_ext(data)
     out = R.close_take(take, data, f"from {backend_name}: {outs[0].name}", ext=ext)
+    if bed is not None:
+        try:
+            T.update_sidecar(take.paths.sidecar, bed=bed)
+        except OSError:
+            pass
     result = getattr(run, "result", None)
     if hosted and isinstance(result, dict):
         # what the provider says of it (its own task id, usage, its own cost figure)

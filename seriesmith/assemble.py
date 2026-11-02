@@ -662,7 +662,7 @@ def sound_info(path: str, fps: float) -> tuple[int, int]:
 
 def write_xml(xml_path: str, root: str, doc: dict, by_id: dict, plan: list[dict],
               fps: float, size: tuple[int, int] | None, pass_: str, base_in: float,
-              args, sound: dict | None = None) -> int:
+              args, sound: dict | None = None, beds: list[dict] | None = None) -> int:
     """The plan as an FCP7 XML timeline (nle_xml), nothing encoded: each clip its
     file, its sound as the mp4 export lays it (--audio none: none), the
     recorded dialogue, when the shotlist has one, under it on A3/A4, and the
@@ -707,13 +707,13 @@ def write_xml(xml_path: str, root: str, doc: dict, by_id: dict, plan: list[dict]
                 recording = {"path": track, "channels": channels, "frames": length,
                              "at": -round(start * fps)}
     lanes, hits = None, None
-    if sound:
+    if sound is not None:
         # the mix's tracks (mix.py), each item its own file; the ducking is computed,
         # so it stays in seriesmith's own render
         origins = MX.shot_origins(plan)
         total = sum(p["used"] - p["dissolve_in"] for p in plan)
         placed, dropped = MX.placed(sound, origins, total, fps, root,
-                                    length=lambda f: sound_info(f, fps)[1])
+                                    length=lambda f: sound_info(f, fps)[1], beds=beds)
         lanes = {}
         for track, items in placed.items():
             for it in items:
@@ -1092,20 +1092,33 @@ def main(argv: list[str] | None = None) -> int:
 
     # the episode's mix (mix.json, docs/SOUND.md); none, or one that changes nothing,
     # leaves the cut's sound as it always was
-    sound = None
+    sound, beds = None, []
     if not args.no_mix:
+        series_cfg = J.series_config(root)
         try:
-            sound = MX.for_pass(root, pass_, J.series_config(root))
+            sound = MX.for_pass(root, pass_, series_cfg)
         except ValueError as e:
             print(f"  ! {MX.MIX_FILE}: {e}; the cut keeps its own sound")
-        if sound is not None and not MX.active(sound):
-            sound = None
-        if sound and args.audio in ("none", "master"):
+        if sound is not None:
+            # the places' ambience beds under their shots (ambience.py): a bed that's
+            # there and not muted makes a mix of its own
+            from seriesmith import ambience as AMB
+            beds = AMB.laid(root, plan, series_cfg, sound)
+        heard = [b for b in beds if b["exists"] and not b["mute"]]
+        if sound is not None and not MX.active(sound) and not heard:
+            sound, beds = None, []
+        if sound is not None and args.audio in ("none", "master"):
             print(f"  ! --audio {args.audio}: the mix in {MX.MIX_FILE} is left out")
-            sound = None
-        if sound:
+            sound, beds = None, []
+        if sound is not None:
             n = len(sound.get("items") or [])
-            print(f"  sound: the mix in {MX.MIX_FILE}, {n} item(s) over the cut's own sound")
+            print(f"  sound: the mix in {MX.MIX_FILE}, {n} item(s) over the cut's own sound"
+                  + (f", {len(heard)} ambience bed run(s) ({', '.join(sorted({b['place'] for b in heard}))})"
+                     if heard else ""))
+            for b in beds:
+                if not b["exists"]:
+                    print(f"  ! sound: {b['place']}'s ambience bed {b['rel']} isn't there "
+                          f"(seriesmith refs makes it); its shots have none")
 
     print(f"  assembled runtime {tc(total / fps)}  ({total} frames)")
     if args.check:
@@ -1160,7 +1173,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.xml:
         return write_xml(os.path.splitext(out_path)[0] + ".xml", root, doc, by_id, plan,
                          fps, (int(width), int(height)) if width and height else None,
-                         pass_, base_in, args, sound)
+                         pass_, base_in, args, sound, beds)
 
     # Dialogue windows, cut.json trims and placeholders all need a re-encode;
     # so do clips at another frame rate or size (a mixed-target cut), and clips
@@ -1350,13 +1363,13 @@ def main(argv: list[str] | None = None) -> int:
                          "-t", f"{total / fps:.6f}", tmp_out], timeout=1800)
                 if r.returncode == 0:
                     shutil.move(tmp_out, out_path)
-        if r.returncode == 0 and sound:
+        if r.returncode == 0 and sound is not None:
             # the episode's mix (mix.py): the joined sound is its dialogue track
             say(args.progress, "sound", text="mixing the sound tracks")
             stems = os.path.splitext(out_path)[0] + "_stems"
             try:
                 wav = MX.render(sound, MX.shot_origins(plan), total, fps, root, out_path,
-                                stems, log=print)
+                                stems, log=print, beds=beds)
                 MX.mux(out_path, wav, total, fps)
                 print(f"  sound: stems in {os.path.relpath(stems, root)}")
             except RuntimeError as e:
