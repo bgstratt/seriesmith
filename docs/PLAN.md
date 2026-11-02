@@ -1694,6 +1694,103 @@ editor), with the series' choice as the Sound dialog's default.
       leaves it on H3 Ref2VA: `defaults.dub_target`; jobs.dub_target for a request without
       a target). Docs: EDITOR, AUTHORING, API
 
+## Importing an FCP7 XML (2026-11-02)
+
+An edit made elsewhere (Premiere, DaVinci Resolve, Final Cut 7, or our own `assemble --xml`,
+nle_xml.py) becomes a **new** show and episode that can then be enhanced: a shot regenerated,
+cues, effects and ambience added, re-cut. `seriesmith/xmlimport.py` (stdlib xml.etree);
+docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COMMANDS.md
+`import-xml`, EDITOR.md the wizard's **From an edit (FCP7 XML)…**.
+
+- [x] **Reading** the document's first sequence (a nested one isn't one): rate (timebase +
+  ntsc: 24 NTSC is 23.976), the format's size, V1, the audio tracks, markers. A pathurl is
+  decoded (`file://localhost/C%3a/...`, `file:///C:/...`, `file://server/share` as UNC); a
+  file that isn't there is looked for beside the XML. A clip's `-1` start or end (in a
+  transition, as Premiere writes it) is resolved by `out - in`. A transition is put on the
+  clips by where it is, not where the track lists it: between two clips a dissolve, its
+  frames given back to both (our export cuts at the dissolve's middle, nle_xml.lay; the
+  import takes the handles back so the cut's `dissolve` overlaps the full spans again); a Dip
+  to Black a fade out and in; at one clip's edge (or `start-black` / `end-black`) a fade.
+- [x] **Decisions** (each said in the summary's warnings when it loses something):
+  - **V1 only**; a clip above it is listed, not imported. (Splitting V1 under what covers it
+    was the other choice; V1 alone is predictable.)
+  - **A gap** (a generator, a disabled clip) is a shot of black of its length, so the timeline
+    and every sound anchored after it stay where the edit put them.
+  - **Shot ids** sh010, sh020, ... in order, black included; when every clip's name opens with
+    a shot id (our own export's "sh010 t03") those ids.
+  - **The series renders on `hold`**: an edit's 1920×1080 is off H3's 32 grid and a long clip
+    past LTX's longest shot, so the machine's default model would refuse the build. Hold takes
+    any even size and any length (14400 frames). Its required first keyframe is each shot's
+    first used frame (refs/shots/<shot>/first.png, made with its take), which is also where an
+    image-to-video model starts when the shot is rendered again on one.
+  - **Sound**: an audio clip linked to a V1 clip, same file, is the take's own sound (its
+    level a gain on the cut entry's `audio`, disabled: silent). Another file starting where the
+    clip does on A1/A2 is the shot's sound from that file (our export's voice stems). A clip
+    with neither is silent (`audio: none`): the XML had no sound for it. Every other audio clip
+    is a mix item (both passes), its file copied into audio/ (a name clash named by its
+    folder: sh020_t01.wav), anchored on shots that have a file (an anchor on a missing shot
+    would drop the item until it's rendered), Audio Levels value + keyframes as gain_db +
+    points, fades, mute. Stereo as two mono tracks is one item. Track by name (track, file,
+    folder): sfx/fx/foley effects, amb/room/bed/atmos ambience, dialogue/dx/vo/adr dialogue,
+    else music; a second lane of a kind is a track of its own (track_list). **The imported
+    tracks' faders are 0 dB and `duck_db` 0**: the XML's levels are the mix as made (an NLE's
+    own ducking is in its keyframes); ours would dip it twice.
+  - **Markers**: comment `hit` (our export's) is a mix hit; any other opens a sequence at the
+    shot playing there (its name the id when it is one, else a comment).
+- [x] **Media**, an option:
+  - `handles` (default): each clip's span + handles (1 s, clamped to the file) cut
+    frame-accurately (a coarse seek, then trim by time with half a frame's margin) to H.264 at
+    master quality (takeimport.encode_span), the cut's trims the handles.
+  - `reference`: **a take can't point at an outside file**: every reader (the editor's video,
+    peaks, thumbnails, upscale, post, assemble, discard) opens `<renders>/<shot>/<stem>.mp4`.
+    So the take is the source whole, **hard-linked** where the volume allows (an NTFS hard link
+    needs no admin rights; a symbolic link does), else copied, never re-encoded
+    (takeimport.link_or_copy). Nothing writes into a take's mp4 in place, so the two never come
+    apart. A non-H.264 source doesn't play in the editor: said per clip.
+  - `proxies` (added the same day, the user's ask): reference, and a source the editor can't
+    play (takeimport.playable) gets an H.264 proxy made once per source in `<ep>/_proxies/`
+    (CRF 16, at most 1920 wide: a 4K/6K camera original plays as HD and encodes in a fraction
+    of the time; every frame kept at the source's rate, so a frame of it is the same frame of
+    the original), cached by the source's size and mtime; each take is the proxy, linked. The
+    take's sidecar records `master: {path, size, mtime}`; **assemble cuts a take with a fresh
+    master from the original**, always re-encoded at master quality (a ProRes stream can't be
+    copied into the cut), and the XML export points at the original. A master that moved or
+    changed: said, cut from the proxy. Separate playback and master files fit the take model
+    this way (the playback file is the take's mp4, the master one record field), so "conform
+    whole files" wasn't needed. An upscale or post of a proxied take works from the proxy.
+- [x] **Jobs**: the show is written and built in the request (fast); each media group (a
+  source's clips; the gaps' black) is a `cpu`-lane job (`xmlmedia`, api.LOCAL: journaled,
+  Retry runs it again and keeps finished takes and a fresh proxy). The cut pins take 1 (a
+  later render doesn't take the imported trims); the takes are reserved when the job runs,
+  not at import, so a queued take never waits on a job a sweep can't see.
+- [x] **Tests**: tests/test_xmlimport.py: a hand-written Premiere-shaped fixture
+  (tests/fixtures/xml/premiere_edit.xml: 24 NTSC, file:// URLs, a fade in, a centred dissolve
+  with -1 ends, a gap, a fade out, a missing file, V2, linked stereo, music with level
+  keyframes, a disabled effect, a second music track, markers and a hit) read, then imported
+  each way with testsrc media (an mpeg4 .mov the browser can't play, an H.264 mp4) and
+  assembled (192 frames, the XML's); a round trip (a tiny episode `assemble --xml`, imported:
+  the same cut.json, the music item, its point and the hit, and the same V1 exported again);
+  the route (dry run, upload, errors, its jobs on the queue) and the command. web:
+  test/xmlImport.test.ts (the choice in the wizard, the dry run, the media option, Import).
+- [x] **Live** (2026-11-02, local only): Ballroom ep02's final cut exported (`assemble --xml
+  --name` a scratch name, moved out of its renders/) and imported into
+  ComfyProjects/_xmlimport_test: 10 shots, 10 takes (handles: 18 s), 13 mix items (10 effects,
+  the park_table bed as an ambience item, 2 cues), 3 sequences (sq01-03 from its markers), the
+  4 voice-stem shots their stem as their sound and the 6 silent ones silent. Exported again:
+  V1 identical (every start, end, length), all 17 audio clips at the same spans, the same
+  markers, 620 frames as the original. Through the API in-process: 10 shots, each take 1 ok
+  and usable, no missing refs. `--media proxies` on the same (all H.264): each take a hard link
+  of Ballroom's take (same file), removed again leaving Ballroom's at one link. What doesn't
+  come back from our own export: the beds and per-shot effects as plain items (they're
+  computed, not stored), voices-only as per-shot stems, and the ducking (off).
+- [ ] **Next: Describe shots.** Each action line is its clip's name. A vision model reading each
+  take (a few frames) could write the shot's action, who's in it and its size, so a shot can be
+  rendered again from words; and the cast and locations it finds proposed for the series
+  config. Not at import: a model, its cost and a review step.
+- [ ] Later, if wanted: V2+ as cutaways (split V1 under them), clip speed (timeremap), the
+  linked audio's slip, a second sequence chosen (`--sequence`), FCPXML (Final Cut Pro X's
+  own format), EDL.
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

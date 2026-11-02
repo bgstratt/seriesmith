@@ -20,6 +20,7 @@ ffmpeg / ffprobe through seriesmith.ff.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 
 from seriesmith import color as COL
@@ -159,6 +160,128 @@ def import_take(root: str, pass_: str, shot: str, source_path: str, note: str = 
             encode(source_path, take.paths.mp4)
             notes.append("converted to H.264")
         return _finish(take, notes, converted=not copy)
+    except BaseException as e:
+        take.sidecar = T.record_failed(take.paths.sidecar, f"import failed: {e}")
+        raise
+
+
+# ---------------------------------------------------------------------------
+# what an edit's import (xmlimport) makes takes from: a span of a source, a
+# source whole, a playable proxy of one
+# ---------------------------------------------------------------------------
+
+# a proxy's width at most: a 4K or 6K camera original plays in a browser as HD, and is
+# encoded in a fraction of the time; an HD source keeps its size
+PROXY_MAX_W = 1920
+
+
+def _ffmpeg(cmd: list[str], dst: str, what: str) -> None:
+    tmp = fileio.temp_beside(dst, ".mp4")
+    try:
+        subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", *cmd, tmp], check=True,
+                       capture_output=True, timeout=ENCODE_TIMEOUT)
+    except subprocess.CalledProcessError as e:
+        _drop(tmp)
+        raise TakeImportError(f"ffmpeg couldn't {what}: "
+                              + (e.stderr or b"").decode("utf-8", "replace")[-300:]) from None
+    except BaseException:
+        _drop(tmp)
+        raise
+    fileio.replace(tmp, dst)
+
+
+def encode_span(src: str, dst: str, first: int, frames: int, fps: float) -> None:
+    """Frames first..first+frames of `src` (at its own rate `fps`) as an H.264 mp4 at
+    master quality, as encode() writes one: frame-accurate (a coarse seek to 10 s before,
+    then the frames by their times, half a frame either way), the sound cut alike."""
+    coarse = max(0.0, first / fps - 10.0)
+    v0 = (first - 0.5) / fps - coarse
+    a0 = first / fps - coarse
+    secs = frames / fps
+    _ffmpeg(["-ss", f"{coarse:.6f}", "-i", src, "-map", "0:v:0", "-map", "0:a:0?",
+             "-vf", f"trim=start={max(0.0, v0):.6f},setpts=PTS-STARTPTS,"
+                    "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+             "-af", f"atrim=start={max(0.0, a0):.6f},asetpts=PTS-STARTPTS",
+             "-frames:v", str(frames), "-t", f"{secs:.6f}", "-r", f"{fps:.6f}",
+             "-c:v", "libx264", "-preset", "slow", "-crf", "12", "-pix_fmt", "yuv420p",
+             "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"], dst,
+            "cut that span out of it")
+
+
+def encode_proxy(src: str, dst: str) -> None:
+    """`src` whole as a playable stand-in: H.264 at review quality (x264 CRF 16, as a
+    review cut's re-encoded clips), at most PROXY_MAX_W wide, every frame kept at the
+    source's own rate (so a frame of it is the same frame of the original), sound AAC."""
+    _ffmpeg(["-i", src, "-map", "0:v:0", "-map", "0:a:0?",
+             "-vf", f"scale='min({PROXY_MAX_W},iw)':-2:flags=bicubic,"
+                    "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+             "-fps_mode", "passthrough", "-c:v", "libx264", "-crf", "16", "-preset", "medium",
+             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"],
+            dst, "make a proxy of it")
+
+
+def encode_black(dst: str, frames: int, fps: float, size: tuple[int, int]) -> None:
+    """`frames` of black with silence: a gap in an edit, as a take."""
+    w, h = (max(2, v - v % 2) for v in size)
+    _ffmpeg(["-f", "lavfi", "-i", f"color=c=black:s={w}x{h}:r={fps:.6f}",
+             "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+             "-frames:v", str(frames), "-t", f"{frames / fps:.6f}",
+             "-c:v", "libx264", "-crf", "12", "-preset", "slow", "-pix_fmt", "yuv420p",
+             "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart"], dst, "make black")
+
+
+def link_or_copy(src: str, dst: str) -> str:
+    """`dst` as `src` without a second copy where the volume allows: an NTFS (or POSIX)
+    hard link, which needs no admin rights (a symbolic link does on Windows); else a copy.
+    "linked" or "copied". Nothing writes into a take's mp4 in place (every write is a new
+    file put in place), so the two never come apart by a later edit of one."""
+    os.makedirs(os.path.dirname(os.path.abspath(dst)), exist_ok=True)
+    tmp = fileio.temp_beside(dst, ".mp4")
+    try:
+        os.link(src, tmp)
+        how = "linked"
+    except OSError:
+        shutil.copyfile(src, tmp)
+        how = "copied"
+    try:
+        fileio.replace(tmp, dst)
+    except BaseException:
+        _drop(tmp)
+        raise
+    return how
+
+
+def stamp(path: str) -> dict:
+    """What a master file was when a take was made from it: its path, size, mtime."""
+    st = os.stat(path)
+    return {"path": os.path.abspath(path), "size": st.st_size, "mtime": int(st.st_mtime)}
+
+
+def master_file(take: T.Take) -> str | None:
+    """The original a proxied take stands in for (its sidecar's `master`, from an edit's
+    import with proxies), when it is there and unchanged since: what assemble conforms
+    from. None for any other take, or an original that moved or changed."""
+    m = (take.sidecar or {}).get("master")
+    if not isinstance(m, dict) or not isinstance(m.get("path"), str):
+        return None
+    try:
+        st = os.stat(m["path"])
+    except OSError:
+        return None
+    return m["path"] if st.st_size == m.get("size") and int(st.st_mtime) == m.get("mtime") else None
+
+
+def import_made(root: str, pass_: str, shot: str, fill, note: str, origin: dict,
+                **fields) -> T.Take:
+    """`shot`'s next take in `pass_` (source "imported"), its mp4 written by
+    fill(path) -> [notes]; `fields` go in its record as it closes (a `master`). Its
+    `length` is the file's frames: assemble holds a take to the length its record says)."""
+    take = _reserve(root, pass_, shot, note, **origin)
+    try:
+        notes = fill(take.paths.mp4)
+        take = _finish(take, notes, **fields)
+        take.sidecar = T.update_sidecar(take.paths.sidecar, length=take.sidecar.get("frames"))
+        return take
     except BaseException as e:
         take.sidecar = T.record_failed(take.paths.sidecar, f"import failed: {e}")
         raise

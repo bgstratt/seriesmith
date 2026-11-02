@@ -82,6 +82,7 @@ from seriesmith import jobs as J  # noqa: E402
 from seriesmith import mix as MX  # noqa: E402
 from seriesmith import peaks as PK  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
+from seriesmith import takeimport as TI  # noqa: E402
 from seriesmith import ff as FF  # noqa: E402
 from seriesmith.core import paths as P  # noqa: E402
 
@@ -935,6 +936,15 @@ def main(argv: list[str] | None = None) -> int:
         po = T.post_of(t, up) if args.post and up and up["fresh"] else None
         if po and po["fresh"]:
             clip = t.paths.post_mp4
+        # a take that is a proxy of an original (an edit's import with proxies) is cut
+        # from the original, as it is (re-encoded at master quality: it never plays as is)
+        base = clip
+        master = TI.master_file(t) if clip == t.paths.mp4 else None
+        if (t.sidecar or {}).get("master") and clip == t.paths.mp4 and not master:
+            print(f"  ! {e.shot} t{t.take:02d}: its original "
+                  f"({(t.sidecar['master'] or {}).get('path')}) isn't there as it was: "
+                  f"cut from its proxy")
+        clip = master or clip
         n = frame_count(clip)
         # a take rendered on another target (retargeted) has that target's
         # length, which its sidecar records
@@ -975,7 +985,8 @@ def main(argv: list[str] | None = None) -> int:
         if audio_src and not PK.has_audio(audio_src):
             audio_src = None
         p = {"id": e.shot, "take": t.take, "src": e.pass_, "path": clip, "base": t.paths.mp4,
-             "upscaled": clip != t.paths.mp4, "posted": clip == t.paths.post_mp4,
+             "upscaled": base != t.paths.mp4, "posted": base == t.paths.post_mp4,
+             "mastered": bool(master),
              "placeholder": e.pass_ != pass_, "listed": e.in_cut_file,
              "keep": keep, "trim_in": trim_in, "trim_out": trim_out,
              "frames": n, "used": used, "audio_in": s.get("audio_in"),
@@ -1231,7 +1242,7 @@ def main(argv: list[str] | None = None) -> int:
     # are copied beside them when that is safe (`selective`), else every clip is
     # re-encoded, so the concat demuxer sees one set of stream parameters.
     reencode = bool(windowed or trimmed or placeholders or converted or resized or colored
-                    or joined["count"])
+                    or joined["count"] or any(p.get("mastered") for p in plan))
     size = None
     if placeholders or resized:
         if width and height:
@@ -1269,7 +1280,14 @@ def main(argv: list[str] | None = None) -> int:
     # the first re-encoded clip's headers before the rest are written, and the
     # frames either side of each join after the concat; either failing re-encodes
     # every clip, as a cut always was before (--reencode-all asks for that).
-    needs = {id(p) for p in windowed + trimmed + placeholders + converted + resized + colored}
+    # a clip cut from an original its take is a proxy of: never copied as it is
+    mastered = [p for p in plan if p.get("mastered")]
+    if mastered:
+        print(f"  {len(mastered)} clip(s) cut from their originals (their takes are proxies), "
+              f"at master quality: " + ", ".join(p["id"] for p in mastered[:8])
+              + (" ..." if len(mastered) > 8 else ""))
+    needs = {id(p) for p in windowed + trimmed + placeholders + converted + resized + colored
+             + mastered}
     sigs: dict[int, tuple] = {}
     selective = None                    # the cut's standard: its video signature
     if joined["count"]:
@@ -1328,7 +1346,8 @@ def main(argv: list[str] | None = None) -> int:
             conform(src, norm, sound,
                     fps, p["used"], start=p["trim_in"],
                     size=size if (p["placeholder"] or p in resized) else None,
-                    src_fps=p["src_fps"], ready=p["sourced"], quality=args.quality,
+                    src_fps=p["src_fps"], ready=p["sourced"],
+                    quality="master" if p.get("mastered") else args.quality,
                     layout=layout if sel is not None else None, color=p["color"])
         elif sound != src:
             normalise(src, norm, sound, fps, p.get("frames", 0), layout=layout)

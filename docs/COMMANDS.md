@@ -12,6 +12,7 @@ failed exits 1.
 | Command | What it does |
 |---|---|
 | `seriesmith new <show>\<name>` | A new episode (`series.json` + script) that builds, from the newest episode beside it, else `examples/starter/` (`--title`, `--series-id`) |
+| `seriesmith import-xml <file.xml>` | An edit (FCP7 XML: Premiere, Resolve, Final Cut 7, `assemble --xml`) as a new show and episode: a shot per clip, its footage the take (`--into`, `--name`, `--media handles\|reference\|proxies`, `--handles`, `--dry-run`; [IMPORT_XML.md](IMPORT_XML.md)) |
 | `seriesmith build <episode>` | The script and series config compiled into the shotlists and `refs_todo` (final and proxy) |
 | `seriesmith check <episode>` | `build --check` and `--pace`: errors, warnings, crammed lines; writes nothing |
 | `seriesmith refs <episode>` | Reference pictures (and with `--voices`, voice samples): kreagen |
@@ -456,6 +457,23 @@ seriesmith discard  Shows\ep05 sh020 2          # take 2 goes to renders\_trash\
   `seriesmith promote` moves it into the script or the series config for you — it prints the
   plan and the diffs first, and `--all` (or `--item shot:sh020:steps`) writes them, drops
   those overrides and rebuilds. The old files are kept in `<episode>\_history\`.
+
+### Importing an edit
+
+```
+seriesmith import-xml cut.xml --into Shows --dry-run           # what it would make, nothing written
+seriesmith import-xml cut.xml --into Shows --name "The Pier"    # Shows\The_Pier\ep01, 1 s handles
+seriesmith import-xml cut.xml --into Shows --media proxies      # sources linked, proxies to play
+```
+
+An FCP7 XML (Premiere, Resolve, Final Cut 7, or `assemble --xml`) becomes a new show in
+`--into` (default: here), its episode `ep01`: a shot per clip on V1, each clip's footage its
+take t01, the cut's trims, dissolves and fades in `cut.json`, the other audio clips in
+`mix.json`. `--media handles` (the default) cuts each clip's span and `--handles` seconds
+either side out of its source as H.264; `reference` takes each source whole, hard-linked
+where the drive allows, never re-encoded; `proxies` does that and makes an H.264 proxy of
+each source the editor can't play (assemble cuts from the original). It prints what it made
+and what didn't come through, then makes the takes. [IMPORT_XML.md](IMPORT_XML.md) has the rules.
 
 ### Editing the cut
 

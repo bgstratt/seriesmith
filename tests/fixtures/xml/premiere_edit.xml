@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE xmeml>
+<!-- A hand-written edit in Premiere's shape (tests/test_xmlimport.py): __MEDIA__ is the
+     test's media folder as a file URL's path (C%3a/... on Windows). 24 NTSC (23.976).
+     V1: A (fade in), a centred dissolve into B (both ends -1, as Premiere writes a clip
+     in a transition), a 12-frame gap, C (fade out), D (its file missing). V2: a clip
+     over A (not imported). A1/A2: A, B and C's own sound, linked. A3: music with level
+     keyframes; A4: an effect; A5: a song. Markers: two sequences and a hit. -->
+<xmeml version="4">
+  <sequence id="sequence-1" TL.SQAudioVisibleBase="0" MZ.Sequence.PreviewFrameSizeHeight="36">
+    <uuid>5c4f6f6e-0000-4000-8000-000000000001</uuid>
+    <duration>216</duration>
+    <rate>
+      <timebase>24</timebase>
+      <ntsc>TRUE</ntsc>
+    </rate>
+    <name>The Lighthouse (rough cut)</name>
+    <media>
+      <video>
+        <format>
+          <samplecharacteristics>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <width>64</width>
+            <height>36</height>
+            <anamorphic>FALSE</anamorphic>
+            <pixelaspectratio>square</pixelaspectratio>
+            <fielddominance>none</fielddominance>
+          </samplecharacteristics>
+        </format>
+        <track TL.SQTrackShy="0" MZ.TrackTargeted="1">
+          <transitionitem>
+            <start>0</start>
+            <end>12</end>
+            <alignment>start-black</alignment>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <effect>
+              <name>Cross Dissolve</name>
+              <effectid>Cross Dissolve</effectid>
+              <effectcategory>Dissolve</effectcategory>
+              <effecttype>transition</effecttype>
+              <mediatype>video</mediatype>
+            </effect>
+          </transitionitem>
+          <clipitem id="clipitem-1">
+            <masterclipid>masterclip-1</masterclipid>
+            <name>Wide on the pier</name>
+            <enabled>TRUE</enabled>
+            <duration>100</duration>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>0</start>
+            <end>-1</end>
+            <in>10</in>
+            <out>76</out>
+            <file id="file-1">
+              <name>a.mov</name>
+              <pathurl>file://localhost/__MEDIA__/a.mov</pathurl>
+              <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+              <duration>100</duration>
+              <media>
+                <video><samplecharacteristics><width>64</width><height>36</height></samplecharacteristics></video>
+                <audio><channelcount>2</channelcount></audio>
+              </media>
+            </file>
+            <link><linkclipref>clipitem-1</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>1</clipindex></link>
+            <link><linkclipref>clipitem-10</linkclipref><mediatype>audio</mediatype><trackindex>1</trackindex><clipindex>1</clipindex><groupindex>1</groupindex></link>
+            <link><linkclipref>clipitem-11</linkclipref><mediatype>audio</mediatype><trackindex>2</trackindex><clipindex>1</clipindex><groupindex>1</groupindex></link>
+          </clipitem>
+          <transitionitem>
+            <start>54</start>
+            <end>66</end>
+            <alignment>center</alignment>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <effect>
+              <name>Cross Dissolve</name>
+              <effectid>Cross Dissolve</effectid>
+              <effecttype>transition</effecttype>
+              <mediatype>video</mediatype>
+            </effect>
+          </transitionitem>
+          <clipitem id="clipitem-2">
+            <masterclipid>masterclip-1</masterclipid>
+            <name>Keeper climbs the stairs</name>
+            <enabled>TRUE</enabled>
+            <duration>100</duration>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>-1</start>
+            <end>120</end>
+            <in>8</in>
+            <out>74</out>
+            <file id="file-1"/>
+            <link><linkclipref>clipitem-2</linkclipref><mediatype>video</mediatype><trackindex>1</trackindex><clipindex>2</clipindex></link>
+            <link><linkclipref>clipitem-12</linkclipref><mediatype>audio</mediatype><trackindex>1</trackindex><clipindex>2</clipindex><groupindex>1</groupindex></link>
+          </clipitem>
+          <clipitem id="clipitem-3">
+            <masterclipid>masterclip-2</masterclipid>
+            <name>Close on the lamp</name>
+            <enabled>TRUE</enabled>
+            <duration>80</duration>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>132</start>
+            <end>192</end>
+            <in>5</in>
+            <out>65</out>
+            <file id="file-2">
+              <name>c.mp4</name>
+              <pathurl>file://localhost/__MEDIA__/c.mp4</pathurl>
+              <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+              <duration>80</duration>
+            </file>
+            <link><linkclipref>clipitem-13</linkclipref><mediatype>audio</mediatype><trackindex>1</trackindex></link>
+          </clipitem>
+          <transitionitem>
+            <start>180</start>
+            <end>192</end>
+            <alignment>end-black</alignment>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <effect><name>Cross Dissolve</name><effectid>Cross Dissolve</effectid></effect>
+          </transitionitem>
+          <clipitem id="clipitem-4">
+            <name>Pickup (lost)</name>
+            <enabled>TRUE</enabled>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>192</start>
+            <end>216</end>
+            <in>0</in>
+            <out>24</out>
+            <file id="file-3">
+              <name>missing.mov</name>
+              <pathurl>file://localhost/__MEDIA__/nowhere/missing.mov</pathurl>
+            </file>
+          </clipitem>
+        </track>
+        <track>
+          <clipitem id="clipitem-5">
+            <name>Logo bug</name>
+            <enabled>TRUE</enabled>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>0</start>
+            <end>48</end>
+            <in>0</in>
+            <out>48</out>
+            <file id="file-1"/>
+          </clipitem>
+        </track>
+      </video>
+      <audio>
+        <numOutputChannels>2</numOutputChannels>
+        <track PannerName="Balance" premiereTrackType="Stereo">
+          <clipitem id="clipitem-10" premiereChannelType="mono">
+            <name>Wide on the pier</name>
+            <enabled>TRUE</enabled>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>0</start>
+            <end>-1</end>
+            <in>10</in>
+            <out>76</out>
+            <file id="file-1"/>
+            <sourcetrack><mediatype>audio</mediatype><trackindex>1</trackindex></sourcetrack>
+            <link><linkclipref>clipitem-1</linkclipref><mediatype>video</mediatype></link>
+          </clipitem>
+          <transitionitem>
+            <start>54</start>
+            <end>66</end>
+            <alignment>center</alignment>
+            <effect><name>Cross Fade (+3dB)</name><effectid>KGAudioTransCrossFade3dB</effectid></effect>
+          </transitionitem>
+          <clipitem id="clipitem-12">
+            <name>Keeper climbs the stairs</name>
+            <enabled>TRUE</enabled>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>-1</start>
+            <end>120</end>
+            <in>8</in>
+            <out>74</out>
+            <file id="file-1"/>
+            <sourcetrack><mediatype>audio</mediatype><trackindex>1</trackindex></sourcetrack>
+            <link><linkclipref>clipitem-2</linkclipref><mediatype>video</mediatype></link>
+          </clipitem>
+          <clipitem id="clipitem-13">
+            <name>Close on the lamp</name>
+            <enabled>TRUE</enabled>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>132</start>
+            <end>192</end>
+            <in>5</in>
+            <out>65</out>
+            <file id="file-2"/>
+            <sourcetrack><mediatype>audio</mediatype><trackindex>1</trackindex></sourcetrack>
+            <link><linkclipref>clipitem-3</linkclipref><mediatype>video</mediatype></link>
+            <filter>
+              <effect>
+                <name>Audio Levels</name>
+                <effectid>audiolevels</effectid>
+                <parameter><parameterid>level</parameterid><name>Level</name><value>0.5</value></parameter>
+              </effect>
+            </filter>
+          </clipitem>
+        </track>
+        <track>
+          <clipitem id="clipitem-11">
+            <name>Wide on the pier</name>
+            <enabled>TRUE</enabled>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>0</start>
+            <end>-1</end>
+            <in>10</in>
+            <out>76</out>
+            <file id="file-1"/>
+            <sourcetrack><mediatype>audio</mediatype><trackindex>2</trackindex></sourcetrack>
+            <link><linkclipref>clipitem-1</linkclipref><mediatype>video</mediatype></link>
+          </clipitem>
+        </track>
+        <track>
+          <clipitem id="clipitem-20">
+            <name>theme</name>
+            <enabled>TRUE</enabled>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>24</start>
+            <end>200</end>
+            <in>0</in>
+            <out>176</out>
+            <file id="file-4">
+              <name>theme.wav</name>
+              <pathurl>file://localhost/__MEDIA__/Music/theme.wav</pathurl>
+            </file>
+            <sourcetrack><mediatype>audio</mediatype><trackindex>1</trackindex></sourcetrack>
+            <filter>
+              <effect>
+                <name>Audio Levels</name>
+                <effectid>audiolevels</effectid>
+                <effectcategory>audiolevels</effectcategory>
+                <parameter>
+                  <parameterid>level</parameterid>
+                  <name>Level</name>
+                  <value>0.5</value>
+                  <keyframe><when>50</when><value>0.5</value></keyframe>
+                  <keyframe><when>100</when><value>0.25</value></keyframe>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+          <transitionitem>
+            <start>24</start>
+            <end>48</end>
+            <alignment>start-black</alignment>
+            <effect><name>Cross Fade (+3dB)</name></effect>
+          </transitionitem>
+        </track>
+        <track>
+          <clipitem id="clipitem-21">
+            <name>door_sfx</name>
+            <enabled>FALSE</enabled>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>60</start>
+            <end>84</end>
+            <in>12</in>
+            <out>36</out>
+            <file id="file-5">
+              <name>door_sfx.wav</name>
+              <pathurl>file://localhost/__MEDIA__/door_sfx.wav</pathurl>
+            </file>
+          </clipitem>
+        </track>
+        <track>
+          <clipitem id="clipitem-22">
+            <name>song</name>
+            <enabled>TRUE</enabled>
+            <rate><timebase>24</timebase><ntsc>TRUE</ntsc></rate>
+            <start>140</start>
+            <end>210</end>
+            <in>0</in>
+            <out>70</out>
+            <file id="file-6">
+              <name>song.wav</name>
+              <pathurl>file://localhost/__MEDIA__/Music/song.wav</pathurl>
+            </file>
+          </clipitem>
+        </track>
+      </audio>
+    </media>
+    <marker><name>Arrival</name><comment></comment><in>0</in><out>-1</out></marker>
+    <marker><name>door slam</name><comment>hit</comment><in>70</in><out>-1</out></marker>
+    <marker><name>Night falls</name><comment></comment><in>140</in><out>-1</out></marker>
+  </sequence>
+</xmeml>

@@ -288,6 +288,11 @@ def _new(rest):
     return SRC.cmd_new(rest)
 
 
+def _import_xml(rest):
+    from seriesmith import xmlimport as XI
+    return XI.cmd_import_xml(rest)
+
+
 def _targets(rest):
     # the episode is optional: it adds its series config (pass blocks,
     # model_families) and marks its target
@@ -370,6 +375,10 @@ def backends_cmd(argv: list[str]) -> int:
 _TABLE = [
     Command("new", "<show>\\<name> [--title T] [--series-id ID]",
             "a new episode (series.json + script) that builds", _new),
+    Command("import-xml", "<file.xml> [--into FOLDER] [--name Show] [--media handles|reference|proxies] "
+            "[--handles 1.0] [--dry-run]",
+            "an edit (FCP7 XML: Premiere, Resolve, Final Cut 7) as a new show and episode",
+            _import_xml, own_help=True),
     Command("build", "<episode>... [--each] [--proxy]  |  series.json ep01.md -o <folder>",
             "the script and series config into the shotlists and refs_todo (final and proxy)",
             _folder_or_files("build", _build), own_help=True),

@@ -210,6 +210,15 @@ which is the next thing to do (the Refs tab). The paths are `../refs/...`: **one
 folder beside the episodes, shared by all of them**, while each episode keeps its own
 config. That is the layout to want: shared references, per episode cast lists.
 
+**From an edit (FCP7 XML)…**, at the top of the wizard for a new series, makes the series
+from an edit cut elsewhere instead (Premiere, Resolve, Final Cut 7, or seriesmith's own XML
+export): pick the `.xml` (or give its path on this machine), choose how its footage comes in
+(**Used part + handles**, **Reference in place**, or **Reference in place + playable
+proxies**), name the show, and the wizard says what it will make (shots, takes, the sounds
+of the mix, the proxies, and what doesn't come through) before **Import** makes it, builds it
+and opens it. The footage is made on the queue, a job per source in Jobs, each shot's take
+appearing as it's done. [IMPORT_XML.md](IMPORT_XML.md) is the guide.
+
 The buttons are off when the folder isn't inside a project root: add it as a root first.
 `seriesmith new Shows\ep02 --title "…"` makes an episode without the UI, from the newest
 episode there or the starter pair (one character, one prop, one location, three shots).

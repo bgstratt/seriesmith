@@ -36,7 +36,7 @@ section and search for the path for its later additions.
 | `GET` / `PUT /seriesmith/config` | Config |
 | `POST /seriesmith/server/stop` | Config (standalone only) |
 | `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `GET /seriesmith/take`, `POST` / `GET /seriesmith/download`, `POST /seriesmith/build` | Episodes |
-| `GET` / `POST /seriesmith/episode/new`, `POST /seriesmith/import` | Episodes |
+| `GET` / `POST /seriesmith/episode/new`, `POST /seriesmith/import`, `POST /seriesmith/import/xml` | Episodes |
 | `GET` / `POST` / `DELETE /seriesmith/issues`, `GET /seriesmith/issues/export` | Issues |
 | `GET /seriesmith/file`, `GET /seriesmith/thumb` | Files |
 | `POST /seriesmith/render`, `POST /seriesmith/cancel` | Rendering |
@@ -330,6 +330,33 @@ folders out (`source.import_series`). Body `{"parent"` (a folder inside a root),
 `parent`), `"series"?` (the series config's text, for every script without its own),
 `"scripts": [{"name", "text", "series"?}]}`. Each script becomes an episode folder named
 from its header. Nothing is built. Returns `{"show", "episodes": [{"ep", "name", "own_config", "check"}], "skipped": [{"name", "why"}], "errors": [{"file", "error"}]}` and emits `seriesmith.episode` for each episode made.
+
+### `POST /seriesmith/import/xml`
+The new episode wizard's **From an edit (FCP7 XML)…** and `seriesmith import-xml`: an
+edit (xmeml, as Premiere, Resolve, Final Cut 7 and `assemble --xml` write it) into a new
+show and episode (`xmlimport.py`; the rules in IMPORT_XML.md). JSON `{"path"` (the XML's
+absolute path on this machine; its media is looked for where it says, else beside it)`}`,
+or multipart with `file` (the XML picked in the browser), plus `"parent"?` (the folder of
+shows the new show goes in, inside a root; default the first root), `"name"?` (the show's;
+default the sequence's), `"media"?` (`"handles"`, the default: each clip's span plus
+`"handles"?` seconds, 1 by default, either side, H.264 at master quality; `"reference"`: each
+source whole, hard-linked where the volume allows else copied, never re-encoded;
+`"proxies"`: reference, with an H.264 proxy of each source the editor can't play, in
+`<ep>/_proxies/`, the take's sidecar recording the original as its `master`, which assemble
+cuts from) and `"dry_run"?` (true: nothing written). A form's fields arrive as text
+(`"dry_run": "true"`, `"handles": "0.5"`).
+
+Answers the summary: `{"sequence", "title", "show", "ep", "fps", "size", "media", "handles", "shots", "black"` (shots of black made for gaps)`, "takes"` (to make)`, "missing"` (shots
+whose file isn't there: no take)`, "sequences", "audio_items", "hits", "tracks"` (the mix's
+tracks with items)`, "proxies"` (shots whose take is a proxy)`, "unplayable"` (`reference`:
+shots whose take won't play in the editor)`, "clips": [{"shot", "name", "source", "dur", "trim_in", "trim_out", "missing", "codec", "proxy"?, "plays"?, "note"?}], "warnings"}` (what
+doesn't come through). Not a dry run, it also has `"build"` (as `POST /seriesmith/build`),
+`"groups": [{"index", "kind": "source" | "black", "source", "clips"}]` and `"jobs"`: the
+show is written and built before it answers, and each group (a source's clips, the gaps'
+black) is a job on the queue's `cpu` lane (kind `xmlmedia`, journaled like a master), its
+takes appearing as `seriesmith.take` events, `seriesmith.episode` as each ends. 400 for an
+XML that isn't xmeml or has no clips on V1, or an option that isn't one; 403 for a parent
+outside the roots; 404 for a path with no file; 409 when the show's folder is already there.
 
 ## Issues: a pass's notepad (P10, 2026-09-23)
 

@@ -5415,7 +5415,94 @@ def get_align_job(ctx: Context, query: dict):
     return 200, {"job": dict(jobs[0].result) if jobs and jobs[0].result else None}
 
 
-LOCAL = {"master": _master_task, "align": _align_task}
+# ---------------------------------------------------------------------------
+# an edit (FCP7 XML) into a new show (xmlimport.py)
+# ---------------------------------------------------------------------------
+
+@handler
+def post_import_xml(ctx: Context, body):
+    """An edit (FCP7 XML) into a new show and episode (xmlimport.make): `{parent?, path
+    | file (multipart), name?, media?: "handles" | "reference" | "proxies", handles?:
+    seconds, dry_run?}`. `parent` is the folder of shows (default the first project
+    root). A dry run answers what it would make and writes nothing. Otherwise the
+    show is written and built at once, and its media (each source's clips, the gaps'
+    black) queued on the "cpu" lane, a job each (`jobs`), the takes appearing as they
+    finish; without a queue they are made before it answers."""
+    from seriesmith import xmlimport as XI
+    body = body_dict(body)
+    roots = load_roots(ctx)
+    parent = body.get("parent") or (roots[0] if roots else None)
+    if not parent:
+        raise ApiError(409, "no project folder yet: add one (Project folders) first")
+    parent = check_folder(ctx, parent, "parent")
+    up = body.get("file")
+    if isinstance(up, Upload):
+        path, xml_name, base = up.path, os.path.basename(up.filename or "edit.xml"), None
+    elif up is not None:
+        raise ApiError(400, "file must be sent as multipart/form-data")
+    else:
+        path = body.get("path")
+        if not isinstance(path, str) or not path.strip():
+            raise ApiError(400, "send path (the XML's absolute path on this machine) or a "
+                                "multipart `file`")
+        path = path.strip()
+        if not os.path.isabs(path):
+            raise ApiError(400, f"path must be absolute, not {path!r}")
+        if not os.path.isfile(path):
+            raise ApiError(404, f"no file at {path}")
+        xml_name, base = os.path.basename(path), os.path.dirname(path)
+    try:
+        with open(path, "rb") as fh:
+            text = fh.read().decode("utf-8-sig", "replace")
+    except OSError as e:
+        raise ApiError(400, f"the XML can't be read: {e}") from None
+    name = _opt_str(body, "name") or None
+    media = body.get("media") or "handles"
+    handles = body.get("handles", XI.HANDLES_S)
+    if handles in (None, ""):
+        handles = XI.HANDLES_S
+    if _flag(body.get("dry_run")):
+        return 200, XI.public(XI.plan(text, parent, xml_name, name, media, handles, base))
+    res = XI.make(text, parent, xml_name, name, media, handles, base)
+    episode_event(ctx, res["ep"])
+    res["jobs"] = [_start_local(ctx, "xmlmedia", {"ep": res["ep"], "index": g["index"]}).id
+                   for g in res["groups"]]
+    return 200, res
+
+
+
+def _xmlmedia_task(ctx: Context, params: dict):
+    """One of an import's media groups made (xmlimport.run_group): a source's clips as
+    their shots' takes (cut out, linked or copied, or a proxy made), or the gaps' black."""
+    from seriesmith import xmlimport as XI
+    ep, index = params["ep"], int(params["index"])
+    title = XI.group_title(ep, XI.load_group(ep, index))
+    run = {"ep": ep, "index": index, "state": "waiting", "made": 0, "kept": 0, "failed": [],
+           "error": "", "finished": None}
+
+    def work(qjob, report, stop) -> str:
+        run = qjob.result
+        run["state"] = "running"
+        try:
+            res = XI.run_group(ep, XI.load_group(ep, index), report=report,
+                               on_take=lambda t: take_event(ctx, ep, t))
+        except Exception as e:                           # noqa: BLE001  the job fails
+            run.update(state="failed", error=str(e), finished=T.now())
+            qjob.error = str(e)[:800]
+            episode_event(ctx, ep)
+            return "failed"
+        run.update(res, state="failed" if res["failed"] else "done", finished=T.now(),
+                   error="; ".join(res["failed"])[:800])
+        episode_event(ctx, ep)
+        if res["failed"]:
+            qjob.error = run["error"]
+            return "failed"
+        return "succeeded"
+
+    return title, {"ep": ep, "index": index}, run, work
+
+
+LOCAL = {"master": _master_task, "align": _align_task, "xmlmedia": _xmlmedia_task}
 
 
 # ---------------------------------------------------------------------------
@@ -5507,6 +5594,7 @@ ROUTES = [
     ("GET", "/seriesmith/drafts", get_drafts, "query"),
     ("GET", "/seriesmith/refs/videos", get_refs_videos, "query"),
     ("POST", "/seriesmith/import", post_import, "body"),
+    ("POST", "/seriesmith/import/xml", post_import_xml, "form"),
     ("GET", "/seriesmith/issues", get_issues, "query"),
     ("POST", "/seriesmith/issues", post_issues, "body"),
     ("DELETE", "/seriesmith/issues", delete_issues, "query"),
