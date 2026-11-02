@@ -7,15 +7,15 @@
 // but they are what the episode's sound is made from, so they are listed beside them.
 
 import { useEffect, useRef, useState } from "react";
-import { generateRef, onFxEvent, pickRef } from "../actions";
+import { currentPlaylist, generateRef, onFxEvent, pickRef } from "../actions";
 import { loadCues, openCue } from "../cueActions";
 import { api } from "../host";
 import { cueTitle } from "../lib/cue";
 import { tn } from "../lib/format";
-import { currentMix, deleteMixItem, loadMix, makeEffects, pickMixFx, setMixBed, setMixFx, toggleSound } from "../mixActions";
+import { currentMix, deleteMixItem, loadMix, makeEffects, makeVoiceStems, pickMixFx, setMixBed, setMixFx, setShotVoicesMix, setVoicesOnlyMix, toggleSound } from "../mixActions";
 import { store, useApp } from "../store";
-import type { AmbienceBed, FxShot, FxShotSummary, FxTake, MixItem, Ref, TrackKind } from "../types";
-import { kindOf } from "../lib/mix";
+import type { AmbienceBed, FxShot, FxShotSummary, FxTake, MixItem, MixVoice, Ref, TrackKind } from "../types";
+import { kindOf, voicePlays, voicesOnly } from "../lib/mix";
 import { useTargets } from "./Targets";
 import { VoiceCandidate, VoiceLive } from "./VoiceRef";
 
@@ -325,6 +325,109 @@ function FxRow({ ep, pass, s }: { ep: string; pass: "final" | "proxy"; s: FxShot
   );
 }
 
+/** One shot on the Dialogue track: what it plays (its take's whole sound, its voice stem, nothing),
+ * each to hear alone, and its own way over the track's (Voices only, docs/SOUND.md). */
+function VoiceRow({ v, mp4, playing, onPlay }: {
+  v: MixVoice; mp4: string | null; playing: string | null; onPlay: (key: string, path: string) => void;
+}) {
+  const mix = useApp((st) => currentMix(st));
+  const plays = voicePlays(mix?.mix, v);
+  // the mix's own (set here at once), not the server's last word on it
+  const own = mix?.mix.voices?.[v.shot]?.voices_only ?? null;
+  const off = v.state === "sourced" || v.state === "silent";
+  const ready = v.state === "ok" && !!v.path;
+  const btn = (key: string, path: string | null, label: string, title: string) => (
+    <button className="h3-btn" disabled={!path} title={path ? (playing === key ? "Stop" : title) : `${label}: none to play`}
+      onClick={() => path && onPlay(key, path)}>
+      <i className={playing === key ? "pi pi-stop" : "pi pi-play"} /> {label}
+    </button>
+  );
+  const choice = (val: boolean | null, label: string, title: string) => (
+    <button className={`h3-btn${own === val ? " h3-on" : ""}`} disabled={off} title={title} data-choice={String(val)}
+      onClick={() => void setShotVoicesMix([v.shot], val)}>{label}</button>
+  );
+  return (
+    <div className="h3-kf-shot" data-voice-row={v.shot}>
+      <div className="h3-row h3-small h3-wrap" style={{ gap: 6 }}>
+        <i className="pi pi-user" />
+        <b>{v.shot}</b>
+        {v.take != null && <span className="h3-muted">{tn(v.take)}</span>}
+        <span className={`h3-badge${plays === "voice" ? " h3-b-voice" : ""}`} data-plays={plays}
+          title={plays === "voice" ? "The Dialogue track plays its voice stem" : plays === "silence" ? "Silent on the Dialogue track: the script gives it no lines" : "The Dialogue track plays its take's whole sound"}>
+          {plays === "voice" ? "voices" : plays === "silence" ? "silent" : "whole"}
+        </span>
+        {!v.lines && <span className="h3-muted" title="The script gives this shot no lines">no lines</span>}
+        {v.state === "queued" && <span className="h3-badge"><i className="pi pi-spin pi-spinner" /> splitting</span>}
+        {(v.state === "missing" || v.state === "stale") && <span className="h3-badge" title={v.why ?? ""}><i className="pi pi-exclamation-triangle" /> {v.state === "stale" ? "stale" : "not split"}</span>}
+        {off && <span className="h3-muted" title={v.why ?? ""}>{v.state === "sourced" ? "sound from the cut" : "no sound"}</span>}
+        <span className="h3-grow" />
+        {btn(`${v.shot}:whole`, mp4, "Whole", "Hear the take's whole sound (the model's music and room tone with it)")}
+        {btn(`${v.shot}:voice`, ready ? v.path : null, "Voices", "Hear its voice stem alone")}
+      </div>
+      <div className="h3-row h3-small" style={{ gap: 4, paddingLeft: 18 }}>
+        <span className="h3-seg">
+          {choice(null, "Track's", "As the Dialogue track says (Voices only on or off)")}
+          {choice(false, "Whole", "Always its whole sound")}
+          {choice(true, "Voices", "Always its voice stem, even with no lines")}
+        </span>
+        <span className="h3-grow" />
+        <button className="h3-btn" disabled={off || v.state === "queued"} title="Split its take into voice and the rest again, on local ComfyUI"
+          onClick={() => void makeVoiceStems([v.shot], true)}>
+          <i className="pi pi-refresh" /> {ready ? "Split again" : "Split"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The Dialogue track: Voices only for the pass, and each shot's choice (fetched with the mix). */
+function DialogueSection({ ep }: { ep: string }) {
+  const mix = useApp((st) => currentMix(st));
+  const items = useApp((st) => currentPlaylist(st));
+  const [playing, setPlaying] = useState<string | null>(null);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => () => audio.current?.pause(), []);
+  const voices = mix?.voices;
+  const on = voicesOnly(mix?.mix);
+  const play = (key: string, path: string) => {
+    const a = audio.current ?? (audio.current = new Audio());
+    if (playing === key) {
+      a.pause();
+      setPlaying(null);
+      return;
+    }
+    a.src = api().fileUrl(ep, path);
+    a.onended = () => setPlaying(null);
+    void a.play().catch(() => setPlaying(null));
+    setPlaying(key);
+  };
+  const left = voices ? voices.of - voices.split : 0;
+  return (
+    <Section label="Dialogue" count={voices?.of ?? 0}
+      title="The Dialogue track: each clip's take's own sound, whole or its voices only"
+      note="Voices only: each clip plays its take's voice stem, the model's own music and room tone split off, so beds, effects and score don't fight it. A shot with no lines is silent unless you set it to Voices. Hear either side of a shot below.">
+      {!voices && <div className="h3-muted h3-small h3-pad">{mix ? "Voices only needs a newer seriesmith server (restart it)." : "Loading the mix…"}</div>}
+      {voices && (
+        <div className="h3-row h3-small h3-pad" style={{ gap: 8 }}>
+          <label className="h3-row" style={{ gap: 4 }} title="The whole pass: each clip plays its voice stem">
+            <input type="checkbox" data-voices="section-toggle" checked={on} onChange={(e) => void setVoicesOnlyMix(e.target.checked)} /> Voices only
+          </label>
+          <span className="h3-muted">{voices.split}/{voices.of} split{voices.queued ? ` · ${voices.queued} splitting` : ""}</span>
+          <span className="h3-grow" />
+          <button className="h3-btn" disabled={!voices.of} title={left ? `Split the ${left} take${left === 1 ? "" : "s"} not split yet, on local ComfyUI` : "Split every take again"}
+            onClick={() => void makeVoiceStems(undefined, !left)}>
+            <i className="pi pi-user" /> {left ? "Make voice stems" : "Make them again"}
+          </button>
+        </div>
+      )}
+      {(voices?.shots ?? []).map((v) => (
+        <VoiceRow key={v.shot} v={v} playing={playing} onPlay={play}
+          mp4={items.find((it) => it.shot === v.shot)?.mp4 ?? null} />
+      ))}
+    </Section>
+  );
+}
+
 export function SoundRefsSections({ ep }: { ep: string }) {
   const pass = useApp((s) => s.pass);
   const cues = useApp((s) => s.cues[ep]);
@@ -341,6 +444,7 @@ export function SoundRefsSections({ ep }: { ep: string }) {
   const on = (kind: TrackKind) => items.filter((x) => kindOf(mix?.mix, x.track) === kind);
   return (
     <>
+      <DialogueSection ep={ep} />
       <Section label="Music" count={cues?.length ?? 0}
         title="The episode's music cues: each written to the hits in its span, its takes ranked in the cue window"
         note="A new cue: right-click a shot (Sound ▸ New music cue) or the music lane under the timeline.">

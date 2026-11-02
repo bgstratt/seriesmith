@@ -222,6 +222,24 @@ describe("voices only in the editor", () => {
     expect([store.get().viewer?.kind, store.get().viewer?.spot]).toEqual(["cut", true]);
   });
 
+  it("the Refs tab's Dialogue section: the pass's toggle, and each shot heard either way and set its own way", async () => {
+    const { SoundRefsSections } = await import("../src/components/SoundRefs");
+    await act(async () => root.render(createElement(SoundRefsSections, { ep: EP })));
+    await act(async () => {});
+    const rows = el.querySelectorAll<HTMLElement>("[data-voice-row]");
+    expect(rows.length).toBe(currentMix()!.voices!.of);
+    const box = el.querySelector<HTMLInputElement>("[data-voices='section-toggle']")!;
+    await act(async () => box.click());
+    await mixSettled();
+    expect(currentMix()!.mix.tracks).toEqual({ dialogue: { voices_only: true } });
+    const shot = rows[0].dataset.voiceRow!;
+    const voicesBtn = el.querySelector<HTMLButtonElement>(`[data-voice-row='${shot}'] [data-choice='true']`)!;
+    await act(async () => voicesBtn.click());
+    await mixSettled();
+    expect(currentMix()!.mix.voices).toEqual({ [shot]: { voices_only: true } });
+    expect(el.querySelector(`[data-voice-row='${shot}'] [data-choice='true']`)!.classList.contains("h3-on")).toBe(true);
+  });
+
   it("a clip's Sound menu sets the shot its own way and splits it again", async () => {
     const key = statusKey(EP, "proxy");
     const shot = currentMix()!.voices!.shots[0].shot;

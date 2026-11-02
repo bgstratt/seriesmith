@@ -792,8 +792,11 @@ script call for is listed here.
   **Generate** makes another; open a row for its dub tracks (play, **Use**, make another on
   another voice model), or **Sound…** for its whole Sound card. A shot's first dub track
   comes from its Sound card or **Generate dub tracks** with shots selected.
-- **Music, Effects, Ambience** (after the dub tracks; voices and dub tracks are the dialogue's):
-  **Music** lists the episode's cues, how many takes each has and whether it's in this pass's
+- **Dialogue, Music, Effects, Ambience** (after the dub tracks; voices and dub tracks are the
+  dialogue's): **Dialogue** is the Dialogue track's **Voices only** for the pass, with **Make
+  voice stems** and how many are split, then every shot in the cut: what the track plays for it
+  (whole, voices, silent), **Whole** and **Voices** to hear each side alone, its own way
+  (**Track's**, **Whole**, **Voices**) and **Split again**. **Music** lists the episode's cues, how many takes each has and whether it's in this pass's
   mix; a row opens the cue window. **Effects** lists every shot with effects made in this pass
   (picked or not): its takes, which one plays and whether it's stale. A row opens to its takes
   (fetched then): play one alone, **Pick** it, **Make again** (on a model of your choice),
@@ -1355,7 +1358,7 @@ with stems beside it.
   the shot, or that take is rendered again, the effects are **stale**: drawn dashed with a
   warning, left out of the mix and the export until they're made again, or **Keep as it is**
   plays them anyway. A new take lands unpicked: pick it from the menu.
-- **Voices only** (right-click the Dialogue lane, or its head's **⋮**): each clip plays its take's **voice stem**,
+- **Voices only** (right-click the Dialogue lane, or its head's **⋮**, or the Refs tab's Dialogue): each clip plays its take's **voice stem**,
   its sound with the model's own music and room tone split off (Hybrid Demucs on local
   ComfyUI), so the beds, effects and score aren't fighting a different bit of music at every
   cut. **Make voice stems** beside it splits every take the cut plays (one job a take, in Jobs,

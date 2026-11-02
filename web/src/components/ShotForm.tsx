@@ -152,6 +152,15 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   useEffect(() => {
     if (sourceN) void sc.reload();
   }, [sourceN]);
+  // ... and when the refs change (a location or character added from the Refs tab writes the
+  // series config without saying so) or the form moves to another shot: an open form's list
+  // was the series config as it was when the form first opened
+  const seen = useRef<{ refs: Ref[] | undefined; shot: string | null } | null>(null);
+  useEffect(() => {
+    const was = seen.current;
+    seen.current = { refs, shot };
+    if (was && (was.refs !== refs || was.shot !== shot)) void sc.reload();
+  }, [refs, shot]);
   // ... and one added from this form goes straight into the field it was added from
   const card = useApp((s) => s.subjectCard);
   const adding = useRef<{ kind: string; put: (id: string) => void } | null>(null);
