@@ -13,7 +13,7 @@ import { setPath, type Raw } from "../lib/seriesForm";
 import { sequenceRows, type MapRow } from "../lib/spotting";
 import { tn } from "../lib/format";
 import { locate } from "../lib/playlist";
-import { closeSoundAdd, currentMix, makeBed, makeEffects } from "../mixActions";
+import { closeSoundAdd, currentMix, loadMix, makeBed, makeEffects } from "../mixActions";
 import { statusKey, useApp, type SoundAddAsk } from "../store";
 import type { AmbienceBed, CueKind, FxShotSummary } from "../types";
 import { Dialog } from "./Dialogs";
@@ -263,6 +263,11 @@ function BedAdd({ ep, ask }: { ep: string; ask: Extract<SoundAddAsk, { kind: "be
   const [words, setWords] = useState<string | null>(null);
   const [target, setTarget] = useState("");
   const [busy, setBusy] = useState(false);
+  // a mix fetched from an older server (the page loaded before it restarted) has no places:
+  // fetched again as this opens
+  useEffect(() => {
+    if (mix && !mix.places) void loadMix();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // the beds, fetched when it opens
   useEffect(() => {
     let live = true;

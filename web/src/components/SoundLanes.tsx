@@ -41,7 +41,7 @@ import { cutBeats, type Beat } from "../lib/beats";
 import {
   addMixHit, addMixPoint, addMixTrack, clearMixPoints, currentMix, deleteMixHit, deleteMixItem, deleteMixPoint, deleteMixTrack, dropOnLane, moveItemToTrack, moveMixHit, moveMixItem, moveMixTrack, renameMixTrack,
   makeBed, makeEffects, moveMixPoint, openBedRef, openSoundAdd, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
-  makeVoiceStems, setShotVoicesMix, setVoicesOnlyMix,
+  loadMix, makeVoiceStems, setShotVoicesMix, setVoicesOnlyMix,
 } from "../mixActions";
 import { onFxEvent } from "../actions";
 import { tn } from "../lib/format";
@@ -1209,6 +1209,12 @@ function MixPopover({ pop, mix, fps, onClose }: { pop: Pop; mix: Mix; fps: numbe
  * sound (its Sound card, Replace audio); on effects and ambience, what will make them. */
 function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  // a mix fetched from an older server (the page loaded before it restarted) has no places for
+  // the Ambience lane's bed items: fetched again as the menu opens
+  useEffect(() => {
+    const m = currentMix();
+    if (m && !m.places) void loadMix();
+  }, []);
   const multi = useApp((s) => s.multi);
   const [pos, setPos] = useState({ left: menu.x, top: menu.y });
   useLayoutEffect(() => {
