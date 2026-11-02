@@ -340,7 +340,10 @@ the target or over the ceiling), assemble prints it, and it's kept beside the cu
 mixed, its peaks held 1 dB under the ceiling so the AAC in the mp4 stays under it (when that
 takes a lot of limiting, the cut can come out a little under the target: the check says so); a cut with none plays its clips' own sound (or the recording) as they came, which is
 what the check is there to tell you. To bring a cut with no mix to the target, give it one: a
-level on any track of the editor's Sound lanes makes a mix, and the mix is normalised.
+level on any track of the editor's Sound lanes makes a mix, and the mix is normalised. So does
+the Dialogue track's **Voices only** (each clip's voices without its model's music and room
+tone, [EDITOR.md](/editor) Sound): with the takes' beds gone, the lines are what the loudness
+is measured on, and the mix brings them up to the target (Ballroom ep02: +4.7 dB).
 
 ## Post-process: the `post` block
 

@@ -1348,6 +1348,20 @@ with stems beside it.
   the shot, or that take is rendered again, the effects are **stale**: drawn dashed with a
   warning, left out of the mix and the export until they're made again, or **Keep as it is**
   plays them anyway. A new take lands unpicked: pick it from the menu.
+- **Voices only** (the Dialogue lane head's **⋮**): each clip plays its take's **voice stem**,
+  its sound with the model's own music and room tone split off (Hybrid Demucs on local
+  ComfyUI), so the beds, effects and score aren't fighting a different bit of music at every
+  cut. **Make voice stems** beside it splits every take the cut plays (one job a take, in Jobs,
+  about a second each once loaded) and says how many are split ("8/10 shots split"); a take
+  rendered again is split again when you ask. With it on, a clip playing its stem has a small
+  mark on the Dialogue lane; a shot the script gives **no lines** is **silent** there (its
+  stem would hold the model's ad-libs and walla: drawn faint); a shot whose stem is missing or
+  stale **plays its whole sound**, with a warning mark, never silence. A clip's **Sound** menu
+  sets the shot its own way: **Keep its whole sound**, **Voices only** (its stem even with no
+  lines: a gasp the model gave it) or **Split its voice again**; click the checked one again
+  to go back to the track's. Play all, the export, its stems, the XML (the clip's sound is the
+  stem's wav) and the ducking all hear the same. A clip given sound of its own (Replace
+  audio…) keeps it. With the takes' own effects gone, make effects for the shots that need them.
 - **The music's beats** are drawn faintly across the Music lane (downbeats taller), where a
   trimmed clip's cut snaps to (above). A cue take's come from its measured downbeat at the
   cue's tempo; a song or any other file on the lane is measured once (about a second a minute
@@ -1371,7 +1385,8 @@ with stems beside it.
   the mix, again when the cut or a take changes) and each lane dips by its duck depth there
   (music -9 dB, ambience -6 dB by default; a region of the mix changes it for a stretch). The
   dialogue fader turns the clips' own sound down (not up: a video plays at most at its own
-  level), as does a region that lowers the dialogue.
+  level), as does a region that lowers the dialogue. With **Voices only**, a clip playing its
+  stem is muted and the stem plays in its place, on the dialogue fader.
 
 ### The spotting sheet: the episode's music
 

@@ -4,7 +4,8 @@ laid under the cut (docs/SOUND.md phase 4).
 
 **Asked for, never automatic.** Many takes already carry their model's own effects (H3 makes
 picture and sound together), so effects are made only for the shots asked for: a clip's Sound
-menu, `POST /seriesmith/fx/render`, `seriesmith fx`. A take is made on a `foley` target
+menu, `POST /seriesmith/fx/render`, `seriesmith fx`. Under the mix's voices only (voices.py)
+the takes' own effects go with their music, so that's where effects matter most. A take is made on a `foley` target
 (targets/foley/: `h3_foley` the default, `ltx23_foley`, `hunyuan_xl_foley`) from the cut's take
 for the shot, all of it, so the cut's trims trim the effects with the picture.
 

@@ -635,7 +635,7 @@ and the stems go to `<cut>_stems/` beside it; the XML export carries the items o
 tracks.
 
 ### `GET /seriesmith/mix?ep=…&pass=…`
-`{"mix", "files", "beds", "fx", "series", "track_list", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
+`{"mix", "files", "beds", "fx", "voices", "series", "track_list", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
 none, defaults dropped, but a track's values kept as given: a 0 dB fader or an unmute overrides
 the series config), `files` each item file's length in seconds (`null`: not there, or no
 sound), `series` the series config's `sound.tracks` / `sound.loudness` under it, and
@@ -656,7 +656,15 @@ seconds), "gain_db", "mute"}]`, one per run. `fx` the shots' picked effects laid
 (anchors: the clip's first frame of the take, the frame after its last), "start", "end" (cut
 seconds: the clip), "offset" (seconds into the file at `start`: the clip's trim), "gain_db",
 "mute", "keep_stale", "stale" (why it no longer matches the cut's picture, or null), "heard"
-(there, not muted, and not stale unless kept)}]`, one per shot in the cut with a pick. Nothing
+(there, not muted, and not stale unless kept)}]`, one per shot in the cut with a pick. `voices`
+the Dialogue track's voices only (below): `{"voices_only" (the track's), "split", "of", "queued"
+(of the cut's shots that can be split, how many are, and how many are being), "shots": [{"shot",
+"pass", "take", "path" (the take's voice stem, relative to the episode; null without a take),
+"state" (ok | missing | stale | queued | failed | sourced: the cut gives it sound of its own |
+silent: its take has none), "why", "voices_only" (the shot's, the track's under it),
+"override" (its own: true, false or null), "plays" (voice | whole | silence: what the Dialogue
+track plays for it), "lines" (the script gives it one), "measured" ({whole_rms_db,
+voice_rms_db, rest_rms_db} or null), "seconds" (the split's)}]}` in cut order. Nothing
 is decoded. 409 when `mix.json` is there but doesn't read.
 
 ### Ambience beds (2026-11-01)
@@ -693,8 +701,9 @@ it opens. 404 for no such ref.
 `{"step", "curve"}`: the pass's "someone is speaking" curve, one value 0..1 per `step` seconds
 (0.05) of the cut, computed from each clip's own sound (or its cut entry's audio source) laid
 as the cut plays it, by the detector the export ducks with (mix.speech_of, the mix's `duck`
-settings). Play all dips music and ambience by it as the export does. Kept until the cut, a
-take's file or the ducking changes.
+settings); with voices only, from each clip's voice stem (a silent clip not at all). Play all
+dips music and ambience by it as the export does. Kept until the cut, a take's file, a stem or
+the ducking changes.
 
 ### `GET /seriesmith/mix/beats?ep=…&pass=…`
 `{"items", "recording"}`: the beats to cut to (docs/SOUND.md phase 5). `items` is `[{"id",
@@ -722,8 +731,36 @@ episode; 404 for an item whose file isn't there (`POST /seriesmith/audio/import`
 only when it isn't the default's): 400 for one without `dialogue` (the takes' sound), a
 default id of another kind (`music` is music), an id twice or one a stem can't have (`me`,
 `mix`, a Windows device name), more than 16, or a `tracks` entry or item on a track not in
-it (so a track with items is deleted by moving or deleting them in the same mix). Emits
-`seriesmith.episode`.
+it (so a track with items is deleted by moving or deleting them in the same mix). `tracks`
+`dialogue` takes `voices_only` (true or false: 400 on any other track, a dialogue-kind track of
+your own too); `voices` a shot's own, `{"sh010": {"voices_only": false}}` (true or false,
+required). Emits `seriesmith.episode`.
+
+### Voices only (2026-11-02)
+
+H3, Seedance and FastH3 Omni bake their own music and room tone into each take, different at
+every cut. A take's sound split by Hybrid Demucs (seriesmith/voices.py; the vocal stem's job,
+`SeriesmithVocals` on the local ComfyUI) is its **voice stem**, kept beside the take as
+`<shot>_tNN.voice.wav` with `<shot>_tNN.voice.json` (`{status: queued | ok | failed, source:
+{file, size, mtime} (the file split: the mp4, else its `_h3.wav`), queue_id, error, created,
+finished, seconds, measured: {whole_rms_db, voice_rms_db, rest_rms_db}}`); **stale** when the
+take's sound has changed since. With the mix's `tracks.dialogue.voices_only` (or a shot's own
+`voices`), each clip whose stem is there and fresh plays it in place of its whole sound:
+assemble's clips (so the mix, its stems and the M&E), the XML (the clip's A1/A2 item is the
+stem's wav), the speech curve and Play all. A clip whose stem is missing or stale plays its
+whole sound (assemble says so; `plays: "whole"` in `GET /seriesmith/mix`); a shot the script
+gives no lines is silent on the Dialogue track unless its own `voices_only` is true; a clip the
+cut gives sound of its own (`audio`) keeps it.
+
+#### `POST /seriesmith/voices`
+Body `{"ep", "pass", "shots"?: [...], "redo"?}`: split the take the pass's cut plays for each
+shot (default every shot in the cut) on seriesmith's queue, one job a take (kind `vocals`, on
+the local backend, in the Jobs list); `seriesmith.voice` `{ep, pass, shot, take, status,
+error}` and `seriesmith.episode` as each ends. Answers `{"queued": [{shot, take, job}],
+"skipped": [{shot, why}]}`: a stem already made (unless `redo`), one being made, a shot not in
+the cut, a take with no sound. 400 for `shots` that isn't a list of ids or a `redo` that
+isn't true or false; 409 without the queue. A ComfyUI that hasn't loaded seriesmith's node
+pack fails the job, saying to restart it.
 
 ## Effects (2026-11-01)
 

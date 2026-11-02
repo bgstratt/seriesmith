@@ -87,6 +87,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Music cues and songs | | Stable Audio 3 Medium's 2 (score); YuE2's checkpoint (songs), SheetSage2's for a theme from a recording; ACE-Step 1.5's 4 | |
 | Ambience beds | ComfyUI-MMAudio | MMAudio's 4 files (or Stable Audio 3 Small SFX's 2) | |
 | Effects from the picture | ComfyUI-LTXVideo for LTX-2.3 Foley; ComfyUI-HunyuanVideo-Foley for Hunyuan | H3 FL2VA's 4 files (or LTX-2.3 Foley's 7, HunyuanVideo-Foley XL's 3) | |
+| Voices only (the takes' voices without their music) | seriesmith's node pack (its vocal-stem node) | Hybrid Demucs's weights (Features: Vocal stem; or downloaded once by torchaudio) | |
 | Upscaling H3 takes | Comfyui_Minimax_h3_latent_Upscaler; comfyui-obvpm-timeline for takes over 5.5 s | H3's latent upscaler | |
 | Upscaling any take | Nvidia RTX Nodes (optional) | RealESRGAN, or SeedVR2 | |
 | Post-processing | | RealESRGAN / SeedVR2 7B / SUPIR + SDXL; RAFT for motion blur | |
@@ -326,7 +327,8 @@ own nodes) needs `stable_audio_3_small_sfx.safetensors` in `checkpoints` and
 window has both under Sound.
 
 **Effects** are a shot's sync sound made from the frames of the take the cut plays (a clip's
-Sound ▸ Make effects, `seriesmith fx`). The default, `h3_foley`, is MiniMax H3 FL2VA asked for
+Sound ▸ Make effects, `seriesmith fx`). With the Dialogue track on **Voices only** the takes'
+own effects go with their music, so a shot's effects are worth making there. The default, `h3_foley`, is MiniMax H3 FL2VA asked for
 the sound of the video it's given: H3 FL2VA's model, its text encoder and its two VAEs, the
 files H3 FL2VA shots use (no turbo LoRA), and ComfyUI's own nodes. `ltx23_foley` is Lightricks'
 LTX-2.3 Foley LoRA on the LTX-2.3 dev model: [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo)

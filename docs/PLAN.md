@@ -1607,7 +1607,7 @@ its batch (`api.py`, `cut_at_start=True`) and is right.
 ## The episode's sound: dialogue, effects, ambience, music (designing; 2026-11-01)
 
 Four tracks under the picture, each optional with its own level: Dialogue (the take's own
-sound, unsplit), Effects (foley from the picked take), Ambience (a place's bed across cuts),
+sound, or its voices alone: voices only), Effects (foley from the picked take), Ambience (a place's bed across cuts),
 Music (cues and songs as their own assets, anchored to shots and frames, written to land
 named hit points on bar lines). The mix is the episode's (`mix.json` per pass), not the
 script's: faders, item gain, fades, volume breakpoints, ducking under dialogue with "score
@@ -1625,7 +1625,10 @@ score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
 - [x] Phase 3: ambience (`ambience` kind, a location's bed as a ref, three models compared)
       2026-11-01
 - [x] Phase 4: effects (`foley` kind, LTX-2.3 Foley, H3 tried; Demucs split optional)
-      2026-11-01
+      2026-11-01; the Demucs split built as **voices only** 2026-11-02 (`voices.py`: each take
+      the cut plays split into `<take>.voice.wav`, the Dialogue track playing the voices alone,
+      a shot with no lines silent; live on Ballroom ep02's 11 shots, SOUND.md "Measured: voices
+      only"; not yet heard by the user nor looked at in a browser)
 - [x] Phase 5: cutting to music (beats as trim snaps), the loudness check on export
       2026-11-02 (the snapping still to be looked at in a browser)
 - [x] Phase 6: tracks of your own (add, rename, delete; each its stem and XML pair)

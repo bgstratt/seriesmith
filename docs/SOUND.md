@@ -17,15 +17,22 @@ The episode gets four tracks under the picture, each optional, each with its own
 
 | Track | What's on it | Made by |
 |---|---|---|
-| **Dialogue** | the take's own sound, as today (the model's mix, a dub, a clone) | the shot's render |
+| **Dialogue** | the take's own sound, as today (the model's mix, a dub, a clone), or its voices alone (voices only) | the shot's render; its voice stem split by Demucs |
 | **Effects** | sync sound for a shot: footsteps, doors, impacts | a video-to-audio (foley) model run on the picked take, or a file |
 | **Ambience** | a place's room tone or air, running across the cuts of a sequence | a text-to-audio model, once per location; or a file |
 | **Music** | score cues and songs, each its own asset spanning shots | a music model; or a file |
 
 Nothing is split early: Dialogue holds the take's sound whole, effects and all, and the other
 three are added to it. A shot whose model sound fights an added effects or score track gets
-that track's level lowered, or (later, phase 4) its take split by Demucs into voice and the
-rest.
+that track's level lowered, or the Dialogue track goes **voices only** (built 2026-11-02,
+`seriesmith/voices.py`): each take the cut plays is split by Demucs into its voices and the
+rest when asked (the vocal stem's job, phase 7), kept beside the take as
+`<shot>_tNN.voice.wav`, and the Dialogue track plays the voices alone. H3, Seedance and
+FastH3 Omni bake their own music and room tone into each take, different at every cut, so with
+beds, effects and a score laid under the cut this is usually what's wanted. A shot can keep its
+whole sound (`voices: {shot: {voices_only: false}}`); a shot the script gives no lines is
+silent on Dialogue unless it asks for its stem; a stem not made, or stale since the take was
+rendered again, plays the whole sound and is said so.
 
 ## Where it lives: not in the script
 
@@ -223,6 +230,11 @@ take's own codes by default. Comping from another take at bar lines works on any
   4x the rate) and holds the mix 1 dB under the ceiling: the AAC it's muxed as overshoots (CupsMV
   ep01, limited to -1.5 at 48 kHz, measured -0.5 dBTP exported; held to -2 at 4x, an ep01 mix
   pushed to -10 LUFS that peaked at +3.4 measured -1.8 dBTP exported, 2026-11-02).
+- **Voices only** reaches every one of these: assemble lays a clip's voice stem as its sound
+  (so the mix, the stems, the M&E and the ducking's speech curve hear only voices), the XML's
+  A1/A2 clip of that shot is the stem's wav (at the same offset as its take), Play all mutes
+  the clip's video and plays the stem on the dialogue track in sync, and `GET
+  /seriesmith/mix/duck` hears the stems.
 - **FCP7 XML**: A1-A2 the clips' own sound, the recording on the next pair when there is one,
   then effects, ambience and music a pair each, each item a clip of its file with its level
   (the track's fader folded in) and its breakpoints as Audio Levels keyframes, its fades as
@@ -540,6 +552,17 @@ Each phase is tested live on local ComfyUI before the next starts.
          mix edit; not yet looked at in a browser)
    - [x] docs: API, EDITOR, COMMANDS, FULL_SETUP; live: CupsMV's cup shots on local ComfyUI
          (2026-11-01, below)
+   - [x] **voices only** (2026-11-02; `seriesmith/voices.py`, "Measured: voices only" below):
+         each take the cut plays split by the vocal stem's job (`SeriesmithVocals`, phase 7) into
+         `<shot>_tNN.voice.wav` and its `.voice.json` (what it was split from: stale when the
+         take's sound changes, as effects are), one queued job a take (`seriesmith voices`, `POST
+         /seriesmith/voices`); mix.json's `tracks.dialogue.voices_only` and `voices: {shot:
+         {voices_only}}`; assemble's clips, stems, XML, the speech curve and Play all hear the
+         stems, a missing or stale one plays whole (said, `GET /seriesmith/mix` `voices`); a
+         shot with no lines silent unless it asks (decided on ep02, below). The editor: the
+         Dialogue lane head's ⋮ (Voices only, Make voice stems with "N/M shots split"), its clips'
+         marks, a clip's Sound ▸ Keep its whole sound / Voices only / Split its voice again.
+         Not yet heard by the user, nor looked at in a browser
 
    Live on local ComfyUI (2026-11-01, CupsMV ep01, proxy pass, RTX 5090): `seriesmith fx
    --proxy --shots sh010` made one `h3_foley` take in 40 s with H3 loading, then sh020 and
@@ -685,6 +708,50 @@ Each phase is tested live on local ComfyUI before the next starts.
    The user's verdict: both spot on and hard to tell apart at proxy size (unlikely to differ
    much in full HD), so both ways are offered; the stem is the cleaner input. A shot with no lines renders in `generate`
    mode, its own sound, so the song must come from the master or the mix, never the clips.
+
+## Measured: voices only (2026-11-02, local, RTX 5090)
+
+Ballroom ep02 "Right of Way" (final pass, the 11 shots the cut plays: ten on H3 Ref2VA, sh100
+on FastH3 Omni; four with a line), each take split by `seriesmith voices` through the queue
+on local ComfyUI (the take's sound staged as a wav, LoadAudio -> SeriesmithVocals ->
+SaveAudio). The levels are dBFS RMS over the take; "in the gaps" is over the 100 ms windows
+where the stem is 25 dB under its own loudest (no one speaking), the whole sound there being
+what voices only takes away. Whisper (large-v3-turbo) on each stem heard the four lines as
+written.
+
+| Shot | Lines | Split | Whole | Voice stem | The rest | Whole in the gaps | Stem in the gaps |
+|---|---|---|---|---|---|---|---|
+| sh010 | none | 4.7 s (Demucs loading) | -31.2 | -76.7 | -31.2 | -31.9 | -92.6 |
+| sh020 | "King me." | 0.5 s | -27.6 | -28.1 | -36.9 | -34.9 | -56.9 |
+| sh030 | "Lucky." | 0.4 s | -27.0 | -27.0 | -64.0 | -56.1 | -57.0 |
+| sh040 | none | 0.4 s | -23.5 | -32.4 | -24.8 | -25.7 | -57.0 |
+| sh050 | "Look out!" | 0.4 s | -24.5 | -24.5 | -51.9 | -47.4 | -52.7 |
+| sh060 | none | 0.3 s | -23.8 | -46.2 | -24.0 | -48.2 | -66.4 |
+| sh070 | none | 0.4 s | -21.1 | -70.4 | -21.1 | (none) | (none) |
+| sh075 | none | 0.4 s | -26.3 | -77.6 | -26.3 | (none) | (none) |
+| sh080 | "Sorry!" | 0.4 s | -30.3 | -30.4 | -48.4 | -45.7 | -57.1 |
+| sh090 | none | 0.5 s | -40.7 | -49.1 | -42.0 | -42.8 | -79.2 |
+| sh100 | none | 0.4 s | -42.0 | -59.8 | -42.2 | -54.8 | -75.9 |
+
+- **Fast**: under half a second a take once Demucs is loaded (4.7 s the first).
+- **The lines keep their level, the bed under them goes**: on sh020 the stem sits 22 dB under the
+  whole sound between the words; sh030's and sh050's takes had little but the voice to begin
+  with (the rest -64 and -52 dB).
+- **The shots with no lines**: three stems are silence (-70 to -78 dB); four hold something,
+  Whisper hearing "Yes." on sh040 (-32 dB, under a bicycle bell and a rattling chain), "Okay."
+  on sh060 (-46), "Yeah." on sh090 (-49: the park's distant chatter), and sh100 at -60. That's
+  the model's ad-libs and walla, not the script's lines. **Decided**: under voices only a shot
+  the script gives no lines is silent on the Dialogue track, unless the shot itself is set to
+  voices only (a gasp or a shriek the model gave it that's wanted). Easy to turn round: it's
+  `voices.plays`.
+- **Exported** (`assemble --name` a scratch cut, mix.json made for it and taken away after):
+  "voices only: 4 of 11 shot(s) play their voice stem, 7 with no lines silent"; the dialogue stem
+  over each line shot the stem's level plus the loudness gain (+4.7 dB), silence elsewhere (the
+  AAC's bleed at -60 to -95 dB just after a line); -16.2 LUFS, true peak -2 dBTP. The XML's A1/A2
+  clips of the four line shots are their stems' wavs. The speech curve over 0.5 fell from 470
+  of 580 steps (the takes' music read as speech) to 106. The first export dropped the sound
+  after sh030: with every clip a stem or silence nothing was copied with its own sound, and the
+  stems' 44.1 kHz stereo met the silent clips' mono in the concat. Both are 44.1 kHz stereo now.
 
 ## Measured: ACE-Step 1.5 XL Turbo (2026-11-01, local, RTX 5090)
 
