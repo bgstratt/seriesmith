@@ -938,7 +938,7 @@ def main(argv: list[str] | None = None) -> int:
             clip = t.paths.post_mp4
         # a take that is a proxy of an original (an edit's import with proxies) is cut
         # from the original, as it is (re-encoded at master quality: it never plays as is)
-        base = clip
+        played = clip
         master = TI.master_file(t) if clip == t.paths.mp4 else None
         if (t.sidecar or {}).get("master") and clip == t.paths.mp4 and not master:
             print(f"  ! {e.shot} t{t.take:02d}: its original "
@@ -985,7 +985,7 @@ def main(argv: list[str] | None = None) -> int:
         if audio_src and not PK.has_audio(audio_src):
             audio_src = None
         p = {"id": e.shot, "take": t.take, "src": e.pass_, "path": clip, "base": t.paths.mp4,
-             "upscaled": base != t.paths.mp4, "posted": base == t.paths.post_mp4,
+             "upscaled": played != t.paths.mp4, "posted": played == t.paths.post_mp4,
              "mastered": bool(master),
              "placeholder": e.pass_ != pass_, "listed": e.in_cut_file,
              "keep": keep, "trim_in": trim_in, "trim_out": trim_out,
