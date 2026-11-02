@@ -6,10 +6,12 @@
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToString } from "react-dom/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { ImageModelBar, TurnButton } from "../src/components/RefsTab";
-import { TURN_TARGET, readTurnModel, setTurnModel, turnChoices, turnPlan } from "../src/lib/turn";
+import { TURN_TARGET, turnChoices, turnPlan } from "../src/lib/turn";
 import { initialState, store } from "../src/store";
+import { setApi, setHost, type Host } from "../src/host";
+import type { Api } from "../src/api";
 import type { Ref, TargetList } from "../src/types";
 
 const READY = { status: "ready" as const, missing: [], resolved: {}, features_off: [], nodes_missing: [] };
@@ -39,8 +41,6 @@ const ADA = {
   ],
 } as unknown as Ref;
 
-afterEach(() => setTurnModel(""));
-
 describe("Turn's model", () => {
   it("automatic: Qwen 2.1 + angles unless it can't render, else the Edits model in words", () => {
     const p = turnPlan(listWith(true), "", "flux2_klein_edit");
@@ -54,7 +54,7 @@ describe("Turn's model", () => {
     expect(q.uses).toContain("the episode's Edits model, Flux 2 Klein edit");
   });
 
-  it("a chosen model is sent, with its readiness warning", () => {
+  it("a chosen model (Turns with) is the one it runs on, with its readiness warning", () => {
     const k = turnPlan(listWith(true), "flux_kontext", "flux2_klein_edit");
     expect(k).toMatchObject({ target: "flux_kontext", how: "words", warn: null });
     const q = turnPlan(listWith(false), TURN_TARGET, "flux2_klein_edit");
@@ -66,54 +66,47 @@ describe("Turn's model", () => {
     expect(turnChoices(listWith(true)).map((t) => t.id)).toEqual(["flux2_klein_edit", "flux_kontext"]);
   });
 
-  it("is remembered in this browser", () => {
-    localStorage.clear();
-    setTurnModel("flux_kontext");
-    expect(localStorage.getItem("seriesmith.turnModel")).toBe("flux_kontext");
-    expect(readTurnModel()).toBe("flux_kontext");
-    setTurnModel("");
-    expect(readTurnModel()).toBe("");
-    localStorage.clear();
-  });
-
   it("the button names the model it will use", () => {
     store.set({ ...initialState(), ep: "C:/ep02", targets: listWith(true), refs: { "C:/ep02": [ADA] },
       refDefaults: { "C:/ep02": { target: "krea2", keyframe_target: "flux2_klein_edit", edit_target: "flux_kontext", edit_target_source: "editor" } } });
     let html = renderToString(createElement(TurnButton, { r: ADA, view: "03_back", label: "Back" }));
     expect(html).toContain("↻ Turn");
-    expect(html).toContain("▾");
+    expect(html).not.toContain("▾");                       // the model is Made with's Turns with
     expect(html).toContain("Qwen 2.1 + angles when the angles LoRA is installed, else the episode&#x27;s Edits model (Flux Kontext)");
-    setTurnModel("flux2_klein_edit");
+    store.set({ refDefaults: { "C:/ep02": { target: "krea2", keyframe_target: "flux2_klein_edit", edit_target: "flux_kontext",
+      edit_target_source: "editor", turn_target: "flux2_klein_edit", turn_target_source: "editor" } } });
     html = renderToString(createElement(TurnButton, { r: ADA, view: "03_back", label: "Back" }));
     expect(html).toContain("on Flux 2 Klein edit, told the turn in words");
   });
 });
 
-describe("the Turn model menu", () => {
-  it("opens over the view's head (which clips) and takes a pick", () => {
+describe("Turns with in Made with", () => {
+  it("offers automatic, Qwen 2.1 + angles and the edit models, and saves the episode's choice", async () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    localStorage.clear();
+    let sent: unknown = null;
+    setApi({ putRefDefaults: async (_ep: string, f: unknown) => { sent = f; return { defaults: { turn_target: "flux_kontext", turn_target_source: "editor" } }; },
+      refs: async () => ({ refs: [ADA], defaults: {} }) } as unknown as Api);
+    setHost({ toast: () => {}, on: () => () => {} } as unknown as Host);
     store.set({ ...initialState(), ep: "C:/ep02", targets: listWith(true), refs: { "C:/ep02": [ADA] },
       refDefaults: { "C:/ep02": { target: "krea2", keyframe_target: "flux2_klein_edit", edit_target: "flux_kontext", edit_target_source: "editor" } } });
-    const head = document.createElement("div");
-    head.className = "h3-view-head";
-    head.style.overflow = "hidden";
-    document.body.appendChild(head);
-    const root = createRoot(head);
-    act(() => root.render(createElement(TurnButton, { r: ADA, view: "03_back", label: "Back" })));
-    act(() => (head.querySelector('[aria-label="The model Turn runs on"]') as HTMLButtonElement).click());
-    // the menu is the page's, not inside the head that would clip it
-    const menu = document.body.querySelector(".sm-turn-menu") as HTMLElement;
-    expect(menu).not.toBeNull();
-    expect(head.contains(menu)).toBe(false);
-    const kontext = Array.from(menu.querySelectorAll("button")).find((b) => b.textContent?.includes("Flux Kontext"))!;
-    act(() => kontext.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
-    act(() => kontext.click());
-    expect(localStorage.getItem("seriesmith.turnModel")).toBe("flux_kontext");
-    expect(document.body.querySelector(".sm-turn-menu")).toBeNull();
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    const root = createRoot(el);
+    act(() => root.render(createElement(ImageModelBar, { open0: true })));
+    const label = Array.from(el.querySelectorAll("span")).find((x) => x.textContent === "Turns with:")!;
+    const select = label.parentElement!.querySelector("select") as HTMLSelectElement;
+    const texts = Array.from(select.options).map((o) => o.textContent);
+    expect(texts[0]).toBe("Automatic: Qwen 2.1 + angles if installed, else the Edits model");
+    expect(texts.some((t) => t?.includes("Qwen 2.1 + angles") && t.endsWith("(best for turning)"))).toBe(true);
+    expect(texts.some((t) => t?.includes("Flux Kontext"))).toBe(true);
+    expect(texts.some((t) => t?.includes("Krea 2"))).toBe(false);        // text to image only
+    await act(async () => {
+      select.value = "flux_kontext";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(sent).toEqual({ turn_target: "flux_kontext" });
     act(() => root.unmount());
-    head.remove();
-    localStorage.clear();
+    el.remove();
   });
 });
 

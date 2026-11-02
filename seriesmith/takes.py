@@ -807,8 +807,8 @@ def set_episode_target(data: dict, target: str | None, name: str = "") -> dict:
     return set_episode_field(data, "target", target, name)
 
 
-EPISODE_FIELDS = ("target", "refs_target", "keyframe_target", "edit_target", "voice_target",
-                  "backend")
+EPISODE_FIELDS = ("target", "refs_target", "keyframe_target", "edit_target", "turn_target",
+                  "voice_target", "backend")
 
 
 def shot_backend(data: dict, shot_id: str) -> str | None:
@@ -834,7 +834,8 @@ def episode_field(data: dict, key: str) -> str | None:
     """One of the editor's episode-level choices in overrides.json's
     "episode" object: `target` (the video target), `refs_target` /
     `keyframe_target` (the image targets of series refs and of keyframes),
-    `edit_target` (the image target that edits a picture),
+    `edit_target` (the image target that edits a picture), `turn_target` (the one
+    a character's view is turned on),
     `voice_target` (the audio target of voice refs).
     None when unset (or "episode" is only the episode's name)."""
     ep = data.get("episode")

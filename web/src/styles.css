@@ -515,7 +515,7 @@
 .h3-upload-err { margin: 2px 0; }
 .h3-menu button.h3-menu-danger:not(:disabled) i { color: var(--h3-failed); }
 .h3-view-head { display: flex; align-items: center; gap: 2px; }
-.h3-view-head .h3-btn { padding: 0 4px; min-height: 0; font-size: 10px; }
+.h3-view-head .h3-btn { padding: 2px 8px; min-height: 22px; font-size: 12px; text-transform: none; letter-spacing: normal; }
 
 /* Phase 9a: the Script / Series config windows, promote.
    Syntax colours are a hue mixed with ComfyUI's foreground, so they're pastel on

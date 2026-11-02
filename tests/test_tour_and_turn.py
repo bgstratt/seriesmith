@@ -278,6 +278,25 @@ class TurnTest(Base):
         self.assertEqual(self.turn(ready=lambda t: t.id != R.TURN_TARGET).target.id,
                          "flux_kontext")
 
+    def test_the_episodes_turn_model(self):
+        # chosen (Made with's Turns with): it wins over Qwen even when Qwen is ready
+        self.assertIsNone(R.image_defaults(self.s)["turn_target"])
+        R.set_image_defaults(self.ep, {"turn_target": "flux_kontext"})
+        d = R.image_defaults(R.load_series(self.ep))
+        self.assertEqual((d["turn_target"], d["turn_target_source"]), ("flux_kontext", "editor"))
+        job = self.turn(ready=lambda t: True)
+        self.assertEqual((job.target.id, job.prompt), ("flux_kontext", R.VIEW_TURNS_PROSE["03_back"]))
+        # Qwen chosen: the angles LoRA
+        R.set_image_defaults(self.ep, {"turn_target": R.TURN_TARGET})
+        self.assertEqual(self.turn(ready=lambda t: True).loras,
+                         [{"name": R.TURN_LORA, "strength": R.TURN_STRENGTH}])
+        # the request's model still wins; a text-only model is refused
+        self.assertEqual(self.turn("flux2_klein_edit").target.id, "flux2_klein_edit")
+        with self.assertRaisesRegex(R.RefError, "can't edit"):
+            R.set_image_defaults(self.ep, {"turn_target": "krea2"})
+        R.set_image_defaults(self.ep, {"turn_target": None})
+        self.assertEqual(R.image_defaults(R.load_series(self.ep))["turn_target_source"], "default")
+
     def test_turn_ready_needs_the_angles_lora(self):
         def ready_with(loras):
             def ready(t):

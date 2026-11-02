@@ -1784,8 +1784,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     async putRefDefaults(ep, fields) {
       await wait();
       need(ep);
-      if (!("target" in fields) && !("keyframe_target" in fields) && !("edit_target" in fields) && !("voice_target" in fields)) {
-        throw new MockError("give target, keyframe_target, edit_target and/or voice_target", 400);
+      if (!("target" in fields) && !("keyframe_target" in fields) && !("edit_target" in fields) && !("turn_target" in fields) && !("voice_target" in fields)) {
+        throw new MockError("give target, keyframe_target, edit_target, turn_target and/or voice_target", 400);
       }
       const defaults = refs.setDefaults(fields);
       emit("seriesmith.episode", { ep: EP });

@@ -15,7 +15,7 @@ export const REFS_DEFAULT = "krea2";
 /** The four kinds of ref target: series refs and keyframes take an image
  * target, edits (Edit, Relight, Turn, variants) an image target that can edit,
  * a voice an audio one (Phase 9c-B). */
-export type RefTargetKind = "refs" | "keyframes" | "edits" | "voices";
+export type RefTargetKind = "refs" | "keyframes" | "edits" | "turns" | "voices";
 
 export function imageTargets(list: TargetList | null | undefined): Target[] {
   // a one-job target (`mode: "pano"`, klein_erp_360: a location's 360) is never offered
@@ -40,12 +40,16 @@ export interface ResolvedRefDefaults {
   keyframes: string;
   /** the image target an edit of a picture uses (Edit, Relight, Turn, variants); "" when none can edit */
   edits: string;
+  /** the image target Turn runs on; "" for automatic (Qwen 2.1 + angles when it's installed,
+   *  else the Edits model) */
+  turns: string;
   /** Phase 9c-B: the audio target voices generate with */
   voices: string;
   /** where each comes from: set in the editor for this episode, the series config, built in */
   refsSource: RefDefaultSource;
   keyframesSource: RefDefaultSource;
   editsSource: RefDefaultSource;
+  turnsSource: RefDefaultSource;
   voicesSource: RefDefaultSource;
 }
 
@@ -53,6 +57,7 @@ export interface ResolvedRefDefaults {
 export function defaultOf(d: ResolvedRefDefaults, kind: RefTargetKind): { target: string; source: RefDefaultSource } {
   if (kind === "keyframes") return { target: d.keyframes, source: d.keyframesSource };
   if (kind === "edits") return { target: d.edits, source: d.editsSource };
+  if (kind === "turns") return { target: d.turns, source: d.turnsSource };
   if (kind === "voices") return { target: d.voices, source: d.voicesSource };
   return { target: d.refs, source: d.refsSource };
 }
@@ -80,10 +85,12 @@ export function refDefaults(list: TargetList | null | undefined, served?: RefDef
     refs,
     keyframes,
     edits: served?.edit_target || [keyframes, refs].find(canEdit) || "",
+    turns: served?.turn_target || "",
     voices: served?.voice_target || voiceFallback,
     refsSource: source(served?.target_source),
     keyframesSource: source(served?.keyframe_target_source),
     editsSource: source(served?.edit_target_source),
+    turnsSource: source(served?.turn_target_source),
     voicesSource: source(served?.voice_target_source),
   };
 }
@@ -114,7 +121,8 @@ export function refTargetOf(
 
 /** The series.json snippet that makes a choice permanent. */
 export function refsSnippet(kind: RefTargetKind, id: string): string {
-  const key = kind === "keyframes" ? "keyframe_target" : kind === "edits" ? "edit_target" : kind === "voices" ? "voice_target" : "target";
+  const key = kind === "keyframes" ? "keyframe_target" : kind === "edits" ? "edit_target" : kind === "turns" ? "turn_target"
+    : kind === "voices" ? "voice_target" : "target";
   return `"refs": {${JSON.stringify(key)}: ${JSON.stringify(id)}}`;
 }
 

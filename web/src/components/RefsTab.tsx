@@ -3,7 +3,6 @@
 // ref's prompt and settings override.
 
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
-import { createPortal } from "react-dom";
 import {
   clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, focusRef, generateMissing, generateRef, keyframeFromTake, loadRefs, loadRefsAfterShots, openBrowse,
   openFrameUse, openGallery, openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
@@ -23,7 +22,7 @@ import {
   defaultOf, editRefsFor, editRefsText, imageModeText, imageTargets, isEditTarget, refDefaultSourceLabel,
   refTargetKind, refTargetOf, refsSnippet, type RefTargetKind,
 } from "../lib/imageTargets";
-import { TURN_ANGLES_LABEL, TURN_TARGET, turnChoices, turnPlan, useTurnModel } from "../lib/turn";
+import { TURN_ANGLES_LABEL, TURN_TARGET, turnPlan } from "../lib/turn";
 import { audioTargets, voiceCapNotes, voiceModeText } from "../lib/voice";
 import { VoiceCandidate, VoiceGenerateBar, VoiceLive } from "./VoiceRef";
 import { dragHasFiles, missingResultText } from "../lib/lookback";
@@ -80,7 +79,7 @@ export function ImageModelBar({ open0 = false }: { open0?: boolean }) {
   const voices = audioTargets(list);
   if (!list || (!images.length && !voices.length)) return null;
   const row = (kind: RefTargetKind, label: string) => {
-    const choices = kind === "voices" ? voices : kind === "edits" ? images.filter(isEditTarget) : images;
+    const choices = kind === "voices" ? voices : kind === "edits" || kind === "turns" ? images.filter(isEditTarget) : images;
     if (!choices.length) return null;
     const { target: cur, source: src } = defaultOf(defaults, kind);
     const t = findTarget(list, cur);
@@ -88,7 +87,8 @@ export function ImageModelBar({ open0 = false }: { open0?: boolean }) {
     const badge = readinessBadge(t?.readiness);
     const editor = src === "editor";
     const what = kind === "voices" ? voiceModeText(t) || "audio model"
-      : kind === "edits" ? `The model that edits a picture: Edit, Relight, Turn (when Qwen 2.1 + angles isn't installed or another is chosen beside it), an angle (of:) from its place. ${imageModeText(t) || ""}`.trim()
+      : kind === "edits" ? `The model that edits a picture: Edit, Relight, Turn (on Automatic, when Qwen 2.1 + angles isn't installed), an angle (of:) from its place. ${imageModeText(t) || ""}`.trim()
+      : kind === "turns" ? `The model ↻ Turn draws a character's view on. ${TURN_ANGLES_LABEL} turns a figure best (the multiple-angles LoRA); any other edit model is told the turn in words. Automatic: ${TURN_ANGLES_LABEL} when it's installed, else the Edits model.`
       : imageModeText(t) || "image model";
     // what the voice model can and can't do, kept on the label's mouseover
     const notes = kind === "voices" && t ? `${targetLabel(list, t.id)}: ${voiceModeText(t)}.\n${voiceCapNotes(t).join("\n")}` : "";
@@ -102,20 +102,28 @@ export function ImageModelBar({ open0 = false }: { open0?: boolean }) {
           title={`${what}${badge ? ` · ${badge.title}` : ""}\nNow: ${targetLabel(list, cur)} (${refDefaultSourceLabel(src)}). A choice here is this episode's; a ref with its own model keeps it.`}
           onChange={(e) => void setRefDefault(kind, e.target.value || null)}
         >
-          <option value="">{editor ? "(back to the series config's default)" : `${cur ? targetLabel(list, cur) : "none can edit"} (${refDefaultSourceLabel(src)})`}</option>
-          <ModelOptions targets={choices} text={(x) => `${targetOptionText(x)}${kind === "voices" || kind === "edits" ? "" : isEditTarget(x) ? " · edit" : ""}`} />
+          <option value="">{editor ? "(back to the series config's default)"
+            : kind === "turns" && !cur ? `Automatic: ${TURN_ANGLES_LABEL} if installed, else the Edits model`
+            : `${cur ? targetLabel(list, cur) : "none can edit"} (${refDefaultSourceLabel(src)})`}</option>
+          <ModelOptions targets={choices} text={(x) => kind === "turns" && x.id === TURN_TARGET
+            ? `${targetOptionText({ ...x, label: TURN_ANGLES_LABEL })} (best for turning)`
+            : `${targetOptionText(x)}${kind === "voices" || kind === "edits" || kind === "turns" ? "" : isEditTarget(x) ? " · edit" : ""}`} />
         </select>
         <ModelsButton />
         {warn && <span className={warn.severity === "err" ? "h3-err h3-small" : "h3-warn h3-small"} title={warn.text}>{warn.severity === "err" ? "not ready" : "degraded"}</span>}
       </span>
     );
   };
-  const ALL: RefTargetKind[] = ["refs", "keyframes", "edits", "voices"];
+  const ALL: RefTargetKind[] = ["refs", "keyframes", "edits", "turns", "voices"];
   const custom = ALL.filter((k) => defaultOf(defaults, k).source === "editor");
-  const WHAT: Record<RefTargetKind, string> = { refs: "refs", keyframes: "keyframes", edits: "edits", voices: "voice samples" };
-  // folded: the four models in a line, and whether one isn't ready
-  const kinds = ALL.filter((k) => (k === "voices" ? voices : k === "edits" ? images.filter(isEditTarget) : images).length > 0);
-  const names = kinds.map((k) => targetLabel(list, defaultOf(defaults, k).target) || "none");
+  const WHAT: Record<RefTargetKind, string> = { refs: "refs", keyframes: "keyframes", edits: "edits", turns: "turns", voices: "voice samples" };
+  // folded: the models in a line, and whether one isn't ready
+  const kinds = ALL.filter((k) => (k === "voices" ? voices : k === "edits" || k === "turns" ? images.filter(isEditTarget) : images).length > 0);
+  const names = kinds.map((k) => {
+    const id = defaultOf(defaults, k).target;
+    if (k === "turns") return id === TURN_TARGET ? TURN_ANGLES_LABEL : id ? targetLabel(list, id) : "turns: automatic";
+    return targetLabel(list, id) || "none";
+  });
   const warns = kinds.map((k) => {
     const cur = defaultOf(defaults, k).target;
     return pickWarning(targetLabel(list, cur), findTarget(list, cur)?.readiness);
@@ -141,6 +149,7 @@ export function ImageModelBar({ open0 = false }: { open0?: boolean }) {
           {row("refs", "Refs render with:")}
           {row("keyframes", "Keyframes with:")}
           {row("edits", "Edits with:")}
+          {row("turns", "Turns with:")}
           {row("voices", "Voices with:")}
         </div>
       )}
@@ -932,83 +941,25 @@ export function TurnButton({ r, view, label }: { r: Ref; view: string; label: st
   const busy = useApp((s) => !!s.busy[`refgen|${r.id}`]);
   const { list } = useTargets();
   const defaults = useRefDefaults();
-  const [chosen, setChosen] = useTurnModel();
-  // where the menu opens: in the page's body, fixed under the ▾, as the view's head clips
-  // what hangs out of it (overflow: hidden) and sets its text small; null while it's shut
-  const [open, setOpen] = useState<{ top: number; right: number } | null>(null);
-  const box = useRef<HTMLSpanElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: globalThis.MouseEvent) => {
-      const t = e.target as Node;
-      if (!box.current?.contains(t) && !menu.current?.contains(t)) setOpen(null);
-    };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(null); };
-    const shut = () => setOpen(null);
-    window.addEventListener("mousedown", close);
-    window.addEventListener("keydown", esc);
-    window.addEventListener("resize", shut);
-    window.addEventListener("scroll", shut, true);
-    return () => {
-      window.removeEventListener("mousedown", close);
-      window.removeEventListener("keydown", esc);
-      window.removeEventListener("resize", shut);
-      window.removeEventListener("scroll", shut, true);
-    };
-  }, [open]);
   const picked = VIEWS.map((v) => v.view).filter((v) => v !== view && pickedOf(r, v) != null);
   const from = picked.includes("01_threequarter") ? "01_threequarter" : picked[0];
-  const plan = turnPlan(list, chosen, defaults.edits);
-  const qwen = findTarget(list, TURN_TARGET);
-  const others = turnChoices(list);
-  const pick = (id: string) => { setChosen(id); setOpen(null); };
-  const item = (id: string, text: string, title: string) => (
-    <button key={id || "auto"} className={`h3-btn${(chosen || "") === id ? " h3-on" : ""}`} style={{ justifyContent: "flex-start", textAlign: "left" }}
-      title={title} onClick={() => pick(id)}>{text}</button>
-  );
+  const plan = turnPlan(list, defaults.turns, defaults.edits);
   return (
-    <span ref={box} className="h3-row" style={{ gap: 0, position: "relative" }}>
-      <button
-        className="h3-btn"
-        disabled={!from || busy}
-        title={from
-          ? `Turn: draw ${label} from the ${viewLabel(from)} view by turning the camera round ${r.name}, on ${plan.uses}: a new candidate${plan.warn ? `
+    <button
+      className={`h3-btn${plan.warn ? plan.warn.severity === "err" ? " h3-err" : " h3-warn" : ""}`}
+      disabled={!from || busy}
+      title={from
+        ? `Turn: draw ${label} from the ${viewLabel(from)} view by turning the camera round ${r.name}, on ${plan.uses}: a new candidate. The model is Made with's Turns with (above).${plan.warn ? `
 ${plan.warn.text}` : ""}`
-          : "Pick another view first: this one is drawn from it"}
-        onClick={() => from && void generateRef({
-          ref: r.id, view, count: 1, seed_mode: "new", seed: null, prompt: null, model: null,
-          loras: null, steps: null, note: `turned from ${viewLabel(from)}`,
-          target: plan.target, edit: { take: null, from_view: from, turn: true },
-        })}
-      >
-        ↻ Turn
-      </button>
-      <button className={`h3-btn${plan.warn ? plan.warn.severity === "err" ? " h3-err" : " h3-warn" : ""}`} aria-expanded={!!open}
-        aria-label="The model Turn runs on" style={{ padding: "0 3px" }}
-        title={`Turn runs on ${plan.uses}${plan.warn ? `
-${plan.warn.text}` : ""}. Choose another (kept in this browser, for every Turn)`}
-        onClick={(e) => {
-          if (open) return setOpen(null);
-          const at = e.currentTarget.getBoundingClientRect();
-          setOpen({ top: at.bottom + 4, right: Math.max(4, window.innerWidth - at.right) });
-        }}>▾</button>
-      {open && createPortal(
-        <div ref={menu} className="h3-root h3-col sm-add-menu sm-turn-menu" style={{
-          position: "fixed", top: open.top, right: open.right, zIndex: 2100, minWidth: 220, padding: 4, gap: 2,
-          textTransform: "none", letterSpacing: "normal", fontSize: 12, whiteSpace: "nowrap",
-          background: "var(--h3-bg2)", border: "1px solid var(--h3-border)", borderRadius: 4, boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
-        }}>
-          {item("", "Automatic", `${TURN_ANGLES_LABEL} when the angles LoRA is installed, else the episode's Edits model`)}
-          {qwen && item(TURN_TARGET, `${targetOptionText({ ...qwen, label: TURN_ANGLES_LABEL })} (best for turning)`,
-            pickWarning(TURN_ANGLES_LABEL, qwen.readiness)?.text ?? "Qwen-Image 2.1 with the multiple-angles LoRA: turns a figure most surely")}
-          {others.length > 0 && <div style={{ borderTop: "1px solid var(--h3-border)", margin: "2px 0" }} />}
-          {others.map((t) => item(t.id, targetOptionText(t),
-            pickWarning(targetLabel(list, t.id), t.readiness)?.text ?? `${targetLabel(list, t.id)}, told the turn in words (no LoRA)`))}
-        </div>,
-        document.body,
-      )}
-    </span>
+        : "Pick another view first: this one is drawn from it"}
+      onClick={() => from && void generateRef({
+        ref: r.id, view, count: 1, seed_mode: "new", seed: null, prompt: null, model: null,
+        loras: null, steps: null, note: `turned from ${viewLabel(from)}`,
+        edit: { take: null, from_view: from, turn: true },
+      })}
+    >
+      ↻ Turn
+    </button>
   );
 }
 

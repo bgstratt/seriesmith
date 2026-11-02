@@ -769,13 +769,14 @@ script call for is listed here.
 - **+ Add** at the top adds a character, group, prop, vehicle, location or voice to the
   series config, on its card (as each group's **+ Character**, **+ Prop**, **+ Place**,
   **+ Voice** does); **Series** opens Series settings.
-- **Made with** names the models that make refs, keyframes, edits and voice samples;
+- **Made with** names the models that make refs, keyframes, edits, turns and voice samples;
   **Change** opens their pickers: **Refs render with:**, **Keyframes with:**, **Edits
-  with:** and **Voices with:** (a choice here is this episode's, kept in `overrides.json`,
+  with:**, **Turns with:** and **Voices with:** (a choice here is this episode's, kept in `overrides.json`,
   with the `series.json` line to make it the series default); a ref with its own model
   keeps it. **Edits with:** lists only the models that can edit a picture: it is what
-  Edit, Relight and Turn (when Qwen-Image 2.1 + the angles LoRA isn't installed) start on,
-  unless you pick another in their own dialog.
+  Edit and Relight start on, unless you pick another in their own dialog. **Turns with:** is
+  the model **↻ Turn** runs on: **Automatic** (Qwen 2.1 + angles when it's installed, else
+  the Edits model), **Qwen 2.1 + angles**, or any other edit model, told the turn in words.
 - **this episode / all / missing** filters the list; **List / Board** (remembered in this
   browser) shows the refs as rows that open to their candidates, or as a grid of their
   pictures, each group ending in an add tile. A click on a picture opens that ref in the
@@ -889,9 +890,9 @@ script call for is listed here.
   from one the character already has, the three-quarter if it's picked, by turning the
   camera around them. It runs on Qwen-Image 2.1 with the multi-angle LoRA when that is
   installed ([FULL_SETUP.md](FULL_SETUP.md), "360s and turned views"), which turns a figure
-  most surely; else on the episode's Edits model, told the turn in words. The **▾** beside
-  it chooses: Automatic, Qwen 2.1 + angles, or any edit model (marked when one isn't ready).
-  The choice is yours, kept in this browser for every Turn button, and the button's tooltip
+  most surely; else on the episode's Edits model, told the turn in words. **Made with** ›
+  **Turns with:** chooses (Automatic, Qwen 2.1 + angles, or any edit model), for the
+  episode; the button turns orange or red when that model isn't ready, and its tooltip
   names the model it will use. A new candidate, not picked: the same character from another
   side, rather than four views drawn apart.
 - **Make 360** (a place's row, under its plate) outpaints the plate into a 360 panorama.

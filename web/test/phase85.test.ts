@@ -293,7 +293,7 @@ describe("mock: Phase 8.5", () => {
     expect(defaults).toEqual({
       target: "krea2", target_source: "default", keyframe_target: "flux2_klein_edit", keyframe_target_source: "default",
       // the model that edits a picture (Edit, Relight, Turn)
-      edit_target: "flux2_klein_edit", edit_target_source: "default",
+      edit_target: "flux2_klein_edit", edit_target_source: "default", turn_target: null, turn_target_source: "default",
       // Phase 9c-B: the audio target voices generate with
       voice_target: "ltx2_voice", voice_target_source: "default",
       // the dub track's model (the voice model when it's a video one)

@@ -579,6 +579,15 @@ def image_defaults(s: Series, ready=None) -> dict:
         else:
             first = next((x for x in (out["keyframe_target"], out["target"]) if x in editors), None)
             out.update(edit_target=first, edit_target_source="default")
+        # Turn's model: chosen, else None (automatic: Qwen 2.1 + angles when it is
+        # installed, else the edit target; plan_edit)
+        et = T.episode_field(ov, "turn_target")
+        if et and et in editors:
+            out.update(turn_target=et, turn_target_source="editor")
+        elif block.get("turn_target"):
+            out.update(turn_target=block["turn_target"], turn_target_source="series")
+        else:
+            out.update(turn_target=None, turn_target_source="default")
         out.update(ambience_target=block.get("ambience_target") or TG.machine_default("ambience"),
                    ambience_target_source="series" if block.get("ambience_target") else "default")
         kinds = {t.id: t.kind for t in TG.voice_targets()}
@@ -634,14 +643,16 @@ def image_target_for(s: Series, ref: Ref, requested: str | None = None,
 DEFAULT_FIELDS = (("target", "refs_target", "image"),
                   ("keyframe_target", "keyframe_target", "image"),
                   ("edit_target", "edit_target", "image"),
+                  ("turn_target", "turn_target", "image"),
                   ("voice_target", "voice_target", "audio"))
 
 
 def set_image_defaults(ep: str, fields: dict) -> dict:
     """Set (or with None clear) the episode's ref-target choices in
     overrides.json (episode.refs_target from `target`, episode.keyframe_target
-    from `keyframe_target`, episode.edit_target from `edit_target`: an image
-    target that can edit, episode.voice_target from `voice_target`).
+    from `keyframe_target`, episode.edit_target from `edit_target` and
+    episode.turn_target from `turn_target`: image targets that can edit,
+    episode.voice_target from `voice_target`).
     RefError for a name that isn't a target of that kind. series.json is
     never written."""
     ov = T.load_overrides(ep)
@@ -664,7 +675,7 @@ def set_image_defaults(ep: str, fields: dict) -> dict:
                 t = TG.load_target(v, kind)
             except TG.TargetError as e:
                 raise RefError(str(e)) from None
-            if key == "edit_target" and not is_edit_target(t):
+            if key in ("edit_target", "turn_target") and not is_edit_target(t):
                 raise RefError(f"{t.short} draws from text only and can't edit a picture: the "
                                f"edit model must be one that can ({', '.join(edit_target_ids())})")
         T.set_episode_field(ov, field_, v or None, name or os.path.basename(os.path.normpath(ep)))
@@ -3058,9 +3069,13 @@ def plan_edit(s: Series, ref: Ref, req: GenRequest, overrides: dict | None = Non
     if turn:
         if not ref.has_views or view not in VIEW_TURNS:
             raise RefError("edit.turn draws one of a character's views from another")
-        # the request's model, else Qwen 2.1 + the angles LoRA when it is
-        # installed, else the episode's edit model, told the turn in words
+        # the request's model, else the episode's Turn model, else Qwen 2.1 + the
+        # angles LoRA when it is installed, else the episode's edit model, told the
+        # turn in words
         tid = req.target
+        if not tid:
+            defaults = defaults if defaults is not None else image_defaults(s, ready)
+            tid = defaults.get("turn_target")
         if not tid:
             if turn_ready(ready):
                 tid = TURN_TARGET

@@ -479,12 +479,14 @@ voices), or name others:
 
 ```json
 "refs": {"target": "krea2", "keyframe_target": "flux2_klein_edit", "edit_target": "qwen_image_21",
-         "voice_target": "ltx2_voice", "ambience_target": "mmaudio_ambience"}
+         "turn_target": "qwen_image_21", "voice_target": "ltx2_voice", "ambience_target": "mmaudio_ambience"}
 ```
 
-(`edit_target` is the model that edits a picture you already have: the editor's Edit,
-Relight and Turn. It must be one that reads reference images; left out, it's the first of
-`keyframe_target` and `target` that can.)
+(`edit_target` is the model that edits a picture you already have: the editor's Edit and
+Relight. It must be one that reads reference images; left out, it's the first of
+`keyframe_target` and `target` that can. `turn_target` is the one a character's view is
+turned on: `qwen_image_21` adds the multiple-angles LoRA, any other edit model is told the
+turn in words; left out, Qwen 2.1 + angles when it's installed, else `edit_target`.)
 
 (`ambience_target` makes the places' ambience beds: `mmaudio_ambience`, the default, or
 `sa3_sfx_ambience`. `voice_target` can also name a video model that renders a dub track,

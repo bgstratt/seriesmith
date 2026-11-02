@@ -1,10 +1,9 @@
 // Turn (a character's view drawn from another it has): which model it runs on.
 // Qwen-Image 2.1 with the Multiple-Angles LoRA turns a figure best; any other
-// edit model is told the turn in words (refs.py VIEW_TURNS_PROSE). With nothing
-// chosen, the server picks: Qwen 2.1 + angles when it is installed, else the
-// episode's Edits model. The choice is this viewer's, kept in this browser.
+// edit model is told the turn in words (refs.py VIEW_TURNS_PROSE). The episode's
+// choice is Made with's Turns with (refs defaults `turn_target`); with none, the
+// server picks: Qwen 2.1 + angles when it is installed, else the Edits model.
 
-import { useSyncExternalStore } from "react";
 import type { Target, TargetList } from "../types";
 import { imageTargets, isEditTarget } from "./imageTargets";
 import { normReadiness, pickWarning } from "./readiness";
@@ -13,44 +12,6 @@ import { targetLabel } from "./targets";
 /** refs.py TURN_TARGET: the model the angles LoRA is for. */
 export const TURN_TARGET = "qwen_image_21";
 export const TURN_ANGLES_LABEL = "Qwen 2.1 + angles";
-const KEY = "seriesmith.turnModel";
-
-export function readTurnModel(): string {
-  try {
-    return localStorage.getItem(KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
-
-let current: string | null = null;
-const listeners = new Set<() => void>();
-
-/** The chosen model ("" = automatic), shared by every Turn button on the page. */
-export function turnModel(): string {
-  if (current === null) current = readTurnModel();
-  return current;
-}
-
-export function setTurnModel(id: string): void {
-  current = id;
-  try {
-    if (id) localStorage.setItem(KEY, id);
-    else localStorage.removeItem(KEY);
-  } catch {
-    /* private window: until reload */
-  }
-  listeners.forEach((f) => f());
-}
-
-function subscribe(f: () => void): () => void {
-  listeners.add(f);
-  return () => { listeners.delete(f); };
-}
-
-export function useTurnModel(): [string, (id: string) => void] {
-  return [useSyncExternalStore(subscribe, turnModel, turnModel), setTurnModel];
-}
 
 /** The other edit models a turn can run on (in words): every edit-capable image target but Qwen 2.1. */
 export function turnChoices(list: TargetList | null | undefined): Target[] {
@@ -58,7 +19,7 @@ export function turnChoices(list: TargetList | null | undefined): Target[] {
 }
 
 export interface TurnPlan {
-  /** the request's `target`: null lets the server choose */
+  /** the model chosen (Turns with), or null for automatic */
   target: string | null;
   /** the model it will run on, as said in the tooltip */
   uses: string;
@@ -69,7 +30,7 @@ export interface TurnPlan {
 }
 
 /**
- * What a Turn sends and runs on: the viewer's choice when it is still a model
+ * What a Turn runs on: the episode's Turns with when it is still a model
  * here, else automatic (Qwen 2.1 + angles unless it's known not to be ready,
  * else the episode's Edits model `edits`).
  */

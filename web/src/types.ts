@@ -1596,6 +1596,10 @@ export interface RefDefaults {
   /** the image target an edit of a picture uses (one that can edit; null when none can) */
   edit_target?: string | null;
   edit_target_source?: RefDefaultSource | null;
+  /** the image target Turn runs on (one that can edit); null: automatic (Qwen 2.1 + angles
+   *  when it's installed, else the edit target) */
+  turn_target?: string | null;
+  turn_target_source?: RefDefaultSource | null;
   /** Phase 9c-B: the audio target voice refs generate with */
   voice_target?: string | null;
   voice_target_source?: RefDefaultSource | null;

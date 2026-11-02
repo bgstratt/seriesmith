@@ -1386,7 +1386,7 @@ DEFAULT_KEYFRAME_TARGET = "flux2_klein_edit"   # when it is ready, else the refs
 
 
 REFS_TARGET_KINDS = {"target": "image", "keyframe_target": "image", "edit_target": "image",
-                     "voice_target": "audio", "ambience_target": "ambience"}
+                     "turn_target": "image", "voice_target": "audio", "ambience_target": "ambience"}
 
 
 def can_edit(t: "Target | None") -> bool:
@@ -1438,7 +1438,7 @@ def refs_block(series_cfg: dict | None) -> dict:
         if k == "voice_target":
             known = [t.id for t in voice_targets()]
             what = "an audio target or a video target that renders a dub track"
-        elif k == "edit_target":
+        elif k in ("edit_target", "turn_target"):
             known = [t.id for t in list_targets("image") if can_edit(t)]
             what = "an image target that can edit a picture (one that reads reference images)"
         else:

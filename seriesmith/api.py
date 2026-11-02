@@ -4403,7 +4403,7 @@ def put_refs_defaults(ctx: Context, body):
     episode.refs_target / episode.keyframe_target / episode.edit_target /
     episode.voice_target): `target` for series refs, `keyframe_target` for
     shot keyframes, `edit_target` for editing a picture (an image target that
-    can edit), `voice_target` for the voice model (an audio target, or a video target
+    can edit), `turn_target` for Turn (one that can edit; null: automatic), `voice_target` for the voice model (an audio target, or a video target
     that renders a dub track: TG.voice_targets); null clears one, a key left
     out is kept. Never writes series.json. Returns the defaults as GET
     /seriesmith/refs gives them."""
@@ -4412,14 +4412,15 @@ def put_refs_defaults(ctx: Context, body):
     s = _series(ep)
     fields = {}
     for k, kind in (("target", "image"), ("keyframe_target", "image"),
-                    ("edit_target", "image"), ("voice_target", "audio")):
+                    ("edit_target", "image"), ("turn_target", "image"),
+                    ("voice_target", "audio")):
         if k in body:
             v = body[k]
             if v is not None and (not isinstance(v, str)):
                 raise ApiError(400, f"{k} must be a target id or null")
             fields[k] = v or None
     if not fields:
-        raise ApiError(400, "give target, keyframe_target, edit_target and/or voice_target "
+        raise ApiError(400, "give target, keyframe_target, edit_target, turn_target and/or voice_target "
                             "(a target id of that kind, or null to clear it)")
     R.set_image_defaults(ep, fields)
     d = R.image_defaults(s, image_ready(ctx))

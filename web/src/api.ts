@@ -420,6 +420,7 @@ export interface RefDefaultFields {
   target?: string | null;
   keyframe_target?: string | null;
   edit_target?: string | null;
+  turn_target?: string | null;
   voice_target?: string | null;
 }
 

@@ -146,7 +146,7 @@ export interface MockRefs {
   /** GET /seriesmith/refs `defaults` */
   defaults(): RefDefaults;
   /** PUT /seriesmith/refs/defaults: null clears; a key left out is kept */
-  setDefaults(fields: { target?: string | null; keyframe_target?: string | null; edit_target?: string | null; voice_target?: string | null }): RefDefaults;
+  setDefaults(fields: { target?: string | null; keyframe_target?: string | null; edit_target?: string | null; turn_target?: string | null; voice_target?: string | null }): RefDefaults;
   /** Phase 9c-B: a voice candidate's playable wav (an object URL) */
   audio(path: string): string | undefined;
   /** Phase 9c-B: how long a voice candidate is, for GET /seriesmith/peaks */
@@ -210,8 +210,8 @@ export function createMockRefs(opts: {
   /** what the series config says about each subject (its voice line, design) */
   const subjectCfg = new Map<string, { name: string; design: string; voice: string }>();
   /** the episode's ref targets (overrides.json episode.refs_target / keyframe_target / edit_target / voice_target) */
-  const chosen: { target: string | null; keyframe_target: string | null; edit_target: string | null; voice_target: string | null } =
-    { target: null, keyframe_target: null, edit_target: null, voice_target: null };
+  const chosen: { target: string | null; keyframe_target: string | null; edit_target: string | null; turn_target: string | null; voice_target: string | null } =
+    { target: null, keyframe_target: null, edit_target: null, turn_target: null, voice_target: null };
 
   const key = (id: string) => id.replace(/:/g, "__");
   const takePath = (r: MRef, view: string | null, take: number, ext = "png") =>
@@ -284,6 +284,8 @@ export function createMockRefs(opts: {
       keyframe_target_source: src(chosen.keyframe_target),
       edit_target: chosen.edit_target ?? MOCK_REF_DEFAULTS.edit_target,
       edit_target_source: src(chosen.edit_target),
+      turn_target: chosen.turn_target,
+      turn_target_source: src(chosen.turn_target),
       voice_target: chosen.voice_target ?? MOCK_REF_DEFAULTS.voice_target,
       voice_target_source: src(chosen.voice_target),
       dub_target: "minimax_h3_ref2va",

@@ -69,7 +69,8 @@ SHOT_LINE = {"target": "target", "model": "model", "loras": "lora", "steps": "st
 PASS_PROMOTE = ("model", "loras", "steps")
 EPISODE_DEST = {"target": ("series", "target"), "refs_target": ("refs", "target"),
                 "keyframe_target": ("refs", "keyframe_target"),
-                "edit_target": ("refs", "edit_target")}
+                "edit_target": ("refs", "edit_target"),
+                "turn_target": ("refs", "turn_target")}
 PASS_BLOCK_KEYS = ("model", "lora", "steps")
 
 SHOT_LEFT = {
