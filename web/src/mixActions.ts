@@ -9,12 +9,12 @@ import { currentPlaylist, onStatusLoaded, report } from "./actions";
 import { pushEdit, setMixUndo } from "./cutActions";
 import { api, host } from "./host";
 import {
-  TRACK_LABEL, addHit, addItem, addPoint, lowerStretch, moveItem, movePoint, newItemId, patchHit, patchItem, removeHit, removeItem, removePoint, sameMix,
+  TRACK_LABEL, addHit, addItem, addPoint, setBed, lowerStretch, moveItem, movePoint, newItemId, patchHit, patchItem, removeHit, removeItem, removePoint, sameMix,
   setTrack, timeAnchor, trimItem, type TrackPatch,
 } from "./lib/mix";
 import { locate } from "./lib/playlist";
 import { statusKey, store, type AppState } from "./store";
-import type { Anchor, Mix, MixHit, MixItem, MixResult, MixTrack, Pass } from "./types";
+import type { Anchor, Mix, MixBedSettings, MixHit, MixItem, MixResult, MixTrack, Pass } from "./types";
 
 const set = store.set;
 const get = store.get;
@@ -47,7 +47,8 @@ export async function loadMix(ep = get().ep, pass = get().pass): Promise<MixResu
       delete mixError[key];
       const was = s.mix[key];
       // the same mix keeps its object, so nothing redraws
-      const same = was && sameMix(was.mix, r.mix) && JSON.stringify(was.series) === JSON.stringify(r.series);
+      const same = was && sameMix(was.mix, r.mix) && JSON.stringify(was.series) === JSON.stringify(r.series)
+        && JSON.stringify(was.beds ?? []) === JSON.stringify(r.beds ?? []);
       return same ? { mixError } : { mix: { ...s.mix, [key]: r }, mixError };
     });
     return r;
@@ -168,6 +169,18 @@ export function setTrackMix(track: MixTrack, patch: TrackPatch, label?: string):
     : patch.mute != null ? `${patch.mute ? "Mute" : "Unmute"} ${name.toLowerCase()}`
       : patch.solo != null ? `${patch.solo ? "Solo" : "Unsolo"} ${name.toLowerCase()}` : `${name} track`);
   return editMix(text, (m) => setTrack(m, track, patch));
+}
+
+/** A place's ambience bed: its level (dB, 0 the bed's own) or mute, the mix's `beds`. */
+export function setMixBed(place: string, patch: MixBedSettings, label = `Change ${place}'s ambience`): Promise<boolean> {
+  return editMix(label, (m) => setBed(m, place, patch));
+}
+
+/** The Refs tab's Ambience section on a place's bed, its row open (its takes, render again). */
+export function openBedRef(place: string) {
+  const id = `ambience:${place}`;
+  set((s) => ({ menu: null, refOpen: { ...s.refOpen, [id]: true }, refFocus: { id, n: (s.refFocus?.n ?? 0) + 1 } }));
+  host().show("refs");
 }
 
 export function moveMixItem(id: string, at: Anchor): Promise<boolean> {

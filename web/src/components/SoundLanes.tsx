@@ -10,7 +10,9 @@
 // on a lane is imported and laid where it fell. Every edit is one PUT of the
 // pass's mix (mixActions), undone with the cut's Ctrl+Z. A music cue's block
 // opens the cue window on a double-click; right-click the music or hits lane
-// for a new cue there (cueActions).
+// for a new cue there (cueActions). The Ambience lane also shows the places'
+// ambience beds the server lays from the cut (GET /seriesmith/mix `beds`):
+// read-only blocks, each with a menu for its level, mute and its ref.
 
 import {
   memo, useCallback, useEffect, useLayoutEffect, useRef, useState,
@@ -21,21 +23,21 @@ import { framesLabel } from "../lib/cutEdit";
 import { fmtClock } from "../lib/format";
 import { dragHasFiles } from "../lib/lookback";
 import {
-  GAIN_MAX, GAIN_MIN, HIT_KINDS, HIT_KIND_TITLE, TRACKS, TRACK_LABEL, anchorTime, clampDb, dbY, defaultGain, fileName, itemSpan, layout,
+  GAIN_MAX, GAIN_MIN, HIT_KINDS, bedSettings, bedSpan, HIT_KIND_TITLE, TRACKS, TRACK_LABEL, anchorTime, clampDb, dbY, defaultGain, fileName, itemSpan, layout,
   moveItem, movePoint, patchHit, pointsDb, snapDb, timeX, timedPoints, trackState, trimItem, xAnchor, xTime, type ClipBox, type Lay,
 } from "../lib/mix";
 import { binsFor } from "../lib/peaks";
 import { clipTake, type PlayItem } from "../lib/playlist";
 import {
   addMixHit, addMixPoint, clearMixPoints, currentMix, deleteMixHit, deleteMixItem, deleteMixPoint, dropOnLane, moveMixHit, moveMixItem,
-  moveMixPoint, pickSoundFile, setMixHit, setMixItem, setTrackMix, trimMixItem,
+  moveMixPoint, openBedRef, pickSoundFile, setMixBed, setMixHit, setMixItem, setTrackMix, trimMixItem,
 } from "../mixActions";
 import { host } from "../host";
 import { openSound } from "../actions";
 import { loadCues, newCue, openCue } from "../cueActions";
 import { cueTitle } from "../lib/cue";
 import { statusKey, store, useApp } from "../store";
-import type { Anchor, CueKind, EpisodeStatus, HitKind, Mix, MixHit, MixItem, MixTrack } from "../types";
+import type { Anchor, CueKind, EpisodeStatus, HitKind, Mix, MixBed, MixHit, MixItem, MixTrack } from "../types";
 import { trackPointer } from "./hooks";
 import { PeaksCanvas, WaveLane, usePeaks, useSeen } from "./Waveform";
 
@@ -76,6 +78,8 @@ interface Drag {
 
 /** The item or hit menu, at the pointer. */
 type Pop = { kind: "item" | "hit"; id: string; x: number; y: number };
+/** A bed's menu, at the pointer. */
+type BedPop = { bed: MixBed; x: number; y: number };
 
 /** The lane menu (a new cue), at the pointer: `at` where it was asked. */
 /** A lane's right-click: where, the lane (null: the hits lane) and the anchor under it. */
@@ -96,6 +100,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
   const [pop, setPop] = useState<Pop | null>(null);
   const [over, setOver] = useState<MixTrack | null>(null);
   const [laneMenu, setLaneMenu] = useState<LaneMenu | null>(null);
+  const [bedPop, setBedPop] = useState<BedPop | null>(null);
   const suppress = useRef(false);
   // the episode's cues: which music blocks open the cue window (fetched again with the mix)
   const cueIds = useApp((s) => s.cues[ep]?.map((c) => `${c.spec.id}:${c.spec.kind ?? "score"}`).join(" ") ?? "");
@@ -331,6 +336,10 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
                 </div>
               );
             })}
+            {track === "ambience" && (res?.beds ?? []).map((b, i) => (
+              <BedBlock key={`${b.place}:${i}`} ep={ep} bed={b} mix={mix} lay={lay} items={items} fps={fps}
+                onMenu={(e) => setBedPop({ bed: b, x: e.clientX, y: e.clientY })} />
+            ))}
             {(mix.items ?? []).filter((it) => it.track === track).map((it) => (
               <Block key={it.id} ep={ep} it={it} lay={lay} items={items} fps={fps} cue={it.track === "music" ? (cueKinds.get(it.id) as CueKind | undefined) ?? null : null}
                 dragging={!!drag && drag.what !== "hit" && drag.what !== "point" && drag.id === it.id}
@@ -358,6 +367,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
       )}
       {pop && <MixPopover pop={pop} mix={res?.mix ?? {}} fps={fps} onClose={() => setPop(null)} />}
       {laneMenu && <LaneMenu menu={laneMenu} onClose={() => setLaneMenu(null)} />}
+      {bedPop && <BedMenu pop={bedPop} mix={res?.mix ?? {}} onClose={() => setBedPop(null)} />}
     </div>
   );
 });
@@ -510,6 +520,119 @@ const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDo
     </div>
   );
 });
+
+/**
+ * A place's ambience bed under a run of shots: laid by the server from the cut and the
+ * series config, so it can't be dragged; its waveform (one loop, repeated), the place's
+ * name, and a menu (right-click) for its level, mute and its ref; a double-click opens
+ * the ref. One not made yet is drawn hollow.
+ */
+const BedBlock = memo(function BedBlock({ ep, bed, mix, lay, items, fps, onMenu }: {
+  ep: string; bed: MixBed; mix: Mix; lay: Lay[]; items: PlayItem[]; fps: number;
+  onMenu: (e: RMouseEvent<HTMLElement>) => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const seen = useSeen(box);
+  const { start: t0, end: t1 } = bedSpan(items, bed, fps);
+  const left = timeX(lay, t0);
+  const width = Math.max(4, timeX(lay, t1) - left);
+  const info = usePeaks(bed.exists ? { ep, path: bed.path, bins: 1 } : null, seen);
+  const fileSecs = info?.ok ? info.data.duration : null;
+  const pps = width / Math.max(0.01, t1 - t0);
+  const q = bed.exists && fileSecs ? { ep, path: bed.path, bins: binsFor(fileSecs, pps), start: 0, end: fileSecs } : null;
+  const peaks = usePeaks(q, seen && fileSecs != null);
+  const own = bedSettings(mix, bed.place);
+  const loopW = fileSecs ? Math.max(1, fileSecs * pps) : width;
+  const title = [
+    `${bed.label}'s ambience bed · ${bed.path}${bed.exists ? "" : " (not made yet: open its ref to make it)"}`,
+    `under ${bed.shots.length} shot${bed.shots.length === 1 ? "" : "s"}: ${bed.shots[0]} to ${bed.shots[bed.shots.length - 1]} · looped, crossfaded into the next place's`,
+    bed.words ? `“${bed.words}”` : "",
+    [own.gain_db ? `${own.gain_db > 0 ? "+" : ""}${own.gain_db} dB` : "", own.mute ? "muted" : ""].filter(Boolean).join(" · "),
+    "laid from the cut and the series config: it follows the shots · right-click: level, mute, its ref · double-click: its ref",
+  ].filter(Boolean).join("\n");
+  return (
+    <div ref={box} className={`h3-snd-item h3-snd-ambience h3-snd-bed${bed.exists ? "" : " h3-snd-bed-missing"}${own.mute ? " h3-snd-silent" : ""}`}
+      style={{ left, width }} title={title}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        openBedRef(bed.place);
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onMenu(e);
+      }}>
+      {q && peaks?.ok && Array.from({ length: Math.min(200, Math.ceil(width / loopW)) }, (_, k) => (
+        <div key={k} style={{ position: "absolute", left: k * loopW, top: 0 }}>
+          <PeaksCanvas peaks={peaks.data.peaks} width={Math.max(1, Math.min(loopW, width - k * loopW))} height={LANE_H - 6} />
+        </div>
+      ))}
+      {width > 30 && <span className="h3-snd-label"><i className="pi pi-cloud" /> {bed.label}{own.gain_db ? ` ${own.gain_db > 0 ? "+" : ""}${own.gain_db} dB` : ""}</span>}
+    </div>
+  );
+});
+
+/** A bed's menu: the place's level (one edit on Apply or Enter), mute, and its ref. */
+function BedMenu({ pop, mix, onClose }: { pop: BedPop; mix: Mix; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const own = bedSettings(mix, pop.bed.place);
+  const [gain, setGain] = useState(String(own.gain_db));
+  const [pos, setPos] = useState({ left: pop.x, top: pop.y });
+  useLayoutEffect(() => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setPos(onScreen(pop.x, pop.y, r));
+  }, [pop]);
+  useEffect(() => {
+    const down = (e: Event) => ref.current && !ref.current.contains(e.target as Node) && onClose();
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("keydown", key, true);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("keydown", key, true);
+    };
+  }, [onClose]);
+  const place = pop.bed.place;
+  const apply = () => {
+    void setMixBed(place, { gain_db: clampDb(Number(gain)) }, `Change ${pop.bed.label}'s ambience level`);
+    onClose();
+  };
+  return (
+    <div ref={ref} className="h3-menu h3-snd-pop" style={pos} onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") apply();
+      }}>
+      <div className="h3-menu-head">{pop.bed.label} · ambience bed · {pop.bed.shots[0]} to {pop.bed.shots[pop.bed.shots.length - 1]}</div>
+      <label className="h3-snd-field" title="The place's level in this pass's mix, on the Ambience fader (every run of this place)">
+        <span>Level dB</span>
+        <input className="h3-in" autoFocus type="number" step={0.5} min={GAIN_MIN} max={GAIN_MAX} value={gain} onChange={(e) => setGain(e.target.value)} />
+      </label>
+      <button title={own.mute ? "Hear this place's bed again" : "Silence this place's bed (every run of it) in this pass's mix"}
+        onClick={() => {
+          void setMixBed(place, { mute: !own.mute }, `${own.mute ? "Unmute" : "Mute"} ${pop.bed.label}'s ambience`);
+          onClose();
+        }}>
+        <i className={own.mute ? "pi pi-volume-up" : "pi pi-volume-off"} /> {own.mute ? "Unmute this place" : "Mute this place"}
+      </button>
+      <button title="The Refs tab's Ambience section: its words, its takes, render again, pick another"
+        onClick={() => {
+          onClose();
+          openBedRef(place);
+        }}>
+        <i className="pi pi-cloud" /> Open its ref…
+      </button>
+      <div className="h3-row" style={{ gap: 6, padding: "4px 8px" }}>
+        <button className="h3-btn h3-primary" style={{ width: "auto" }} onClick={apply}>Apply</button>
+      </div>
+    </div>
+  );
+}
 
 /** An item's or a hit's settings, at the pointer: Enter or Apply saves (one edit), Esc closes. */
 function MixPopover({ pop, mix, fps, onClose }: { pop: Pop; mix: Mix; fps: number; onClose: () => void }) {
@@ -666,8 +789,14 @@ function LaneMenu({ menu, onClose }: { menu: LaneMenu; onClose: () => void }) {
         </button>
       )}
       {track === "ambience" && (
-        <button disabled title="Coming (docs/SOUND.md phase 3): the location's room tone or air, made once and looped under its shots">
-          <i className="pi pi-cloud" /> The location's ambience bed…
+        <button title="The places' ambience beds (the Refs tab's Ambience): a location's room tone or air, made once from its `ambience` words and looped under its shots"
+          onClick={run(() => {
+            const s = store.get();
+            const bed = at && s.ep ? s.mix[statusKey(s.ep, s.pass)]?.beds?.find((b) => b.shots.includes(at.shot)) : undefined;
+            if (bed) openBedRef(bed.place);
+            else host().show("refs");
+          })}>
+          <i className="pi pi-cloud" /> {at ? "This place's ambience bed…" : "The places' ambience beds…"}
         </button>
       )}
       {track && (

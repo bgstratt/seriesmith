@@ -7,7 +7,7 @@
 // left-out stubs take room), so x is measured per clip: each clip's own
 // pixels per second, from its box.
 
-import type { Anchor, HitKind, Mix, MixHit, MixItem, MixPoint, MixTrack, MixTrackSettings, MixResult } from "../types";
+import type { Anchor, HitKind, Mix, MixBed, MixBedSettings, MixHit, MixItem, MixPoint, MixTrack, MixTrackSettings, MixResult } from "../types";
 import { locate, totalDuration, type PlayItem } from "./playlist";
 
 export const TRACKS: MixTrack[] = ["dialogue", "effects", "ambience", "music"];
@@ -641,3 +641,62 @@ export function sameMix(a: Mix, b: Mix): boolean {
 
 /** A file's name from its path, for a block's label. */
 export const fileName = (path: string) => path.split("/").pop() ?? path;
+
+// ---------------------------------------------------------------------------
+// ambience beds (docs/SOUND.md phase 3): laid by the server from the cut and the
+// series config (GET /seriesmith/mix `beds`), never items; the mix keeps only a
+// place's level and mute (`beds`), so a change shows at once
+// ---------------------------------------------------------------------------
+
+/** seconds two places' beds crossfade over at the cut between them (ambience.RUN_XFADE_S) */
+export const BED_XFADE = 0.5;
+
+/** A place's own settings in the mix (gain 0, not muted: none). */
+export function bedSettings(mix: Mix, place: string): { gain_db: number; mute: boolean } {
+  const b = mix.beds?.[place];
+  return { gain_db: b?.gain_db ?? 0, mute: !!b?.mute };
+}
+
+/** A place's level or mute changed; defaults dropped (as mix.json keeps them). */
+export function setBed(mix: Mix, place: string, patch: MixBedSettings): Mix {
+  const b: MixBedSettings = { ...(mix.beds?.[place] ?? {}), ...patch };
+  if (!b.gain_db) delete b.gain_db;
+  else b.gain_db = clampDb(b.gain_db);
+  if (!b.mute) delete b.mute;
+  const beds = { ...(mix.beds ?? {}) };
+  if (Object.keys(b).length) beds[place] = b;
+  else delete beds[place];
+  const out: Mix = { ...mix, beds };
+  if (!Object.keys(beds).length) delete out.beds;
+  return out;
+}
+
+/** A bed's run on the cut's clock: from its anchors (so a trim shows at once), else as laid. */
+export function bedSpan(items: PlayItem[], bed: MixBed, fps: number): { start: number; end: number } {
+  const s = anchorTime(items, bed.in, fps);
+  const e = anchorTime(items, bed.out, fps);
+  const total = totalDuration(items);
+  return { start: Math.max(0, s ?? bed.start), end: Math.min(total, e ?? bed.end) };
+}
+
+/** The beds Play all plays: each run its file looped, at the place's gain, crossfaded over
+ * BED_XFADE at a boundary inside the cut (a muted place, or one not made yet, left out). */
+export function bedPlan(items: PlayItem[], beds: MixBed[] | undefined, mix: Mix, fps: number): PlayEntry[] {
+  const total = totalDuration(items);
+  const out: PlayEntry[] = [];
+  const half = BED_XFADE / 2;
+  (beds ?? []).forEach((b, i) => {
+    const own = bedSettings(mix, b.place);
+    if (!b.exists || own.mute) return;
+    const { start, end } = bedSpan(items, b, fps);
+    if (!(end > start)) return;
+    const head = start > 1e-6;
+    const tail = end < total - 1e-6;
+    out.push({
+      id: `bed:${b.place}:${i}`, track: "ambience", path: b.path,
+      start: head ? start - half : start, end: tail ? end + half : end, offset: 0,
+      gain: dbToGain(own.gain_db), points: [], fadeIn: head ? BED_XFADE : 0, fadeOut: tail ? BED_XFADE : 0, loop: true,
+    });
+  });
+  return out;
+}

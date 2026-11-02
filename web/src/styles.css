@@ -678,6 +678,10 @@
 .h3-snd-item:hover .h3-trim-h { opacity: 0.55; }
 .h3-snd-effects { --h3-snd-c: #e0a040; }
 .h3-snd-ambience { --h3-snd-c: #4fae8a; }
+/* a place's ambience bed: laid from the cut, not dragged (a menu instead); hollow until made */
+.h3-snd-item.h3-snd-bed { z-index: 0; cursor: context-menu; border-style: dashed; background: color-mix(in srgb, var(--h3-snd-c) 12%, var(--h3-bg)); }
+.h3-snd-item.h3-snd-bed-missing { background: transparent; opacity: 0.6; }
+.h3-snd-item.h3-snd-bed.h3-snd-silent { opacity: 0.35; }
 .h3-snd-music { --h3-snd-c: #8a6ce0; }
 .h3-snd-dialogue { --h3-snd-c: #4a90d9; }
 .h3-snd-label {

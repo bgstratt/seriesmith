@@ -1877,7 +1877,7 @@ export interface RefEvent {
 // ---------------------------------------------------------------------------
 
 /** music: a score cue (docs/SOUND.md; GET /seriesmith/targets?kind=music) */
-export type TargetKind = "video" | "image" | "audio" | "music";
+export type TargetKind = "video" | "image" | "audio" | "music" | "ambience";
 
 /** One binding entry: a graph widget (`class_type` + `field`, or for LoRAs
  * `name`/`strength`/`input`/`chain`), or `{"via": "loader"}`. */
@@ -2506,11 +2506,62 @@ export interface Mix {
   regions?: MixRegion[];
   duck?: { threshold_db?: number; attack_ms?: number; release_ms?: number };
   loudness?: { target_lufs?: number; true_peak_db?: number };
+  /** what you changed of a place's ambience bed (docs/SOUND.md phase 3): its level, mute */
+  beds?: Record<string, MixBedSettings>;
+}
+
+export interface MixBedSettings {
+  gain_db?: number;
+  mute?: boolean;
+}
+
+/** A place's ambience bed under a run of the cut's shots (GET /seriesmith/mix `beds`: worked
+ * out from the cut and the series config, never stored; ambience.laid). */
+export interface MixBed {
+  /** the place's id (its location, or the variant with its own ambience) */
+  place: string;
+  label: string;
+  /** the bed's file, relative to the episode */
+  path: string;
+  /** made yet */
+  exists: boolean;
+  words: string;
+  shots: string[];
+  /** from the first shot's first frame played to the frame after the last's */
+  in: Anchor;
+  out: Anchor;
+  /** cut seconds, as the server laid it */
+  start: number;
+  end: number;
+  gain_db: number;
+  mute: boolean;
+}
+
+/** GET /seriesmith/ambience: a place's bed as a ref (`ambience:<place>`), without its takes. */
+export interface AmbienceBed {
+  ref: string;
+  place: string;
+  name: string;
+  words: string;
+  path: string | null;
+  exists: boolean;
+  /** the locations whose shots play over it */
+  locations: string[];
+  used_by: string[];
+  takes: number;
+  ok: number;
+  queued: number;
+  picked: number | null;
+  can_generate: boolean;
+  why_not: string | null;
+  target: string | null;
 }
 
 /** GET /seriesmith/mix */
 export interface MixResult {
   mix: Mix;
+  /** the places' ambience beds under the cut (none: the server has none to lay) */
+  beds?: MixBed[];
   /** the series config's `sound` defaults the mix sits on */
   series: { tracks?: Partial<Record<MixTrack, MixTrackSettings>>; loudness?: Mix["loudness"] };
   defaults: {

@@ -4163,8 +4163,8 @@ def post_refs_generate(ctx: Context, body):
     if seconds is not None:
         if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
             raise ApiError(400, "seconds must be a number of seconds, or null")
-        if kind != "audio":
-            raise ApiError(400, f"seconds is only for a voice ref, not {ref.id}")
+        if kind not in ("audio", "ambience"):
+            raise ApiError(400, f"seconds is only for a voice ref or an ambience bed, not {ref.id}")
     pass_ = check_pass(body.get("pass"), "final")
     # an edit of a picture the ref already has (refs.plan_edit): `prompt` is
     # the instruction, `edit` says which picture and what else comes along

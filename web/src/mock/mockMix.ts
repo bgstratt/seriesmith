@@ -105,6 +105,15 @@ export function checkMix(raw: Mix | null | undefined): Mix {
   if (raw.regions?.length) out.regions = raw.regions.map((r: MixRegion, i) => ({ ...r, from: anchor(r.from, `region ${i + 1}'s from`), to: anchor(r.to, `region ${i + 1}'s to`) }));
   if (raw.duck && Object.keys(raw.duck).length) out.duck = { ...raw.duck };
   if (raw.loudness && Object.keys(raw.loudness).length) out.loudness = { ...raw.loudness };
+  // a place's ambience bed: its level and mute, defaults dropped
+  const beds: NonNullable<Mix["beds"]> = {};
+  for (const [place, b] of Object.entries(raw.beds ?? {})) {
+    const o: { gain_db?: number; mute?: boolean } = {};
+    if (b?.gain_db) o.gain_db = num(b.gain_db, `bed ${place}'s gain_db`, -60, 12);
+    if (b?.mute) o.mute = true;
+    if (Object.keys(o).length) beds[place] = o;
+  }
+  if (Object.keys(beds).length) out.beds = beds;
   return out;
 }
 

@@ -440,8 +440,13 @@ export function cardFields(kind: CardKind, raw: Raw, id: string): Field[] {
       { path: ["of"], label: "Angle of", kind: "select",
         choices: [{ value: "", label: "- (a place of its own)" }, ...others("locations", (e) => !e.of)],
         help: "Another camera on the same place: its plate is drawn from that one's (on an edit model), so the walls and light match across a cut. Anchor the description to the same fixed things." },
+      { path: ["ambience"], label: "Ambience", kind: "long",
+        placeholder: "Room tone of a small roadside diner at night: a refrigerator hum, the buzz of a neon sign, an occasional car passing outside",
+        help: "What's heard there: the room tone or the air, never music or a voice. Its ambience bed is made from it (the Refs tab's Ambience) and looped under every shot set here; an angle or relit version of this place plays this one's bed unless it says its own. Empty: no bed." },
       { path: ["plate"], label: "Picture file", kind: "picture", more: true,
         help: "Where its plate lives. Filled in from the show's layout." },
+      { path: ["ambience_bed"], label: "Ambience file", kind: "text", more: true, placeholder: "../refs/_amb/diner.wav",
+        help: "Where its ambience bed lives (a wav of your own works too). Empty: _amb/<id>.wav beside its plate's refs folder." },
     ];
   }
 }

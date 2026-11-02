@@ -70,6 +70,25 @@ describe("the sound lanes", () => {
     expect(store.get().cutUndo[statusKey(EP, "proxy")]?.undo).toBe("Mute music");
   });
 
+  it("a place's ambience bed is a block on the Ambience lane, its menu mutes the place", async () => {
+    const key = statusKey(EP, "proxy");
+    const shots = store.get().status[key]!.shots;
+    const bed = { place: "diner", label: "Diner", path: "../refs/_amb/diner.wav", exists: true, words: "a fridge hum",
+                  shots: [shots[0].shot], in: { shot: shots[0].shot, frame: 0 }, out: { shot: shots[0].shot, frame: 24 },
+                  start: 0, end: 1, gain_db: 0, mute: false };
+    store.set((s) => ({ mix: { ...s.mix, [key]: { ...s.mix[key]!, beds: [bed] } } }));
+    store.set({ sound: true });
+    await act(async () => root.render(createElement(Timeline)));
+    const block = el.querySelector<HTMLElement>(".h3-snd-bed")!;
+    expect(block).not.toBeNull();
+    expect(block.title).toContain("Diner's ambience bed");
+    await act(async () => block.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 100, clientY: 100 })));
+    const mute = [...document.querySelectorAll<HTMLButtonElement>(".h3-snd-pop button")].find((x) => x.textContent?.includes("Mute this place"))!;
+    await act(async () => mute.click());
+    await mixSettled();
+    expect(currentMix()!.mix.beds).toEqual({ diner: { mute: true } });
+  });
+
   it("the music fader shows its -12 dB default", async () => {
     store.set({ sound: true });
     await act(async () => root.render(createElement(Timeline)));
