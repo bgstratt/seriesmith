@@ -1,6 +1,6 @@
 # The episode's sound: four tracks, cues, a mix
 
-Status (2026-11-01): **designing**, on the `sound-tracks` branch. This file is the design
+Status (2026-11-01): **building**, on the `sound-tracks` branch (phases 1-3 built, 7 tried). This file is the design
 record and the checklist; the contracts go into the docstrings, `docs/API.md` and the user
 docs as each phase is built.
 
@@ -391,12 +391,39 @@ Each phase is tested live on local ComfyUI before the next starts.
      silences a place's.
    - **Shown on the lane** as blocks (the place's name), read-only but for a menu: its level,
      mute, open its ref.
-   - [ ] series config: a location's `ambience`, `ambience_bed`; the place by `of`
-   - [ ] the `ambience` kind: `mmaudio_ambience`, `sa3_sfx_ambience`; the bed finished as it lands
-   - [ ] refs: refs_todo's beds, `seriesmith refs` makes them, the Refs tab's Ambience
-   - [ ] the mix: beds from the cut (render, Play all, stems, XML), `beds` in mix.json
-   - [ ] the editor: the beds on the Ambience lane; a location's ambience in its form
-   - [ ] docs: AUTHORING (a location's ambience), API, EDITOR, the guide
+   - [x] series config: a location's `ambience`, `ambience_bed`; the place by `of` (2026-11-01;
+         `core/series_config.py` ambience_bed_of / ambience_beds: a location's own bed when it
+         says `ambience` or `ambience_bed`, else its place's, location_master; nothing
+         automatic. The default file is `_amb/<id>.wav` in the refs folder the plate is in:
+         `../refs/_amb/diner.wav` beside `../refs/_bg/diner.png`, `refs/_amb/<id>.wav` for a
+         plate under `refs/` or none, so a series config in the show's folder keeps its beds
+         in the show)
+   - [x] the `ambience` kind: `mmaudio_ambience`, `sa3_sfx_ambience`; the bed finished as it lands
+         (2026-11-01; `targets/ambience/`, `seriesmith/ambience.py` finish_bed: 1.5 s off each
+         end of a take of 4.5 s or more, one gain to BED_LUFS; the Features window's Ambience
+         beds: ComfyUI-MMAudio and its four files, and Small SFX)
+   - [x] refs: refs_todo's beds, `seriesmith refs` makes them, the Refs tab's Ambience
+         (2026-11-01; `ambience:<place>` refs in refs.py, seeded from the place's id; build's
+         with_beds lists them as kind "ambience bed"; kreagen makes them with the pictures;
+         `GET /seriesmith/ambience`, a row's takes from `GET /seriesmith/refs/one` when it opens)
+   - [x] the mix: beds from the cut (render, Play all, stems, XML), `beds` in mix.json
+         (2026-11-01; `ambience.laid` / `render_beds` / `bed_lanes`, `mix.render(beds=)`,
+         `mix.placed(beds=)`, assemble: a bed that's there and not muted makes a mix by itself;
+         `GET /seriesmith/mix` `beds`, Play all's `lib/mix.ts` bedPlan)
+   - [x] the editor: the beds on the Ambience lane; a location's ambience in its form
+         (2026-11-01; `SoundLanes.tsx` BedBlock / BedMenu, `SoundRefs.tsx` BedRow, the location
+         card's Ambience and Ambience file)
+   - [x] docs: AUTHORING (a location's ambience), API, EDITOR, SCORING's Levels (2026-11-01)
+
+   Live on local ComfyUI (2026-11-01, CupsMV ep01): the diner's words made one MMAudio take
+   (10 s, 25 steps, about 15 s with the model loading) by `seriesmith refs --all --only
+   ambience:diner`, finished to 7.0 s at -32.0 LUFS (it came at -27.2) and picked into
+   `../refs/_amb/diner.wav`; a Small SFX take beside it came at -40.8 LUFS, 30 s -> 27.1 s.
+   `assemble --pass proxy` laid it under sq01 and sq04 (the diner) and nothing under sq02
+   (platform) and sq03 (car): the ambience stem measured -38.1 and -38.5 dBFS RMS over the
+   diner sequences (second by second -39.6 to -34.6: the bed ducked 6 dB under the song, and
+   the mix's -2.6 dB loudness gain), silence (no sample above zero) over the other two, and the
+   0.5 s fades at the cuts (-41 -> -48 -> -64 dB out of sq01, the mirror into sq04).
 4. **Effects.** The `foley` kind; H3 FL2VA at 256x160 the default (the take's frames
    anchored, only the sound decoded), LTX-2.3 Foley and Hunyuan XL beside it; effects stale when the pick changes; optionally Demucs to split a take's voice from
    its effects.

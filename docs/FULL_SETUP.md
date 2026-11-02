@@ -79,6 +79,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Location tours | ComfyUI-PlagueKind-Nodes | H3 FL2VA's | |
 | Generated voice samples | ComfyUI-LTXVideo | LTX-2.5's transformer, text encoder, audio VAE | |
 | Recorded dialogue | | | faster-whisper; demucs for `dub_keep_foley` |
+| Ambience beds | ComfyUI-MMAudio | MMAudio's 4 files (or Stable Audio 3 Small SFX's 2) | |
 | Upscaling H3 takes | Comfyui_Minimax_h3_latent_Upscaler; comfyui-obvpm-timeline for takes over 5.5 s | H3's latent upscaler | |
 | Upscaling any take | Nvidia RTX Nodes (optional) | RealESRGAN, or SeedVR2 | |
 | Post-processing | | RealESRGAN / SeedVR2 7B / SUPIR + SDXL; RAFT for motion blur | |
@@ -287,6 +288,20 @@ their own words. The voice comes out close, not identical: listen before you pic
   window names the one it found and prints the exact `pip install` line for it.
 - `pip install demucs`, in the `python` first on ComfyUI's PATH, for the
   `dub_keep_foley` audio policy. It strips H3's own vocal and keeps the foley under yours.
+
+**Ambience beds** are a place's room tone or air, made once from its location's `ambience`
+words and looped under its shots in the mix ([AUTHORING.md](AUTHORING.md), "What a place
+sounds like"). The default, `mmaudio_ambience`, needs
+[ComfyUI-MMAudio](https://github.com/kijai/ComfyUI-MMAudio) (MIT; ComfyUI-Manager installs
+it and its requirements) and four files in `models/mmaudio`, from
+[Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors):
+`mmaudio_large_44k_v2_fp16`, `mmaudio_vae_44k_fp16`, `mmaudio_synchformer_fp16` and
+`apple_DFN5B-CLIP-ViT-H-14-384_fp16` (`.safetensors`). The pack downloads BigVGAN v2 into
+`models/mmaudio/nvidia` the first time. `sa3_sfx_ambience` (Stable Audio 3 Small SFX, ComfyUI's
+own nodes) needs `stable_audio_3_small_sfx.safetensors` in `checkpoints` and
+`t5gemma_b_b_ul2.safetensors` in `text_encoders`
+([Comfy-Org/stable-audio-3](https://huggingface.co/Comfy-Org/stable-audio-3)). The Features
+window has both under Sound.
 
 ## Upscaling
 

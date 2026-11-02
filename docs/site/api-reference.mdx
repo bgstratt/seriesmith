@@ -51,6 +51,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/browse` | Round 2 additions |
 | `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
 | `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes`, `GET /seriesmith/refs/shared-takes` | References (Phase 5) |
+| `GET /seriesmith/ambience`, `GET /seriesmith/refs/one` | Ambience beds |
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
 | `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
@@ -624,13 +625,40 @@ and the stems go to `<cut>_stems/` beside it; the XML export carries the items o
 tracks.
 
 ### `GET /seriesmith/mix?ep=…&pass=…`
-`{"mix", "files", "series", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
+`{"mix", "files", "beds", "series", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
 none, defaults dropped, but a track's values kept as given: a 0 dB fader or an unmute overrides
 the series config), `files` each item file's length in seconds (`null`: not there, or no
 sound), `series` the series config's `sound.tracks` / `sound.loudness` under it, and
 `defaults` `{tracks: ["dialogue", "effects", "ambience", "music"], gain_db, duck_db, duck, loudness}` (`gain_db`: each track's fader when nothing sets it, music -12 dB)
 (what a track dips under speech, the detector and the loudness target when nothing says).
-409 when `mix.json` is there but doesn't read.
+`beds` the places' ambience beds laid under the cut (below): `[{"place", "label", "path" (relative to the episode), "exists", "words", "shots", "in", "out" (anchors: the run's first shot's first frame played, the frame after its last shot's last), "start", "end" (cut seconds), "gain_db", "mute"}]`, one per run. 409 when `mix.json` is there but doesn't read.
+
+### Ambience beds (2026-11-01)
+
+A location's place (it, or what it is `of`) may say what is heard there (`ambience`); its bed
+is a ref, `ambience:<place>` (seriesmith/ambience.py, docs/SOUND.md phase 3), made on an
+`ambience` target (`mmaudio_ambience` by default, `sa3_sfx_ambience`; the series config's
+`refs.ambience_target`) through `POST /seriesmith/refs/generate` (`seconds` takes the bed's
+length), picked with `PUT /seriesmith/refs/pick`, imported, overridden and discarded like any
+ref. A take is finished as it lands: 1.5 s off each end (a take of 4.5 s or more), brought to
+-32 LUFS (the sidecar's `bed`: `{seconds, trimmed, measured_lufs, gain_db}`). Beds aren't in
+`GET /seriesmith/refs`.
+
+The mix lays them, never stores them: each run of consecutive shots of the cut whose
+sequence's location has one place's bed gets that bed, looped (equal power) from its start,
+the runs crossfaded 0.5 s into each other at their cuts; a shot whose place has no bed has
+none. They sit on the ambience track (its fader and its ducking apply; items there play over
+them). `mix.json`'s `beds` keeps only what you change of a place: `{"diner": {"gain_db": -3, "mute": true}}` (both optional). A bed that's there and not muted makes a mix by itself: the
+export renders it, the ambience stem and the M&E carry it, the XML lays it on the ambience
+pair (its file end to end).
+
+#### `GET /seriesmith/ambience?ep=…`
+`{"beds": [{"ref", "place", "name", "words", "path", "exists", "locations" (whose shots play over it), "used_by" (this episode's shots), "takes", "ok", "queued", "picked", "can_generate", "why_not", "target"}], "target"}`: every place's bed, without its takes (one
+look at each takes folder).
+
+#### `GET /seriesmith/refs/one?ep=…&ref=…`
+One ref as `GET /seriesmith/refs` lists one, with its takes: what a bed's row fetches when
+it opens. 404 for no such ref.
 
 ### `GET /seriesmith/mix/duck?ep=…&pass=…`
 `{"step", "curve"}`: the pass's "someone is speaking" curve, one value 0..1 per `step` seconds
@@ -645,7 +673,7 @@ one that doesn't check (an unknown field, a track or anchor that isn't one, a le
 loudness out of range, two items or hits with one id), or an item whose `path` leaves the
 episode; 404 for an item whose file isn't there (`POST /seriesmith/audio/import` puts one in
 `audio/`). The old file goes to `_history/` first; a mix that changes nothing writes nothing.
-Emits `seriesmith.episode`.
+`beds` takes a place's `gain_db` (-60 to 12) and `mute`. Emits `seriesmith.episode`.
 
 ## Music cues (2026-11-01)
 

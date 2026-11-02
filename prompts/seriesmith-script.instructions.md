@@ -497,8 +497,12 @@ model, a character's voice sample by an audio model. Leave the block out for the
 voices), or name others:
 
 ```json
-"refs": {"target": "krea2", "keyframe_target": "flux2_klein_edit", "voice_target": "ltx2_voice"}
+"refs": {"target": "krea2", "keyframe_target": "flux2_klein_edit", "voice_target": "ltx2_voice",
+         "ambience_target": "mmaudio_ambience"}
 ```
+
+(`ambience_target` makes the places' ambience beds: `mmaudio_ambience`, the default, or
+`sa3_sfx_ambience`.)
 
 The picture models, and what each needs installed, are in `docs/FULL_SETUP.md`
 (**Pictures**). Two things matter when writing:
@@ -645,6 +649,32 @@ preset's id (`dusk`, `night`, `rain`, `neon`, …) or the instruction in your ow
 - The source may be an angle; a relit plate's source can't itself be relit.
 - The editor can also make these from the plates (Relight on a sequence; a 360 panorama or a
   camera tour of a master for its angles' pictures): in a config you only name them.
+
+### What a place sounds like: `ambience`
+
+A location may say what is **heard** there, its room tone or air, in `ambience`. An
+ambience bed is made from those words (on MMAudio by default, with "No music, no voices,
+no speech." added) and looped under every shot of every sequence set there, so a room's
+hum runs across its cuts instead of starting and stopping with each take:
+
+```json
+"diner": {"description": "a small roadside diner at night, a red vinyl booth ...",
+          "plate": "../refs/_bg/diner.png",
+          "ambience": "Room tone of a small roadside diner at night: a refrigerator hum, the buzz of a neon sign, the faint clink of dishes from the kitchen, an occasional car passing outside."}
+```
+
+- Write what is heard, as a sound designer would: the steady bed first (a hum, rain, wind,
+  traffic), then a few sparse events (a clink, a car passing). Never music, a voice or a
+  line someone says.
+- A bed belongs to the **place**: an angle or a relit version (`of:`) plays its place's bed,
+  so the cut between them doesn't change the room. Give a variant its own `ambience` only
+  when it sounds different (the hall at golden hour, with evening birds).
+- The bed's file is `ambience_bed`, a path like `plate`'s. Leave it out: it is `_amb/<id>.wav`
+  in the refs folder the plate is in (`../refs/_amb/diner.wav` beside `../refs/_bg/diner.png`).
+  A recording of your own can be named there with no `ambience` words.
+- Nothing is automatic: a location with no `ambience` (and whose place has none) gets no
+  bed. `seriesmith refs` makes the beds refs_todo lists; the editor's Refs tab has them under
+  **Ambience**. Its level is the mix's (the Ambience lane, `docs/EDITOR.md`).
 
 ### Two people talking need an angle each
 
