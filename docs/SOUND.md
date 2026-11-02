@@ -736,6 +736,61 @@ her question). What it taught:
   all ducks as the export does (the server's speech curve, 2026-11-01), so the editor no longer
   plays it louder than the export.
 
+## Measured: repaint (2026-11-02, local, RTX 5090)
+
+Bars of a take made again, the rest kept: the take's raw file encoded (`VAEEncodeAudio`), a
+noise mask of ones over the span and zeros elsewhere on the audio latent (ACE-Step 1.5's and
+YuE2's are `[batch, 64, frames]` at 25 frames a second; ComfyUI's `SetLatentNoiseMask` makes a
+picture's height-by-width mask, which a 1-D latent can't take, so the probe used KJNodes'
+`LTXVAudioVideoMask`, audio only, `partial`; seriesmith's node pack has its own,
+`SeriesmithAudioSpanMask`), the take's own graph and conditioning, KSampler at the take's
+settings with a new seed, decoded; then the take's own audio spliced back outside the span
+with 20 ms equal-power crossfades at the bar lines, as a comp is. Three sources: an ACE-Step
+1.5 XL Turbo score cue of our own (96 bpm asked, 98.0 heard, 4/4, 40 s, a kick and snare on
+every beat), CupsMV ep01 m03 t02 (ACE-Step, a sung song with m02 t01 as its timbre reference,
+20 s) and m02 t01 (YuE2, a 54 s song); the CupsMV takes read only, copied. Spans of 2 and 4
+bars mid-take and the last 2 bars to the end, three seeds (two on the CupsMV takes), and for
+ACE-Step four ways: the text encoder at the take's seed (**its codes**: ACE-Step's language
+model writes the same 5 Hz semantic codes the take was made from) or a new one (**new codes**),
+at denoise 1.0, 0.85 and 0.7. Files and the probe's numbers in `ComfyProjects\_repaint_test`.
+
+| | Kept bars (a) | Grid in the span (b) | Seams (c) | Change in the span (d) | Render (e) |
+|---|---|---|---|---|---|
+| ACE score, its codes, d1.0 (2 and 4 bars mid) | the round trip only: 0.975 | **every beat within 3 ms, as the take (24/24)**; 97.7-98.1 heard | level step at the bar line within -3.5 to +1.3 dB of the take's own; no click | spectra 0.92-0.95 (round trip 0.97), waveform 0.65-0.72 | 1.3 s (6 s cold) |
+| ACE score, its codes, d0.7 | the same | the same | -2.8 to +1.2 dB | 0.93-0.95, waveform 0.76-0.83 | 1.3-3.7 s |
+| ACE score, new codes, d1.0, 2 bars | the same | 8/8 on the beat | -6 to +0.6 dB | 0.88-0.91, waveform 0.26-0.42 | 3.3-3.7 s |
+| ACE score, new codes, d1.0 / 0.85, **4 bars** | the same | **off the beat on 4 of 6** (1-4 of 16 beats on it, 70-96 ms late) | -8.6 to +1.6 dB | 0.76-0.91 | 3.3-3.7 s |
+| ACE score, the last 2 bars (an ending, no beat) | the same | (none to hold) | -8.5 to +1.2 dB | 0.68-0.88 | 1.3-3.7 s |
+| ACE song with a timbre reference (m03 t02), its graph | the round trip only: 0.995 | 95.2-97.0 heard (96 asked); as near the beat as the take (a sung song: few onsets) | -3.2 to +2.9 dB | 0.82-0.90, waveform 0.12-0.44 | 1.2-1.5 s (6 s cold) |
+| YuE2 (m02 t01), the song made again at its seed | the round trip only: 0.994 | as the take | -1.5 to +0.1 dB | 0.91-0.95: the same notes, sung again | 4-9 s (the song's tokens made again) |
+| YuE2, a new song seed | refused: "YuE2 latent duration must match the seconds output of YuE2 Text Encode" | | | | |
+
+- **(a) Kept bars.** Outside the mask the sampler returns the encoded take untouched; what
+  differs is the VAE round trip (correlation 0.975 with the ACE score take, 0.995 with the
+  songs). So the take's own samples are spliced back outside the span, and the kept bars are
+  the take's exactly.
+- **(b) Tempo and beat.** With its own codes ACE-Step keeps the take's grid in every span
+  (every beat within 3 ms of where the take had it). New codes keep it over 2 bars but lose it
+  over 4 on two seeds of three (a new figure the masked sampler doesn't pull back onto the
+  beat). With a timbre reference there are no codes (the reference's own hints stand in) and
+  the span stayed near the take's tempo.
+- **(c) Seams.** Spliced at the bar lines with 20 ms crossfades, the level step across a seam
+  is within about 3 dB of the take's own step at that bar line (a downbeat is a step up in
+  any take), and the sharpest sample step near the seam stays below the sharpest in the
+  surrounding second: no click. New codes leave the span 5-9 dB quieter or louder at its far
+  end on most seeds; with its codes it doesn't.
+- **(d) Change.** With its own codes the span is a new performance of the same music (the
+  spectra 0.92-0.95 alike against the round trip's 0.97, the waveform 0.65-0.72); new codes, or
+  a timbre reference, make new music there (0.76-0.91). Denoise below 1 changes it less, not
+  more safely; 1.0 it is.
+- **(e) Fast**: 1.3 s a repaint warm on ACE-Step Turbo; YuE2 4-9 s, its song made again first.
+- **YuE2 can't repaint.** Its conditioning is its own language model's song: the latent must
+  be as long as that song, so a new seed (a new song, another length) is refused, and the same
+  seed sings the same notes again (only its sound changes). Stable Audio 3 takes no codes or
+  sections and wasn't tried. So **ACE-Step repaints, with the take's codes by default** (the
+  grid held), new codes on request (more change, the beat checked on each take), YuE2 and
+  Stable Audio 3 don't offer it.
+
 ## Open questions
 
 - Ducking defaults (-9 / -6 dB) are guesses: tune on a real episode in phase 1.
