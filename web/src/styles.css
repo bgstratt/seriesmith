@@ -1350,3 +1350,7 @@
 }
 .h3-cue-songsec-0 { background: color-mix(in srgb, var(--h3-accent) 28%, transparent); }
 .h3-cue-songsec-1 { background: color-mix(in srgb, var(--h3-accent) 14%, transparent); }
+/* voices only (voices.py): a Dialogue clip playing its voice stem, or silent (no lines), or its whole sound for want of one */
+.h3-snd-voice-silent .h3-wave { opacity: 0.25; }
+.h3-snd-voice-mark { position: absolute; top: 1px; right: 2px; font-size: 9px; line-height: 1; color: var(--h3-muted, #8a8f98); pointer-events: none; }
+.h3-snd-voice-warn { color: var(--h3-stale); }

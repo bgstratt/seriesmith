@@ -7,7 +7,7 @@
 // left-out stubs take room), so x is measured per clip: each clip's own
 // pixels per second, from its box.
 
-import type { Anchor, HitKind, Mix, MixBed, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixPoint, MixTrack, MixTrackDef, MixTrackSettings, MixResult, TrackKind } from "../types";
+import type { Anchor, HitKind, Mix, MixBed, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixPoint, MixTrack, MixTrackDef, MixTrackSettings, MixResult, MixVoice, TrackKind } from "../types";
 import { locate, totalDuration, type PlayItem } from "./playlist";
 
 /** the default tracks, each its own kind (the kinds a track can be) */
@@ -916,4 +916,78 @@ export function fxPlan(items: PlayItem[], fx: MixFx[] | undefined, mix: Mix, fps
     });
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// voices only (voices.py): the Dialogue track's clips from their takes' voice stems
+// ---------------------------------------------------------------------------
+
+/** Whether the dialogue track plays voices only. */
+export function voicesOnly(mix: Mix | undefined): boolean {
+  return !!mix?.tracks?.dialogue?.voices_only;
+}
+
+/** The dialogue track's voices only on or off (off is dropped, as mix.json keeps it). */
+export function setVoicesOnly(mix: Mix, on: boolean): Mix {
+  const t: MixTrackSettings = { ...(mix.tracks?.dialogue ?? {}) };
+  if (on) t.voices_only = true;
+  else delete t.voices_only;
+  const tracks = { ...(mix.tracks ?? {}) };
+  if (Object.keys(t).length) tracks.dialogue = t;
+  else delete tracks.dialogue;
+  const out: Mix = { ...mix, tracks };
+  if (!Object.keys(tracks).length) delete out.tracks;
+  return out;
+}
+
+/** A shot's own voices only (true: its stem; false: its whole sound; null: the track's). */
+export function setShotVoices(mix: Mix, shot: string, v: boolean | null): Mix {
+  const voices = { ...(mix.voices ?? {}) };
+  if (v == null) delete voices[shot];
+  else voices[shot] = { voices_only: v };
+  const out: Mix = { ...mix, voices };
+  if (!Object.keys(voices).length) delete out.voices;
+  return out;
+}
+
+/**
+ * What the Dialogue track plays for a clip under `mix` (voices.plays, worked out here too so
+ * a toggle is heard at once): its stem, its whole sound, or silence (a shot with no lines,
+ * unless it asks for voices only itself). A stem that isn't there plays the whole sound.
+ */
+export function voicePlays(mix: Mix | undefined, v: MixVoice): MixVoice["plays"] {
+  const own = mix?.voices?.[v.shot]?.voices_only;
+  const want = own ?? voicesOnly(mix);
+  if (!want || v.state === "sourced" || v.state === "silent") return "whole";
+  if (!v.lines && own !== true) return "silence";
+  return v.state === "ok" ? "voice" : "whole";
+}
+
+/** The shots whose clip's own sound isn't heard under Play all (their stem plays, or nothing). */
+export function voicedShots(res: Pick<MixResult, "mix" | "voices"> | undefined): string[] {
+  return (res?.voices?.shots ?? []).filter((v) => voicePlays(res?.mix, v) !== "whole").map((v) => v.shot);
+}
+
+/** The voice stems Play all plays, each on the dialogue track at its clip (its <video> muted). */
+export function voicePlan(items: PlayItem[], res: Pick<MixResult, "mix" | "voices"> | undefined): PlayEntry[] {
+  const out: PlayEntry[] = [];
+  for (const v of res?.voices?.shots ?? []) {
+    if (!v.path || voicePlays(res?.mix, v) !== "voice") continue;
+    const it = items.find((x) => x.shot === v.shot);
+    if (!it || !it.mp4 || it.take !== v.take || !(it.dur > 0)) continue;
+    out.push({
+      id: `voice:${v.shot}`, track: "dialogue", path: v.path, start: it.start, end: it.start + it.dur, offset: it.inT,
+      gain: 1, points: [], fadeIn: 0, fadeOut: 0, loop: false,
+    });
+  }
+  return out;
+}
+
+/** A clip's voice stem that's missing or stale while voices only wants it (null: nothing to say). */
+export function voiceBadge(mix: Mix | undefined, v: MixVoice | undefined): string | null {
+  if (!v) return null;
+  const own = mix?.voices?.[v.shot]?.voices_only;
+  const want = own ?? voicesOnly(mix);
+  if (!want || voicePlays(mix, v) !== "whole" || v.state === "sourced" || v.state === "silent") return null;
+  return v.state === "queued" ? "its voice stem is being made" : `its whole sound plays: ${v.why ?? `its voice stem is ${v.state}`}`;
 }

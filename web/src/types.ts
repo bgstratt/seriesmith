@@ -2513,6 +2513,9 @@ export interface MixTrackSettings {
   mute?: boolean;
   solo?: boolean;
   duck_db?: number;
+  /** the dialogue track only: each clip plays its take's voice stem (voices.py), the model's
+   * music and room tone split off */
+  voices_only?: boolean;
 }
 
 /** A volume breakpoint: dB at an anchor (linear between, held beyond the ends). */
@@ -2578,6 +2581,43 @@ export interface Mix {
   fx?: Record<string, MixFxSettings>;
   /** the mix's own tracks in lane order (docs/SOUND.md phase 6); none: the four defaults */
   track_list?: MixTrackDef[];
+  /** a shot's own voices only, over the dialogue track's (false: its whole sound) */
+  voices?: Record<string, { voices_only: boolean }>;
+}
+
+/** What a clip's take's voice stem is (voices.py). */
+export type VoiceState = "ok" | "missing" | "stale" | "queued" | "failed" | "sourced" | "silent";
+
+/** A cut shot's voice stem and what voices only does to it (GET /seriesmith/mix `voices.shots`). */
+export interface MixVoice {
+  shot: string;
+  pass: Pass;
+  take: number | null;
+  /** the stem, relative to the episode (null: no take) */
+  path: string | null;
+  state: VoiceState;
+  why: string | null;
+  /** the shot's, the track's under it */
+  voices_only: boolean;
+  /** the shot's own setting (null: the track's) */
+  override: boolean | null;
+  /** what the Dialogue track plays for it */
+  plays: "voice" | "whole" | "silence";
+  /** the script gives it a line */
+  lines: boolean;
+  measured?: { whole_rms_db?: number | null; voice_rms_db?: number | null; rest_rms_db?: number | null } | null;
+  seconds?: number | null;
+}
+
+/** GET /seriesmith/mix `voices`: the Dialogue track's voices only. */
+export interface MixVoices {
+  /** the track's setting */
+  voices_only: boolean;
+  shots: MixVoice[];
+  /** of the cut's shots that can be split, how many are, and how many are queued */
+  split: number;
+  of: number;
+  queued: number;
 }
 
 export interface MixFxSettings {
@@ -2709,6 +2749,8 @@ export interface MixResult {
   beds?: MixBed[];
   /** the shots' picked effects at their clips */
   fx?: MixFx[];
+  /** the Dialogue track's voices only: each cut shot's voice stem (none: an older server) */
+  voices?: MixVoices;
   /** the series config's `sound` defaults the mix sits on */
   series: { tracks?: Partial<Record<MixTrack, MixTrackSettings>>; loudness?: Mix["loudness"] };
   /** the mix's tracks in lane order, each named (the server's; the editor works it out from `mix` too) */

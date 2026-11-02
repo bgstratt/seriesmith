@@ -182,6 +182,9 @@ export interface Api {
   /** POST /seriesmith/fx/render: effects for those shots from the cut's takes, on the queue. */
   renderFx?(req: { ep: string; pass: Pass; shots: string[]; target?: string | null; n?: number }): Promise<{
     queued: { shot: string; take: number; job: string; seed: number; target: string }[]; skipped: { shot: string; why: string }[] }>;
+  /** POST /seriesmith/voices: the cut's takes split into their voice stems, on the queue (shots: default the whole cut). */
+  makeVoices?(req: { ep: string; pass: Pass; shots?: string[]; redo?: boolean }): Promise<{
+    queued: { shot: string; take: number; job: string }[]; skipped: { shot: string; why: string }[] }>;
   /** POST /seriesmith/fx/pick: a shot's effects take into the pass's mix (null: out). */
   pickFx?(req: { ep: string; pass: Pass; shot: string; take: number | null }): Promise<{ mix: Mix }>;
   /** GET /seriesmith/cues: the episode's music cues, each its spec and take counts; with
@@ -629,12 +632,14 @@ export function createHttpApi(t: Transport): Api {
     getMix: async (ep, pass) => {
       const r = await get<Partial<MixResult>>(`/seriesmith/mix?${qs({ ep, pass })}`);
       return { mix: r?.mix ?? {}, series: r?.series ?? {}, defaults: { ...MIX_DEFAULTS, ...(r?.defaults ?? {}) },
-               beds: Array.isArray(r?.beds) ? r.beds : [], fx: Array.isArray(r?.fx) ? r.fx : [] };
+               beds: Array.isArray(r?.beds) ? r.beds : [], fx: Array.isArray(r?.fx) ? r.fx : [],
+               ...(r?.voices && Array.isArray(r.voices.shots) ? { voices: r.voices } : {}) };
     },
     fxTakes: (ep, pass, shot) => get(`/seriesmith/fx?${qs({ ep, pass, shot })}`),
     fxShots: (ep, pass) => get(`/seriesmith/fx/shots?${qs({ ep, pass })}`),
     renderFx: (req) => call("POST", "/seriesmith/fx/render", req),
     pickFx: (req) => call("POST", "/seriesmith/fx/pick", req),
+    makeVoices: (req) => call("POST", "/seriesmith/voices", req),
     ambience: async (ep) => {
       const r = await get<Partial<{ beds: AmbienceBed[]; target: string | null }>>(`/seriesmith/ambience?${qs({ ep })}`);
       return { beds: Array.isArray(r?.beds) ? r.beds : [], target: r?.target ?? null };

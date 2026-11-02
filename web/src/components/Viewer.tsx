@@ -20,7 +20,7 @@ import {
   atOutPoint, baseIn, clipOffset, cutTime, fadeLevel, fileTime, locate, nextVideo, totalDuration, type PlayItem,
 } from "../lib/playlist";
 import { masterSync, needsResync, recordingAt, trackState } from "../lib/recording";
-import { dialogueDbAt, trackGains } from "../lib/mix";
+import { dialogueDbAt, trackGains, voicedShots } from "../lib/mix";
 import { currentMix } from "../mixActions";
 import { useMixAudio } from "./MixAudio";
 import { PANO_VIEW, TOUR_VIEW, takesOf, viewLabel, viewOf } from "../lib/refs";
@@ -541,8 +541,13 @@ export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>
   const sync = useMemo(() => masterSync(items, fps, baseIn(st), anyOutOfOrder(st)), [items, fps, st]);
   const recStart = useRef(sync.start);
   recStart.current = sync.start;
-  // the episode's mix under the cut (effects, ambience, music), on its clock
-  useMixAudio(ep, items, fps);
+  // the episode's mix under the cut (effects, ambience, music), on its clock; and voices
+  // only's stems in place of their clips' own sound (not while the recording plays)
+  useMixAudio(ep, items, fps, !recording);
+  // voices only: the clips whose own sound isn't heard (their stem plays, or nothing)
+  const voiced = useApp((s) => voicedShots(currentMix(s)).join(" "));
+  const voicedRef = useRef<Set<string>>(new Set());
+  voicedRef.current = new Set(voiced ? voiced.split(" ") : []);
   // the dialogue fader, mute and solo on the clips' own sound and the recording, and a
   // region's dialogue_db under the playhead (a video plays at most at its own level)
   const dialogue = useApp((s) => {
@@ -600,7 +605,7 @@ export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>
       off?.pause();
       if (off) off.muted = true;
       if (on) {
-        on.muted = rec.current;
+        on.muted = rec.current || voicedRef.current.has(it.shot);
         on.playbackRate = forward() ? rate.current : 1;
         if (forward()) void on.play().catch(() => {});
         else on.pause();
@@ -720,13 +725,14 @@ export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>
     }
   }, [cp.playing, cpRate]);
 
-  // clips' sound or the recording
+  // clips' sound or the recording (a clip voices only plays from its stem stays muted)
   useEffect(() => {
     const e = eng.current;
     const el = els()[e.active];
-    if (el && e.items[e.idx]?.mp4) el.muted = recording;
+    const it = e.items[e.idx];
+    if (el && it?.mp4) el.muted = recording || voicedRef.current.has(it.shot);
     if (!recording) au.current?.pause();
-  }, [recording]);
+  }, [recording, voiced]);
 
   // the cut changed under us (a pick, a trim, a move, a render finishing): re-place the playhead
   useEffect(() => {

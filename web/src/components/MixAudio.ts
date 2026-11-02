@@ -9,10 +9,13 @@
 // video's clock and the audio's drift apart. A take auditioned (the spotting
 // sheet's: store `audition`) plays in its cue's place, in the preview only. The clips' own sound stays on the
 // <video> elements (the Viewer sets their volume from the dialogue fader and a
-// region's dialogue_db: a video only goes down).
+// region's dialogue_db: a video only goes down), but for voices only: a clip that
+// plays its take's voice stem has its <video> muted (the Viewer: lib/mix voicedShots)
+// and the stem played here on the dialogue track at its clip (lib/mix voicePlan), its
+// fader and regions as the other tracks'; not while the recording plays instead.
 
 import { useEffect, useRef } from "react";
-import { bedPlan, duckTracks, fxPlan, entryEnd, entryLevel, entryMarks, playPlan, trackGains, type PlayEntry } from "../lib/mix";
+import { bedPlan, duckTracks, fxPlan, entryEnd, entryLevel, entryMarks, playPlan, trackGains, voicePlan, type PlayEntry } from "../lib/mix";
 import { totalDuration, type PlayItem } from "../lib/playlist";
 import { api } from "../host";
 import { statusKey, store } from "../store";
@@ -213,10 +216,13 @@ export class MixEngine {
   }
 }
 
-/** The mix under Play all, for the cut player's lifetime. */
-export function useMixAudio(ep: string, items: PlayItem[], fps: number): void {
+/** The mix under Play all, for the cut player's lifetime. `clips`: the clips' own sound is
+ * heard (false while the recording plays in its place: no voice stems then either). */
+export function useMixAudio(ep: string, items: PlayItem[], fps: number, clips = true): void {
   const itemsRef = useRef(items);
   itemsRef.current = items;
+  const clipsRef = useRef(clips);
+  clipsRef.current = clips;
 
   useEffect(() => {
     const e = new MixEngine((path) => api().fileUrl(ep, path));
@@ -226,6 +232,8 @@ export function useMixAudio(ep: string, items: PlayItem[], fps: number): void {
     let mixSeen: unknown = null;
     let bedsSeen: unknown = null;
     let fxSeen: unknown = null;
+    let voicesSeen: unknown = null;
+    let clipsSeen: boolean | null = null;
     let duckSeen: unknown = null;
     let auditionSeen: unknown = null;
     let itemsSeen: PlayItem[] | null = null;
@@ -241,8 +249,12 @@ export function useMixAudio(ep: string, items: PlayItem[], fps: number): void {
       let relay = false;
       const duck = s.mixDuck[statusKey(ep, s.pass)];
       const aud = s.audition && s.audition.ep === ep && s.audition.pass === s.pass ? s.audition : null;
-      if (res?.mix !== mixSeen || res?.beds !== bedsSeen || res?.fx !== fxSeen || its !== itemsSeen || duck !== duckSeen || aud !== auditionSeen) {
+      const clipsOn = clipsRef.current;
+      if (res?.mix !== mixSeen || res?.beds !== bedsSeen || res?.fx !== fxSeen || res?.voices !== voicesSeen || clipsOn !== clipsSeen
+          || its !== itemsSeen || duck !== duckSeen || aud !== auditionSeen) {
         auditionSeen = aud;
+        voicesSeen = res?.voices;
+        clipsSeen = clipsOn;
         mixSeen = res?.mix;
         bedsSeen = res?.beds;
         fxSeen = res?.fx;
@@ -252,7 +264,8 @@ export function useMixAudio(ep: string, items: PlayItem[], fps: number): void {
         e.setGains(trackGains(res));
         // the items, and the places' ambience beds under them (looped, crossfaded at their runs' cuts)
         // and the shots' picked effects at their clips
-        plan = [...bedPlan(its, res?.beds, res?.mix ?? {}, fps), ...fxPlan(its, res?.fx, res?.mix ?? {}, fps),
+        // and voices only's stems in place of their clips' own sound
+        plan = [...(clipsOn ? voicePlan(its, res) : []), ...bedPlan(its, res?.beds, res?.mix ?? {}, fps), ...fxPlan(its, res?.fx, res?.mix ?? {}, fps),
                 ...playPlan(its, aud ? auditionMix(res?.mix ?? {}, aud) : res?.mix ?? {}, fps)];
         total = totalDuration(its);
         e.setDucking(duckTracks(res, its, fps, duck, total));

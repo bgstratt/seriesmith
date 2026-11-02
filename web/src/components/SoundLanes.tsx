@@ -33,7 +33,7 @@ import { dragHasFiles } from "../lib/lookback";
 import {
   GAIN_MAX, GAIN_MIN, HIT_KINDS, KINDS, MAX_TRACKS, bedSettings, bedSpan, canDeleteTrack, firstOf, fxHeard, fxSettings, fxSpan, HIT_KIND_TITLE, TRACK_LABEL, anchorTime, clampDb, dbY, defaultGain, fileName,
   itemSpan, itemToTrack, itemsOn, kindOf, labelOf, layout, moveItem, movePoint, patchHit, pointsDb, snapDb, timeX, timedPoints, trackList, trackState, trimItem, xAnchor, xTime,
-  type ClipBox, type Lay, type TrackDef,
+  voiceBadge, voicePlays, voicesOnly, type ClipBox, type Lay, type TrackDef,
 } from "../lib/mix";
 import { binsFor } from "../lib/peaks";
 import { baseIn, clipTake, type PlayItem } from "../lib/playlist";
@@ -41,6 +41,7 @@ import { cutBeats, type Beat } from "../lib/beats";
 import {
   addMixHit, addMixPoint, addMixTrack, clearMixPoints, currentMix, deleteMixHit, deleteMixItem, deleteMixPoint, deleteMixTrack, dropOnLane, moveItemToTrack, moveMixHit, moveMixItem, moveMixTrack, renameMixTrack,
   makeEffects, moveMixPoint, openBedRef, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
+  makeVoiceStems, setVoicesOnlyMix,
 } from "../mixActions";
 import { onFxEvent } from "../actions";
 import { tn } from "../lib/format";
@@ -51,7 +52,7 @@ import { loadCues, newCue, openCue } from "../cueActions";
 import { cueTitle } from "../lib/cue";
 import { statusKey, store, useApp } from "../store";
 import { openSpotting } from "../spotActions";
-import type { Anchor, CueKind, EpisodeStatus, FxShot, FxTake, HitKind, Mix, MixBed, MixFx, MixHit, MixItem, MixTrack, TrackKind } from "../types";
+import type { Anchor, CueKind, EpisodeStatus, FxShot, FxTake, HitKind, Mix, MixBed, MixFx, MixHit, MixItem, MixTrack, MixVoices, TrackKind } from "../types";
 import { trackPointer } from "./hooks";
 import { PeaksCanvas, WaveLane, usePeaks, useSeen } from "./Waveform";
 
@@ -373,9 +374,18 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
             {track === "dialogue" && lay.map((l) => {
               const s = st.shots.find((x) => x.shot === l.shot);
               const it = items.find((x) => x.shot === l.shot);
+              // voices only: what this clip plays (its stem, nothing), or why it can't
+              const v = res?.voices?.shots.find((x) => x.shot === l.shot);
+              const how = v ? voicePlays(mix, v) : "whole";
+              const badge = voiceBadge(mix, v);
               return s && (
-                <div key={l.shot} className="h3-snd-own" style={{ left: l.left, width: l.width }}>
+                <div key={l.shot} className={`h3-snd-own${how === "silence" ? " h3-snd-voice-silent" : ""}`} style={{ left: l.left, width: l.width }}
+                  title={how === "voice" ? `${l.shot}: its voice stem (the model's music and room tone split off)`
+                    : how === "silence" ? `${l.shot}: silent on the Dialogue track: the script gives it no lines (Sound ▸ Voices only plays its stem)`
+                    : badge ? `${l.shot}: ${badge}` : undefined}>
                   <WaveLane ep={ep} s={s} item={it} take={clipTake(s, s.cut.placeholder ? other : undefined)} st={st} width={l.width} height={LANE_H - 4} zoom={zoom} />
+                  {how === "voice" && <span className="h3-snd-voice-mark" data-voice="voice"><i className="pi pi-user" /></span>}
+                  {badge && <span className="h3-snd-voice-mark h3-snd-voice-warn" data-voice="badge"><i className={v?.state === "queued" ? "pi pi-spin pi-spinner" : "pi pi-exclamation-triangle"} /></span>}
                 </div>
               );
             })}
@@ -417,7 +427,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
       {laneMenu && <LaneMenu menu={laneMenu} onClose={() => setLaneMenu(null)} />}
       {bedPop && <BedMenu pop={bedPop} mix={res?.mix ?? {}} onClose={() => setBedPop(null)} />}
       {fxPop && <FxMenu ep={ep} pop={fxPop} mix={res?.mix ?? {}} onClose={() => setFxPop(null)} />}
-      {trackPop && <TrackMenu pop={trackPop} mix={res?.mix ?? {}} onClose={() => setTrackPop(null)} />}
+      {trackPop && <TrackMenu pop={trackPop} mix={res?.mix ?? {}} voices={res?.voices} onClose={() => setTrackPop(null)} />}
     </div>
   );
 });
@@ -518,7 +528,7 @@ function LaneHead({ track: def, gain, mute, solo, ready, series, fallback, own, 
  * where they go: onto another track (one of its kind first), or deleted with it. The
  * dialogue track (the takes' own sound) can't be deleted.
  */
-function TrackMenu({ pop, mix, onClose }: { pop: TrackPop; mix: Mix; onClose: () => void }) {
+function TrackMenu({ pop, mix, voices, onClose }: { pop: TrackPop; mix: Mix; voices?: MixVoices; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const def = pop.track;
   const list = trackList(mix);
@@ -579,6 +589,7 @@ function TrackMenu({ pop, mix, onClose }: { pop: TrackPop; mix: Mix; onClose: ()
           <i className="pi pi-arrow-down" /> Down
         </button>
       </div>
+      {def.id === "dialogue" && <VoicesSection mix={mix} voices={voices} onClose={onClose} />}
       <div className="h3-menu-sep" />
       <div className="h3-menu-head">A new track, below the lanes</div>
       <label className="h3-snd-field" title="Its kind: its default level and how far it dips under speech (music -12 dB and -9 dB, ambience -6 dB), what a region reaches, and whether it joins the M&E stem (all but dialogue)">
@@ -625,6 +636,51 @@ function TrackMenu({ pop, mix, onClose }: { pop: TrackPop; mix: Mix; onClose: ()
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The Dialogue lane head's voices only (voices.py): the toggle, and the voice stems made for
+ * the whole pass with how many are there ("8/10 shots split"), from GET /seriesmith/mix.
+ */
+export function VoicesSection({ mix, voices, onClose }: { mix: Mix; voices?: MixVoices; onClose: () => void }) {
+  const on = voicesOnly(mix);
+  if (!voices) {
+    return (
+      <>
+        <div className="h3-menu-sep" />
+        <div className="h3-muted" style={{ padding: "2px 8px", maxWidth: 300 }}>Voices only needs a newer seriesmith server (restart it).</div>
+      </>
+    );
+  }
+  const left = voices.of - voices.split;
+  const silent = voices.shots.filter((v) => voicePlays(mix, v) === "silence").length;
+  const whole = voices.shots.filter((v) => voiceBadge(mix, v)).length;
+  return (
+    <>
+      <div className="h3-menu-sep" />
+      <label className="h3-snd-field" data-voices="toggle"
+        title={"Each clip plays its take's voice stem: the model's own music and room tone split off (Hybrid Demucs), so beds, effects and score don't fight it. "
+          + "A shot whose stem isn't made (or is stale) plays its whole sound; a shot the script gives no lines is silent here. A shot's own way: right-click it, Sound."}>
+        <input type="checkbox" checked={on} onChange={(e) => { onClose(); void setVoicesOnlyMix(e.target.checked); }} />
+        <span>Voices only</span>
+      </label>
+      <div className="h3-row" style={{ gap: 6, padding: "2px 8px", alignItems: "center" }}>
+        <button className="h3-btn" style={{ width: "auto" }} data-voices="make" disabled={!voices.of}
+          title={left ? `Split the ${left} take${left === 1 ? "" : "s"} not split yet, each a job on local ComfyUI (about a second each)` : "Every take the cut plays is split: this makes them again"}
+          onClick={() => { onClose(); void makeVoiceStems(undefined, !left); }}>
+          <i className="pi pi-user" /> {left ? "Make voice stems" : "Make them again"}
+        </button>
+        <span className="h3-muted h3-small" data-voices="count">
+          {voices.split}/{voices.of} shots split{voices.queued ? ` · ${voices.queued} queued` : ""}
+        </span>
+      </div>
+      {on && (silent > 0 || whole > 0) && (
+        <div className="h3-muted h3-small" style={{ padding: "0 8px", maxWidth: 300 }}>
+          {[silent ? `${silent} with no lines silent` : "", whole ? `${whole} play${whole === 1 ? "s" : ""} whole (no stem yet)` : ""].filter(Boolean).join(" · ")}
+        </div>
+      )}
+    </>
   );
 }
 

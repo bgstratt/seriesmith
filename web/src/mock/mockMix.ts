@@ -101,6 +101,11 @@ export function checkMix(raw: Mix | null | undefined): Mix {
       const d = num(t.duck_db, `track ${name}'s duck_db`, -40, 0);
       if (d !== DUCK_DEFAULT[kinds.get(name)!]) o.duck_db = d;
     }
+    if (t.voices_only != null) {
+      if (name !== "dialogue") throw new MixError(`voices_only is the dialogue track's (the takes' own sound), not ${name}'s`);
+      if (typeof t.voices_only !== "boolean") throw new MixError(`track ${name}'s voices_only is true or false`);
+      o.voices_only = t.voices_only;
+    }
     if (Object.keys(o).length) tracks[name] = o;
   }
   if (Object.keys(tracks).length) out.tracks = tracks;
@@ -150,6 +155,13 @@ export function checkMix(raw: Mix | null | undefined): Mix {
     fx[shot] = o;
   }
   if (Object.keys(fx).length) out.fx = fx;
+  // a shot's own voices only (true or false), over the dialogue track's
+  const voices: NonNullable<Mix["voices"]> = {};
+  for (const [shot, v] of Object.entries(raw.voices ?? {})) {
+    if (typeof v?.voices_only !== "boolean") throw new MixError(`voices ${shot}'s voices_only is true or false`);
+    voices[shot] = { voices_only: v.voices_only };
+  }
+  if (Object.keys(voices).length) out.voices = voices;
   if (own) out.track_list = own;
   return out;
 }

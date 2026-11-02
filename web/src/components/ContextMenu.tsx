@@ -8,8 +8,8 @@ import {
 } from "../actions";
 import { holdFrameAfter, pickTakeFile } from "../takeActions";
 import { newCue } from "../cueActions";
-import { currentMix, makeEffects, pickSoundFile, toggleSound } from "../mixActions";
-import { firstOf } from "../lib/mix";
+import { currentMix, makeEffects, makeVoiceStems, pickSoundFile, setShotVoicesMix, toggleSound } from "../mixActions";
+import { firstOf, voicePlays, voicesOnly } from "../lib/mix";
 import { host } from "../host";
 import { JOIN_DEFAULT, MATCH_WAYS, clearClipAudio, matchColors, nudgeClip, setJoin, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
 import { JOIN_KEYS } from "../lib/cutEdit";
@@ -51,6 +51,8 @@ export function ContextMenu() {
   const { list: targets, seriesDefault } = useTargets();
   const refs = useApp((s) => (s.ep ? s.refs[s.ep] : undefined));
   const multi = useApp((s) => s.multi);
+  // the mix's voices only (GET /seriesmith/mix `voices`, fetched with the pass: never per shot)
+  const mixRes = useApp((s) => currentMix(s));
   const noVoice = dubTrackBlock(targets);
 
   useLayoutEffect(() => {
@@ -264,6 +266,40 @@ export function ContextMenu() {
         </button>
       ))}
       <div className="h3-menu-sep" />
+      {/* voices only (voices.py): the shot's own way over the Dialogue track's, and its stem made again */}
+      {(() => {
+        const v = mixRes?.voices?.shots.find((x) => x.shot === menu.shot);
+        const own = mixRes?.mix.voices?.[menu.shot]?.voices_only;
+        const track = voicesOnly(mixRes?.mix);
+        const how = v ? voicePlays(mixRes?.mix, v) : null;
+        const off = !cutShot || !!cutShot.cut.out || !v || v.state === "sourced" || v.state === "silent";
+        const why = !v ? "Not in the cut (or the server is older: restart it)"
+          : v.state === "sourced" ? `${menu.shot} plays sound the cut gives it (Replace audio…): voices only leaves it`
+          : v.state === "silent" ? `${menu.shot}'s take has no sound` : "";
+        const many = fxShots.length > 1 ? ` (${fxShots.length} shots)` : "";
+        const now = how === "voice" ? "plays its voice stem" : how === "silence" ? "is silent (no lines)" : "plays its whole sound";
+        return (
+          <>
+            <button disabled={off} data-voices="whole"
+              title={why || `${menu.shot} plays its take's whole sound on the Dialogue track, the model's music and room tone with it, whatever the track says (now it ${now})`}
+              onClick={run(() => void setShotVoicesMix(fxShots, own === false ? null : false))}>
+              <i className={own === false ? "pi pi-check" : "pi pi-volume-up"} /> Keep its whole sound{many}
+            </button>
+            <button disabled={off} data-voices="only"
+              title={why || `${menu.shot} plays its take's voice stem alone (its model's music and room tone split off)${v && !v.lines ? ", though the script gives it no lines" : ""}${v && v.state !== "ok" ? `; ${v.why ?? "its stem isn't made"}: make it below` : ""} (now it ${now})`}
+              onClick={run(() => void setShotVoicesMix(fxShots, own === true ? null : true))}>
+              <i className={own === true ? "pi pi-check" : "pi pi-user"} /> Voices only{many}
+              {own == null && track && <span className="h3-muted"> (the track's)</span>}
+            </button>
+            <button disabled={off || v?.state === "queued"} data-voices="again"
+              title={why || (v?.state === "queued" ? "Being split" : `Split ${fxShots.length > 1 ? "their takes" : `${menu.shot}'s take`} into voice and the rest again, on local ComfyUI${v?.state === "ok" ? "" : ` (${v?.why ?? "not split yet"})`}`)}
+              onClick={run(() => { toggleSound(true); void makeVoiceStems(fxShots, true); })}>
+              <i className="pi pi-refresh" /> {v?.state === "ok" ? "Split its voice again" : "Split its voice"}{many}
+            </button>
+            <div className="h3-menu-sep" />
+          </>
+        );
+      })()}
       {/* the episode's mix (docs/SOUND.md): music, effects and ambience laid over the cut from here */}
       <button disabled={!cutShot || !!cutShot.cut.out}
         title={multi.length > 1 && multi.includes(menu.shot)

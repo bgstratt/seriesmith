@@ -10,6 +10,7 @@ import { pushEdit, setMixUndo } from "./cutActions";
 import { api, host } from "./host";
 import {
   addTrack, deleteTrack, itemToTrack, itemsOn, kindOf, labelOf, moveTrack, renameTrack, addHit, addItem, addPoint, pickFxTake, setBed, setFx, lowerStretch, moveItem, movePoint, newItemId, patchHit, patchItem, removeHit, removeItem, removePoint, sameMix,
+  setShotVoices, setVoicesOnly,
   setTrack, timeAnchor, trimItem, type TrackPatch,
 } from "./lib/mix";
 import { locate } from "./lib/playlist";
@@ -51,7 +52,8 @@ export async function loadMix(ep = get().ep, pass = get().pass): Promise<MixResu
       // the same mix keeps its object, so nothing redraws
       const same = was && sameMix(was.mix, r.mix) && JSON.stringify(was.series) === JSON.stringify(r.series)
         && JSON.stringify(was.beds ?? []) === JSON.stringify(r.beds ?? [])
-        && JSON.stringify(was.fx ?? []) === JSON.stringify(r.fx ?? []);
+        && JSON.stringify(was.fx ?? []) === JSON.stringify(r.fx ?? [])
+        && JSON.stringify(was.voices ?? null) === JSON.stringify(r.voices ?? null);
       return same ? { mixError } : { mix: { ...s.mix, [key]: r }, mixError };
     });
     void loadBeats(ep, pass);
@@ -309,6 +311,46 @@ export async function makeEffects(shots: string[], target: string | null = null)
        "Each is made from the take the cut plays; pick it on the Effects lane when it lands."].filter(Boolean).join(" "));
   } catch (e) {
     host().toast("error", "No effects were queued", errText(e));
+  }
+}
+
+// ---- voices only (voices.py): the Dialogue track from the takes' voice stems ----
+
+/** The Dialogue track's voices only on or off: one undoable edit. */
+export function setVoicesOnlyMix(on: boolean): Promise<boolean> {
+  return editMix(on ? "Dialogue: voices only" : "Dialogue: the takes' whole sound", (m) => setVoicesOnly(m, on));
+}
+
+/** Shots' own voices only (true: the stem; false: the whole sound; null: as the track): one edit. */
+export function setShotVoicesMix(shots: string[], v: boolean | null): Promise<boolean> {
+  const what = v == null ? "as the Dialogue track" : v ? "voices only" : "its whole sound";
+  return editMix(`${shots.length === 1 ? shots[0] : `${shots.length} shots`}: ${what}`, (m) => {
+    let out = m;
+    for (const shot of shots) out = setShotVoices(out, shot, v);
+    return sameMix(out, m) ? null : out;
+  });
+}
+
+/** Split the cut's takes into their voice stems on the queue (shots: default the whole cut). */
+export async function makeVoiceStems(shots?: string[], redo = false): Promise<void> {
+  const s = get();
+  if (!s.ep) return;
+  const fn = api().makeVoices;
+  if (!fn) {
+    host().toast("warn", "This server can't make voice stems", "Update seriesmith, and restart it.");
+    return;
+  }
+  try {
+    const r = await fn({ ep: s.ep, pass: s.pass, ...(shots ? { shots } : {}), ...(redo ? { redo } : {}) });
+    const n = r.queued.length;
+    if (!n) {
+      host().toast("info", "No voice stems to make", r.skipped.map((x) => `${x.shot}: ${x.why}`).join("; ") || "Nothing in the cut.");
+      return;
+    }
+    host().toast("info", `Splitting ${n} take${n === 1 ? "" : "s"} into voice stems`,
+      "On local ComfyUI (Hybrid Demucs), about a second each. They show in Jobs; the Dialogue lane says when they're there.");
+  } catch (e) {
+    host().toast("error", "No voice stems were queued", errText(e));
   }
 }
 

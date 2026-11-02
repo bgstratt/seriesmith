@@ -29,7 +29,7 @@ import { MIX_DEFAULTS } from "../api";
 import { MixError, checkMix, speechCurve } from "./mockMix";
 import { CUE_PRESETS, CueError, MUSIC_TARGETS, checkCue, compMeasured, measureCue, planCue } from "./mockCue";
 import { buildPlaylist } from "../lib/playlist";
-import type { CueSpec, CueSummary, CueTake } from "../types";
+import type { CueSpec, CueSummary, CueTake, MixVoice, MixVoices } from "../types";
 import { CutError, applyCut, checkEntries, copyEntries, materialize, resetEntries } from "./mockCut";
 import { RefError, createMockRefs } from "./mockRefs";
 import { svgImage, type KeyframeNeedSpec } from "./mockRefs";
@@ -440,6 +440,24 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
   /** the script's music: notes, for a plan's prompt */
   const MUSIC_NOTES: Record<string, string> = { sh020: "tension rises as she looks up", sh030: "swells, full, on the reveal" };
   const cuePlaylist = (pass: Pass) => buildPlaylist(status[pass], status[pass === "proxy" ? "final" : "proxy"]);
+  // the takes split into voice stems ("pass:shot:take"): made at once when asked
+  const voiceStems = new Set<string>();
+  // GET /seriesmith/mix's voices: every other clip has lines, as the speech curve has them speak
+  const mockVoices = (pass: Pass): MixVoices => {
+    const mix = mixes[pass] ?? {};
+    const on = !!mix.tracks?.dialogue?.voices_only;
+    const shots: MixVoice[] = cuePlaylist(pass).filter((it) => it.mp4 && it.take != null).map((it) => {
+      const own = mix.voices?.[it.shot]?.voices_only;
+      const want = own ?? on;
+      const ok = voiceStems.has(`${pass}:${it.shot}:${it.take}`);
+      const lines = it.index % 2 === 0;
+      const plays = !want ? "whole" : !lines && own !== true ? "silence" : ok ? "voice" : "whole";
+      return { shot: it.shot, pass: it.pass, take: it.take, path: it.mp4!.replace(/\.mp4$/, ".voice.wav"),
+               state: ok ? "ok" : "missing", why: ok ? null : `${it.shot} hasn't been split`, voices_only: want,
+               override: own ?? null, plays, lines };
+    });
+    return { voices_only: on, shots, split: shots.filter((x) => x.state === "ok").length, of: shots.length, queued: 0 };
+  };
   /** the series config's score direction (sound.score) */
   const SCORE_DIRECTION = "sincere, never comic: strings and a solo horn";
   const cuePlan = (spec: CueSpec, pass: Pass) => planCue(spec, cuePlaylist(pass), st(pass).fps || 24, mixes[pass] ?? {}, MUSIC_NOTES, SCORE_DIRECTION);
@@ -1234,7 +1252,26 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     async getMix(ep, pass) {
       await wait();
       need(ep);
-      return { mix: clone(mixes[pass] ?? {}), series: {}, defaults: clone(MIX_DEFAULTS) };
+      return { mix: clone(mixes[pass] ?? {}), series: {}, defaults: clone(MIX_DEFAULTS), voices: mockVoices(pass) };
+    },
+    async makeVoices(req) {
+      await wait();
+      need(req.ep);
+      const rows = mockVoices(req.pass).shots;
+      const want = req.shots ?? rows.map((r) => r.shot);
+      const queued: { shot: string; take: number; job: string }[] = [];
+      const skipped: { shot: string; why: string }[] = [];
+      for (const shot of want) {
+        const r = rows.find((x) => x.shot === shot);
+        if (!r || r.take == null) skipped.push({ shot, why: "it isn't in the cut" });
+        else if (r.state === "ok" && !req.redo) skipped.push({ shot, why: "its voice stem is made" });
+        else {
+          voiceStems.add(`${req.pass}:${shot}:${r.take}`);
+          queued.push({ shot, take: r.take, job: `voice-${shot}` });
+        }
+      }
+      if (queued.length) emit("seriesmith.episode", { ep: EP });
+      return { queued, skipped };
     },
     async putMix(ep, pass, mix) {
       await wait();
