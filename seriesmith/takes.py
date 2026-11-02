@@ -149,6 +149,12 @@ class TakePaths:
     def post_mp4(self) -> str: return self._p(".post.mp4")
     @property
     def post_sidecar(self) -> str: return self._p(".post.json")
+    # the take's voice stem (voices.py): its sound with the model's music and room tone split
+    # off, for the mix's voices only, and what it was made from
+    @property
+    def voice(self) -> str: return self._p(".voice.wav")
+    @property
+    def voice_record(self) -> str: return self._p(".voice.json")
 
 
 def take_paths(root: str, pass_: str, shot_id: str, take: int,

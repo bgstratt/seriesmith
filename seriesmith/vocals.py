@@ -79,9 +79,11 @@ def check_backend(backend) -> None:
                            f"restart ComfyUI to load it (it's in seriesmith's node pack)")
 
 
-def collect(recording: str, run, status: str) -> str:
+def collect(recording: str, run, status: str, dest: str | None = None) -> str:
     """The run, ended with `status`: its audio written as the stem (24-bit wav at the rate
-    it came at). Returns the stem's path; RuntimeError when there's nothing to keep."""
+    it came at), at `dest` (default: beside the recording, stem_path; a take's voice stem
+    goes beside the take, voices.py). Returns the stem's path; RuntimeError when there's
+    nothing to keep."""
     import subprocess
     import tempfile
 
@@ -94,7 +96,7 @@ def collect(recording: str, run, status: str) -> str:
         raise RuntimeError("the job finished but returned no audio")
     fd, raw = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1] or ".flac")
     os.close(fd)
-    stem = stem_path(recording)
+    stem = dest or stem_path(recording)
     tmp = F.temp_beside(stem, ".wav")
     try:
         outs[0].save(raw)

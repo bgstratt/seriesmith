@@ -663,9 +663,10 @@ def sound_info(path: str, fps: float) -> tuple[int, int]:
 def write_xml(xml_path: str, root: str, doc: dict, by_id: dict, plan: list[dict],
               fps: float, size: tuple[int, int] | None, pass_: str, base_in: float,
               args, sound: dict | None = None, beds: list[dict] | None = None,
-              fx: list[dict] | None = None) -> int:
+              fx: list[dict] | None = None, voices: dict | None = None) -> int:
     """The plan as an FCP7 XML timeline (nle_xml), nothing encoded: each clip its
-    file, its sound as the mp4 export lays it (--audio none: none), the
+    file, its sound as the mp4 export lays it (--audio none: none; with the mix's voices
+    only, its take's voice stem's wav where it has a fresh one: voices.for_plan), the
     recorded dialogue, when the shotlist has one, under it on A3/A4, and the
     episode's mix (`sound`, mix.py) on its own tracks after them."""
     from seriesmith import nle_xml as NX
@@ -683,6 +684,9 @@ def write_xml(xml_path: str, root: str, doc: dict, by_id: dict, plan: list[dict]
                 gain = float(spec.get("gain", 1.0))
             else:
                 snd = p["wav"] if args.audio == "h3" else PK.clip_audio(p["path"], p["wav"])
+                v = (voices or {}).get(p["id"]) or {}
+                if v.get("plays") in ("voice", "silence"):
+                    snd = v["path"]                         # voices only: the stem's wav, or none
                 at, gain = -p["trim_in"], 1.0
             if snd:
                 channels, length = sound_info(snd, fps)
@@ -948,7 +952,7 @@ def main(argv: list[str] | None = None) -> int:
         audio_src = T.audio_source_file(root, e.audio, pass_)
         if audio_src and not PK.has_audio(audio_src):
             audio_src = None
-        p = {"id": e.shot, "take": t.take, "src": e.pass_, "path": clip,
+        p = {"id": e.shot, "take": t.take, "src": e.pass_, "path": clip, "base": t.paths.mp4,
              "upscaled": clip != t.paths.mp4, "posted": clip == t.paths.post_mp4,
              "placeholder": e.pass_ != pass_, "listed": e.in_cut_file,
              "keep": keep, "trim_in": trim_in, "trim_out": trim_out,
@@ -1093,7 +1097,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # the episode's mix (mix.json, docs/SOUND.md); none, or one that changes nothing,
     # leaves the cut's sound as it always was
-    sound, beds, fx = None, [], []
+    sound, beds, fx, voices = None, [], [], {}
     if not args.no_mix:
         series_cfg = J.series_config(root)
         try:
@@ -1120,6 +1124,13 @@ def main(argv: list[str] | None = None) -> int:
         if sound is not None and args.audio in ("none", "master"):
             print(f"  ! --audio {args.audio}: the mix in {MX.MIX_FILE} is left out")
             sound, beds, fx = None, [], []
+        if sound is not None and MX.voices_any(sound):
+            # voices only (voices.py): each clip's take's voice stem in place of its whole
+            # sound, where it's there and fresh; the rest play whole and are named
+            from seriesmith import voices as VO
+            voices = VO.for_plan(root, pass_, plan, sound)
+            for line in VO.said(voices):
+                print(line)
         if sound is not None:
             n = len(sound.get("items") or [])
             print(f"  sound: the mix in {MX.MIX_FILE}, {n} item(s) over the cut's own sound"
@@ -1184,7 +1195,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.xml:
         return write_xml(os.path.splitext(out_path)[0] + ".xml", root, doc, by_id, plan,
                          fps, (int(width), int(height)) if width and height else None,
-                         pass_, base_in, args, sound, beds, fx)
+                         pass_, base_in, args, sound, beds, fx, voices)
 
     # Dialogue windows, cut.json trims and placeholders all need a re-encode;
     # so do clips at another frame rate or size (a mixed-target cut), and clips
@@ -1218,6 +1229,12 @@ def main(argv: list[str] | None = None) -> int:
             # the mp4's own sound, else its _h3.wav, else silence
             # (peaks.clip_audio: the editor's take `audio` is the same rule)
             p["sound"], p["sourced"] = PK.clip_audio(p["path"], p["wav"]), False
+        if not p["sourced"] and p["id"] in voices and args.audio != "none":
+            # voices only: its take's voice stem (sample 0 the take's first, as a _h3.wav),
+            # silence for a shot with no lines, its whole sound when its stem can't play
+            v = voices[p["id"]]
+            if v["plays"] != "whole":
+                p["sound"] = v["path"]
     # Only the clips that need it are re-encoded, the rest copied, when the
     # copies agree on their encoding and the re-encoded clips come out with the
     # same headers (conform at the quality the copies were saved with: a master's

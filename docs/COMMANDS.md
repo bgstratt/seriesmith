@@ -23,6 +23,7 @@ failed exits 1.
 | `seriesmith align <episode> <recording>` | The script timed against a dialogue recording (`--vocals`: from its vocal stem, made on local ComfyUI first) |
 | `seriesmith assemble <episode>` | The review cut |
 | `seriesmith fx <episode> --shots sh010,…` | A shot's effects (sync sound) made from the frames of the take the cut plays, on the Effects track (`--proxy`, `--target`, `--takes`, `--pick`, `--list`) |
+| `seriesmith voices <episode>` | The cut's takes split into their voice stems (the model's music and room tone taken off), for the mix's voices only (`--proxy`, `--shots`, `--redo`, `--list`) |
 | `seriesmith upscale` / `post` / `master` / `publish` | Finishing (below) |
 | `seriesmith all <episode>` | build → refs → render → assemble (`--skip-build` keeps the shotlists on disk) |
 | `seriesmith targets [<episode>]` | Which models the running ComfyUI can render, what to download for the rest |
@@ -385,6 +386,30 @@ seriesmith fx Shows\ep05 --proxy --list                       # each shot's take
   Effects lane's **Keep as it is**, `fx: {shot: {keep_stale: true}}`).
 - Runs on a queue of its own and waits (`--backend`, default `local`); the editor's server
   queues them on its own queue (`POST /seriesmith/fx/render`).
+
+### Voice stems: voices
+
+```
+seriesmith voices Shows\ep05                       # every take the final cut plays, split
+seriesmith voices Shows\ep05 --proxy --shots sh020 # one shot of the proxy cut
+seriesmith voices Shows\ep05 --redo                # made again, fresh or not
+seriesmith voices Shows\ep05 --list                # each shot's stem: ok, missing, stale
+```
+
+- A video model that makes its own sound (H3, Seedance, FastH3 Omni) bakes its music and room
+  tone into each take, different at every cut. This splits the take the cut plays for each
+  shot into its voices and the rest (Hybrid Demucs, on this machine's ComfyUI: seriesmith's
+  vocal-stem node, as the vocal stem of a song), one queued job a take, under a second each
+  once loaded.
+- The stem lands beside the take, `<shot>_tNN.voice.wav`, with a `.voice.json` (what it was
+  split from, and the levels of the whole sound, the voices and the rest). It's **stale** when
+  the take's sound changes (rendered again): made again by running this again.
+- It's heard only when the pass's mix asks for it: the Dialogue track's **Voices only**
+  (`mix.json` `tracks.dialogue.voices_only`, a shot its own way in `voices`). Then assemble's
+  clips, the stems, the XML and the ducking hear the voices; a shot whose stem is missing or
+  stale plays its whole sound (assemble names it), and a shot the script gives no lines is
+  silent on the Dialogue track unless it's set to voices only itself.
+- The editor's server queues them on its own queue (`POST /seriesmith/voices`).
 
 ### Takes, picks and overrides
 

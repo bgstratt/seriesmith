@@ -732,6 +732,66 @@ class Runner:
         self._submit(qjob)
         return qjob.id
 
+    def enqueue_voice(self, root: str, pass_: str, shot: str, take, backend_name: str = "local") -> str:
+        """A take's voice stem (voices.py) queued: its sound split on the backend's ComfyUI by
+        seriesmith's SeriesmithVocals node (the job vocals.py's is), written beside the take
+        as <take>.voice.wav with its record. `take` is a takes.Take. Returns the queue's job
+        id."""
+        import os
+        import time
+
+        from seriesmith import voices as VO
+        from seriesmith import vocals as VOC
+
+        backend = self.backend_for(backend_name)
+        self.reserve(backend, root, "vocals")
+
+        def event(status: str, error: str = "") -> None:
+            self._emit("seriesmith.voice", {"ep": root, "pass": pass_, "shot": shot,
+                                            "take": take.take, "status": status, "error": error})
+            self._emit("seriesmith.episode", {"ep": root})
+
+        def work(qjob: QJob, report) -> str:
+            staged = None
+            try:
+                VOC.check_backend(backend)
+                staged, sig = VO.stage(take)
+                started = time.monotonic()
+                run = backend.submit(VOC.graph(staged))
+                self.started(qjob, run, backend, report)
+                status = run.watch(on_progress=progress_to(report))
+                rec = VO.collect(take, run, status, sig, started)
+                m = rec.get("measured") or {}
+                report(line=f"voice stem ok: {rec.get('seconds')} s, whole {m.get('whole_rms_db')} dB, "
+                            f"voice {m.get('voice_rms_db')} dB")
+                result = "succeeded"
+            except Exception as e:                       # noqa: BLE001  the split fails
+                qjob.error = str(e)[:800]
+                VO.update(take, status="failed", finished=T.now(),
+                          error=stopped(qjob) if qjob.cancel_asked else str(e)[:800])
+                result = "canceled" if qjob.cancel_asked else "failed"
+            finally:
+                if staged and os.path.exists(staged):
+                    try:
+                        os.remove(staged)
+                    except OSError:
+                        pass
+            event("ok" if result == "succeeded" else "failed", qjob.error or "")
+            return result
+
+        def cancelled(qjob: QJob) -> None:
+            VO.update(take, status="failed", finished=T.now(), error="canceled before it ran")
+            event("failed", "canceled")
+
+        qjob = QJob(kind="vocals", lane=backend.name,
+                    title=f"{_ep_name(root)} {shot} t{take.take:02d} voice stem", work=work,
+                    info={"ep": root, "shot": shot, "pass": pass_, "take": take.take,
+                          "backend": backend.name},
+                    on_cancel=cancelled, limit=LIMITS["vocals"])
+        VO.update(take, status="queued", queue_id=qjob.id, created=T.now(), error=None)
+        self._submit(qjob)
+        return qjob.id
+
     def _submit(self, qjob: QJob) -> None:
         """Queue `qjob` with the shows whose own targets are in force here
         (targets.thread_roots, set by the request or the CLI) in force on the

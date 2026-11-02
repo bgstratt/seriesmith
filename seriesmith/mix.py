@@ -24,6 +24,7 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
        "loudness": {"target_lufs": -16, "true_peak_db": -1},
        "beds": {"diner": {"gain_db": -3}, "platform": {"mute": true}},
        "fx": {"sh010": {"take": 2, "gain_db": -4}, "sh030": {"take": 1, "keep_stale": true}},
+       "voices": {"sh070": {"voices_only": false}},
        "track_list": [{"id": "dialogue", "kind": "dialogue"}, {"id": "effects", "kind": "effects"},
                       {"id": "ambience", "kind": "ambience"},
                       {"id": "music", "kind": "music", "label": "Score"},
@@ -41,6 +42,11 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
   (`gain_db`; GAIN_DEFAULT of its kind when nothing sets it: music -12 dB), `mute`, `solo`,
   and (all but the dialogue kind) `duck_db`, how far it dips while someone speaks; the
   speech it dips under is every dialogue track's.
+- **Voices only** (voices.py): the `dialogue` track's `voices_only` plays each clip's take's
+  voice stem (its sound split by Demucs: the model's music and room tone gone) in place of
+  its whole sound; `voices: {shot: {"voices_only": bool}}` sets a shot its own way (keep its
+  whole sound, or its voice alone while the track plays whole). A shot whose stem isn't
+  there or is stale plays its whole sound and is said so: never silence.
 - **An anchor** is a shot and a frame of it: a frame of the shot's take at the cut's rate,
   counted from the take's first frame, before any trim. A trim or a reorder moves it with its
   shot, and a hit stays on the action it marks. One whose shot isn't in the cut is dropped
@@ -121,17 +127,21 @@ LOOP_XFADE_S = 1.0                                # a loop's crossfade, at most
 
 ITEM_FIELDS = ("id", "track", "path", "in", "out", "offset", "gain_db", "fade_in", "fade_out",
                "points", "loop", "label")
-TRACK_FIELDS = ("gain_db", "mute", "solo", "duck_db")
+TRACK_FIELDS = ("gain_db", "mute", "solo", "duck_db", "voices_only")
 REGION_FIELDS = ("from", "to", "music_duck_db", "ambience_duck_db", "dialogue_db")
 HIT_FIELDS = ("id", "name", "at", "kind", "must")
 # what a hit asks of the music (docs/SOUND.md "The cue window"): a sting or downbeat on
 # the frame, the peak arriving there, the music cutting out or thinning, a change of key
 # or mood; accent is the default
 HIT_KINDS = ("accent", "arrive", "drop", "turn")
-MIX_FIELDS = ("tracks", "items", "hits", "regions", "duck", "loudness", "beds", "fx", "track_list")
+MIX_FIELDS = ("tracks", "items", "hits", "regions", "duck", "loudness", "beds", "fx", "track_list",
+              "voices")
 TRACK_LIST_FIELDS = ("id", "kind", "label")
 BED_FIELDS = ("gain_db", "mute")
 FX_FIELDS = ("take", "gain_db", "mute", "keep_stale")
+VOICE_FIELDS = ("voices_only",)
+# the track whose clips are the takes' own sound: the one voices_only plays from their stems
+TAKES_TRACK = "dialogue"
 _ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 
 
@@ -335,6 +345,13 @@ def check(raw) -> dict:
                 o[k] = t[k]
         if ks[name] != "dialogue" and t.get("duck_db") is not None:
             o["duck_db"] = _num(t["duck_db"], f"track {name}'s duck_db", -40.0, 0.0)
+        if t.get("voices_only") is not None:
+            if name != TAKES_TRACK:
+                raise ValueError(f"voices_only is the {TAKES_TRACK} track's (the takes' own "
+                                 f"sound), not {name}'s")
+            if not isinstance(t["voices_only"], bool):
+                raise ValueError(f"track {name}'s voices_only is true or false")
+            o["voices_only"] = t["voices_only"]
         if o:
             tracks[name] = o
     if tracks:
@@ -422,6 +439,17 @@ def check(raw) -> dict:
         fx[shot] = o
     if fx:
         out["fx"] = fx
+    voices = {}
+    for shot, v in (raw.get("voices") or {}).items():
+        if not isinstance(shot, str) or not _ID.match(shot):
+            raise ValueError(f"a shot's voices are named by its id, not {shot!r}")
+        if not isinstance(v, dict) or set(v) - set(VOICE_FIELDS):
+            raise ValueError(f"voices {shot} take {', '.join(VOICE_FIELDS)}")
+        if not isinstance(v.get("voices_only"), bool):
+            raise ValueError(f"voices {shot}'s voices_only is true or false")
+        voices[shot] = {"voices_only": v["voices_only"]}
+    if voices:
+        out["voices"] = voices
     for key, defaults, bounds in (
             ("duck", DUCK, {"threshold_db": (-80.0, 0.0), "attack_ms": (1.0, 2000.0),
                             "release_ms": (1.0, 5000.0)}),
@@ -499,10 +527,27 @@ def fader(tracks: dict, name: str, kind: str | None = None) -> float:
 
 
 def active(mix: dict) -> bool:
-    """Whether a mix changes anything: an item, or a track's level or mute."""
+    """Whether a mix changes anything: an item, a track's level or mute, or voices only
+    (on the track, or for a shot)."""
     return bool(mix.get("items") or any(
         t.get("gain_db") or t.get("mute") or t.get("solo")
-        for t in (mix.get("tracks") or {}).values()))
+        for t in (mix.get("tracks") or {}).values()) or voices_any(mix))
+
+
+def voices_only(mix: dict | None, shot: str | None = None) -> bool:
+    """Whether the takes' track plays voices only: the track's `voices_only`, or for `shot`
+    its own (`voices`) when it has one."""
+    mix = mix or {}
+    own = ((mix.get("voices") or {}).get(shot) or {}) if shot else {}
+    if isinstance(own.get("voices_only"), bool):
+        return own["voices_only"]
+    return bool(((mix.get("tracks") or {}).get(TAKES_TRACK) or {}).get("voices_only"))
+
+
+def voices_any(mix: dict | None) -> bool:
+    """Whether any clip plays its voice stem: the track's voices_only, or a shot's."""
+    mix = mix or {}
+    return voices_only(mix) or any(v.get("voices_only") for v in (mix.get("voices") or {}).values())
 
 
 # ---------------------------------------------------------------------------

@@ -278,6 +278,11 @@ def _fx(ep, rest):
     return FXM.cmd_fx(ep, rest)
 
 
+def _voices(ep, rest):
+    from seriesmith import voices as VO
+    return VO.cmd_voices(ep, rest)
+
+
 def _new(rest):
     from seriesmith import source as SRC
     return SRC.cmd_new(rest)
@@ -401,6 +406,9 @@ _TABLE = [
     Command("fx", "<episode> --shots sh010,... [--proxy] [--target ID] [--takes N] [--pick] [--list]",
             "a shot's effects (sync sound) made from the cut's take, on its own track",
             episode_first(_fx)),
+    Command("voices", "<episode> [--proxy] [--shots sh010,...] [--redo] [--list]",
+            "the cut's takes split into their voice stems, for the mix's voices only",
+            episode_first(_voices)),
     Command("upscale", "<episode> [--only sh020,...] [--take N] [--redo] [--check]",
             "the final cut's takes upscaled", _module_main("seriesmith.upscale"), own_help=True),
     Command("post", "<episode> [--enhance draft|production|cinematic|...] [--recipe] [--check]",

@@ -2546,7 +2546,13 @@ def get_mix(ctx: Context, query: dict):
     their clips (fx.laid: from the cut and the mix's `fx`): [{"shot", "take", "model",
     "path" (relative to the episode), "exists", "in", "out" (anchors), "start", "end"
     (seconds of the cut), "offset" (seconds into the file at start), "gain_db", "mute",
-    "keep_stale", "stale" (why, or null), "heard"}]. Nothing is decoded."""
+    "keep_stale", "stale" (why, or null), "heard"}], and `voices` the Dialogue track's
+    voices only (voices.summary): {"voices_only" (the track's), "split", "of", "queued" (how
+    many of the cut's shots that can be split are), "shots": [{"shot", "pass", "take", "path"
+    (the take's voice stem, relative to the episode), "state" (ok | missing | stale | queued |
+    failed | sourced | silent), "why", "voices_only" (the shot's, the track's under it),
+    "override" (its own: true, false or null), "plays" (voice | whole | silence), "lines",
+    "measured", "seconds"}]} in cut order. Nothing is decoded."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query.get("pass"))
     try:
@@ -2572,7 +2578,9 @@ def get_mix(ctx: Context, query: dict):
            "path": f["rel"], "start": round(f["start"] / fps, 4), "end": round(f["end"] / fps, 4),
            "offset": round((f["start"] - f["origin"]) / fps, 4)}
           for f in FXM.laid(ep, pass_, layout, mix)]
-    return 200, {"mix": mix, "files": files, "beds": beds, "fx": fx,
+    from seriesmith import voices as VO
+    voices = VO.summary(VO.shots(ep, pass_, mix, VO.alive_of(ctx.runner)), mix)
+    return 200, {"mix": mix, "files": files, "beds": beds, "fx": fx, "voices": voices,
                  "series": {k: snd[k] for k in ("tracks", "loudness") if k in snd},
                  "track_list": MX.track_list(mix),
                  "defaults": {"tracks": list(MX.TRACKS), "labels": MX.LABELS, "kinds": list(MX.KINDS),
@@ -2588,15 +2596,21 @@ _DUCK_CACHE: dict = {}
 def get_mix_duck(ctx: Context, query: dict):
     """The pass's "someone is speaking" curve (mix.speech_of): `{"step", "curve"}`, one
     value 0..1 per `step` seconds of the cut, computed from each clip's own sound as the
-    export computes it, so Play all dips the music and ambience in the same places. Kept
-    until the cut, a take or the mix's ducking changes."""
+    export computes it (with the mix's voices only, from the voice stems), so Play all dips
+    the music and ambience in the same places. Kept until the cut, a take, a stem or the
+    mix's ducking changes."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query.get("pass"))
     layout, fps = CU.cut_layout(ep, pass_)
     try:
-        duck = MX.for_pass(ep, pass_, J.series_config(ep)).get("duck")
+        sound = MX.for_pass(ep, pass_, J.series_config(ep))
     except ValueError:
-        duck = None
+        sound = {}
+    duck = sound.get("duck")
+    # voices only: the clips that play their voice stem are heard from it (no music or room
+    # tone in the speech), those that are silent not at all
+    from seriesmith import voices as VO
+    layout = VO.on_layout(ep, pass_, layout, sound)
 
     def stamp(path):
         try:
@@ -2983,6 +2997,36 @@ def post_fx_render(ctx: Context, body):
     if not queued:
         raise ApiError(400, "; ".join(x["why"] for x in skipped) or "nothing to make")
     episode_event(ctx, ep)
+    return 200, {"queued": queued, "skipped": skipped}
+
+
+@handler
+def post_voices(ctx: Context, body):
+    """Split the takes the pass's cut plays into their voice stems (voices.py), for the
+    mix's voices only: `{ep, pass, shots?: [...], redo?}` (shots: default every shot in the
+    cut; redo: a fresh stem made again). One queued job a take on the local backend
+    (`seriesmith.voice` as each ends). Returns {"queued": [{shot, take, job}], "skipped":
+    [{shot, why}]}: a stem already made, one queued, a take with no sound are skipped."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shots = body.get("shots")
+    if shots is not None:
+        if not isinstance(shots, list) or not shots:
+            raise ApiError(400, "shots is a list of shot ids (or leave it out: the whole cut)")
+        shots = [check_shot(s) for s in shots]
+    redo = body.get("redo", False)
+    if not isinstance(redo, bool):
+        raise ApiError(400, "redo must be true or false")
+    if ctx.runner is None:
+        raise ApiError(409, "making voice stems needs seriesmith's queue (the server)")
+    from seriesmith import voices as VO
+    try:
+        queued, skipped = VO.queue(ctx.runner, ep, pass_, shots, redo)
+    except ValueError as e:
+        raise ApiError(409, str(e)) from None
+    if queued:
+        episode_event(ctx, ep)
     return 200, {"queued": queued, "skipped": skipped}
 
 
@@ -5477,6 +5521,7 @@ ROUTES = [
     ("GET", "/seriesmith/fx/shots", get_fx_shots, "query"),
     ("POST", "/seriesmith/fx/render", post_fx_render, "body"),
     ("POST", "/seriesmith/fx/pick", post_fx_pick, "body"),
+    ("POST", "/seriesmith/voices", post_voices, "body"),
     ("POST", "/seriesmith/cut/reset", post_cut_reset, "body"),
     ("POST", "/seriesmith/cut/copy", post_cut_copy, "body"),
     ("GET", "/seriesmith/peaks", get_peaks, "query"),
