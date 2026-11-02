@@ -185,10 +185,12 @@ window exists; on a folded timeline lane it can't be read.
 ### Fixing part of a take
 
 ComfyUI's ACE-Step 1.5 nodes have no repaint or extend (checked 2026-11-01, ComfyUI 0.43). It
-can likely be done as `targets/held_audio.py` holds sound for LTX: the take encoded
-(`VAEEncodeAudio`), the bars to keep masked out (`SetLatentNoiseMask`), the rest sampled
-again. Measure it before the window offers Repaint; comping from another take at bar lines
-works without it.
+is done as `targets/held_audio.py` holds sound for LTX: the take encoded (`VAEEncodeAudio`),
+a noise mask over the bars to make again (seriesmith's `SeriesmithAudioSpanMask`: ComfyUI's
+`SetLatentNoiseMask` can't shape a 1-D audio latent's), the take's own graph sampled again,
+and the take's own audio spliced back outside those bars at the bar lines (the VAE's round
+trip changes them a little). Measured first ("Measured: repaint"): ACE-Step only, at the
+take's own codes by default. Comping from another take at bar lines works on any model.
 
 ## Mixing: rules, not a console
 
@@ -375,7 +377,19 @@ Each phase is tested live on local ComfyUI before the next starts.
          a worked example of a score's or a song's fields, its sections as shares of the cue
          fitted to its bars at the preset's tempo, with who plays in each; it asks before
          replacing the cue's own sections, style or orchestration
-   - [ ] Repaint, once it's measured (Fixing part of a take)
+   - [x] Repaint (2026-11-02; measured first: "Measured: repaint". `cue.repaint` / `POST
+         /seriesmith/cue/repaint`: a new take from the take's own graph, its raw file encoded
+         under `SeriesmithAudioSpanMask` (comfy_nodes/audio.py) over the bars, the text encoder
+         at the take's codes (`fresh`: new ones), the take's audio spliced back outside the bars
+         and the take measured on the take's grid, the beat in the span checked
+         (`repaint_check`); `capabilities.repaint` on ACE-Step only; the editor's Repaint beside
+         Comp and Lower, with **new music**. Live on local ComfyUI through `cue.repaint` and
+         `cue.finish_take`, CupsMV ep01 m03 t02 (ACE-Step, a sung song with a timbre theme):
+         bars 3-4 at its codes, t04 in 2.3 s, the beat 6 of 7 as the take's 6, the levels of the
+         other six bars the take's to 0.02 dB; bars 7-8 with new music, t05 in 3.5 s, 6 of 7.
+         This ComfyUI hadn't been restarted to load the new node, so the live check swapped in
+         KJNodes' `LTXVAudioVideoMask` with the same span, as the probe did; the node itself is
+         to be checked live on the next ComfyUI restart)
    - [x] `yue2`: YuE2 as a song target beside ACE-Step (lyrics by section, the tempo in its ABC
          header), measured as ACE-Step and Stable Audio 3 were before it's offered (2026-11-01;
          `targets/music/yue2/`, the song default; `core/abc.py` reads a plan: its sections in
@@ -799,5 +813,4 @@ at denoise 1.0, 0.85 and 0.7. Files and the probe's numbers in `ComfyProjects\_r
 - Whether a cue should render longer than its span by default (more room to fit) or exact.
 - Whether energy words (sparse ... full orchestra fortissimo) move ACE-Step's loudness and
   density reliably: measure with the shape check before building much window around them.
-- Whether a masked latent repaints bars of an ACE-Step take cleanly (Fixing part of a take).
 - LTX-2.3 Foley on 2.5: if it holds, no 2.3 files are needed.

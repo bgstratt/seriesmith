@@ -1614,10 +1614,11 @@ the models found on this machine and the phases are docs/SOUND.md. Stable Audio 
 score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
 
 - [ ] Phase 1: the mix with files (mix.json, lanes, ducking, loudness, stems, XML tracks)
-- [ ] Phase 2: music (`music` kind, `ace_step15`, `yue2`, hits -> tempo, the arc -> sections
+- [x] Phase 2: music (`music` kind, `ace_step15`, `yue2`, hits -> tempo, the arc -> sections
       -> words, refit); the cue window (Score, Arc, Orchestration & takes tabs) and the
       episode's spotting sheet; the `yue2` song target and the leitmotif reference (a cue's
-      theme: ACE-Step's timbre, YuE2's melody) 2026-11-01; left: repaint
+      theme: ACE-Step's timbre, YuE2's melody) 2026-11-01; repaint (bars of an ACE-Step take
+      made again, measured first: SOUND.md "Measured: repaint") 2026-11-02
 - [ ] Phase 3: ambience (`ambience` kind, a location's bed as a ref, three models compared)
 - [ ] Phase 4: effects (`foley` kind, LTX-2.3 Foley, H3 tried; Demucs split optional)
 - [ ] Phase 5: cutting to music (beats as trim snaps), the loudness check on export

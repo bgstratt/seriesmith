@@ -242,7 +242,15 @@ On **Orchestration & takes**, drag across bars on a take:
   spliced on bar lines. It's measured and ranked like the rest.
 - **Lower bars a-b with breakpoints…** (the take in the mix): volume points that dip those bars,
   shown on the timeline lane.
-- **Repaint bars a-b** (re-render just those bars) isn't ready yet.
+- **Repaint bars a-b**: those bars made again on the take's own model, the rest of the take
+  kept exactly (spliced back at the bar lines). A new take, queued; it lands in a second or two,
+  noted "repainted bars a-b from t03", and is measured and ranked like the rest. By default it
+  plays the same music again in those bars, on the take's beat (a new performance of them);
+  tick **new music** for something different there, which can drift off the beat over four
+  bars or more: the take shows **on the beat n/m** against the original's count, so render a
+  couple and keep the one that stays on it. ACE-Step takes only: YuE2 and Stable Audio 3 can't
+  repaint (comp from another take instead). After updating seriesmith, restart ComfyUI once so
+  it loads the node a repaint needs.
 
 ## 7. Levels
 

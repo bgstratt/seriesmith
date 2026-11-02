@@ -1488,8 +1488,15 @@ then:
 - **Lower bars a-b with breakpoints…** by the dB you set, for the take that's in the mix:
   volume points on the cue's block on the Music lane (a short ramp at each end, the level
   either side kept), one step of the timeline's undo, which you can drag there afterwards.
-- **Repaint** is shown but not offered yet: the models' repainting of part of a take isn't
-  measured.
+- **Repaint bars a-b** (ACE-Step takes): those bars made again on the take's own model, its
+  prompt and seed, the rest of the take its own (its audio spliced back at the bar lines with
+  short crossfades): a new take, queued, labelled "repainted bars 5-8 from t03", measured and
+  ranked with the rest. Unticked, **new music** off, it plays the same music again in those
+  bars on the take's beat; ticked, it writes new music there, which can leave the beat over
+  four bars or more: the take shows **on the beat n/m (k)**, its onsets on the take's beats
+  against the original's k there (orange when it fell off). A take of a model that can't
+  repaint (YuE2, Stable Audio 3) has the button greyed, saying why. It needs seriesmith's
+  `SeriesmithAudioSpanMask` node in ComfyUI: restart ComfyUI after updating seriesmith.
 
 ### Finishing: upscale, post, master
 
