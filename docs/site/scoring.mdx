@@ -265,7 +265,10 @@ On **Orchestration & takes**, drag across bars on a take:
   bars or more: the take shows **on the beat n/m** against the original's count, so render a
   couple and keep the one that stays on it. ACE-Step takes only: YuE2 and Stable Audio 3 can't
   repaint (comp from another take instead). After updating seriesmith, restart ComfyUI once so
-  it loads the node a repaint needs.
+  it loads the node a repaint needs. A repaint can't change what the bars are (new words, other
+  instruments): inside a take, ACE-Step follows the bars around them, not new words. For that,
+  change those sections' words in the inspector, render the cue again, and **Comp** the bars
+  from the take that follows them.
 
 ## 7. Levels
 

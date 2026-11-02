@@ -211,7 +211,10 @@ a noise mask over the bars to make again (seriesmith's `SeriesmithAudioSpanMask`
 `SetLatentNoiseMask` can't shape a 1-D audio latent's), the take's own graph sampled again,
 and the take's own audio spliced back outside those bars at the bar lines (the VAE's round
 trip changes them a little). Measured first ("Measured: repaint"): ACE-Step only, at the
-take's own codes by default. Comping from another take at bar lines works on any model.
+take's own codes by default. Comping from another take at bar lines works on any model. A
+repaint takes no new words for its bars: under the mask ACE-Step follows the take around them,
+not the words, and what moves it loses the beat ("Measured: repaint with words"); new words for
+some bars are a take with those sections' words changed, comped in.
 
 ## Mixing: rules, not a console
 
@@ -1038,6 +1041,67 @@ at denoise 1.0, 0.85 and 0.7. Files and the probe's numbers in `ComfyProjects\_r
   sections and wasn't tried. So **ACE-Step repaints, with the take's codes by default** (the
   grid held), new codes on request (more change, the beat checked on each take), YuE2 and
   Stable Audio 3 don't offer it.
+
+## Measured: repaint with words (2026-11-02, local, RTX 5090)
+
+Whether a repaint can take new words for its bars ("solo piano, the strings drop out"; a song's
+new lines): the bars made again under changed text while the rest keeps the take. Not built:
+**the words aren't followed inside a masked span**, and what does change them loses the beat.
+
+ACE-Step 1.5's conditioning has no time in it: `TextEncodeAceStepAudio1.5` gives one caption
+embedding (the tags and metas), one lyrics embedding and the 5 Hz codes its language model
+writes, all cross-attended over the whole latent, and its nodes have no span. So the span's text
+can only be the whole take's text under the mask (ComfyUI's `ConditioningSetMask` over the span
+gives the span the same prediction: the model sees the whole latent either way; area
+conditioning would hand the model a cut-out latent its codes don't fit). Core nodes allow four
+ways, tried: **caption** (the take's codes and lyrics, the caption swapped: `ConditioningAverage`
+to the take's conditioning from the new one at strength 0, which keeps the take's dict),
+**lyrics** (the span's bar lines in the lyrics replaced by the words under a `[Break]` tag, the
+language model at the take's seed: it writes new codes from them), **both**, and **no codes**
+(`generate_audio_codes` off). The take's codes with only the lyrics swapped needs a node of our
+own (the dict's codes from one conditioning, the rest from another: a ComfyUI restart to load),
+not tried: the caption swap with its codes changed nothing, below.
+
+The source: an ACE-Step 1.5 XL score take written as seriesmith writes one (a style caption,
+one line per bar under `[Intro]`/`[Verse]`/`[Chorus]`/`[Outro]`: kick and snare on every
+beat, piano, strings, bass), 96 bpm 4/4, 40 s, on Turbo (8 steps, cfg 1) and again on SFT (50
+steps, cfg 7, the final pass's); bars 5-7 (2 bars) and 7-11 (4 bars); three seeds each; words
+**W1** "solo piano, the strings drop out" and **W2** "drums and bass only, the piano and strings
+drop out". Measured as "Measured: repaint" (the grid: onsets within 40 ms of the take's beats;
+the seams) and for the words: the span's level in bands (below 150 Hz: kick and bass; above 5
+kHz: cymbals), its harmonic and percussive energy (median-filter HPSS), its spectral centroid,
+each against the take's own bars and against a plain repaint's. Files and numbers in
+`ComfyProjects\_repaint_test` (`words_*`).
+
+| | Grid in the span (take: 6/8, 11/16 Turbo; 5/8, 14/16 SFT) | W1 "solo piano": cymbals (>5 kHz), percussive | Seams | Render |
+|---|---|---|---|---|
+| plain repaint (reference) | 7/8 x3; 12-14/16 | -0.1 dB, -0.4 dB (a new performance only) | as the take's | 1.3-2.3 s Turbo, 12 s SFT |
+| caption, its codes (Turbo and SFT) | as plain, 2 and 4 bars | the plain repaint's within 0.6 dB: **not heard** | as plain | the same |
+| lyrics (new codes), 2 bars | held: 6-7/8 Turbo; SFT 5 of 6 (one 4/8, 84 ms) | -0.9 / -0.8 dB Turbo, -1.1 / -0.1 SFT; W2 ("piano drops out") left the mids **louder** (+0.8, +2.2 dB) | within the take's | 1.3-3.6 s, 12-14 s |
+| lyrics (new codes), 4 bars | **off the beat on 3 of 6 Turbo, 6 of 6 SFT** (1-6/16 on it, 24-106 ms off) | | -4.6 to +5 dB | |
+| both, 2 bars | W1 held; W2 **off on 2 of 3** SFT (3/8, 4/8) | W1 -0.6 / -0.6 Turbo, -2.6 / +0.9 SFT: the drums stay; W2 drops the cymbals and drums (-12.5, -4.9 dB), the opposite of what it asks | W2 steps -2.4 to -3.3 dB (the take's +2.2 to +5.6) | |
+| both, 4 bars | **off on 5 of 6 Turbo, 6 of 6 SFT** (1-7/16 on it) | | -8 to +12 dB | |
+| no codes, 2 bars (Turbo) | **off on 2 of 6** (3/8, 82 ms) | -8 / -3.3 dB on average, uneven | down to +0.4 dB | 1.4-2 s |
+| control: whole takes with the words (no mask, Turbo) | | **-12 to -47 dB, -2 to -25 dB; centroid 0.18-0.46 of the take's**: solo piano | | 3.4-5.6 s |
+
+- **The words aren't followed in a span.** The same words rendered as a whole take make solo
+  piano (the cymbals 12-47 dB down, the centroid a fifth to a half); under a mask the kept bars
+  around the span pull it back to the full band (the cymbals 0.6-2.6 dB down, the drums still
+  there). With the take's codes and the caption changed nothing changes at all; the lyrics or
+  both move it, but not toward the words (W2, "drums and bass only", lost the drums).
+- **What moves it loses the beat.** New codes (from new lyrics, at the take's seed) hold the
+  grid over 2 bars but not over 4 (as "Measured: repaint" found for new codes), and with the
+  caption changed too even 2 bars go off on some seeds, with level steps at the seams the take
+  doesn't have. No codes is worse.
+- **SFT doesn't change it** (cfg 7 hears the text more, in a whole take): the same pattern, 12-15
+  s a repaint.
+- **YuE2 can't repaint** (its song is its own language model's, "Measured: repaint"), so a song's
+  new lyrics for some bars aren't possible this way either.
+- So **no `words` on repaint**: the route, the sidecar and the editor stay as they are. New words
+  for some bars are **a new take with those sections' words changed, comped in** at the bar lines
+  (`POST /seriesmith/cue/comp`: same tempo and grid, any model), which is what a composer
+  would do: the cue rendered again with the section's words ("[Break 2 bars] solo piano"), the
+  take that follows them picked by ear, its bars spliced into the take that is right elsewhere.
 
 ## Open questions
 
