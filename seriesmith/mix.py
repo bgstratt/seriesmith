@@ -22,7 +22,8 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
                     "music_duck_db": 0, "dialogue_db": -4}],
        "duck": {"threshold_db": -45, "attack_ms": 60, "release_ms": 450},
        "loudness": {"target_lufs": -16, "true_peak_db": -1},
-       "beds": {"diner": {"gain_db": -3}, "platform": {"mute": true}}},
+       "beds": {"diner": {"gain_db": -3}, "platform": {"mute": true}},
+       "fx": {"sh010": {"take": 2, "gain_db": -4}, "sh030": {"take": 1, "keep_stale": true}}},
      "proxy": {}}
 
 - **Tracks**: dialogue (the cut's own sound, each clip's take as assemble joins it, plus
@@ -49,6 +50,10 @@ docs/SOUND.md is the design. `mix.json` beside `cut.json` holds one mix per pass
   shots from the cut and the series config, never stored as an item; `beds` keeps only what
   you change of one place's: its `gain_db` and `mute`. The beds sit on the ambience track
   (its fader and ducking apply; its items play over them).
+- **Effects** (docs/SOUND.md phase 4, fx.py): a shot's effects take, made from the frames of
+  the take the cut plays, is laid from the cut at its clip, never stored as an item; `fx`
+  keeps which take each shot plays (`take`), its `gain_db`, `mute`, and `keep_stale` (play it
+  though its picture has changed). They sit on the effects track (its fader applies).
 - **Loudness**: the mix is brought to `target_lufs` (default -16) by one gain, measured by
   ffmpeg's loudnorm, and held under `true_peak_db` (default -1) by a limiter when the gain
   would push it over. The stems take the same gain, so they sum to the mix but for the
@@ -97,8 +102,9 @@ HIT_FIELDS = ("id", "name", "at", "kind", "must")
 # the frame, the peak arriving there, the music cutting out or thinning, a change of key
 # or mood; accent is the default
 HIT_KINDS = ("accent", "arrive", "drop", "turn")
-MIX_FIELDS = ("tracks", "items", "hits", "regions", "duck", "loudness", "beds")
+MIX_FIELDS = ("tracks", "items", "hits", "regions", "duck", "loudness", "beds", "fx")
 BED_FIELDS = ("gain_db", "mute")
+FX_FIELDS = ("take", "gain_db", "mute", "keep_stale")
 _ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 
 
@@ -287,6 +293,26 @@ def check(raw) -> dict:
             beds[place] = o
     if beds:
         out["beds"] = beds
+    fx = {}
+    for shot, f in (raw.get("fx") or {}).items():
+        if not isinstance(shot, str) or not _ID.match(shot):
+            raise ValueError(f"a shot's effects are named by its id, not {shot!r}")
+        if not isinstance(f, dict) or set(f) - set(FX_FIELDS):
+            raise ValueError(f"effects {shot} take {', '.join(FX_FIELDS)}")
+        n = f.get("take")
+        if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+            raise ValueError(f"effects {shot}'s take is a take number, not {n!r}")
+        o = {"take": n}
+        if f.get("gain_db"):
+            o["gain_db"] = _num(f["gain_db"], f"effects {shot}'s gain_db", GAIN_MIN, GAIN_MAX)
+        for k in ("mute", "keep_stale"):
+            if f.get(k) is not None and not isinstance(f[k], bool):
+                raise ValueError(f"effects {shot}'s {k} is true or false")
+            if f.get(k):
+                o[k] = True
+        fx[shot] = o
+    if fx:
+        out["fx"] = fx
     for key, defaults, bounds in (
             ("duck", DUCK, {"threshold_db": (-80.0, 0.0), "attack_ms": (1.0, 2000.0),
                             "release_ms": (1.0, 5000.0)}),
@@ -408,15 +434,17 @@ def anchor_at(frame: int, origins: dict) -> dict | None:
 
 
 def placed(mix: dict, origins: dict, total: int, fps: float, root: str,
-           length=None, beds: list[dict] | None = None) -> tuple[dict[str, list[dict]], list[str]]:
+           length=None, beds: list[dict] | None = None,
+           fx: list[dict] | None = None) -> tuple[dict[str, list[dict]], list[str]]:
     """Each track's items laid on the cut, for a timeline that plays files (the FCP7
     export): ({track: [{"id", "label", "path" (absolute), "start", "end" (cut frames),
     "in" (the file's frame at start), "gain_db" (the item's and its track's),
     "points": [(cut frame, dB)], "fade_in", "fade_out"}]}, what was left out). A loop is
     its file laid again end to end. `length(path)` is a file's length in the cut's frames
     (None: it can't be read). `beds` (ambience.laid) go on the ambience lane first, each
-    run its bed laid end to end at its gain and the track's fader. Ducking isn't here: it's computed, and a timeline has no
-    place for it."""
+    run its bed laid end to end at its gain and the track's fader; `fx` (fx.laid) on the
+    effects lane, each heard one at its clip. Ducking isn't here: it's computed, and a
+    timeline has no place for it."""
     tracks = mix.get("tracks") or {}
     lanes: dict[str, list[dict]] = {t: [] for t in TRACKS}
     dropped = []
@@ -425,6 +453,11 @@ def placed(mix: dict, origins: dict, total: int, fps: float, root: str,
         for b in AMB.bed_lanes(beds, length):
             b["gain_db"] += fader(tracks, "ambience")
             lanes["ambience"].append(b)
+    if fx and length:
+        from seriesmith import fx as FXM
+        for f in FXM.fx_lanes(fx, length):
+            f["gain_db"] += fader(tracks, "effects")
+            lanes["effects"].append(f)
     for item in mix.get("items") or []:
         s = place(item["in"], origins)
         e = place(item["out"], origins) if item.get("out") else None
@@ -660,12 +693,14 @@ def measure(path: str, target: float, peak: float) -> dict | None:
 
 
 def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue_src: str,
-           stems_dir: str, log=print, beds: list[dict] | None = None) -> str:
+           stems_dir: str, log=print, beds: list[dict] | None = None,
+           fx: list[dict] | None = None) -> str:
     """Render a pass's mix for a cut of `total` frames: each track as a stem in
     `stems_dir` (dialogue.wav, effects.wav, ambience.wav, music.wav, and me.wav: all but
     the dialogue), the mix as mix.wav, brought to the loudness target. `dialogue_src` is
     the assembled cut, whose own sound is the dialogue track. `beds` (ambience.laid) are
-    laid on the ambience track under its items. Returns mix.wav's path."""
+    laid on the ambience track under its items, `fx` (fx.laid) on the effects track.
+    Returns mix.wav's path."""
     np = _np()
     n = round(total / fps * RATE)
     tracks = mix.get("tracks") or {}
@@ -684,6 +719,9 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
     if beds:
         from seriesmith import ambience as AMB
         bufs["ambience"] += AMB.render_beds(beds, total, fps, log)[:n]
+    if fx:
+        from seriesmith import fx as FXM
+        bufs["effects"] += FXM.render_fx(fx, total, fps, log)[:n]
     for item in mix.get("items") or []:
         s0, got = render_item(item, origins, total, fps, root)
         if s0 is None:

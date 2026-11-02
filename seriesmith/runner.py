@@ -38,11 +38,12 @@ def asked() -> dict | None:
 # How long a job may run before it is taken as hung, stopped and failed:
 # several times the longest such job seen (a 4K SeedVR2 post is the slow one).
 LIMITS = {"render": 2 * 3600, "ref": 1800, "upscale": 4 * 3600, "post": 6 * 3600,
-          "tour": 3600, "cue": 1800}
+          "tour": 3600, "cue": 1800, "fx": 1800}
 
 # The least free disk a job needs where its files land (GB): a take is a few
 # hundred MB with its latent and frames, a 4K upscale or post a few GB.
-ROOM_GB = {"render": 1.0, "ref": 0.2, "upscale": 3.0, "post": 3.0, "tour": 1.0, "cue": 0.2}
+ROOM_GB = {"render": 1.0, "ref": 0.2, "upscale": 3.0, "post": 3.0, "tour": 1.0, "cue": 0.2,
+           "fx": 0.2}
 
 
 def room(folder: str, kind: str) -> None:
@@ -612,6 +613,69 @@ class Runner:
         self._submit(qjob)
         return qjob.id
 
+    def enqueue_fx(self, root: str, pass_: str, shot: str, n: int, backend_name: str) -> str:
+        """A shot's effects take (fx.py: its sidecar reserved with what it is asked) queued:
+        when it starts, the take it was asked of is staged as the model's picture and the
+        graph made (fx.prepare); the sound that comes back is fitted to the picture and kept
+        (fx.finish_take). Returns the queue's job id."""
+        import os
+
+        from seriesmith import fx as FX
+
+        backend = self.backend_for(backend_name)
+        self.reserve(backend, root, "fx")
+        sidecar = FX.take_paths(root, pass_, shot, n)["sidecar"]
+
+        def event(status: str) -> None:
+            self._emit("seriesmith.fx", {"ep": root, "pass": pass_, "shot": shot, "take": n,
+                                         "status": status})
+            self._emit("seriesmith.episode", {"ep": root})
+
+        def work(qjob: QJob, report) -> str:
+            progress = progress_to(report)
+            picture = None
+            try:
+                graph, picture = FX.prepare(root, pass_, shot, n)
+                run = backend.submit(graph)
+                self.started(qjob, run, backend, report)
+                FX.update(root, pass_, shot, n, backend_job=run.id)
+                status = run.watch(on_progress=progress)
+                sc = FX.collect(root, pass_, shot, n, run, status)
+                m = sc.get("measured") or {}
+                report(line=f"effects ok: {m.get('seconds')} s, peak {m.get('peak_db')} dB")
+                result = "succeeded"
+            except Exception as e:                       # noqa: BLE001  the take fails
+                qjob.error = str(e)[:800]
+                FX.update(root, pass_, shot, n, status="failed", finished=T.now(),
+                          error=stopped(qjob) if qjob.cancel_asked else str(e)[:800])
+                result = "canceled" if qjob.cancel_asked else "failed"
+            finally:
+                if picture and os.path.exists(picture):
+                    try:
+                        os.remove(picture)
+                    except OSError:
+                        pass
+            event("ok" if result == "succeeded" else "failed")
+            return result
+
+        def cancelled(qjob: QJob) -> None:
+            FX.update(root, pass_, shot, n, status="failed", finished=T.now(),
+                      error="canceled before it ran")
+            event("failed")
+
+        qjob = QJob(kind="fx", lane=backend.name, title=f"{_ep_name(root)} {shot} effects t{n:02d}",
+                    work=work, info={"ep": root, "shot": shot, "pass": pass_, "take": n,
+                                     "backend": backend.name},
+                    on_cancel=cancelled, limit=LIMITS["fx"], record=sidecar,
+                    resume={"kind": "fx", "ep": root, "shot": shot, "pass": pass_, "take": n,
+                            "asked": asked()})
+        # comfy_prompt_id: the queue's job, as a take's record says it (reattach finds a run
+        # that had started again after a restart)
+        FX.update(root, pass_, shot, n, backend=backend.name, queue_id=qjob.id,
+                  comfy_prompt_id=qjob.id, queue=self.queue.name)
+        self._submit(qjob)
+        return qjob.id
+
     def _submit(self, qjob: QJob) -> None:
         """Queue `qjob` with the shows whose own targets are in force here
         (targets.thread_roots, set by the request or the CLI) in force on the
@@ -774,6 +838,10 @@ class Runner:
             side = next(d for d in TR.list_tours(ref) if d.get("tour") == res["tour"])
             collect_tour(s, ref, side, run, status, None)
             return "ok"
+        if kind == "fx":
+            from seriesmith import fx as FX
+            FX.collect(ep, res["pass"], res["shot"], res["take"], run, status)
+            return "ok"
         raise RuntimeError(f"no way to collect a {kind}")
 
     def _collect_finished(self, qjob: QJob, backend) -> bool:
@@ -866,7 +934,8 @@ AGAIN = {"render": "Generate missing (Shots tab) queues it again",
          "upscale": "Master (or Upscale) runs it again",
          "post": "Master (or Post-process) runs it again",
          "tour": "start the tour again",
-         "cue": "render the cue again (its window)"}
+         "cue": "render the cue again (its window)",
+         "fx": "make the shot's effects again (its clip's Sound menu, or seriesmith fx)"}
 
 
 def collect_ref(take, run, status: str, res: dict, backend_name: str) -> str:

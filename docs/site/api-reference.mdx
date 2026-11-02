@@ -52,6 +52,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
 | `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes`, `GET /seriesmith/refs/shared-takes` | References (Phase 5) |
 | `GET /seriesmith/ambience`, `GET /seriesmith/refs/one` | Ambience beds |
+| `GET /seriesmith/fx`, `POST /seriesmith/fx/render`, `POST /seriesmith/fx/pick` | Effects |
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
 | `POST /seriesmith/clip/queue`, `POST /seriesmith/clips/ensure`, `POST /seriesmith/clips/new` | References (Phase 5): step 12, simple mode |
 | `GET /seriesmith/targets`, `GET /seriesmith/models` | Targets (Phase 7); Model families |
@@ -625,13 +626,15 @@ and the stems go to `<cut>_stems/` beside it; the XML export carries the items o
 tracks.
 
 ### `GET /seriesmith/mix?ep=…&pass=…`
-`{"mix", "files", "beds", "series", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
+`{"mix", "files", "beds", "fx", "series", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
 none, defaults dropped, but a track's values kept as given: a 0 dB fader or an unmute overrides
 the series config), `files` each item file's length in seconds (`null`: not there, or no
 sound), `series` the series config's `sound.tracks` / `sound.loudness` under it, and
 `defaults` `{tracks: ["dialogue", "effects", "ambience", "music"], gain_db, duck_db, duck, loudness}` (`gain_db`: each track's fader when nothing sets it, music -12 dB)
 (what a track dips under speech, the detector and the loudness target when nothing says).
-`beds` the places' ambience beds laid under the cut (below): `[{"place", "label", "path" (relative to the episode), "exists", "words", "shots", "in", "out" (anchors: the run's first shot's first frame played, the frame after its last shot's last), "start", "end" (cut seconds), "gain_db", "mute"}]`, one per run. 409 when `mix.json` is there but doesn't read.
+`beds` the places' ambience beds laid under the cut (below): `[{"place", "label", "path" (relative to the episode), "exists", "words", "shots", "in", "out" (anchors: the run's first shot's first frame played, the frame after its last shot's last), "start", "end" (cut seconds), "gain_db", "mute"}]`, one per run. `fx` the shots' picked effects laid at their clips
+(below): `[{"shot", "take", "model", "path" (relative to the episode), "exists", "in", "out" (anchors: the clip's first frame of the take, the frame after its last), "start", "end" (cut seconds: the clip), "offset" (seconds into the file at `start`: the clip's trim), "gain_db", "mute", "keep_stale", "stale" (why it no longer matches the cut's picture, or null), "heard" (there, not muted, and not stale unless kept)}]`, one per shot in the cut with a pick. Nothing
+is decoded. 409 when `mix.json` is there but doesn't read.
 
 ### Ambience beds (2026-11-01)
 
@@ -673,7 +676,48 @@ one that doesn't check (an unknown field, a track or anchor that isn't one, a le
 loudness out of range, two items or hits with one id), or an item whose `path` leaves the
 episode; 404 for an item whose file isn't there (`POST /seriesmith/audio/import` puts one in
 `audio/`). The old file goes to `_history/` first; a mix that changes nothing writes nothing.
-`beds` takes a place's `gain_db` (-60 to 12) and `mute`. Emits `seriesmith.episode`.
+`beds` takes a place's `gain_db` (-60 to 12) and `mute`; `fx` a shot's `take` (required), `gain_db`
+(-60 to 12), `mute` and `keep_stale`. Emits `seriesmith.episode`.
+
+## Effects (2026-11-01)
+
+A shot's effects are sync sound made from the frames of the take the cut plays for it
+(seriesmith/fx.py, docs/SOUND.md phase 4), on a `foley` target: `h3_foley` (the default; H3
+FL2VA given the take's frames from frame 0 at 256x160, about 10 s a shot), `ltx23_foley` (the
+LTX-2.3 Foley LoRA) or `hunyuan_xl_foley` (HunyuanVideo-Foley XL); the series config's
+`sound.effects_model` sets the series' own. Made only for the shots asked for. The words are
+the shot's script `sound:` line, else its action, and "No dialogue, no voices, no singing, no
+music."; the length is the take's, all of it; the seed comes from the episode, the shot and the
+take number. The take goes up as a file (core `LoadVideo`), made the model's size and frame
+rate first, so any backend can run it.
+
+A shot's takes are `<ep>/sound/fx/<pass>/<shot>/tNN.wav` (48 kHz, exactly the picture's length:
+sample 0 is the take's frame 0) with `tNN.json`: `{pass, shot, target, seed, text, text_from ("sound" | "action"), prompt, negative, values, source: {pass, take, size, mtime} (the take it was made from, its mp4 as it was), video: {frames, fps, seconds, width, height}, status, error, measured: {seconds, came, peak_db, rms_db}}`.
+
+The mix lays them, never stores them as items: each shot in the cut with a pick in the pass's
+`mix.json` `fx` (`{"sh010": {"take": 2, "gain_db": -4, "mute": true, "keep_stale": true}}`) gets
+it on the effects track at its clip, trimmed with the clip. **Stale** when the cut plays another
+take of the shot (its number or pass) than the effects were made from, or that take's mp4 has
+been written since (its size or mtime): left out of the mix and said so (assemble's report,
+`stale` in `GET /seriesmith/mix`), unless `keep_stale`. A heard one makes a mix by itself: the
+export renders it, the effects stem and the M&E carry it, the XML lays it on the effects pair.
+
+### `GET /seriesmith/fx?ep=…&pass=…&shot=…`
+`{"shot", "pass", "cut_take" ({pass, take} the cut plays, or null), "picked" (the take the mix plays, or null), "settings" (the mix's `fx` for the shot), "text", "text_from", "takes"}`: the
+shot's effects takes, newest first, each its sidecar with `take`, `path` (relative to the
+episode), `picked`, and `stale` (why it no longer matches the cut's picture; null when it does,
+or when it isn't finished). What a block's menu fetches when it opens.
+
+### `POST /seriesmith/fx/render`
+Body `{"ep", "pass", "shots": [...], "target"?, "n"?, "backend"?}`: `n` takes (1-8, default 1)
+of each shot, on seriesmith's queue (job kind `fx`, in the Jobs list); `seriesmith.fx` `{ep, pass, shot, take, status}` as each lands. Answers `{"queued": [{shot, take, job, seed, target}], "skipped": [{shot, why}]}` (a shot with no take in the cut, or no words to make its
+effects from). 400 for a target that isn't a foley one, or when none can be made; 409 without
+the queue. When a job starts, a take whose picture changed since it was asked fails, saying so.
+
+### `POST /seriesmith/fx/pick`
+Body `{"ep", "pass", "shot", "take"}`: the take into the pass's mix (`fx`), the shot's level
+and mute kept, `keep_stale` dropped; `take: null` takes the shot's effects out. Answers
+`{"mix"}`; 409 for a take that isn't finished.
 
 ## Music cues (2026-11-01)
 
@@ -1087,6 +1131,10 @@ progress in ComfyUI's shapes — `execution_start`, `progress` (`{prompt_id, val
   "deleted" from `DELETE /seriesmith/post`.
 - **`seriesmith.ref`**, `{"ep", "ref", "view", "take", "status"}`: a reference take queued,
   finished, picked, cleared or discarded.
+- **`seriesmith.cue`**, `{"ep", "cue", "take", "status"}`: a music cue's take landed ("ok") or
+  failed.
+- **`seriesmith.fx`**, `{"ep", "pass", "shot", "take", "status"}`: a shot's effects take landed
+  ("ok") or failed (Effects).
 - **`seriesmith.queue`**, the lanes (`GET /seriesmith/jobs`' `lanes`) after a move or a
   pause.
 - **`seriesmith.master`**, the whole job as `GET /seriesmith/master/job` has it: once when an

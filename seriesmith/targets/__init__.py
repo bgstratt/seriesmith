@@ -7,8 +7,9 @@ targets — everything model-specific, one folder per model.
 
 `kind` is "video" (a shot model: story IR -> shotlist entries), "image" (a
 reference model: a ref request -> a picture), "audio" (a voice model: a
-voice ref -> a wav), "music" (a score model: a cue -> a wav; docs/SOUND.md) or "ambience"
-(a place's words -> its ambience bed, a wav: docs/SOUND.md phase 3). The core (core, build,
+voice ref -> a wav), "music" (a score model: a cue -> a wav; docs/SOUND.md), "ambience"
+(a place's words -> its ambience bed, a wav: docs/SOUND.md phase 3) or "foley" (a take's
+picture -> its effects, a wav: docs/SOUND.md phase 4). The core (core, build,
 jobs, refs, the routes) only talks to a target through this module:
 
     load_target(id)            -> Target            (cached; TargetError if unknown)
@@ -57,6 +58,10 @@ or, for an ambience target (targets/ambience/common.py):
 
     ambience_prompt(words, seconds)                 -> {"prompt", "negative", "values"}
 
+or, for a foley target (targets/foley/common.py):
+
+    foley_prompt(text, video)                       -> {"prompt", "negative", "values"}
+
 or, for an audio target:
 
     voice_prompt(name, voice, design, line, seconds) -> the brief for one voice
@@ -97,16 +102,17 @@ from seriesmith.core import framing
 from seriesmith.core import paths as P
 
 HERE =os.path.dirname(os.path.abspath(__file__))
-KINDS = ("video", "image", "audio", "music", "ambience")
+KINDS = ("video", "image", "audio", "music", "ambience", "foley")
 TIERS = ("required", "accelerator", "optional")
 DEFAULT_VIDEO_TARGET = "minimax_h3_ref2va"
 DEFAULT_IMAGE_TARGET = "krea2"
 DEFAULT_AUDIO_TARGET = "ltx2_voice"
 DEFAULT_MUSIC_TARGET = "stable_audio3"
 DEFAULT_AMBIENCE_TARGET = "mmaudio_ambience"
+DEFAULT_FOLEY_TARGET = "h3_foley"
 DEFAULT_TARGETS = {"video": DEFAULT_VIDEO_TARGET, "image": DEFAULT_IMAGE_TARGET,
                    "audio": DEFAULT_AUDIO_TARGET, "music": DEFAULT_MUSIC_TARGET,
-                   "ambience": DEFAULT_AMBIENCE_TARGET}
+                   "ambience": DEFAULT_AMBIENCE_TARGET, "foley": DEFAULT_FOLEY_TARGET}
 PASSES = ("final", "proxy")
 # Where a job can run (docs/DESIGN.md, "Backends"): your own ComfyUI, Comfy
 # Cloud, a Comfy API deployment of the target's workflow, or a hosted model
@@ -781,6 +787,16 @@ class Target:
                     "max_seconds": float(caps.get("max_seconds") or hi),
                     "min_seconds": lo, "default_seconds": default,
                     "negative_prompt": bool(self.binding.specs("negative"))}
+        if self.kind == "foley":
+            caps = self.spec.get("capabilities") or {}
+            # what the take is made into before it goes up (fx.stage): a size (a
+            # height of 0 keeps the take's shape), a frame rate (None: the take's)
+            # and a frame grid ([step, base]: LTX's 8k+1)
+            p = self.presets.get("final")
+            return {**common, "mode": caps.get("mode") or "v2a",
+                    "width": int((p.width if p else 0) or 0), "height": int((p.height if p else 0) or 0),
+                    "fps": caps.get("fps"), "frame_grid": caps.get("frame_grid"),
+                    "negative_prompt": bool(self.binding.specs("negative"))}
         if self.kind == "audio":
             caps = self.spec.get("capabilities") or {}
             default, hi, lo = self.seconds_range()
@@ -841,6 +857,12 @@ class Target:
         """A place's bed on this model: {"prompt", "negative", "values"}
         (targets/ambience/common.py)."""
         return self._need("ambience_prompt")(self, words, seconds)
+
+    # foley
+    def foley_prompt(self, text: str, video: dict) -> dict:
+        """A take's effects on this model: {"prompt", "negative", "values"}
+        (targets/foley/common.py)."""
+        return self._need("foley_prompt")(self, text, video)
 
     # audio
     def voice_prompt(self, name: str, voice: str = "", design: str = "",

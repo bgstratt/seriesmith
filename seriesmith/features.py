@@ -66,6 +66,9 @@ PACKS: dict[str, dict] = {
     "ComfyUI-MMAudio": {
         "repo": "https://github.com/kijai/ComfyUI-MMAudio",
         "classes": ["MMAudioModelLoader", "MMAudioFeatureUtilsLoader", "MMAudioSampler"]},
+    "ComfyUI-HunyuanVideo-Foley": {
+        "repo": "https://github.com/phazei/ComfyUI-HunyuanVideo-Foley",
+        "classes": ["HunyuanModelLoader", "HunyuanDependenciesLoader", "HunyuanFoleySampler"]},
     "ComfyUI-PromptRelay": {
         "repo": "https://github.com/kijai/ComfyUI-PromptRelay",
         "classes": ["PromptRelayEncode"]},
@@ -142,7 +145,7 @@ GROUPS = [
     ("video", "Video models", "What shots render on. seriesmith uses the first one installed."),
     ("pictures", "Picture models", "What draws characters, places, props and keyframes."),
     ("h3", "MiniMax H3 extras", "For H3 at full quality and for the location tours."),
-    ("sound", "Sound", "Generated voices, recorded dialogue and ambience beds."),
+    ("sound", "Sound", "Generated voices, recorded dialogue, ambience beds and effects."),
     ("upscale", "Upscaling", "Upscale takes (Upscale, Export 2x, master). Pick the methods you want."),
     ("post", "Post-processing", "Enhancement and motion blur after the upscale."),
     ("refs", "360s and turned views", "The Refs tab's Make 360 and a character's Turn."),
@@ -273,6 +276,17 @@ def catalog() -> list[Feature]:
                        "Ambience beds (Stable Audio 3 Small SFX)",
                        "Livelier beds, second choice to MMAudio: Stable Audio 3's small sound-effects "
                        "model (Stability AI Community License)."),
+        target_feature("sound.effects", "sound", "h3_foley", "Effects (MiniMax H3)",
+                       "A shot's sync sound made from its take's frames (a clip's Sound menu, "
+                       "seriesmith fx): H3 FL2VA's files, which H3 FL2VA shots use too. The default."),
+        Feature("sound.effects_ltx", "sound", "Effects (LTX-2.3 Foley)",
+                "Effects from Lightricks' LTX-2.3 Foley LoRA on LTX-2.3 dev: as good as H3 by ear, "
+                "slower (a minute or two a shot), about 36 GB of files and ComfyUI-LTXVideo.",
+                [_pack("ComfyUI-LTXVideo")] + _target_items("ltx23_foley"), restart=True),
+        Feature("sound.effects_hunyuan", "sound", "Effects (HunyuanVideo-Foley XL)",
+                "Effects from Tencent's HunyuanVideo-Foley XL: phazei's node pack and three files "
+                "(Tencent's community licence: it doesn't apply in some territories).",
+                [_pack("ComfyUI-HunyuanVideo-Foley")] + _target_items("hunyuan_xl_foley"), restart=True),
         Feature("sound.align", "sound", "Recorded dialogue",
                 "faster-whisper, for align and the Recording window, in the Python align runs on.",
                 [Item("pip", "faster-whisper", where="align", module="faster_whisper"),

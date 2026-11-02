@@ -427,19 +427,19 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `models/text_encoders/` | required | `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `fasth3_omni_still`, `minimax_h3_still` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors) |
+| `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `models/text_encoders/` | required | `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `fasth3_omni_still`, `minimax_h3_still`, `h3_foley` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors) |
 
 **MiniMax H3 video VAE** (`minimax-h3-video-vae`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `minimax_h3_video_vae_fp16.safetensors` | `models/vae/` | required | `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `fasth3_omni_still`, `minimax_h3_still` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors) |
+| `minimax_h3_video_vae_fp16.safetensors` | `models/vae/` | required | `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `fasth3_omni_still`, `minimax_h3_still`, `h3_foley` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors) |
 
 **MiniMax H3 audio VAE** (`minimax-h3-audio-vae`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `minimax_h3_audio_vae_fp32.safetensors` | `models/vae/` | required | `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors) |
+| `minimax_h3_audio_vae_fp32.safetensors` | `models/vae/` | required | `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `h3_foley` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors) |
 
 **LTX 2.5** (`ltx2.5`)
 
@@ -509,6 +509,7 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
+| `ltx-2.3-22b-dev_transformer_only_int8_convrot.safetensors` | `models/diffusion_models/` | required | `ltx23_foley` | [Kijai/LTX2.3_comfy](https://huggingface.co/Kijai/LTX2.3_comfy/resolve/main/diffusion_models/ltx-2.3-22b-dev_transformer_only_int8_convrot.safetensors) |
 | `ltx-2.3-22b-dev-fp8.safetensors` | `models/checkpoints/` | accelerator | `ltx2_ingredients` | [Lightricks/LTX-2.3-fp8](https://huggingface.co/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-dev-fp8.safetensors) |
 | `ltx-2.3-22b-distilled-fp8.safetensors` | `models/checkpoints/` | accelerator | `ltx2_ingredients` | [Lightricks/LTX-2.3-fp8](https://huggingface.co/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-distilled-fp8.safetensors) |
 
@@ -523,6 +524,7 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
 | `gemma_3_12B_it_fp4_mixed.safetensors` | `models/text_encoders/` | required | `ltx2_ingredients` | [Comfy-Org/ltx-2](https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors) |
+| `gemma_3_12B_it_fp8_scaled.safetensors` | `models/text_encoders/` | required | `ltx23_foley` | [Comfy-Org/ltx-2](https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors) |
 
 **ltx2.5-msr** (`ltx2.5-msr`)
 
@@ -534,7 +536,7 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | `models/diffusion_models/` | required | `minimax_h3_fl2va` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors) |
+| `minimax_h3_fl2va_pruned_int8_convrot.safetensors` | `models/diffusion_models/` | required | `minimax_h3_fl2va`, `h3_foley` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_fl2va_pruned_int8_convrot.safetensors) |
 
 **Wan 2.2 I2V 14B high-noise** (`wan2.2-i2v-14b-high`)
 
@@ -805,6 +807,54 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
 | `stable_audio_3_small_sfx.safetensors` | `models/checkpoints/` | required | `sa3_sfx_ambience` | [Comfy-Org/stable-audio-3](https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/checkpoints/stable_audio_3_small_sfx.safetensors) |
+
+**hunyuanvideo-foley-xl** (`hunyuanvideo-foley-xl`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `hunyuanvideo_foley_xl.safetensors` | `models/foley/` | required | `hunyuan_xl_foley` | [phazei/HunyuanVideo-Foley](https://huggingface.co/phazei/HunyuanVideo-Foley/resolve/main/hunyuanvideo_foley_xl.safetensors) |
+
+**hunyuanvideo-foley-vae** (`hunyuanvideo-foley-vae`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `vae_128d_48k_fp16.safetensors` | `models/foley/` | required | `hunyuan_xl_foley` | [phazei/HunyuanVideo-Foley](https://huggingface.co/phazei/HunyuanVideo-Foley/resolve/main/vae_128d_48k_fp16.safetensors) |
+
+**hunyuanvideo-foley-synchformer** (`hunyuanvideo-foley-synchformer`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `synchformer_state_dict_fp16.safetensors` | `models/foley/` | required | `hunyuan_xl_foley` | [phazei/HunyuanVideo-Foley](https://huggingface.co/phazei/HunyuanVideo-Foley/resolve/main/synchformer_state_dict_fp16.safetensors) |
+
+**ltx2.3-distilled-lora** (`ltx2.3-distilled-lora`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors` | `models/loras/` | required | `ltx23_foley` | [Comfy-Org/ltx-2.3](https://huggingface.co/Comfy-Org/ltx-2.3/resolve/main/split_files/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors) |
+
+**ltx2.3-foley-lora** (`ltx2.3-foley-lora`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `ltx-2.3-22b-lora-foley-v2a-1.0.safetensors` | `models/loras/` | required | `ltx23_foley` | [Lightricks/LTX-2.3-22b-LoRA-Foley-V2A](https://huggingface.co/Lightricks/LTX-2.3-22b-LoRA-Foley-V2A/resolve/main/ltx-2.3-22b-lora-foley-v2a-1.0.safetensors) |
+
+**LTX 2.3 text projection** (`ltx2.3-text-projection`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `ltx-2.3_text_projection_bf16.safetensors` | `models/text_encoders/` | required | `ltx23_foley` | [Kijai/LTX2.3_comfy](https://huggingface.co/Kijai/LTX2.3_comfy/resolve/main/text_encoders/ltx-2.3_text_projection_bf16.safetensors) |
+
+**LTX 2.3 video VAE** (`ltx2.3-video-vae`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `LTX23_video_vae_bf16.safetensors` | `models/vae/` | required | `ltx23_foley` | [Kijai/LTX2.3_comfy](https://huggingface.co/Kijai/LTX2.3_comfy/resolve/main/vae/LTX23_video_vae_bf16.safetensors) |
+
+**LTX 2.3 audio VAE** (`ltx2.3-audio-vae`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `LTX23_audio_vae_bf16.safetensors` | `models/vae/` | required | `ltx23_foley` | [Kijai/LTX2.3_comfy](https://huggingface.co/Kijai/LTX2.3_comfy/resolve/main/vae/LTX23_audio_vae_bf16.safetensors) |
 
 ### For upscaling (optional)
 

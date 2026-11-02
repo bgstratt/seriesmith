@@ -650,7 +650,7 @@ class LoraSpecTest(unittest.TestCase):
             # audio and music targets take no LoRA; krea2 splices its own (LoraLoader,
             # model and clip) in targets/image/krea2/graph.py rather than through
             # apply_loras, which is why it alone needs no insert_after
-            if t.kind in ("audio", "music", "ambience") or t.id == TG.DEFAULT_IMAGE_TARGET:
+            if t.kind in ("audio", "music", "ambience", "foley") or t.id == TG.DEFAULT_IMAGE_TARGET:
                 continue
             with self.subTest(target=t.id):
                 specs = t.binding.specs("loras")

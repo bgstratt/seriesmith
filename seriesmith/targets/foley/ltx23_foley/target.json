@@ -1,0 +1,87 @@
+{
+  "id": "ltx23_foley",
+  "kind": "foley",
+  "label": "LTX-2.3 Foley LoRA (effects from the picture)",
+  "short": "LTX-2.3 Foley",
+  "default_rank": 2,
+  "code": "prompt.py",
+
+  "capabilities": {
+    "_note": "Video to sound: Lightricks' LTX-2.3 Foley LoRA (huggingface.co/Lightricks/LTX-2.3-22b-LoRA-Foley-V2A) on the LTX-2.3 dev model, the picture held (LTXVSetAudioVideoMaskByTime: mask_video false, mask_audio true) and the sound made. Measured 2026-11-01 (docs/SOUND.md 'Models', Foley): heard best of the foley models by a long shot, and about as good as H3 at 256x160; 60-120 s a shot. Validated on LTX-2.3 only (on 2.5 it added vocals). About 36 GB of files.",
+    "mode": "v2a",
+    "fps": 24,
+    "frame_grid": [8, 1]
+  },
+
+  "binding": {
+    "_note": "The saved workflow LTX-2.3 - V2V Foley (Add Sound To Any Video, Foley LoRA) as an API graph, its performance patches bypassed and **STG off** (stg 0, no perturbed attention, skip_blocks empty: ComfyUI-LTXVideo's stg.py fails on ComfyUI 0.43 with \"'AttentionTensorContainer' object has no attribute 'shape'\"). The take goes up as a file (LoadVideo, its frames by GetVideoComponents), made 512x288 at 24 fps and cut to LTX's 8k+1 frames by fx.stage first. UNETLoader (dev, int8), the distilled LoRA at 0.4 then the foley LoRA at 1.0, DualCLIPLoader (Gemma 3 12B and the text projection, ltxv), the video and audio VAEs (VAELoader), VAEEncode, LTXVEmptyLatentAudio, LTXVConcatAVLatent, the mask, MultimodalGuider (audio cfg 6, video cfg 1), LTXVScheduler 30 steps, euler, LTXVAudioVAEDecode, SaveAudio. Validated on local ComfyUI 0.43, 2026-11-01.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_ltx23_foley.json",
+    "env": "SERIESMITH_LTX23_FOLEY_WORKFLOW",
+    "saver": {"class_type": "SaveAudio", "replace": {"class_type": "SaveAudio"}},
+    "prune": true,
+    "params": {
+      "video": {"class_type": "LoadVideo", "field": "file"},
+      "model": {"class_type": "UNETLoader", "field": "unet_name"},
+      "distilled_lora": {"class_type": "LoraLoaderModelOnly", "field": "lora_name", "title": "Distilled LoRA"},
+      "foley_lora": {"class_type": "LoraLoaderModelOnly", "field": "lora_name", "title": "Foley LoRA"},
+      "text_encoder": {"class_type": "DualCLIPLoader", "field": "clip_name1"},
+      "text_projection": {"class_type": "DualCLIPLoader", "field": "clip_name2"},
+      "video_vae": {"class_type": "VAELoader", "field": "vae_name", "title": "Video VAE"},
+      "audio_vae": {"class_type": "VAELoader", "field": "vae_name", "title": "Audio VAE"},
+      "prompt": {"class_type": "CLIPTextEncode", "field": "text", "title": "Positive prompt"},
+      "negative": {"class_type": "CLIPTextEncode", "field": "text", "title": "Negative prompt"},
+      "frames": {"class_type": "LTXVEmptyLatentAudio", "field": "frames_number"},
+      "fps": [{"class_type": "LTXVEmptyLatentAudio", "field": "frame_rate"},
+              {"class_type": "LTXVSetAudioVideoMaskByTime", "field": "video_fps"}],
+      "end_time": {"class_type": "LTXVSetAudioVideoMaskByTime", "field": "end_time"},
+      "steps": {"class_type": "LTXVScheduler", "field": "steps"},
+      "seed": {"class_type": "RandomNoise", "field": "noise_seed"}
+    }
+  },
+
+  "models": {
+    "model": {"family": "ltx2.3", "patterns": ["ltx-2.3*dev*", "*ltx*2.3*dev*", "*ltx*2_3*dev*"], "tier": "required", "folder": "diffusion_models", "exclude": ["*lora*"]},
+    "distilled_lora": {"family": "ltx2.3-distilled-lora", "patterns": ["*ltx*2*3*distilled*lora*"], "tier": "required", "folder": "loras"},
+    "foley_lora": {"family": "ltx2.3-foley-lora", "patterns": ["*ltx*2*3*foley*"], "tier": "required", "folder": "loras"},
+    "text_encoder": {"family": "gemma3-12b", "patterns": ["*gemma*3*12b*"], "tier": "required", "folder": "text_encoders"},
+    "text_projection": {"family": "ltx2.3-text-projection", "patterns": ["*ltx*2*3*text*projection*"], "tier": "required", "folder": "text_encoders"},
+    "video_vae": {"family": "ltx2.3-video-vae", "patterns": ["*ltx*23*video*vae*", "*ltx*2*3*video*vae*"], "tier": "required", "folder": "vae"},
+    "audio_vae": {"family": "ltx2.3-audio-vae", "patterns": ["*ltx*23*audio*vae*", "*ltx*2*3*audio*vae*"], "tier": "required", "folder": "vae"}
+  },
+
+  "nodes": {
+    "_note": "ComfyUI core but for the guider and the mask, which are ComfyUI-LTXVideo's.",
+    "LoadVideo": {"tier": "required"},
+    "GetVideoComponents": {"tier": "required"},
+    "LTXVSetAudioVideoMaskByTime": {"tier": "required"},
+    "MultimodalGuider": {"tier": "required"},
+    "GuiderParameters": {"tier": "required"}
+  },
+
+  "presets": {
+    "_note": "The saved workflow's settings, STG off: 512x288 at 24 fps, 30 steps, the distilled LoRA at 0.4, the foley LoRA at 1.0, audio cfg 6.",
+    "final": {
+      "model": "ltx-2.3-22b-dev_transformer_only_int8_convrot.safetensors",
+      "distilled_lora": "ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors",
+      "foley_lora": "ltx-2.3-22b-lora-foley-v2a-1.0.safetensors",
+      "text_encoder": "gemma_3_12B_it_fp8_scaled.safetensors",
+      "text_projection": "ltx-2.3_text_projection_bf16.safetensors",
+      "video_vae": "LTX23_video_vae_bf16.safetensors",
+      "audio_vae": "LTX23_audio_vae_bf16.safetensors",
+      "steps": 30, "width": 512, "height": 288,
+      "negative": "music, melody, song, singing, vocals, score, soundtrack, speech, dialogue, talking, narration, tinny, thin, harsh, clipped, distorted"
+    }
+  },
+
+  "downloads": {
+    "_note": "Listed from the Hugging Face repos the saved workflow points to (Kijai/LTX2.3_comfy, Comfy-Org/ltx-2, Lightricks/LTX-2.3-22b-LoRA-Foley-V2A) and Comfy-Org/ltx-2.3, 2026-11-01. ComfyUI-LTXVideo (the guider and the mask) is features.PACKS'.",
+    "ltx-2.3-22b-dev_transformer_only_int8_convrot.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/Kijai/LTX2.3_comfy/resolve/main/diffusion_models/ltx-2.3-22b-dev_transformer_only_int8_convrot.safetensors", "source": "the Hugging Face repo Kijai/LTX2.3_comfy, diffusion_models/ (listed 2026-11-01)"},
+    "ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors": {"folder": "loras", "url": "https://huggingface.co/Comfy-Org/ltx-2.3/resolve/main/split_files/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors", "source": "the Hugging Face repo Comfy-Org/ltx-2.3, split_files/loras/ (listed 2026-11-01)"},
+    "ltx-2.3-22b-lora-foley-v2a-1.0.safetensors": {"folder": "loras", "url": "https://huggingface.co/Lightricks/LTX-2.3-22b-LoRA-Foley-V2A/resolve/main/ltx-2.3-22b-lora-foley-v2a-1.0.safetensors", "source": "the Hugging Face repo Lightricks/LTX-2.3-22b-LoRA-Foley-V2A (listed 2026-11-01)"},
+    "gemma_3_12B_it_fp8_scaled.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp8_scaled.safetensors", "source": "the Hugging Face repo Comfy-Org/ltx-2, split_files/text_encoders/ (listed 2026-11-01)"},
+    "ltx-2.3_text_projection_bf16.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Kijai/LTX2.3_comfy/resolve/main/text_encoders/ltx-2.3_text_projection_bf16.safetensors", "source": "the Hugging Face repo Kijai/LTX2.3_comfy, text_encoders/ (listed 2026-11-01)"},
+    "LTX23_video_vae_bf16.safetensors": {"folder": "vae", "url": "https://huggingface.co/Kijai/LTX2.3_comfy/resolve/main/vae/LTX23_video_vae_bf16.safetensors", "source": "the Hugging Face repo Kijai/LTX2.3_comfy, vae/ (listed 2026-11-01)"},
+    "LTX23_audio_vae_bf16.safetensors": {"folder": "vae", "url": "https://huggingface.co/Kijai/LTX2.3_comfy/resolve/main/vae/LTX23_audio_vae_bf16.safetensors", "source": "the Hugging Face repo Kijai/LTX2.3_comfy, vae/ (listed 2026-11-01)"}
+  }
+}

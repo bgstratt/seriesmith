@@ -2542,7 +2542,11 @@ def get_mix(ctx: Context, query: dict):
     `beds` the places' ambience beds laid under the cut (ambience.laid: worked out from
     the cut and the series config, never stored): [{"place", "label", "path" (relative
     to the episode), "exists", "words", "shots", "in", "out" (anchors), "start", "end"
-    (seconds of the cut), "gain_db", "mute"}]. Nothing is decoded."""
+    (seconds of the cut), "gain_db", "mute"}], and `fx` the shots' picked effects laid at
+    their clips (fx.laid: from the cut and the mix's `fx`): [{"shot", "take", "model",
+    "path" (relative to the episode), "exists", "in", "out" (anchors), "start", "end"
+    (seconds of the cut), "offset" (seconds into the file at start), "gain_db", "mute",
+    "keep_stale", "stale" (why, or null), "heard"}]. Nothing is decoded."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query.get("pass"))
     try:
@@ -2562,7 +2566,13 @@ def get_mix(ctx: Context, query: dict):
                                   "gain_db", "mute")},
              "path": b["rel"], "start": round(b["start"] / fps, 4), "end": round(b["end"] / fps, 4)}
             for b in AMB.laid(ep, layout, J.series_config(ep), mix)]
-    return 200, {"mix": mix, "files": files, "beds": beds,
+    from seriesmith import fx as FXM
+    fx = [{**{k: f[k] for k in ("shot", "take", "model", "exists", "in", "out", "gain_db", "mute",
+                                "keep_stale", "stale", "heard")},
+           "path": f["rel"], "start": round(f["start"] / fps, 4), "end": round(f["end"] / fps, 4),
+           "offset": round((f["start"] - f["origin"]) / fps, 4)}
+          for f in FXM.laid(ep, pass_, layout, mix)]
+    return 200, {"mix": mix, "files": files, "beds": beds, "fx": fx,
                  "series": {k: snd[k] for k in ("tracks", "loudness") if k in snd},
                  "defaults": {"tracks": list(MX.TRACKS), "gain_db": MX.GAIN_DEFAULT,
                               "duck_db": MX.DUCK_DEFAULT,
@@ -2765,6 +2775,89 @@ def post_cue_comp(ctx: Context, body):
         raise ApiError(409, str(e))
     episode_event(ctx, ep)
     return 200, {"take": sc}
+
+
+def _fx_shots(v) -> list[str]:
+    if not isinstance(v, list) or not v:
+        raise ApiError(400, "shots is a list of shot ids")
+    return list(dict.fromkeys(check_shot(x) for x in v))
+
+
+@handler
+def get_fx(ctx: Context, query: dict):
+    """One shot's effects takes (fx.shot_takes; docs/SOUND.md phase 4): `{ep, pass, shot}`
+    -> {"shot", "cut_take" ({pass, take} the cut plays, or null), "picked", "settings" (the
+    mix's for it), "text" (the words a new take is made from) and "text_from" ("sound" or
+    "action"), "takes": newest first, each its sidecar with "stale" (why it no longer
+    matches the cut's picture, or null), "picked" and "path"}. Fetched when a block's
+    menu opens, never for every shot."""
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    shot = check_shot(query.get("shot"))
+    from seriesmith import fx as FXM
+    try:
+        mix = MX.check(MX.load(ep).get(pass_))
+    except ValueError as e:
+        raise ApiError(409, f"{MX.MIX_FILE} doesn't read: {e}")
+    return 200, FXM.shot_takes(ep, pass_, shot, mix)
+
+
+@handler
+def post_fx_render(ctx: Context, body):
+    """Make effects for shots on seriesmith's queue: `{ep, pass, shots: [...], target?, n?,
+    backend?}` (target: a foley target, default the series config's `sound.effects_model`,
+    else this machine's, h3_foley; n: takes per shot, default 1). Each is made from the
+    take the pass's cut plays for the shot, all of it (`seriesmith.fx` as each lands).
+    Returns {"queued": [{shot, take, job, seed, target}], "skipped": [{shot, why}]}; 400
+    when none can be made."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shots = _fx_shots(body.get("shots"))
+    if ctx.runner is None:
+        raise ApiError(409, "making effects needs seriesmith's queue (the server)")
+    from seriesmith import fx as FXM
+    target = body.get("target")
+    if target is not None:
+        if not isinstance(target, str):
+            raise ApiError(400, "target is a foley target's id")
+        try:
+            TG.load_target(target, "foley", ep)
+        except TG.TargetError as e:
+            raise ApiError(400, str(e))
+    n = body.get("n", 1)
+    if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= FXM.TAKES_MAX:
+        raise ApiError(400, f"n is 1 to {FXM.TAKES_MAX} takes a shot")
+    backend = finish_backend(ctx, body)
+    try:
+        queued, skipped = FXM.queue(ctx.runner, ep, pass_, shots, target, n, backend)
+    except ValueError as e:
+        raise ApiError(400, str(e))
+    if not queued:
+        raise ApiError(400, "; ".join(x["why"] for x in skipped) or "nothing to make")
+    episode_event(ctx, ep)
+    return 200, {"queued": queued, "skipped": skipped}
+
+
+@handler
+def post_fx_pick(ctx: Context, body):
+    """A shot's effects take into the pass's mix (`fx`): `{ep, pass, shot, take}` (take
+    null: the shot's effects out of the mix). Its level and mute are kept; keep_stale is
+    dropped. Returns {"mix"}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shot = check_shot(body.get("shot"))
+    n = body.get("take")
+    if n is not None and (isinstance(n, bool) or not isinstance(n, int) or n < 1):
+        raise ApiError(400, "take is a take number, or null")
+    from seriesmith import fx as FXM
+    try:
+        mix = FXM.pick(ep, pass_, shot, n)
+    except ValueError as e:
+        raise ApiError(409, str(e))
+    episode_event(ctx, ep)
+    return 200, {"mix": mix}
 
 
 def _cut_what(v) -> str:
@@ -5156,6 +5249,9 @@ ROUTES = [
     ("POST", "/seriesmith/cue/render", post_cue_render, "body"),
     ("POST", "/seriesmith/cue/pick", post_cue_pick, "body"),
     ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
+    ("GET", "/seriesmith/fx", get_fx, "query"),
+    ("POST", "/seriesmith/fx/render", post_fx_render, "body"),
+    ("POST", "/seriesmith/fx/pick", post_fx_pick, "body"),
     ("POST", "/seriesmith/cut/reset", post_cut_reset, "body"),
     ("POST", "/seriesmith/cut/copy", post_cut_copy, "body"),
     ("GET", "/seriesmith/peaks", get_peaks, "query"),

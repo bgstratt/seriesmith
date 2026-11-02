@@ -1,0 +1,17 @@
+{
+ "1": {"class_type": "LoadVideo", "inputs": {"file": ""}, "_meta": {"title": "Take"}},
+ "2": {"class_type": "GetVideoComponents", "inputs": {"video": ["1", 0]}, "_meta": {"title": "Frames"}},
+ "3": {"class_type": "UNETLoader", "inputs": {"unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors", "weight_dtype": "default"}, "_meta": {"title": "Model"}},
+ "4": {"class_type": "CLIPLoader", "inputs": {"clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors", "type": "minimax", "device": "default"}, "_meta": {"title": "Text encoder"}},
+ "5": {"class_type": "VAELoader", "inputs": {"vae_name": "minimax_h3_video_vae_fp16.safetensors"}, "_meta": {"title": "Video VAE"}},
+ "6": {"class_type": "VAELoader", "inputs": {"vae_name": "minimax_h3_audio_vae_fp32.safetensors"}, "_meta": {"title": "Audio VAE"}},
+ "7": {"class_type": "MiniMaxH3ImageToVideo", "inputs": {"clip": ["4", 0], "vae": ["5", 0], "prompt": "", "width": 256, "height": 160, "length": 121}, "_meta": {"title": "Canvas"}},
+ "8": {"class_type": "MiniMaxH3AddGuide", "inputs": {"positive": ["7", 0], "latent": ["7", 1], "frame_idx": 0, "vae": ["5", 0], "image": ["2", 0]}, "_meta": {"title": "The take's frames"}},
+ "9": {"class_type": "BasicGuider", "inputs": {"model": ["3", 0], "conditioning": ["8", 0]}, "_meta": {"title": "Guider"}},
+ "10": {"class_type": "BasicScheduler", "inputs": {"model": ["3", 0], "scheduler": "simple", "steps": 20, "denoise": 1.0}, "_meta": {"title": "Scheduler"}},
+ "11": {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "res_multistep"}, "_meta": {"title": "Sampler"}},
+ "12": {"class_type": "RandomNoise", "inputs": {"noise_seed": 0}, "_meta": {"title": "Seed"}},
+ "13": {"class_type": "SamplerCustomAdvanced", "inputs": {"noise": ["12", 0], "guider": ["9", 0], "sampler": ["11", 0], "sigmas": ["10", 0], "latent_image": ["7", 1]}, "_meta": {"title": "Sample"}},
+ "14": {"class_type": "VAEDecodeAudio", "inputs": {"samples": ["13", 0], "vae": ["6", 0]}, "_meta": {"title": "The sound"}},
+ "15": {"class_type": "SaveAudio", "inputs": {"audio": ["14", 0], "filename_prefix": "seriesmith/fx"}, "_meta": {"title": "Save"}}
+}

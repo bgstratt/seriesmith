@@ -273,6 +273,11 @@ def _promote(ep, rest):
     return PRM.cmd_promote(ep, rest)
 
 
+def _fx(ep, rest):
+    from seriesmith import fx as FXM
+    return FXM.cmd_fx(ep, rest)
+
+
 def _new(rest):
     from seriesmith import source as SRC
     return SRC.cmd_new(rest)
@@ -393,6 +398,9 @@ _TABLE = [
             "the script timed against a dialogue recording", _align, own_help=True),
     Command("assemble", "<episode>... [--each] [--proxy] [--upscaled] [--partial]",
             "the review cut", _stage_cmd("assemble", _assemble), own_help=True),
+    Command("fx", "<episode> --shots sh010,... [--proxy] [--target ID] [--takes N] [--pick] [--list]",
+            "a shot's effects (sync sound) made from the cut's take, on its own track",
+            episode_first(_fx)),
     Command("upscale", "<episode> [--only sh020,...] [--take N] [--redo] [--check]",
             "the final cut's takes upscaled", _module_main("seriesmith.upscale"), own_help=True),
     Command("post", "<episode> [--enhance draft|production|cinematic|...] [--recipe] [--check]",
