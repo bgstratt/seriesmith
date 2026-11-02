@@ -155,7 +155,8 @@ class AssembleTest(unittest.TestCase):
                                      ("probe", None, None, "comparing the clips' encodings"),
                                      ("clips", 0, 2, ""), ("clips", 1, 2, "sh010"),
                                      ("clips", 2, 2, "sh020")])
-        self.assertEqual([s[0] for s in steps[6:]], ["join", "verify"])
+        # (the loudness check on the mp4, docs/SOUND.md phase 5, between)
+        self.assertEqual([s[0] for s in steps[6:]], ["join", "loudness", "verify"])
         # without --progress, nothing of the sort
         self.assertNotIn("##assemble", self.assemble().stdout)
 
