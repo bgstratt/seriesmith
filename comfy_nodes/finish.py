@@ -9,6 +9,9 @@ SeriesmithPixelUpscale    an upscale model over the frames a few at a time,
                           (frequency split, keep soft, grain)
 SeriesmithFinishUpscale   that finish, for frames something else upscaled
                           (SeedVR2's)
+SeriesmithRTXUpscale      RTX Video Super Resolution (Comfy-Org's node) over
+                          the frames a window at a time, finished as it goes,
+                          the result kept as it will be encoded (8-bit)
 SeriesmithHoldAudio       a noise mask that re-samples the picture of a joint
                           AV latent and keeps its audio as it is
 SeriesmithFramesToBatch   a list of image batches back into one batch
@@ -236,6 +239,79 @@ class SeriesmithFinishUpscale:
         return (out,)
 
 
+class SeriesmithRTXUpscale:
+    """NVIDIA RTX Video Super Resolution (Comfy-Org's RTXVideoSuperResolution,
+    run as that node runs it) over the frames `chunk` at a time, each window
+    fitted to width x height (lanczos, when its multiple-of-8 size differs)
+    and finished against its source frames as it goes. The RTX node on a whole
+    take holds every frame at the full size in float32: 100 MB a frame at 4K,
+    and the finish after it as much again in half floats, so a 28 s 1080p take
+    to 4K wanted ~120 GB. This holds one window at full precision and the rest
+    as it will be encoded (`compact`: 8-bit, for SeriesmithSaveUpscale only;
+    else half floats, for any node)."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "images": ("IMAGE",),
+            "width": ("INT", {"default": 3840, "min": 16, "max": 16384, "step": 2}),
+            "height": ("INT", {"default": 2160, "min": 16, "max": 16384, "step": 2}),
+            # the RTX node's: ULTRA, HIGHBITRATE_ULTRA, DENOISE_ / DEBLUR_ (at the input's size)
+            "quality": ("STRING", {"default": "ULTRA"}),
+            "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+            "chunk": ("INT", {"default": 32, "min": 1, "max": 512}),
+            "compact": ("BOOLEAN", {"default": False}),
+            "frequency_split": ("BOOLEAN", {"default": True}),
+            "keep_soft": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.05}),
+            "grain": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 0.2, "step": 0.005}),
+            "grain_seed": ("INT", {"default": 0, "min": 0, "max": 0xFFFFFFFF}),
+        }}
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "upscale"
+    CATEGORY = "seriesmith/upscale"
+
+    def upscale(self, images, width, height, quality="ULTRA", strength=1.0, chunk=32,
+                compact=False, frequency_split=True, keep_soft=0.0, grain=0.0, grain_seed=0):
+        import comfy.utils
+        import nodes
+
+        rtx = nodes.NODE_CLASS_MAPPINGS.get("RTXVideoSuperResolution")
+        if rtx is None:
+            raise RuntimeError("RTXVideoSuperResolution isn't installed: Comfy-Org's Nvidia RTX "
+                               "Nodes pack (an NVIDIA RTX card and its nvidia-vfx wheel)")
+        n, chunk = int(images.shape[0]), max(1, int(chunk))
+        width, height = int(width), int(height)
+        w8, h8 = -(-width // 8) * 8, -(-height // 8) * 8
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        level = detail_scale(images, device) if keep_soft > 0 else 1.0
+        out = torch.empty((n, height, width, 3), dtype=torch.uint8 if compact else torch.float16)
+        pbar = comfy.utils.ProgressBar(n)
+        step = 8                                   # frames finished at once on the card
+        for i in range(0, n, chunk):
+            src = images[i:i + chunk, :, :, :3]
+            got = rtx.execute(images=src, resize_type={"resize_type": "target dimensions",
+                                                       "width": w8, "height": h8},
+                              quality=str(quality), strength=float(strength),
+                              image_encoding="8-bit RGB")
+            up = got.args[0] if hasattr(got, "args") else got[0]
+            for k in range(0, int(up.shape[0]), step):
+                x = up[k:k + step].movedim(-1, 1).to(device).float()
+                if tuple(x.shape[-2:]) != (height, width):
+                    # DENOISE_ / DEBLUR_ keep the input's size; a size not a multiple of 8
+                    x = comfy.utils.common_upscale(x, width, height, "lanczos", "disabled")
+                s = src[k:k + step].movedim(-1, 1).to(device).float()
+                x = finish(s, x, frequency_split=frequency_split, keep_soft=float(keep_soft),
+                           level=level)
+                x = add_grain(x, float(grain), int(grain_seed), i + k).movedim(1, -1)
+                if compact:
+                    x = (x.clamp(0, 1) * 255.0 + 0.5).to(torch.uint8)
+                out[i + k:i + k + x.shape[0]] = x.to("cpu", out.dtype)
+            del up, got
+            pbar.update(int(src.shape[0]))
+        return (out,)
+
+
 class SeriesmithHoldAudio:
     """Re-sample the picture, keep the audio: a per-stream noise mask of ones on
     the video and zeros on the audio, on a joint AV latent. The sampler then
@@ -403,6 +479,7 @@ class SeriesmithMotionBlur:
 NODE_CLASS_MAPPINGS = {
     "SeriesmithPixelUpscale": SeriesmithPixelUpscale,
     "SeriesmithFinishUpscale": SeriesmithFinishUpscale,
+    "SeriesmithRTXUpscale": SeriesmithRTXUpscale,
     "SeriesmithHoldAudio": SeriesmithHoldAudio,
     "SeriesmithFramesToBatch": SeriesmithFramesToBatch,
     "SeriesmithMotionBlur": SeriesmithMotionBlur,
@@ -411,6 +488,7 @@ NODE_CLASS_MAPPINGS = {
 NODE_DISPLAY_NAME_MAPPINGS = {
     "SeriesmithPixelUpscale": "Pixel Upscale (seriesmith)",
     "SeriesmithFinishUpscale": "Finish Upscale (seriesmith)",
+    "SeriesmithRTXUpscale": "RTX Video Upscale, in windows (seriesmith)",
     "SeriesmithHoldAudio": "Hold Audio (seriesmith)",
     "SeriesmithFramesToBatch": "Frames To Batch (seriesmith)",
     "SeriesmithMotionBlur": "Motion Blur (seriesmith)",

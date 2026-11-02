@@ -378,7 +378,9 @@ MAX_SCALE = 4.0                         # the H3 latent upscaler's limit; the pi
 VSR = "rtx_vsr"
 VSR_NODE = "RTXVideoSuperResolution"
 VSR_OFFERED = (VSR, VSR + ":HIGHBITRATE_ULTRA")
-VSR_NODES = ("SeriesmithLoadTakeVideo", VSR_NODE, "ImageScale", "SeriesmithFinishUpscale", "SeriesmithSaveUpscale")
+VSR_STEP = "SeriesmithRTXUpscale"         # VSR_NODE run a window of frames at a time
+VSR_CHUNK = 32                           # frames a window
+VSR_NODES = ("SeriesmithLoadTakeVideo", VSR_NODE, VSR_STEP, "SeriesmithSaveUpscale")
 VSR_PACK = ("install Comfy-Org's Nvidia RTX Nodes pack (ComfyUI Manager: search \"RTX\"; "
             "an NVIDIA RTX card and its nvidia-vfx wheel)")
 
@@ -393,33 +395,26 @@ def vsr_quality(model: str) -> str:
 
 
 def pixel_nodes(g: dict, model_id: str, step_id: str, images: list, model: str,
-                width: int, height: int, precision: str, finish: dict, chunk: int = 4) -> list:
+                width: int, height: int, precision: str, finish: dict, chunk: int = 4,
+                compact: bool = False) -> list:
     """A pixel model's step on `images` to width x height, finished against them
     (`finish`: SeriesmithPixelUpscale's finish inputs); returns the link to the
     result. An upscale model is loaded as `model_id` and run as `step_id`; RTX
-    VSR runs as `step_id` to the size rounded up to 8, lanczos to the exact size
-    when that differs, and our finish after it."""
+    VSR runs as `step_id` (SeriesmithRTXUpscale: Comfy-Org's node a window of
+    VSR_CHUNK frames at a time, each to the size rounded up to 8, lanczos to the
+    exact size when that differs, and our finish), its frames kept 8-bit when
+    `compact` (only for the saver: a long take at 4K, measured 2026-11-02)."""
     if not is_vsr(model):
         g[model_id] = {"class_type": "UpscaleModelLoader", "inputs": {"model_name": model}}
         g[step_id] = {"class_type": "SeriesmithPixelUpscale", "inputs": {
             "images": images, "upscale_model": [model_id, 0], "width": width, "height": height,
             "chunk": chunk, "precision": precision, **finish}}
         return [step_id, 0]
-    w8, h8 = -(-int(width) // 8) * 8, -(-int(height) // 8) * 8
-    g[step_id] = {"class_type": VSR_NODE, "inputs": {
-        "images": images, "resize_type": "target dimensions", "resize_type.width": w8,
-        "resize_type.height": h8, "quality": vsr_quality(model), "strength": 1.0,
-        "image_encoding": "8-bit RGB"}}
-    out = [step_id, 0]
-    # its DENOISE_ / DEBLUR_ levels keep the input's size whatever is asked
-    if (w8, h8) != (width, height) or vsr_quality(model).startswith(("DENOISE_", "DEBLUR_")):
-        g[step_id + "_fit"] = {"class_type": "ImageScale", "inputs": {
-            "image": out, "upscale_method": "lanczos", "width": width, "height": height,
-            "crop": "disabled"}}
-        out = [step_id + "_fit", 0]
-    g[step_id + "_finish"] = {"class_type": "SeriesmithFinishUpscale", "inputs": {
-        "images": out, "source": images, "chunk": 8, **finish}}
-    return [step_id + "_finish", 0]
+    g[step_id] = {"class_type": VSR_STEP, "inputs": {
+        "images": images, "width": int(width), "height": int(height),
+        "quality": vsr_quality(model), "strength": 1.0, "chunk": VSR_CHUNK,
+        "compact": bool(compact), **finish}}
+    return [step_id, 0]
 
 
 def pixel_models(object_info: dict | None) -> list[str] | None:
@@ -1428,7 +1423,7 @@ def finish_graph(g: dict, up: UpscaleJob, images: list) -> dict:
         # the re-sample's frames through an upscale model before they're saved
         g["up_save"]["inputs"]["images"] = pixel_nodes(
             g, "up_then_model", "up_then", images, up.then_model, *up.made_size,
-            up.precision, up.finish_inputs(), chunk=2)
+            up.precision, up.finish_inputs(), chunk=2, compact=True)
     J.prune(g, "up_save")
     return g
 
@@ -1512,7 +1507,7 @@ def pixel_graph(up: UpscaleJob) -> dict:
         # on top of its existing upscale, or from the take
         "video_file": rel(root, take.paths.up_mp4 if up.previous else take.paths.mp4)}}}
     pixels = pixel_nodes(g, "up_model", "up_pixels", ["up_video", 0], up.pixel_model, up.width,
-                         up.height, up.precision, up.finish_inputs())
+                         up.height, up.precision, up.finish_inputs(), compact=True)
     g.update({
         "up_save": {"class_type": "H3SaveUpscale", "inputs": {
             "images": pixels, "project_root": root,

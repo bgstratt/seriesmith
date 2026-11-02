@@ -1756,5 +1756,23 @@ self-hosted endpoint. The same data-driven model, a different transport:
   take's own (frames back at its size, mean abs diff of frame-to-frame change):
   VSR ULTRA 1.14-1.20, HIGHBITRATE 0.86-0.95, RealESRGAN 1.39-1.43, SeedVR2 1.87-1.88.
   By eye: SeedVR2 adds real detail; RealESRGAN sharper than VSR ULTRA, edging to
-  oversharp; VSR ULTRA clean, skin smoothed; HIGHBITRATE close to lanczos. Still open:
-  whether its full-size float output needs chunking for a long 4K take.
+  oversharp; VSR ULTRA clean, skin smoothed; HIGHBITRATE close to lanczos.
+  **A long take at 4K needed windows (2026-11-02).** Comfy-Org's node holds its whole output
+  in float32 (100 MB a frame at 3840x2160) and our finish after it as much again in half
+  floats. Measured on local ComfyUI (RTX 5090, 64 GB RAM, 96 GB commit), 1920x1080 -> 3840x2160
+  through `seriesmith upscale --method pixel --pixel-model rtx_vsr`: 59 frames took ComfyUI
+  from 5.9 to 23.3 GB private (8.1 GB on the card), 119 frames to 33.0 GB (available RAM down
+  to 19 GB): ~160 MB a frame over a ~8 GB base, so the 28 s take (669 frames) wanted ~120 GB
+  and wasn't run that way (it would have paged the machine, then failed); about 8 s was the
+  most this machine could do. ComfyUI also keeps the last run's outputs until the next one.
+  Now `SeriesmithRTXUpscale` (comfy_nodes/finish.py) runs the RTX node 32 frames at a time,
+  fits and finishes each window as it goes and keeps the result 8-bit (`compact`, when it goes
+  straight to the saver; half floats otherwise, as a post's or Wan's start). Run outside the
+  live ComfyUI (its own Python, the RTX pack registered as ComfyUI does, read -> node ->
+  encode): 120 frames 9.6 s, 9.1 GB peak for the whole process; the 669-frame take completed,
+  669 frames at 3840x2160, 46.8 s upscaling (+66 s reading, 7 s NVENC), 35.7 GB peak
+  (the source's float32 frames and the 8-bit result: ~50 MB a 1080p frame, so about 40 s
+  of 1080p on 64 GB), 9.6 GB on the card. Against the old graph on the 120-frame clip:
+  PSNR 50 dB between the two (rounding, through NVENC), no dip at the window joins (49.6-55
+  dB throughout), the same 30.84 dB each against the source scaled down. Not yet run inside
+  ComfyUI itself: it loads the node on its next restart.

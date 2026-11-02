@@ -323,7 +323,7 @@ What's built:
 |---|---|
 | `seriesmith/post.py` | plan and queue a post (stdlib); `seriesmith post` |
 | `seriesmith/finishing.py` | the post's graph made portable when its job starts, its files collected into the take |
-| `comfy_nodes/finish.py` | `SeriesmithPixelUpscale`, `SeriesmithFinishUpscale` (the frequency-split finish), `SeriesmithMotionBlur` |
+| `comfy_nodes/finish.py` | `SeriesmithPixelUpscale`, `SeriesmithFinishUpscale` (the frequency-split finish), `SeriesmithRTXUpscale` (RTX VSR a window at a time), `SeriesmithMotionBlur` |
 | `seriesmith/takes.py` | `post_mp4`, `post_sidecar` paths; staleness against the upscale |
 | `seriesmith/master.py` | `--post` (recipe) / `--post present` (the dialog's Post-process): a row uses `.post.mp4`, queueing upscale → post as needed; post status counts towards `ok` / `kept` / `gap`. Without it, unchanged |
 | `seriesmith/assemble.py` | `--upscaled --post`: the cut from its posts |
