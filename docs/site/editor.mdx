@@ -815,6 +815,17 @@ script call for is listed here.
   pass's mix. A take is finished as it lands: its first and last 1.5 s off, brought to the bed
   level. Then the files on the ambience lane, as for Effects. A file goes on from a shot's menu
   (Sound ▸ Add an effect / ambience from a file) or by dropping it on the lane.
+- **The +** on the Music, Effects and Ambience heads, as on the cast groups, opens a small
+  dialog. **+ Cue**: a new cue over a span of the cut, its first and last shot (or a sequence's
+  button for all its shots; it starts on the shots selected, else the sequence under the
+  playhead) and **Score** or **Song**; **Make the cue** opens it in the cue window. **+ Effects**:
+  the cut's shots by sequence, each sequence with a box for all its shots, ticked to start on
+  the shots without effects (a shot with them shows its take), and the foley model (the
+  default first); **Make effects** queues them. **+ Bed**: the places the cut's shots are at
+  (an angle or a relit version is its place, unless it says its own `ambience`), each saying
+  whether its bed is made and whether it has words; say what's heard there (new words are
+  written to the location's `ambience` in the series config, and the episode rebuilt), pick the
+  model when there's more than one, and **Make it**.
 - **Right-click is your browser's menu here**, not the editor's context menu. The Refs tab
   has buttons instead.
 - **Expand the prompt** (it shows the series config's wording) to edit it, change the
@@ -1314,8 +1325,10 @@ with stems beside it.
   make a **New cue**; Dialogue has the shot's own sound (its Sound card, **Generate a dub
   track**, Replace audio), **Voices only** for the track with **Make voice stems**, and the shot's
   own way (keep its whole sound, or voices only); Effects makes the shot's effects (**Make
-  effects**, on each foley model) and lists the effects takes; Ambience opens the place's
-  ambience bed under the click (the Refs tab's Ambience). On a selection, the shot items act on
+  effects**, on each foley model) and lists the effects takes; Ambience has the bed of the place
+  of the shot under the click: **Make &lt;place>'s ambience bed** when it has words and no bed yet
+  (made at once), **Make &lt;place>'s bed again** and **Open the bed…** when it's made, and **Make
+  &lt;place>'s ambience bed…** when the place has no words (the + Bed dialog, on that place). On a selection, the shot items act on
   every shot selected. **Double-click an empty spot on a lane** (or a lane's name) to open
   Scoring. A clip's own menu has the same under **Sound**:
   **Make effects** (below), **New music cue…** over it (or the shots selected) and **Add music /
@@ -1405,8 +1418,9 @@ with stems beside it.
 **Scoring** in the timeline's head (or any sound lane's menu, **Scoring (spotting)…**, or a double-click on a lane) opens
 the scoring window on its **Spotting** tab, the episode's view of its music: where cues go
 before they're shaped ([SCORING.md](/scoring), "The spotting sheet"). Its other tabs are the
-selected cue's **Score**, **Arc** and **Orchestration & takes** (the cue window's), greyed until
-a cue is selected on the map; the two views share the window's place and size. Spotting is
+selected cue's **Score**, **Arc** and **Orchestration & takes** (the cue window's); with no cue
+in the episode yet, one of them opens the **New cue** dialog (+ Cue's) and the cue opens on that
+tab. The two views share the window's place and size. Spotting is
 Play all's player in that window (it remembers its place; `Esc` closes it), so the mix plays
 under the picture as Play all plays it, and every Play all key works in it.
 
@@ -1420,7 +1434,12 @@ under the picture as Play all plays it, and every Play all key works in it.
   *stale* when the cut has moved under it), **Ambience** (the places' beds) and **Effects**
   (the shots', stale ones marked). Click a cue to select it, then a tab (or double-click it)
   to shape it, and the **Spotting** tab to come back; click a hit, or anywhere on a row, to go
-  there.
+  there. **Right-click a row** (its head, or any lane at the frame under the pointer) for **New
+  cue here** (to the end of that shot), **New cue over &lt;sequence>**, **New cue from here to the
+  end of &lt;sequence>**, **Mark a hit here**, **Make effects for &lt;sequence>** and, when its shots
+  share a place, **Make &lt;place>'s bed** (or its dialog when the place has no words); a new cue
+  opens on the Score tab. **Right-click a cue** for **Open in Score**, its arc, its
+  orchestration and takes, or **Render its takes**.
 - **The selected cue** (on the right): its **hits table** (name, kind, must, anchor, the cut's
   timecode, the bar and beat it lands on, how far the fit leaves it off its line, and each
   measured take's error in frames, best take first, the one in the mix marked ●; orange past

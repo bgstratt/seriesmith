@@ -34,8 +34,9 @@ with them, and tells you when the change means it should be made again.
 
 **Scoring** in the timeline's head opens the scoring window, one window with four tabs:
 **Spotting** (the episode's view, where scoring starts), then the selected cue's **Score**,
-**Arc** and **Orchestration & takes** (steps 3 and 4; they wait until a cue is selected on the
-map). The Spotting tab is a large picture of
+**Arc** and **Orchestration & takes** (steps 3 and 4; they open the cue selected on the map,
+and with no cue in the episode yet they ask for a new one, its span and kind, and open it on that
+tab). The Spotting tab is a large picture of
 the cut playing with its mix, and under it the **music map**, a row per sequence with its cues,
 ambience, effects and hits. It's where you do the first two steps below, and come back to
 between cues:
@@ -57,6 +58,11 @@ between cues:
   It's the way to choose between the top two or three.
 - **Render what's stale.** When the cut has moved under a cue's take, the foot of the sheet
   lists it: **Render** it, or **Render all stale**.
+- **Right-click to add.** Right-click a row of the map (its head, or a lane at the frame you
+  want) for **New cue here** (to the end of that shot), **New cue over** the row's sequence,
+  **New cue from here to the end of** it, **Mark a hit here**, **Make effects for** the
+  sequence, and its place's ambience bed. Right-click a cue for **Open in Score**, its arc, its
+  orchestration and takes, or **Render its takes**.
 
 In ep03: the map lays *1M1*, *1M2* and *1M3* over their shots with the four hits on them in
 their colours, and the gaps between the cues are the silences the comedy wants.
@@ -87,7 +93,9 @@ In ep03: *I choose you* (arrive, sh020), *Oh.* (drop, sh030), *the door shuts* (
 ## 2. Make a cue
 
 Select the shots the music plays over (Ctrl-click), right-click one and choose **Sound ▸ New
-music cue**, or right-click the Music lane: **New cue…**. The scoring window opens on its
+music cue**, or right-click the Music lane: **New cue…**. On the spotting sheet, right-click a
+row: **New cue over** its sequence, or **New cue here**. Or the Refs tab's Music **+ Cue**: its
+first and last shot (or a sequence), and Score or Song. The scoring window opens on its
 Score tab.
 
 A cue is **Score** (instrumental, under the picture: the usual) or **Song** (sung; its sections
@@ -320,6 +328,7 @@ span, so a trim inside its span makes it stale (above).
 | The same instruments as another cue | **Theme**: its take, on ACE-Step (its timbre) |
 | A place to start | the inspector's Preset, then adjust |
 | The whole episode's music at a glance | **Scoring** ▸ Spotting: the music map |
+| A cue over a whole sequence | the spotting map: right-click its row, **New cue over** it |
 | Cuts on the beat | drag a clip's edge near a beat on the Music lane (Alt: no snap) |
 | To hear a take under the picture | the spotting sheet: ▶ beside the take |
 | Another tempo that lands the hits | the spotting sheet: a tempo under **The tempo** |

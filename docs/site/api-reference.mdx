@@ -626,7 +626,7 @@ and the stems go to `<cut>_stems/` beside it; the XML export carries the items o
 tracks.
 
 ### `GET /seriesmith/mix?ep=…&pass=…`
-`{"mix", "files", "beds", "fx", "voices", "series", "track_list", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
+`{"mix", "files", "beds", "fx", "voices", "places", "series", "track_list", "defaults"}`: `mix` the pass's mix as `mix.json` holds it (`{}` for
 none, defaults dropped, but a track's values kept as given: a 0 dB fader or an unmute overrides
 the series config), `files` each item file's length in seconds (`null`: not there, or no
 sound), `series` the series config's `sound.tracks` / `sound.loudness` under it, and
@@ -640,8 +640,10 @@ reach, and whether its stem joins the M&E; its id names its stem (`<id>.wav`) an
 (what a track dips under speech, the detector and the loudness target when nothing says).
 `beds` the places' ambience beds laid under the cut (below): `[{"place", "label", "path" (relative to the episode), "exists", "words", "shots", "in", "out" (anchors: the run's first shot's first frame played, the frame after its last shot's last), "start", "end" (cut seconds), "gain_db", "mute"}]`, one per run. `fx` the shots' picked effects laid at their clips
 (below): `[{"shot", "take", "model", "path" (relative to the episode), "exists", "in", "out" (anchors: the clip's first frame of the take, the frame after its last), "start", "end" (cut seconds: the clip), "offset" (seconds into the file at `start`: the clip's trim), "gain_db", "mute", "keep_stale", "stale" (why it no longer matches the cut's picture, or null), "heard" (there, not muted, and not stale unless kept)}]`, one per shot in the cut with a pick. `voices`
-the Dialogue track's voices only (below): `{"voices_only" (the track's), "split", "of", "queued" (of the cut's shots that can be split, how many are, and how many are being), "shots": [{"shot", "pass", "take", "path" (the take's voice stem, relative to the episode; null without a take), "state" (ok | missing | stale | queued | failed | sourced: the cut gives it sound of its own | silent: its take has none), "why", "voices_only" (the shot's, the track's under it), "override" (its own: true, false or null), "plays" (voice | whole | silence: what the Dialogue track plays for it), "lines" (the script gives it one), "measured" ({whole_rms_db, voice_rms_db, rest_rms_db} or null), "seconds" (the split's)}]}` in cut order. Nothing
-is decoded. 409 when `mix.json` is there but doesn't read.
+the Dialogue track's voices only (below): `{"voices_only" (the track's), "split", "of", "queued" (of the cut's shots that can be split, how many are, and how many are being), "shots": [{"shot", "pass", "take", "path" (the take's voice stem, relative to the episode; null without a take), "state" (ok | missing | stale | queued | failed | sourced: the cut gives it sound of its own | silent: its take has none), "why", "voices_only" (the shot's, the track's under it), "override" (its own: true, false or null), "plays" (voice | whole | silence: what the Dialogue track plays for it), "lines" (the script gives it one), "measured" ({whole_rms_db, voice_rms_db, rest_rms_db} or null), "seconds" (the split's)}]}` in cut order. `places` each
+cut shot's place, by shot (2026-11-02; shots whose sequence has no location left out):
+`{"place" (its bed's place when it has one, else its location's master, the location it is `of`: where `ambience` words would give it one), "name", "bed" (the place has a bed)}`, what
+the editor's "Make &lt;place>'s ambience bed" acts on. Nothing is decoded. 409 when `mix.json` is there but doesn't read.
 
 ### Ambience beds (2026-11-01)
 
