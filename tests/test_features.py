@@ -119,6 +119,131 @@ class CatalogTest(unittest.TestCase):
         self.assertIn("conv_v1", model.url)
 
 
+def shipped_graph_classes() -> dict[str, set[str]]:
+    """{node class: where} every class a shipped graph uses: each target's
+    readiness list (its workflow's classes, loader, saver, target.json
+    `nodes`), every class_type target.json names (the upscale blocks'
+    upscalers too), the Python graph builders' *_NODES tuples, and every
+    "class_type": "X" written in seriesmith's Python. h3pipe's names are sent
+    as seriesmith's own (jobs.SENT_AS, finishing.portable): left out."""
+    import re
+    from seriesmith import cloud as C
+    from seriesmith import edit as E
+    from seriesmith import post as P
+    from seriesmith import shotnodes as SN
+    from seriesmith import targets as TG
+    from seriesmith import upscale as U
+    out: dict[str, set[str]] = {}
+
+    def add(c, where):
+        if c not in SN.H3PIPE_NODES:
+            out.setdefault(c, set()).add(where)
+
+    def walk(v, where):
+        if isinstance(v, dict):
+            if isinstance(v.get("class_type"), str):
+                add(v["class_type"], where)
+            for x in v.values():
+                walk(x, where)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x, where)
+    for t in TG.list_targets():
+        for c in E.target_nodes(t):
+            add(c, t.id)
+        walk(t.spec, t.id + "/target.json")
+    for name, nodes in (("UPSCALE_NODES", U.UPSCALE_NODES), ("PIXEL_NODES", U.PIXEL_NODES),
+                        ("SEEDVR2_NODES", U.SEEDVR2_NODES), ("VSR_NODES", U.VSR_NODES),
+                        ("post.BASE_NODES", P.BASE_NODES), ("SUPIR_NODES", P.SUPIR_NODES),
+                        ("BLUR_NODES", P.BLUR_NODES), ("CHAIN_NODES", C.CHAIN_NODES)):
+        for c in nodes:
+            add(c, name)
+    pkg = os.path.join(os.path.dirname(HERE), "seriesmith")
+    lit = re.compile(r"""["']class_type["']\s*:\s*["']([A-Za-z][A-Za-z0-9_.]*)["']""")
+    for root, _dirs, files in os.walk(pkg):
+        for fn in files:
+            if fn.endswith(".py"):
+                with open(os.path.join(root, fn), encoding="utf-8") as fh:
+                    for c in lit.findall(fh.read()):
+                        add(c, fn)
+    return out
+
+
+class CoverageTest(unittest.TestCase):
+    """Every node pack, file and package a shipped feature needs has a line in
+    the Features window: a target, graph or constant added without one fails
+    here (the shipped targets only: conftest points settings, and so this
+    machine's own targets, elsewhere)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cat = FT.catalog()
+        cls.names = {i.name for f in cls.cat for i in f.items}
+
+    def test_every_node_class_is_comfyuis_ours_or_a_packs_in_a_feature(self):
+        for c, where in sorted(shipped_graph_classes().items()):
+            with self.subTest(cls=c, used_by=sorted(where)[:3]):
+                if c in FT.CORE_CLASSES:
+                    continue
+                p = FT.pack_for_class(c)
+                self.assertIsNotNone(p, f"{c}: add it to features.CORE_CLASSES (checked in "
+                                        f"ComfyUI's source) or to its pack in features.PACKS")
+                self.assertIn(p.name, self.names, f"{c}'s pack {p.name} is in no feature")
+
+    def test_every_file_a_shipped_target_loads_is_in_a_feature(self):
+        from seriesmith import targets as TG
+        for t in TG.list_targets():
+            if t.spec.get("router"):
+                continue
+            with self.subTest(target=t.id):
+                for i in FT._target_items(t.id):
+                    self.assertIn(i.name, self.names, f"{t.id} loads {i.name}: no feature has it")
+                # an optional file is a feature of its own (the duration head, SheetSage2)
+                for param, spec in t.models.items():
+                    if isinstance(spec, dict) and spec.get("tier") == "optional":
+                        for i in FT._optional_items(t.id, param):
+                            self.assertIn(i.name, self.names,
+                                          f"{t.id}'s optional {param} ({i.name}): no feature has it")
+
+    def test_every_download_a_shipped_target_records_can_be_asked_for(self):
+        from seriesmith import targets as TG
+        known = FT.known_files(self.cat)
+        for t in TG.list_targets():
+            for name, d in t.downloads.items():
+                if d.get("url") and d.get("folder"):
+                    self.assertIn(name.replace("\\", "/").rsplit("/", 1)[-1], known)
+
+    def test_the_hosted_models_are_a_feature_of_a_key(self):
+        from seriesmith import targets as TG
+        hosted = next(f for f in self.cat if any(i.kind == "key" for i in f.items))
+        self.assertTrue(any(t.spec.get("router") for t in TG.list_targets()))
+        self.assertIn("pip", {i.kind for i in hosted.items})   # comfy-sdk
+        key = next(i for i in hosted.items if i.kind == "key")
+        self.assertTrue(key.manual)
+        for state, want in ((True, "installed"), (False, "missing"), (None, "unknown")):
+            self.assertEqual(FT.item_status(key, FT.Env(api_key_set=state)), want)
+        got = FT.status([hosted], FT.Env(api_key_set=False, python_has=lambda w, m: True))[0]
+        how = next(i for i in got["items"] if i["kind"] == "key")["how"]
+        self.assertIn("Settings", how)
+        _, skipped = FT.resolve([hosted.id], features=self.cat)
+        self.assertTrue(any("Settings" in s for s in skipped))
+
+    def test_a_core_node_missing_says_update_comfyui(self):
+        _, skipped = FT.resolve(classes=["SeedVR2Preprocess"], features=self.cat)
+        self.assertEqual(len(skipped), 1)
+        self.assertIn("update ComfyUI", skipped[0])
+
+    def test_turn_and_relight_name_the_edit_models(self):
+        by = {f.id: f for f in self.cat}
+        for fid in ("refs.turn", "refs.relight"):
+            self.assertIn("Klein edit", by[fid].about)
+
+    @unittest.skipUnless(os.name == "nt", "cmd's quoting")
+    def test_a_version_spec_is_quoted_for_the_shell(self):
+        line = FT.pip_command(FT.Item("pip", "comfy-sdk>=0.4,<0.5"), r"C:\Py 3\python.exe")
+        self.assertEqual(line, r'"C:\Py 3\python.exe" -m pip install "comfy-sdk>=0.4,<0.5"')
+
+
 class StatusTest(unittest.TestCase):
     def feature(self):
         return FT.Feature("x", "tools", "X", "", [

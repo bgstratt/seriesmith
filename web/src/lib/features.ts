@@ -9,7 +9,7 @@ export type FeatureStatus = ItemStatus | "partial" | "unavailable";
 
 export interface FeatureItem {
   key: string;
-  kind: "model" | "pack" | "link" | "pip" | "ffmpeg";
+  kind: "model" | "pack" | "link" | "pip" | "ffmpeg" | "key";
   name: string;
   folder?: string;
   url?: string;
@@ -17,7 +17,7 @@ export interface FeatureItem {
   where?: string;
   gated?: boolean;
   licence?: string;
-  /** a node pack or Python package: you put it in (ComfyUI-Manager, pip), not seriesmith */
+  /** a node pack, Python package or API key: you put it in (ComfyUI-Manager, pip, Settings), not seriesmith */
   manual?: boolean;
   /** how, while it's missing */
   how?: string;
@@ -138,5 +138,6 @@ export function itemsLine(f: Feature): string {
   const pips = n("pip");
   if (pips) parts.push(`${pips} Python package${pips === 1 ? "" : "s"}`);
   if (n("ffmpeg")) parts.push("a download");
+  if (n("key")) parts.push("a Comfy API key");
   return parts.join(" · ");
 }

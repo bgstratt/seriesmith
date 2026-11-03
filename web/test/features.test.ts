@@ -32,6 +32,9 @@ describe("features", () => {
     const f = feature("vsr", [item({ kind: "pack", name: "RTX", key: "pack:RTX" }), item({ kind: "pip", name: "nvidia-vfx", key: "pip:nvidia-vfx" })]);
     expect(itemsLine(f)).toBe("1 node pack · 1 Python package");
     expect(itemsLine(feature("e", [vae, big]))).toBe("2 files");
+    const hosted = feature("hosted", [item({ kind: "key", name: "api_key", key: "key:api_key", manual: true }),
+      item({ kind: "pip", name: "comfy-sdk", key: "pip:comfy-sdk", manual: true })]);
+    expect(itemsLine(hosted)).toBe("1 Python package · a Comfy API key");
   });
 
   it("writes sizes for people", () => {

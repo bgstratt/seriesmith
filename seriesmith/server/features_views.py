@@ -81,7 +81,7 @@ def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tup
             info = A.comfy_object_info(ctx)
         except Exception:                                 # noqa: BLE001
             info = None
-        return p, INS.env_for(p, readiness, info)
+        return p, INS.env_for(p, readiness, info, api_key_set=bool(settings.api_key))
 
     @A.handler
     def features(ctx, query):

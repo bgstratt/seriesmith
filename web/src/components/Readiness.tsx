@@ -405,9 +405,12 @@ function TargetMissing({ list, id }: { list: TargetList; id: string }) {
                 <span className="h3-tier h3-tier-node">node</span>
                 <b className="h3-mono h3-ell h3-grow" title={n}>{n}</b>
                 <CopyButton text={n} what="Node name" />
+                {/* the server knows its pack (features.pack_for_class): seriesmith's own is
+                    linked; another's comes back with how, one of ComfyUI's own says update */}
+                <InstallButton ask={{ classes: [n] }} title="Install it, or say which node pack provides it and how to put it in" />
               </div>
               <div className="h3-row h3-wrap h3-small" style={{ gap: 8 }}>
-                <span className="h3-muted">custom node needed: install the node pack that provides it with ComfyUI-Manager (it can search by node name), then restart ComfyUI.</span>
+                <span className="h3-muted">custom node needed: Install names the node pack that provides it (put it in with ComfyUI-Manager, which can search by node name), then restart ComfyUI.</span>
               </div>
             </div>
           ))}

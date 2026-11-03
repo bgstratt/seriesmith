@@ -15,7 +15,6 @@ Stdlib only.
 from __future__ import annotations
 
 import importlib.util
-import subprocess
 import sys
 
 # as pyproject.toml and requirements.txt declare it
@@ -33,8 +32,10 @@ def command() -> list[str]:
 
 
 def state() -> dict:
+    # the spec's < and > quoted: list2cmdline leaves them bare, a redirection in cmd
+    from seriesmith.features import shell_line
     return {"status": "ready" if have() else "missing",
-            "command": subprocess.list2cmdline(command()), "python": sys.executable}
+            "command": shell_line(command()), "python": sys.executable}
 
 
 __all__ = ["REQUIREMENT", "command", "have", "state"]

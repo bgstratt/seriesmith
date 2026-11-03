@@ -27,11 +27,12 @@ seriesmith then puts each piece in:
 The window shows each item's progress. A stopped download resumes where it left off next
 time.
 
-Two kinds of piece you put in yourself, and the window says how for each one missing:
+Three kinds of piece you put in yourself, and the window says how for each one missing:
 - **node packs**: install them with ComfyUI-Manager (or clone the repo the window names
   into `custom_nodes/`), then restart ComfyUI;
 - **Python packages**: the window gives the pip command for the Python that uses them,
-  to copy and run.
+  to copy and run;
+- **the Comfy API key** the hosted models run on (Hosted models): set it in **Settings**.
 
 A ComfyUI node pack may neither install Python packages while it runs nor install other
 node packs (the Comfy Registry's rules), so seriesmith doesn't.
@@ -40,8 +41,9 @@ Mix and match as you like: for example, RTX Video Super Resolution instead of Re
 for pixel upscales, or SeedVR2 without the H3 latent upscaler.
 
 The **What's missing** window has an **Install** button too, beside each missing file
-that has a known download. For a missing node it says to install the pack that provides
-it with ComfyUI-Manager, which can search by node name.
+that has a known download and beside each missing node. For a node it names the pack that
+provides it and how to put it in (or links seriesmith's own); for one of ComfyUI's own
+nodes it says to update ComfyUI.
 
 **Gated models.** LTX-2.5 and the FLUX models are gated on Hugging Face:
 1. Accept the licence on the model's page (the window links it).
@@ -93,6 +95,9 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Post-processing | | RealESRGAN / SeedVR2 7B / SUPIR + SDXL; RAFT for motion blur | |
 | Master and publish | | | a title font (ffmpeg comes with seriesmith) |
 | 360s and turned views | | 3 LoRAs | |
+| Relights, and Turn without its LoRA | | any edit picture model (FLUX.2 Klein edit by default) | |
+| Hosted models (Comfy Router), Comfy Cloud, deployments | | | a Comfy API key; comfy-sdk |
+| Local renders through comfy-api-proxy (optional) | | | `pip install comfy-api-proxy` |
 
 ## Rendering video
 
@@ -134,11 +139,15 @@ their pictures and lip-syncs what they say.
 FL2VA also runs the editor's **location tours**. Tours still need
 ComfyUI-PlagueKind-Nodes.
 
-**Other models.** LTX-2.5 (it makes its own sound), LTX-2.3 ingredients, and Wan 2.2 I2V,
-5B and VACE (Wan makes no sound) are listed file by file in
-[INSTALL.md, Everything, by model family](/install#everything-by-model-family). All of
-them use core ComfyUI nodes. The hosted models on Comfy Router need no files, only a Comfy
-API key ([SETUP.md](/setup)).
+**Other models.** FastH3 Omni, H3 Singularity (a community fine-tune of H3 Ref2VA), LTX-2.5
+(it makes its own sound), LTX-2.3 ingredients, and Wan 2.2 I2V, 5B and VACE (Wan makes no
+sound) are listed file by file in
+[INSTALL.md, Everything, by model family](/install#everything-by-model-family), and
+each is a line in Features. All of them use core ComfyUI nodes, except LTX-2.5 + MSR (two
+packs, Features names them). LTX-2.5's extras are lines of their own: the duration head
+(`dur: model`), the dev transformer (its quality profile) and the ingredients IC-LoRA
+(reading reference sheets, with ComfyUI-LTXVideo). The hosted models on Comfy Router need
+no files, only a Comfy API key ([SETUP.md](/setup); Features: Hosted models).
 
 ## What's installed: `seriesmith targets`
 
@@ -310,7 +319,8 @@ and `sheetsage2_bf16.safetensors` in `audio_encoders` to sing a theme transcribe
 recording ([Comfy-Org/YuE2](https://huggingface.co/Comfy-Org/YuE2); YuE2's and SheetSage2's
 weights are CC BY-NC 4.0, non-commercial). `ace_step15` (MIT) takes the four files of
 [Comfy-Org/ace_step_1.5_ComfyUI_files](https://huggingface.co/Comfy-Org/ace_step_1.5_ComfyUI_files)
-(INSTALL.md lists them).
+(INSTALL.md lists them). The Features window has each under Sound (and SheetSage2 as a
+line of its own).
 
 **Ambience beds** are a place's room tone or air, made once from its location's `ambience`
 words and looped under its shots in the mix ([AUTHORING.md](/authoring), "What a place
@@ -432,6 +442,12 @@ the turn in words, chosen in the Refs tab's **Made with** › **Turns with**):
 | `pano360_qwen21_edit_v1.safetensors` | **Make 360** on Qwen-Image 2.1 | [Gogodr/qwen-image-2.1-edit-pano360-lora](https://huggingface.co/Gogodr/qwen-image-2.1-edit-pano360-lora/resolve/main/pano360_qwen21_edit_v1.safetensors) |
 | `angles_v2_full_qwen21_multiple_angles_v2_qwen21_multiple_angles_v2_000001500.safetensors` | a character's **Turn** (Qwen-Image 2.1) | [akhaliq/Qwen-Image-2.1-Multiple-Angles-LoRA](https://huggingface.co/akhaliq/Qwen-Image-2.1-Multiple-Angles-LoRA/resolve/main/checkpoints_v2/angles_v2_full_qwen21_multiple_angles_v2_qwen21_multiple_angles_v2_000001500.safetensors) |
 
+A **relight** (a plate, or a whole sequence's plates, under another light) is an edit of
+the plate, so it runs on the episode's edit model: any picture model above that edits
+(FLUX.2 Klein edit, the default; Qwen-Image 2.1, FLUX.3 Klein, Fibo 2.0, FLUX.1 Kontext,
+Qwen-Image-Edit Rapid, H3 or FastH3 Omni still). Nothing else to install. Features lists it
+under 360s, turned views and relights with the default's files.
+
 ## Renamed or merged model files: `model_families`
 
 Every model file a shot loads is checked against the model family its target needs
@@ -469,9 +485,11 @@ config so the pipeline knows which one it is:
 | Python 3.10 or later | the editor on its own page and the `seriesmith` command (`run_seriesmith` sets up the rest) |
 | `pip install faster-whisper numpy` | recorded dialogue: `align` and the Recording window |
 | `pip install demucs`, for ComfyUI's `python` | the `dub_keep_foley` audio policy |
+| `pip install comfy-api-proxy`, in seriesmith's Python | local renders through comfy-api-proxy (optional; [SETUP.md](/setup)) |
 | Node.js 20.19+ and `npm install` in `web/` | only to rebuild the editor after changing `web/` |
 | `pip install pytest` | the test suite |
 
 Comfy Cloud, deployments and the hosted Router models need only a Comfy API key, set in
-**Settings** ([SETUP.md](/setup)). Saving it installs Comfy's SDK, which they run on,
-into ComfyUI's Python if it isn't there; nothing to do by hand.
+**Settings** ([SETUP.md](/setup)), and Comfy's SDK (comfy-sdk), which they run on.
+seriesmith's own install and ComfyUI-Manager's bring the SDK; if it's missing, Settings
+(and Features → Hosted models) gives the pip command for the Python seriesmith runs on.

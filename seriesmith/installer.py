@@ -472,7 +472,8 @@ def python_has(python: str | None, module: str) -> bool | None:
     return ok
 
 
-def env_for(place: Place, readiness: dict, object_info: dict | None) -> FT.Env:
+def env_for(place: Place, readiness: dict, object_info: dict | None,
+            api_key_set: bool | None = None) -> FT.Env:
     from seriesmith import ff as FF
     return FT.Env(
         model_exists=place.find,
@@ -481,7 +482,7 @@ def env_for(place: Place, readiness: dict, object_info: dict | None) -> FT.Env:
         readiness=readiness or {},
         python_has=lambda where, module: python_has(which_python(where, place), module),
         python_for=lambda where: which_python(where, place),
-        ffmpeg_installed=FF.managed() is not None)
+        ffmpeg_installed=FF.managed() is not None, api_key_set=api_key_set)
 
 
 __all__ = ["FFMPEG_BUILDS", "InstallError", "Installer", "Place", "comfy_python", "download",
