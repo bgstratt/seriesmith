@@ -201,7 +201,7 @@ def encode_stream(images, path: str, fps: float, encoder: str = "auto",
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             for i in range(n):
-                frame = (images[i].float().clamp(0, 1) * 255.0 + 0.5).to(torch.uint8)
+                frame = as_uint8(images[i])
                 proc.stdin.write(frame.cpu().numpy().tobytes())
             proc.stdin.close()
             err = proc.stderr.read()
@@ -227,10 +227,18 @@ def encode_stream(images, path: str, fps: float, encoder: str = "auto",
     return name
 
 
+def as_uint8(image: torch.Tensor) -> torch.Tensor:
+    """An IMAGE frame (or batch) in 0..1 as 8-bit; one already 8-bit (what
+    SeriesmithRTXUpscale keeps with `compact`) as it is."""
+    if image.dtype == torch.uint8:
+        return image
+    return (image.float().clamp(0, 1) * 255.0 + 0.5).to(torch.uint8)
+
+
 def save_frame(image: torch.Tensor, path: str) -> None:
-    """One IMAGE frame [H, W, 3] in 0..1 as a PNG, written atomically."""
+    """One IMAGE frame [H, W, 3] in 0..1 (or 8-bit) as a PNG, written atomically."""
     from PIL import Image
-    arr = (image.clamp(0, 1).cpu().numpy() * 255.0 + 0.5).astype(np.uint8)
+    arr = as_uint8(image).cpu().numpy()
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     tmp = path + ".tmp.png"
     Image.fromarray(arr).save(tmp)

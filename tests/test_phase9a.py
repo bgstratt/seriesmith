@@ -531,6 +531,19 @@ class PromoteTest(ApiTest):
         self.assertEqual({(x.get("shot"), x["field"]) for x in p2["left"]},
                          {(x.get("shot"), x["field"]) for x in r["left"]})
 
+    def test_the_edit_model_goes_to_the_refs_block(self):
+        ov = T.load_overrides(self.ep)
+        T.set_episode_field(ov, "edit_target", "flux_kontext", "ks01")
+        T.save_overrides(self.ep, ov)
+        p = self.plan()
+        items = {it["id"]: it for it in p["items"]}
+        self.assertEqual(items["episode:edit_target"]["dest"], "series")
+        self.assertIn("`refs.edit_target`", items["episode:edit_target"]["summary"])
+        r = self.promote(["episode:edit_target"], p["hashes"])
+        self.assertEqual(r["promoted"], ["episode:edit_target"])
+        with open(self.series, encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["refs"], {"edit_target": "flux_kontext"})
+
     def test_apply_some(self):
         self.standard_overrides()
         before = self.render_values()

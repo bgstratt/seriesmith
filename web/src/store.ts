@@ -549,7 +549,7 @@ export interface AppState {
   cardAdded: { kind: import("./lib/seriesForm").CardKind; id: string } | null;
   /** the new episode wizard (components/NewEpisodeWizard.tsx): the folder it starts in,
    *  and whether it starts a new series (a show folder of its own) */
-  wizard: { parent: string; newSeries: boolean } | null;
+  wizard: { parent: string; newSeries: boolean; from?: "write" | "xml" } | null;
   /** a picture picked in Browse for a form's field (`key`), relative to the
    *  episode: the field takes it and clears it */
   picturePick: { key: string; path: string } | null;

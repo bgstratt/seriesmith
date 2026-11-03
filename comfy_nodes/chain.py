@@ -99,8 +99,10 @@ def read_frames(path: str) -> torch.Tensor:
                          "stream=width,height", "-of", "csv=p=0:s=x", path],
                         capture_output=True, text=True, check=True, timeout=60).stdout.strip()
     w, h = (int(x) for x in wh.split("x")[:2])
-    raw = subprocess.run([*_ff.tool("ffmpeg"), "-v", "error", "-i", path, "-f", "rawvideo",
-                          "-pix_fmt", "rgb24", "-"],
+    # passthrough: each frame the file has, once (a file whose first frame starts late, as an
+    # imported clip's can, would otherwise gain a copy of it to fill the gap)
+    raw = subprocess.run([*_ff.tool("ffmpeg"), "-v", "error", "-i", path, "-fps_mode", "passthrough",
+                          "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
                          capture_output=True, check=True, timeout=900).stdout
     arr = np.frombuffer(raw, dtype=np.uint8).reshape(-1, h, w, 3)
     return torch.from_numpy(arr.astype(np.float32) / 255.0)

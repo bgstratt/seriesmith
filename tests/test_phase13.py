@@ -909,43 +909,37 @@ class PixelUpscaleTest(UpscaleRouteTest):
         self.assertEqual(U.pixel_readiness({})["status"], "not_ready")      # no nodes, no models
 
     def test_rtx_vsr(self):
-        """RTX Video Super Resolution: a pixel model by name, run by its own node
-        to a multiple of 8, lanczos to the exact size, and our finish after it."""
+        """RTX Video Super Resolution: a pixel model by name, run by its own node a
+        window of frames at a time (SeriesmithRTXUpscale: to a multiple of 8, lanczos
+        to the exact size, our finish), kept 8-bit for the saver."""
         t = self.final_take()
         T.update_sidecar(t.paths.sidecar, width=1344, height=768)
         t = T.get_take(self.ep, "final", "sh010", 1)
         up = U.plan_upscale(self.ep, t, method="pixel", pixel_model="rtx_vsr", grain=0.02)
         g = U.pixel_graph(up)
         vsr = g["up_pixels"]["inputs"]
-        self.assertEqual(g["up_pixels"]["class_type"], "RTXVideoSuperResolution")
-        self.assertEqual((vsr["images"], vsr["resize_type"], vsr["resize_type.width"],
-                          vsr["resize_type.height"], vsr["quality"]),
-                         (["up_video", 0], "target dimensions", 2688, 1536, "ULTRA"))
-        self.assertNotIn("up_pixels_fit", g)                                 # 8 divides it already
-        fin = g["up_pixels_finish"]["inputs"]
-        self.assertEqual((fin["images"], fin["source"], fin["grain"]), (["up_pixels", 0], ["up_video", 0], 0.02))
-        self.assertEqual(g["up_save"]["inputs"]["images"], ["up_pixels_finish", 0])
+        self.assertEqual(g["up_pixels"]["class_type"], "SeriesmithRTXUpscale")
+        self.assertEqual((vsr["images"], vsr["width"], vsr["height"], vsr["quality"], vsr["chunk"],
+                          vsr["compact"], vsr["grain"]),
+                         (["up_video", 0], 2688, 1536, "ULTRA", U.VSR_CHUNK, True, 0.02))
+        self.assertEqual(g["up_save"]["inputs"]["images"], ["up_pixels", 0])
         self.assertFalse(self.by_class(g, "UpscaleModelLoader"))
-        self.assertEqual(runs_as(g), set(U.VSR_NODES) - {"ImageScale"})
-        # a size 8 doesn't divide: made a little larger, then lanczos to it
+        self.assertEqual(runs_as(g), set(U.VSR_NODES) - {"RTXVideoSuperResolution"})
+        # a size 8 doesn't divide, another level: the node is told the exact size
         up = U.plan_upscale(self.ep, t, method="pixel", pixel_model="rtx_vsr:HIGHBITRATE_ULTRA",
                             deliver="1080p")
         g = U.pixel_graph(up)
         self.assertEqual((up.width, up.height), (1920, 1098))
-        self.assertEqual((g["up_pixels"]["inputs"]["resize_type.height"], g["up_pixels"]["inputs"]["quality"]),
-                         (1104, "HIGHBITRATE_ULTRA"))
-        self.assertEqual((g["up_pixels_fit"]["inputs"]["width"], g["up_pixels_fit"]["inputs"]["height"]), (1920, 1098))
-        self.assertEqual(g["up_pixels_finish"]["inputs"]["images"], ["up_pixels_fit", 0])
-        # a level that keeps the input's size is always resized to the size asked
-        g = U.pixel_graph(U.plan_upscale(self.ep, t, method="pixel", pixel_model="rtx_vsr:DEBLUR_ULTRA"))
-        self.assertEqual((g["up_pixels_fit"]["inputs"]["width"], g["up_pixels_fit"]["inputs"]["height"]), (2688, 1536))
+        self.assertEqual((g["up_pixels"]["inputs"]["width"], g["up_pixels"]["inputs"]["height"],
+                          g["up_pixels"]["inputs"]["quality"]), (1920, 1098, "HIGHBITRATE_ULTRA"))
         # the then step after a re-sample
         up = U.plan_upscale(self.ep, t, then_model="rtx_vsr")
         g = U.upscale_graph(self.base(), up)
         decode = self.by_class(g, "VAEDecode")[0]
-        self.assertEqual((g["up_then"]["class_type"], g["up_then"]["inputs"]["images"]),
-                         ("RTXVideoSuperResolution", [decode, 0]))
-        self.assertEqual(g["up_save"]["inputs"]["images"], ["up_then_finish", 0])
+        self.assertEqual((g["up_then"]["class_type"], g["up_then"]["inputs"]["images"],
+                          g["up_then"]["inputs"]["compact"]),
+                         ("SeriesmithRTXUpscale", [decode, 0], True))
+        self.assertEqual(g["up_save"]["inputs"]["images"], ["up_then", 0])
         self.assertNotIn("up_then_model", g)
         # readiness: its node (the pack named), its level, never an upscale model file
         info = {c: {"input": {}} for c in U.PIXEL_NODES}
@@ -965,7 +959,7 @@ class PixelUpscaleTest(UpscaleRouteTest):
         res = self.ok(A.post_upscale(self.ctx, {"ep": self.ep, "shots": ["sh010"], "redo": True,
                                                 "method": "pixel", "pixel_model": "rtx_vsr"}))
         self.assertEqual(res["queued"][0]["pixel_model"], "rtx_vsr")
-        self.assertTrue(any(v["class_type"] == "RTXVideoSuperResolution" for v in self.comfy.graphs[-1].values()))
+        self.assertTrue(any(v["class_type"] == "SeriesmithRTXUpscale" for v in self.comfy.graphs[-1].values()))
         self.assertIn("rtx_vsr", self.ok(A.get_upscale_options(self.ctx, {}))["pixel"]["models"])
 
 

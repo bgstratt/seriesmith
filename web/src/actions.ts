@@ -2543,15 +2543,17 @@ export async function setRefDefault(kind: RefTargetKind, target: string | null):
   if (!ep) return false;
   return withBusy(`refdefaults|${kind}`, async () => {
     try {
-      const fields = kind === "keyframes" ? { keyframe_target: target } : kind === "voices" ? { voice_target: target } : { target };
+      const fields = kind === "keyframes" ? { keyframe_target: target } : kind === "edits" ? { edit_target: target }
+        : kind === "turns" ? { turn_target: target } : kind === "voices" ? { voice_target: target } : { target };
       const r = await api().putRefDefaults(ep, fields);
       set((s) => ({ refDefaults: { ...s.refDefaults, [ep]: r.defaults ?? null } }));
-      const what = kind === "keyframes" ? "Keyframes" : kind === "voices" ? "Voices" : "Refs";
+      const what = kind === "keyframes" ? "Keyframes" : kind === "edits" ? "Edits" : kind === "turns" ? "Turns" : kind === "voices" ? "Voices" : "Refs";
       const label = (id: string | null | undefined) => get().targets?.targets.find((t) => t.id === id)?.label ?? id ?? "";
-      const now = kind === "keyframes" ? r.defaults?.keyframe_target : kind === "voices" ? r.defaults?.voice_target : r.defaults?.target;
+      const now = kind === "keyframes" ? r.defaults?.keyframe_target : kind === "edits" ? r.defaults?.edit_target
+        : kind === "turns" ? r.defaults?.turn_target : kind === "voices" ? r.defaults?.voice_target : r.defaults?.target;
       host().toast(
         "success",
-        target ? `${what} now generate with ${label(target)}` : `${what} are back on ${label(now)}`,
+        target ? `${what} now generate with ${label(target)}` : `${what} are back on ${label(now) || "automatic"}`,
         target ? "For this episode (kept in overrides.json; series.json isn't changed). A ref with its own model keeps it." : undefined,
       );
       // the picked model changes what each ref's `effective` says
@@ -2921,7 +2923,7 @@ export function openShotForm(form: ShotFormOpen | null) {
 
 /** The new episode wizard: an episode in `parent`, or a new series in a show
  * folder made inside it (null closes it). */
-export function openWizard(w: { parent: string; newSeries: boolean } | null) {
+export function openWizard(w: { parent: string; newSeries: boolean; from?: "write" | "xml" } | null) {
   set({ wizard: w, menu: null });
 }
 

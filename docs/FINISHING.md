@@ -93,6 +93,11 @@ little softer than RealESRGAN and a little steadier frame to frame, and likewise
 nothing new. Its default level (ULTRA) is the one for generated takes; HIGHBITRATE_ULTRA
 leaves a clean take nearly as it was. It goes wherever an
 upscale model goes (the pixel method, `--then-pixel rtx_vsr`, a Wan re-sample's start, a post).
+It runs a window of 32 frames at a time and keeps what it made as it will be encoded, so a
+long take fits: a 28 s 1080p take to 4K peaked at 36 GB of RAM (it wanted ~120 GB before);
+the source's frames and the result take ~50 MB a 1080p frame together, so on a 64 GB machine
+keep a 1080p take under about 40 s at 4K. It needs seriesmith's node pack as of 2026-11-02
+(restart ComfyUI after updating).
 
 **SeedVR2** is the third method, for any take too: a one-step video restoration model
 (ComfyUI's own nodes; files in INSTALL.md). It gives the sharpest single frames of the three,

@@ -45,8 +45,9 @@ def probe(ffprobe: str, path: str) -> tuple[int, int, float]:
 
 def frames(ffmpeg: str, path: str, w: int, h: int):
     import numpy as np
-    p = subprocess.Popen([*_cmd(ffmpeg), "-v", "error", "-i", path, "-f", "rawvideo", "-pix_fmt",
-                          "rgb24", "-"], stdout=subprocess.PIPE)
+    # passthrough: frame n is the file's nth (a late first frame isn't copied to fill the gap)
+    p = subprocess.Popen([*_cmd(ffmpeg), "-v", "error", "-i", path, "-fps_mode", "passthrough",
+                          "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE)
     size = w * h * 3
     try:
         while True:

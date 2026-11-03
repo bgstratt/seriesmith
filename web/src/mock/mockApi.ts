@@ -8,6 +8,7 @@
 import type { Api } from "../api";
 import { ApiError, UPLOAD_LIMIT, parseJsonSeedSafe, targetsQuery } from "../api";
 import type { HostEvent } from "../host";
+import type { XmlImportMedia, XmlImportSummary } from "../types";
 import { reachable } from "../lib/browse";
 import { insideRoot, nameError } from "../lib/newEpisode";
 import { promptText } from "../lib/format";
@@ -1021,6 +1022,13 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       return { show: req.parent, episodes: [], skipped: [],
                errors: [{ file: "", error: "the mock doesn't import series" }] };
     },
+    // an edit's import: a dry run answers a made-up summary; the mock writes nothing
+    async importXml(req) {
+      return mockXmlImport(Boolean(req.dry_run), req.media ?? "handles", req.name ?? null);
+    },
+    async uploadXml(req) {
+      return mockXmlImport(Boolean(req.dry_run), req.media ?? "handles", req.name ?? null);
+    },
     async newEpisode(req) {
       await wait(400);
       if (!roots.length) throw new MockError("No project roots are configured.", 403);
@@ -1776,8 +1784,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     async putRefDefaults(ep, fields) {
       await wait();
       need(ep);
-      if (!("target" in fields) && !("keyframe_target" in fields) && !("voice_target" in fields)) {
-        throw new MockError("give target, keyframe_target and/or voice_target", 400);
+      if (!("target" in fields) && !("keyframe_target" in fields) && !("edit_target" in fields) && !("turn_target" in fields) && !("voice_target" in fields)) {
+        throw new MockError("give target, keyframe_target, edit_target, turn_target and/or voice_target", 400);
       }
       const defaults = refs.setDefaults(fields);
       emit("seriesmith.episode", { ep: EP });
@@ -2588,4 +2596,26 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     };
   }
   return Object.assign(wrapped, { outsideEdit, unalign });
+}
+
+
+/** What the mock answers for an edit's import: a dry run's summary of a made-up edit. */
+function mockXmlImport(dry: boolean, media: XmlImportMedia, name: string | null): XmlImportSummary {
+  if (!dry) throw new MockError("the mock doesn't import edits (seriesmith serve does)", 400);
+  const title = name || "The Lighthouse (rough cut)";
+  const show = title.replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^[._-]+|[._-]+$/g, "");
+  return {
+    sequence: "The Lighthouse (rough cut)", title, show, episode: "ep01", in_show: false, from: null, ep: `C:\Shows\${show}\ep01`, fps: 23.976,
+    size: [1920, 1080], media, handles: media === "handles" ? 1 : null, shots: 3, black: 1, takes: 2,
+    missing: [], sequences: ["sq01"], audio_items: 1, hits: 0, tracks: ["music"],
+    proxies: media === "proxies" ? ["sh010"] : [], unplayable: media === "reference" ? ["sh010"] : [],
+    clips: [
+      { shot: "sh010", name: "Wide on the pier", source: "C:\Footage\A001.mov", dur: 2.75, trim_in: 24, trim_out: 24,
+        missing: null, codec: "prores", ...(media === "proxies" ? { proxy: true } : {}),
+        ...(media === "reference" ? { plays: false, note: "prores in .mov: it won't play in the editor" } : {}) },
+      { shot: "sh030", name: "Close on the lamp", source: "C:\Footage\B002.mp4", dur: 2.5, trim_in: 24, trim_out: 24,
+        missing: null, codec: "h264" },
+    ],
+    warnings: ["a 12-frame gap at 00:00:02.753: a shot of black"],
+  };
 }

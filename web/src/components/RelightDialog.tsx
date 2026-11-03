@@ -16,6 +16,8 @@ import type { RelightResult } from "../types";
 import { Dialog } from "./Dialogs";
 import { PresetPicker, useRelightTiles } from "./PresetPicker";
 import { ModelOptions, useTargets } from "./Targets";
+import { useRefDefaults } from "./hooks";
+import { targetLabel } from "../lib/targets";
 
 export function RelightDialog() {
   const ask = useApp((s) => s.relightAsk);
@@ -38,6 +40,7 @@ function RelightBody({ sequence }: { sequence: string }) {
   const tiles = useRelightTiles("location");
   const { list } = useTargets();
   const edits = useMemo(() => imageTargets(list).filter(isEditTarget), [list]);
+  const editsDefault = useRefDefaults().edits;
   const ep = useApp((s) => s.ep);
   const busy = useApp((s) => !!s.busy[`relight|${sequence}`]);
   const [text, setText] = useState("");
@@ -105,8 +108,8 @@ function RelightBody({ sequence }: { sequence: string }) {
               placeholder={preset ? relight : "relit"} onChange={(e) => setSuffix(e.target.value)} />
           </label>
           <select className="h3-in" value={target} onChange={(e) => setTarget(e.target.value)}
-            title="The edit model: each relit plate is an edit of the plate it's from. The default is the episode's edit model.">
-            <option value="">(the episode's edit model)</option>
+            title="The edit model: each relit plate is an edit of the plate it's from. The default is the episode's Edits model (Refs tab, Made with).">
+            <option value="">{editsDefault ? `(the episode's Edits model: ${targetLabel(list, editsDefault)})` : "(the episode's Edits model)"}</option>
             <ModelOptions targets={edits} text={(x) => targetOptionText(x)} />
           </select>
         </div>

@@ -276,7 +276,9 @@
 }
 .h3-stage { position: relative; flex: 1 1 auto; min-height: 0; background: #000; display: flex; overflow: hidden; }
 .h3-stage video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
-.h3-stage.h3-side > .h3-pane { flex: 1 1 50%; min-width: 0; position: relative; }
+.h3-stage.h3-side > .h3-pane { flex: 1 1 50%; min-width: 0; position: relative; overflow: hidden; }
+/* a zoomed picture (lib/zoom.ts) stays inside its pane */
+.h3-stage .h3-pane { overflow: hidden; }
 .h3-stage.h3-side > .h3-pane + .h3-pane { border-left: 2px solid var(--h3-bg); }
 .h3-stage.h3-single > .h3-pane, .h3-stage.h3-wipe > .h3-pane { position: absolute; inset: 0; }
 .h3-pane-label {
@@ -515,7 +517,7 @@
 .h3-upload-err { margin: 2px 0; }
 .h3-menu button.h3-menu-danger:not(:disabled) i { color: var(--h3-failed); }
 .h3-view-head { display: flex; align-items: center; gap: 2px; }
-.h3-view-head .h3-btn { padding: 0 4px; min-height: 0; font-size: 10px; }
+.h3-view-head .h3-btn { padding: 2px 8px; min-height: 22px; font-size: 12px; text-transform: none; letter-spacing: normal; }
 
 /* Phase 9a: the Script / Series config windows, promote.
    Syntax colours are a hue mixed with ComfyUI's foreground, so they're pastel on
@@ -1252,7 +1254,7 @@
 }
 .h3-gal-view { flex: 1 1 auto; min-height: 0; display: flex; }
 .h3-gal-stage { position: relative; flex: 1 1 auto; min-width: 0; background: #000; display: flex; }
-.h3-gal-pane { position: relative; flex: 1 1 0; min-width: 0; }
+.h3-gal-pane { position: relative; flex: 1 1 0; min-width: 0; overflow: hidden; }
 .h3-gal-side .h3-gal-pane + .h3-gal-pane { border-left: 2px solid var(--h3-bg); }
 .h3-gal-pane img, .h3-gal-pane video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; user-select: none; background: #000; }
 .h3-gal-scrub { position: absolute; inset: 0; pointer-events: none; }

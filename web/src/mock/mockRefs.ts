@@ -136,7 +136,7 @@ const AUDIO_MODELS: Record<string, { model: string; steps: number; defaultSecond
   ltx2_voice: { model: "ltx-2.5-22b-distilled-fp8.safetensors", steps: 8, defaultSeconds: 8, minSeconds: 2, maxSeconds: 20 },
 };
 /** the built-in defaults (series.json has no `refs` block in the mock) */
-export const MOCK_REF_DEFAULTS = { target: "krea2", keyframe_target: "flux2_klein_edit", voice_target: "ltx2_voice" };
+export const MOCK_REF_DEFAULTS = { target: "krea2", keyframe_target: "flux2_klein_edit", edit_target: "flux2_klein_edit", voice_target: "ltx2_voice" };
 
 /** targets/audio/common.py's fixed sentence, for a character this episode gives no line. */
 export const NEUTRAL_LINE = "The quick brown fox jumps over the lazy dog, and then says hello to everyone in the room.";
@@ -146,7 +146,7 @@ export interface MockRefs {
   /** GET /seriesmith/refs `defaults` */
   defaults(): RefDefaults;
   /** PUT /seriesmith/refs/defaults: null clears; a key left out is kept */
-  setDefaults(fields: { target?: string | null; keyframe_target?: string | null; voice_target?: string | null }): RefDefaults;
+  setDefaults(fields: { target?: string | null; keyframe_target?: string | null; edit_target?: string | null; turn_target?: string | null; voice_target?: string | null }): RefDefaults;
   /** Phase 9c-B: a voice candidate's playable wav (an object URL) */
   audio(path: string): string | undefined;
   /** Phase 9c-B: how long a voice candidate is, for GET /seriesmith/peaks */
@@ -209,9 +209,9 @@ export function createMockRefs(opts: {
   const audios = new Map<string, ReturnType<typeof makeVoice>>();
   /** what the series config says about each subject (its voice line, design) */
   const subjectCfg = new Map<string, { name: string; design: string; voice: string }>();
-  /** the episode's ref targets (overrides.json episode.refs_target / keyframe_target / voice_target) */
-  const chosen: { target: string | null; keyframe_target: string | null; voice_target: string | null } =
-    { target: null, keyframe_target: null, voice_target: null };
+  /** the episode's ref targets (overrides.json episode.refs_target / keyframe_target / edit_target / voice_target) */
+  const chosen: { target: string | null; keyframe_target: string | null; edit_target: string | null; turn_target: string | null; voice_target: string | null } =
+    { target: null, keyframe_target: null, edit_target: null, turn_target: null, voice_target: null };
 
   const key = (id: string) => id.replace(/:/g, "__");
   const takePath = (r: MRef, view: string | null, take: number, ext = "png") =>
@@ -282,6 +282,10 @@ export function createMockRefs(opts: {
       target_source: src(chosen.target),
       keyframe_target: chosen.keyframe_target ?? MOCK_REF_DEFAULTS.keyframe_target,
       keyframe_target_source: src(chosen.keyframe_target),
+      edit_target: chosen.edit_target ?? MOCK_REF_DEFAULTS.edit_target,
+      edit_target_source: src(chosen.edit_target),
+      turn_target: chosen.turn_target,
+      turn_target_source: src(chosen.turn_target),
       voice_target: chosen.voice_target ?? MOCK_REF_DEFAULTS.voice_target,
       voice_target_source: src(chosen.voice_target),
       dub_target: "minimax_h3_ref2va",
@@ -710,10 +714,13 @@ export function createMockRefs(opts: {
     },
     defaults,
     setDefaults(fields) {
-      for (const k of ["target", "keyframe_target"] as const) {
+      for (const k of ["target", "keyframe_target", "edit_target"] as const) {
         if (!(k in fields)) continue;
         const v = fields[k] ?? null;
         if (v != null && !IMAGE_MODELS[v]) throw new RefError(`${v} isn't an image target`, 400);
+        if (k === "edit_target" && v != null && !IMAGE_MODELS[v].edit) {
+          throw new RefError(`${v} draws from text only and can't edit a picture`, 400);
+        }
         chosen[k] = v;
       }
       if ("voice_target" in fields) {

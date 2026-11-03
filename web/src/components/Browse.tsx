@@ -222,10 +222,10 @@ function BrowseBody({ b }: { b: BrowseState }) {
               <button
                 className="h3-btn"
                 disabled={!newParent || importingSeries}
-                title={newParent ? `Make episodes in ${newParent} from a series config and scripts` : "Browse to the folder your shows live in"}
+                title={newParent ? `Into ${newParent}: a seriesmith series (its config and scripts), or an edit (FCP7 XML) as a new show` : "Browse to the folder your shows live in"}
                 onClick={() => { setImportingSeries(true); }}
               >
-                <i className="pi pi-upload" /> Import series…
+                <i className="pi pi-upload" /> Import…
               </button>
               <button className="h3-btn" disabled={!rootTarget || busyRoots} title={rootTarget ? `Add ${rootTarget} as a project root` : "Browse into a folder first"} onClick={() => rootTarget && void addRoot(rootTarget)}>
                 <i className="pi pi-plus" /> Add as root
@@ -339,7 +339,18 @@ function BrowseBody({ b }: { b: BrowseState }) {
       )}
       {!importing && importingSeries && newParent && (
         <div className="h3-col" style={{ gap: 4 }}>
-          <div className="h3-h">Import a series into {newParent}</div>
+          <div className="h3-h">Import into {newParent}</div>
+          <div className="h3-row" style={{ gap: 6 }}>
+            <span className="h3-small h3-muted">A seriesmith series (below), or</span>
+            <button
+              id="sm-browse-import-xml"
+              className="h3-btn"
+              title="An edit from Premiere, DaVinci Resolve or Final Cut 7 (File › Export › Final Cut Pro XML) as a new show: a shot per clip, its footage the shot's take"
+              onClick={() => { setImportingSeries(false); closeBrowse(); openWizard({ parent: newParent, newSeries: true, from: "xml" }); }}
+            >
+              <i className="pi pi-file-import" /> An edit (FCP7 XML)…
+            </button>
+          </div>
           <div className="h3-row">
             <input
               className="h3-in h3-mono"

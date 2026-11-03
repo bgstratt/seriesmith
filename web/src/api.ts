@@ -15,7 +15,7 @@ import type {
   MatchBy,
   AlignJob, AlignReady, AlignRequest, AlignResult, AssembleOptions, AssembleResult, BrowseFiles, BrowseResult, BuildResult, CancelResult, ComfyQueue, Config, CutEntry,
   CutFile, CutWhat, DiscardResult, EpisodeStatus, EpisodeSummary, ClipQueueResult, EpisodeTargetResult, EpisodeTemplate, Issue, IssueAddRequest, ModelList, NewEpisodeRequest,
-  ImportSeriesRequest, ImportSeriesResult, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
+  ImportSeriesRequest, ImportSeriesResult, XmlImportRequest, XmlImportSummary, XmlImportUpload, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
   PeaksResult, PickRequest, Ref, RefDefaults, RefDiscardRequest, RefGenerateMissingRequest, RefGenerateMissingResult, RefGenerateRequest,
   RefGenerateResult, RefImportRequest, RefKeyframeRequest, RefList, RefMatchResult, RefOverrideInfo, RefOverrideRequest, RefPickRequest, RefPickResult,
   RefTake, RefUploadRequest, RenderRequest, RenderResult, Seed, ShotDetail, TakeInfo, TakeRef, TargetKind, TargetList, TrackResult, VocalsResult,
@@ -153,6 +153,11 @@ export interface Api {
   episodeTemplate(parent: string, show?: string | null): Promise<EpisodeTemplate>;
   /** seriesmith: a series config and scripts into episode folders (POST /seriesmith/import) */
   importSeries(req: ImportSeriesRequest): Promise<ImportSeriesResult>;
+  /** POST /seriesmith/import/xml: an edit (FCP7 XML) on the server's machine into a new
+   * show and episode (`dry_run`: what it would make, nothing written). */
+  importXml(req: XmlImportRequest): Promise<XmlImportSummary>;
+  /** POST /seriesmith/import/xml as multipart: the XML picked in the browser. */
+  uploadXml(req: XmlImportUpload, onProgress?: UploadProgress): Promise<XmlImportSummary>;
   /** URL of a file inside the episode (for <img>/<video>); supports Range. */
   fileUrl(ep: string, path: string): string;
   /** A JSON file inside the episode (e.g. a frozen shotlist), seeds as strings. */
@@ -410,10 +415,12 @@ export interface Api {
 /** A ref override route's answer: the (effective) override values, plus `stale`. */
 export type RefOverrideResult = NonNullable<RefOverrideInfo["values"]> & { stale?: boolean };
 
-/** PUT /seriesmith/refs/defaults: any of the three; null clears one. */
+/** PUT /seriesmith/refs/defaults: any of the four; null clears one. */
 export interface RefDefaultFields {
   target?: string | null;
   keyframe_target?: string | null;
+  edit_target?: string | null;
+  turn_target?: string | null;
   voice_target?: string | null;
 }
 
@@ -620,6 +627,17 @@ export function createHttpApi(t: Transport): Api {
     clipQueue: (req) => call("POST", "/seriesmith/clip/queue", req),
     episodeTemplate: (parent, show) => get(`/seriesmith/episode/new?${qs({ parent, show: show || undefined })}`),
     importSeries: (req) => call("POST", "/seriesmith/import", req),
+    importXml: (req) => call("POST", "/seriesmith/import/xml", req),
+    uploadXml: (req, onProgress) => {
+      const form = new FormData();
+      const { file, filename, ...rest } = req;
+      for (const [k, v] of Object.entries(rest)) {
+        if (v !== undefined && v !== null && v !== "") form.append(k, String(v));
+      }
+      const name = filename ?? (typeof File !== "undefined" && file instanceof File ? file.name : "edit.xml");
+      form.append("file", file, name);
+      return postForm("/seriesmith/import/xml", form, onProgress);
+    },
     fileUrl: (ep, path) => t.url(`/seriesmith/file?${qs({ ep, path })}`),
     readJson: (ep, path) => get(`/seriesmith/file?${qs({ ep, path })}`),
     render: (req) => {

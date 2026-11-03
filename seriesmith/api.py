@@ -4400,9 +4400,10 @@ def get_refs_shared_takes(ctx: Context, query: dict):
 @handler
 def put_refs_defaults(ctx: Context, body):
     """The episode's ref-target choices (overrides.json's
-    episode.refs_target / episode.keyframe_target / episode.voice_target):
-    `target` for series refs, `keyframe_target` for shot keyframes,
-    `voice_target` for the voice model (an audio target, or a video target
+    episode.refs_target / episode.keyframe_target / episode.edit_target /
+    episode.voice_target): `target` for series refs, `keyframe_target` for
+    shot keyframes, `edit_target` for editing a picture (an image target that
+    can edit), `turn_target` for Turn (one that can edit; null: automatic), `voice_target` for the voice model (an audio target, or a video target
     that renders a dub track: TG.voice_targets); null clears one, a key left
     out is kept. Never writes series.json. Returns the defaults as GET
     /seriesmith/refs gives them."""
@@ -4411,6 +4412,7 @@ def put_refs_defaults(ctx: Context, body):
     s = _series(ep)
     fields = {}
     for k, kind in (("target", "image"), ("keyframe_target", "image"),
+                    ("edit_target", "image"), ("turn_target", "image"),
                     ("voice_target", "audio")):
         if k in body:
             v = body[k]
@@ -4418,8 +4420,8 @@ def put_refs_defaults(ctx: Context, body):
                 raise ApiError(400, f"{k} must be a target id or null")
             fields[k] = v or None
     if not fields:
-        raise ApiError(400, "give target, keyframe_target and/or voice_target (a target id "
-                            "of that kind, or null to clear it)")
+        raise ApiError(400, "give target, keyframe_target, edit_target, turn_target and/or voice_target "
+                            "(a target id of that kind, or null to clear it)")
     R.set_image_defaults(ep, fields)
     d = R.image_defaults(s, image_ready(ctx))
     episode_event(ctx, ep)
@@ -5415,7 +5417,95 @@ def get_align_job(ctx: Context, query: dict):
     return 200, {"job": dict(jobs[0].result) if jobs and jobs[0].result else None}
 
 
-LOCAL = {"master": _master_task, "align": _align_task}
+# ---------------------------------------------------------------------------
+# an edit (FCP7 XML) into a new show (xmlimport.py)
+# ---------------------------------------------------------------------------
+
+@handler
+def post_import_xml(ctx: Context, body):
+    """An edit (FCP7 XML) into a new show and episode (xmlimport.make): `{parent?, path
+    | file (multipart), name?, media?: "handles" | "reference" | "proxies", handles?:
+    seconds, in_show?, dry_run?}`. `parent` is the folder of shows (default the first
+    project root); with `in_show`, a show's folder, the edit its next episode. A dry run answers what it would make and writes nothing. Otherwise the
+    show is written and built at once, and its media (each source's clips, the gaps'
+    black) queued on the "cpu" lane, a job each (`jobs`), the takes appearing as they
+    finish; without a queue they are made before it answers."""
+    from seriesmith import xmlimport as XI
+    body = body_dict(body)
+    roots = load_roots(ctx)
+    parent = body.get("parent") or (roots[0] if roots else None)
+    if not parent:
+        raise ApiError(409, "no project folder yet: add one (Project folders) first")
+    parent = check_folder(ctx, parent, "parent")
+    up = body.get("file")
+    if isinstance(up, Upload):
+        path, xml_name, base = up.path, os.path.basename(up.filename or "edit.xml"), None
+    elif up is not None:
+        raise ApiError(400, "file must be sent as multipart/form-data")
+    else:
+        path = body.get("path")
+        if not isinstance(path, str) or not path.strip():
+            raise ApiError(400, "send path (the XML's absolute path on this machine) or a "
+                                "multipart `file`")
+        path = path.strip()
+        if not os.path.isabs(path):
+            raise ApiError(400, f"path must be absolute, not {path!r}")
+        if not os.path.isfile(path):
+            raise ApiError(404, f"no file at {path}")
+        xml_name, base = os.path.basename(path), os.path.dirname(path)
+    try:
+        with open(path, "rb") as fh:
+            text = fh.read().decode("utf-8-sig", "replace")
+    except OSError as e:
+        raise ApiError(400, f"the XML can't be read: {e}") from None
+    name = _opt_str(body, "name") or None
+    media = body.get("media") or "handles"
+    handles = body.get("handles", XI.HANDLES_S)
+    if handles in (None, ""):
+        handles = XI.HANDLES_S
+    in_show = _flag(body.get("in_show"))
+    if _flag(body.get("dry_run")):
+        return 200, XI.public(XI.plan(text, parent, xml_name, name, media, handles, base, in_show))
+    res = XI.make(text, parent, xml_name, name, media, handles, base, in_show)
+    episode_event(ctx, res["ep"])
+    res["jobs"] = [_start_local(ctx, "xmlmedia", {"ep": res["ep"], "index": g["index"]}).id
+                   for g in res["groups"]]
+    return 200, res
+
+
+
+def _xmlmedia_task(ctx: Context, params: dict):
+    """One of an import's media groups made (xmlimport.run_group): a source's clips as
+    their shots' takes (cut out, linked or copied, or a proxy made), or the gaps' black."""
+    from seriesmith import xmlimport as XI
+    ep, index = params["ep"], int(params["index"])
+    title = XI.group_title(ep, XI.load_group(ep, index))
+    run = {"ep": ep, "index": index, "state": "waiting", "made": 0, "kept": 0, "failed": [],
+           "error": "", "finished": None}
+
+    def work(qjob, report, stop) -> str:
+        run = qjob.result
+        run["state"] = "running"
+        try:
+            res = XI.run_group(ep, XI.load_group(ep, index), report=report,
+                               on_take=lambda t: take_event(ctx, ep, t))
+        except Exception as e:                           # noqa: BLE001  the job fails
+            run.update(state="failed", error=str(e), finished=T.now())
+            qjob.error = str(e)[:800]
+            episode_event(ctx, ep)
+            return "failed"
+        run.update(res, state="failed" if res["failed"] else "done", finished=T.now(),
+                   error="; ".join(res["failed"])[:800])
+        episode_event(ctx, ep)
+        if res["failed"]:
+            qjob.error = run["error"]
+            return "failed"
+        return "succeeded"
+
+    return title, {"ep": ep, "index": index}, run, work
+
+
+LOCAL = {"master": _master_task, "align": _align_task, "xmlmedia": _xmlmedia_task}
 
 
 # ---------------------------------------------------------------------------
@@ -5507,6 +5597,7 @@ ROUTES = [
     ("GET", "/seriesmith/drafts", get_drafts, "query"),
     ("GET", "/seriesmith/refs/videos", get_refs_videos, "query"),
     ("POST", "/seriesmith/import", post_import, "body"),
+    ("POST", "/seriesmith/import/xml", post_import_xml, "form"),
     ("GET", "/seriesmith/issues", get_issues, "query"),
     ("POST", "/seriesmith/issues", post_issues, "body"),
     ("DELETE", "/seriesmith/issues", delete_issues, "query"),

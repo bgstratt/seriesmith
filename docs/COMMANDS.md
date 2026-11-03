@@ -12,6 +12,7 @@ failed exits 1.
 | Command | What it does |
 |---|---|
 | `seriesmith new <show>\<name>` | A new episode (`series.json` + script) that builds, from the newest episode beside it, else `examples/starter/` (`--title`, `--series-id`) |
+| `seriesmith import-xml <file.xml>` | An edit (FCP7 XML: Premiere, Resolve, Final Cut 7, `assemble --xml`) as a new show and episode: a shot per clip, its footage the take (`--into`, `--episode`: `--into` is a show and the edit its next episode, `--name`, `--media handles\|reference\|proxies`, `--handles`, `--dry-run`; [IMPORT_XML.md](IMPORT_XML.md)) |
 | `seriesmith build <episode>` | The script and series config compiled into the shotlists and `refs_todo` (final and proxy) |
 | `seriesmith check <episode>` | `build --check` and `--pace`: errors, warnings, crammed lines; writes nothing |
 | `seriesmith refs <episode>` | Reference pictures (and with `--voices`, voice samples): kreagen |
@@ -249,8 +250,19 @@ seriesmith render Shows\ep05 --only sh040 --target seedance_2_5 --dry-run  # the
   a job, with the shot and its reference pictures as uploads; the files that come back are
   written into the take. A hosted target (Seedance, Kling, Veo, hosted H3, …) is one Router
   call, and its takes are marked `reproducible: false`. Each take is a job on this command's own
-  queue, run one at a time and waited for; a `continuous: latent` shot holds the take
-  rendered just before it.
+  queue, run one at a time and waited for, a chain in cut order.
+- **Continuous chains.** The episode is planned first, then its continuity: the shots that
+  will actually run (after `--only`, `--redo` and the skips) are the batch. A
+  `continuous: first` shot after one rendering in this run opens on that new take: its first
+  frame is cut from it as its render starts (the take's record keeps which). A
+  `continuous: latent` shot holds the take rendered just before it. A shot after one that
+  doesn't run opens on the take the cut uses: without `--redo`, only the shots with no take
+  render, each opening on its finished neighbour; `--only sh030` opens on sh020's take in the
+  cut. When the previous shot's cut entry is picked or locked on a take, the chain starts from
+  that pick, even when the previous shot renders again in the run. `--list` and `--dry-run`
+  say it (`sh020: opens on sh010's new take in this run`, `sh030: opens on sh020 final t01,
+  the take its cut entry is picked on`). A shot with nothing to start from, now or coming,
+  isn't rendered, and nor is one after a shot that failed in this run.
 - It runs anywhere the episode folder is: the backend never reads it. It checks the render
   folders to skip finished shots, so Ctrl-C (which cancels the running job) and re-running
   resumes where it stopped.
@@ -445,6 +457,24 @@ seriesmith discard  Shows\ep05 sh020 2          # take 2 goes to renders\_trash\
   `seriesmith promote` moves it into the script or the series config for you — it prints the
   plan and the diffs first, and `--all` (or `--item shot:sh020:steps`) writes them, drops
   those overrides and rebuilds. The old files are kept in `<episode>\_history\`.
+
+### Importing an edit
+
+```
+seriesmith import-xml cut.xml --into Shows --dry-run           # what it would make, nothing written
+seriesmith import-xml cut.xml --into Shows --name "The Pier"    # Shows\The_Pier\ep01, 1 s handles
+seriesmith import-xml cut.xml --into Shows --media proxies      # sources linked, proxies to play
+seriesmith import-xml cut.xml --into Shows\The_Pier --episode  # The_Pier's next episode
+```
+
+An FCP7 XML (Premiere, Resolve, Final Cut 7, or `assemble --xml`) becomes a new show in
+`--into` (default: here), its episode `ep01`: a shot per clip on V1, each clip's footage its
+take t01, the cut's trims, dissolves and fades in `cut.json`, the other audio clips in
+`mix.json`. `--media handles` (the default) cuts each clip's span and `--handles` seconds
+either side out of its source as H.264; `reference` takes each source whole, hard-linked
+where the drive allows, never re-encoded; `proxies` does that and makes an H.264 proxy of
+each source the editor can't play (assemble cuts from the original). It prints what it made
+and what didn't come through, then makes the takes. [IMPORT_XML.md](IMPORT_XML.md) has the rules.
 
 ### Editing the cut
 

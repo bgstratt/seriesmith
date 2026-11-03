@@ -742,6 +742,83 @@ export interface ImportSeriesResult {
   errors: { file: string; error: string }[];
 }
 
+/** How an imported edit's footage becomes its shots' takes (POST /seriesmith/import/xml):
+ *  each clip's span plus handles, H.264; each source whole, linked or copied as it is; or
+ *  that, with a playable proxy of each source the editor can't play. */
+export type XmlImportMedia = "handles" | "reference" | "proxies";
+
+/** POST /seriesmith/import/xml (JSON: an XML on the server's machine). */
+export interface XmlImportRequest {
+  /** the folder of shows the new show goes in (default: the first project root); with
+   *  `in_show`, the show's folder the edit becomes the next episode of */
+  parent?: string | null;
+  path: string;
+  /** the show's name; with `in_show`, the episode's title */
+  name?: string | null;
+  media?: XmlImportMedia;
+  handles?: number;
+  in_show?: boolean;
+  dry_run?: boolean;
+}
+
+/** POST /seriesmith/import/xml as multipart: the XML picked in the browser. */
+export interface XmlImportUpload extends Omit<XmlImportRequest, "path"> {
+  file: Blob;
+  filename?: string;
+}
+
+/** One clip of the edit as the import makes it. */
+export interface XmlImportClip {
+  shot: string;
+  name: string;
+  source: string | null;
+  dur: number;
+  trim_in: number;
+  trim_out: number;
+  /** why it has no take (its file isn't there, a nested sequence) */
+  missing: string | null;
+  codec?: string;
+  /** a proxy is made for it (media "proxies") */
+  proxy?: boolean;
+  /** false: its take won't play in the editor (media "reference", not H.264 in an mp4) */
+  plays?: boolean;
+  note?: string;
+}
+
+/** What POST /seriesmith/import/xml answers (a dry run: what it would make). */
+export interface XmlImportSummary {
+  sequence: string;
+  title: string;
+  show: string | null;
+  /** the episode's folder name (ep01 for a new show; the next one in a show) */
+  episode: string;
+  in_show: boolean;
+  /** the episode whose series config it copies (in a show), or null */
+  from: string | null;
+  ep: string;
+  fps: number;
+  size: [number, number];
+  media: XmlImportMedia;
+  handles: number | null;
+  shots: number;
+  black: number;
+  takes: number;
+  missing: string[];
+  sequences: string[];
+  audio_items: number;
+  hits: number;
+  tracks: string[];
+  proxies: string[];
+  unplayable: string[];
+  clips: XmlImportClip[];
+  warnings: string[];
+  /** not a dry run: */
+  build?: BuildResult;
+  groups?: { index: number; kind: "source" | "black"; source: string | null; clips: number }[];
+  /** the queue's jobs making the media, one per source (and the gaps' black) */
+  jobs?: string[];
+}
+
 export interface NewEpisodeResult {
   ep: string;
   /** "episode" = the newest episode beside it was the template, "starter" = the
@@ -1516,6 +1593,13 @@ export interface RefDefaults {
   /** the image target keyframes generate with */
   keyframe_target?: string | null;
   keyframe_target_source?: RefDefaultSource | null;
+  /** the image target an edit of a picture uses (one that can edit; null when none can) */
+  edit_target?: string | null;
+  edit_target_source?: RefDefaultSource | null;
+  /** the image target Turn runs on (one that can edit); null: automatic (Qwen 2.1 + angles
+   *  when it's installed, else the edit target) */
+  turn_target?: string | null;
+  turn_target_source?: RefDefaultSource | null;
   /** Phase 9c-B: the audio target voice refs generate with */
   voice_target?: string | null;
   voice_target_source?: RefDefaultSource | null;

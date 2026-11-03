@@ -120,7 +120,7 @@ starts the series wizard.
 The Shots and Refs tabs open as Simple mode does: the episode is the panel's title (its
 series above it), its name a dropdown of every episode, whose last choice, **Browse and
 add new…**, opens **Project folders** (add or remove roots, open an episode, New episode…,
-New series/project…, Import series…). Beside it on the Shots tab, **Rescan the project roots**
+New series/project…, Import…). Beside it on the Shots tab, **Rescan the project roots**
 (after adding an episode folder outside the editor) and **Simple / Advanced**. The
 timeline keeps a small dropdown of its own, with the same choices.
 
@@ -213,6 +213,16 @@ opens and builds, so its shots are there and the pictures it needs are listed as
 which is the next thing to do (the Refs tab). The paths are `../refs/...`: **one `refs`
 folder beside the episodes, shared by all of them**, while each episode keeps its own
 config. That is the layout to want: shared references, per episode cast lists.
+
+**From an edit (FCP7 XML)…**, at the top of the wizard (and **Import…** › **An edit (FCP7
+XML)…** in **Project folders**), makes the series
+from an edit cut elsewhere instead (Premiere, Resolve, Final Cut 7, or seriesmith's own XML
+export): pick the `.xml` (or give its path on this machine), choose how its footage comes in
+(**Used part + handles**, **Reference in place**, or **Reference in place + playable
+proxies**), name the show, and the wizard says what it will make (shots, takes, the sounds
+of the mix, the proxies, and what doesn't come through) before **Import** makes it, builds it
+and opens it. The footage is made on the queue, a job per source in Jobs, each shot's take
+appearing as it's done. [IMPORT_XML.md](/import-xml) is the guide.
 
 The buttons are off when the folder isn't inside a project root: add it as a root first.
 `seriesmith new Shows\ep02 --title "…"` makes an episode without the UI, from the newest
@@ -763,10 +773,14 @@ script call for is listed here.
 - **+ Add** at the top adds a character, group, prop, vehicle, location or voice to the
   series config, on its card (as each group's **+ Character**, **+ Prop**, **+ Place**,
   **+ Voice** does); **Series** opens Series settings.
-- **Made with** names the models that make refs, keyframes and voice samples; **Change**
-  opens their pickers: **Refs render with:**, **Keyframes with:** and **Voices with:** (a
-  choice here is this episode's, kept in `overrides.json`, with the `series.json` line to
-  make it the series default); a ref with its own model keeps it.
+- **Made with** names the models that make refs, keyframes, edits, turns and voice samples;
+  **Change** opens their pickers: **Refs render with:**, **Keyframes with:**, **Edits
+  with:**, **Turns with:** and **Voices with:** (a choice here is this episode's, kept in `overrides.json`,
+  with the `series.json` line to make it the series default); a ref with its own model
+  keeps it. **Edits with:** lists only the models that can edit a picture: it is what
+  Edit and Relight start on, unless you pick another in their own dialog. **Turns with:** is
+  the model **↻ Turn** runs on: **Automatic** (Qwen 2.1 + angles when it's installed, else
+  the Edits model), **Qwen 2.1 + angles**, or any other edit model, told the turn in words.
 - **this episode / all / missing** filters the list; **List / Board** (remembered in this
   browser) shows the refs as rows that open to their candidates, or as a grid of their
   pictures, each group ending in an add tile. A click on a picture opens that ref in the
@@ -878,9 +892,13 @@ script call for is listed here.
   shots' `plate:` lines, so the next render uses them. Pick the takes in Refs as usual.
 - **Turn** (**↻ Turn** at the top of a view's column: side, back or face) draws that view
   from one the character already has, the three-quarter if it's picked, by turning the
-  camera around them on Qwen-Image 2.1 with the multi-angle LoRA
-  ([FULL_SETUP.md](/full-setup), "360s and turned views"). A new candidate, not picked:
-  the same character from another side, rather than four views drawn apart.
+  camera around them. It runs on Qwen-Image 2.1 with the multi-angle LoRA when that is
+  installed ([FULL_SETUP.md](/full-setup), "360s and turned views"), which turns a figure
+  most surely; else on the episode's Edits model, told the turn in words. **↻ Turn with**,
+  above a character's views (the same choice as **Made with** › **Turns with:**), chooses
+  (Automatic, Qwen 2.1 + angles, or any edit model), for the episode; the button turns orange or red when that model isn't ready, and its tooltip
+  names the model it will use. A new candidate, not picked: the same character from another
+  side, rather than four views drawn apart.
 - **Make 360** (a place's row, under its plate) outpaints the plate into a 360 panorama.
   Open it to look around and save a view as a new angle of the place.
 - A character's sheet is stitched automatically once all four views are picked — or you
@@ -1005,7 +1023,8 @@ candidate and read the **drawn** row: `edited from Dana (three-quarter)`, or `fr
 
 ## Importing a series
 
-**Import series…** (in **Project folders**, beside New series/project… and New episode…) brings a
+**Import…** (in **Project folders**, beside New series/project… and New episode…) asks which:
+**An edit (FCP7 XML)…** (above: the wizard's From an edit), or a seriesmith series, which brings a
 whole season in at once:
 pick the scripts (`Files…`) or a folder of them (`Folder…`), with one series config for the
 lot or one per episode (a `series.json` beside a script, or named after it). Each script
@@ -1121,7 +1140,11 @@ Docked in the middle of the page: the selected shot's takes (step with `←` `�
 location's tour (keep any frame as a hold), and a 360 in its own viewer. Drag its tab out to
 float it, or dock another window beside it. **Click the picture** to play or pause it (as
 `Space` does): a take, two side by side (they play together), Play all, the gallery, a clip's
-Replace audio preview.
+Replace audio preview. **Scroll on the picture** to zoom in about the pointer (up to 10x),
+**drag** to look round while zoomed, and **double-click** for the whole picture again: a take
+or a ref's candidate in the viewer, Play all, the gallery's picture or shot. Two pictures side
+by side zoom together, so the same detail stays in both; a new take or picture starts whole,
+and Play all keeps its zoom from shot to shot.
 
 **Play all** has its own **Loop** (the cut starts over at the end; remembered).
 

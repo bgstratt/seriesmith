@@ -31,7 +31,7 @@ section and search for the path for its later additions.
 | `GET` / `PUT /seriesmith/config` | Config |
 | `POST /seriesmith/server/stop` | Config (standalone only) |
 | `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `GET /seriesmith/take`, `POST` / `GET /seriesmith/download`, `POST /seriesmith/build` | Episodes |
-| `GET` / `POST /seriesmith/episode/new`, `POST /seriesmith/import` | Episodes |
+| `GET` / `POST /seriesmith/episode/new`, `POST /seriesmith/import`, `POST /seriesmith/import/xml` | Episodes |
 | `GET` / `POST` / `DELETE /seriesmith/issues`, `GET /seriesmith/issues/export` | Issues |
 | `GET /seriesmith/file`, `GET /seriesmith/thumb` | Files |
 | `POST /seriesmith/render`, `POST /seriesmith/cancel` | Rendering |
@@ -329,6 +329,38 @@ folders out (`source.import_series`). Body `{"parent"` (a folder inside a root),
 from its header. Nothing is built. Returns `{"show",
 "episodes": [{"ep", "name", "own_config", "check"}], "skipped": [{"name", "why"}],
 "errors": [{"file", "error"}]}` and emits `seriesmith.episode` for each episode made.
+
+### `POST /seriesmith/import/xml`
+The new episode wizard's **From an edit (FCP7 XML)…** and `seriesmith import-xml`: an
+edit (xmeml, as Premiere, Resolve, Final Cut 7 and `assemble --xml` write it) into a new
+show and episode (`xmlimport.py`; the rules in IMPORT_XML.md). JSON `{"path"` (the XML's
+absolute path on this machine; its media is looked for where it says, else beside it)`}`,
+or multipart with `file` (the XML picked in the browser), plus `"parent"?` (the folder of
+shows the new show goes in, inside a root; default the first root), `"in_show"?` (true:
+`parent` is a show's folder and the edit its next episode, `ep03` after `ep02`, its series
+config the newest episode's at the edit's rate and size, on `hold`; the answer's `episode`,
+`in_show` and `from`, the episode copied), `"name"?` (the show's, or with `in_show` the
+episode's title; default the sequence's), `"media"?` (`"handles"`, the default: each clip's span plus
+`"handles"?` seconds, 1 by default, either side, H.264 at master quality; `"reference"`: each
+source whole, hard-linked where the volume allows else copied, never re-encoded;
+`"proxies"`: reference, with an H.264 proxy of each source the editor can't play, in
+`<ep>/_proxies/`, the take's sidecar recording the original as its `master`, which assemble
+cuts from) and `"dry_run"?` (true: nothing written). A form's fields arrive as text
+(`"dry_run": "true"`, `"handles": "0.5"`).
+
+Answers the summary: `{"sequence", "title", "show", "ep", "fps", "size", "media", "handles",
+"shots", "black"` (shots of black made for gaps)`, "takes"` (to make)`, "missing"` (shots
+whose file isn't there: no take)`, "sequences", "audio_items", "hits", "tracks"` (the mix's
+tracks with items)`, "proxies"` (shots whose take is a proxy)`, "unplayable"` (`reference`:
+shots whose take won't play in the editor)`, "clips": [{"shot", "name", "source", "dur",
+"trim_in", "trim_out", "missing", "codec", "proxy"?, "plays"?, "note"?}], "warnings"}` (what
+doesn't come through). Not a dry run, it also has `"build"` (as `POST /seriesmith/build`),
+`"groups": [{"index", "kind": "source" | "black", "source", "clips"}]` and `"jobs"`: the
+show is written and built before it answers, and each group (a source's clips, the gaps'
+black) is a job on the queue's `cpu` lane (kind `xmlmedia`, journaled like a master), its
+takes appearing as `seriesmith.take` events, `seriesmith.episode` as each ends. 400 for an
+XML that isn't xmeml or has no clips on V1, or an option that isn't one; 403 for a parent
+outside the roots; 404 for a path with no file; 409 when the show's folder is already there.
 
 ## Issues: a pass's notepad (P10, 2026-09-23)
 
@@ -1675,8 +1707,17 @@ Queues one candidate per call. It returns without waiting, like `/render`.
 **Turning a character's view (P5).** An edit can start from another of the same character's
 views and land on `view`: `edit.from_view`. Add `edit.turn: true` to draw the view by
 turning the camera round the figure:
-- It runs on Qwen-Image 2.1 with the Multiple-Angles LoRA (`refs.TURN_LORA` at 0.9).
-- The prompt is that view's `<mva> …` phrase (`refs.VIEW_TURNS`), sent as typed.
+- On Qwen-Image 2.1 (`target: "qwen_image_21"`) it runs with the Multiple-Angles LoRA
+  (`refs.TURN_LORA` at 0.9) and the prompt is that view's `<mva> …` phrase
+  (`refs.VIEW_TURNS`), sent as typed.
+- On any other edit target there is no LoRA, and the prompt is that view's plain-language
+  instruction (`refs.VIEW_TURNS_PROSE`: three-quarter turned toward the viewer's left, side
+  profile facing the viewer's right, back, face close-up), sent as typed.
+- With no `target`, the episode's Turn model (`turn_target`: the editor's Made with ›
+  Turns with, else the series config's `refs.turn_target`), else Qwen-Image 2.1 + the LoRA
+  when both are among ComfyUI's model lists (`refs.turn_ready`; when they can't be read,
+  assumed so), else the episode's Edits model (`edit_target`). The request's `target`
+  always wins; the editor's ↻ sends none.
 - The editor's ↻ on a view column turns it from the picked three-quarter view, else from
   the first picked view.
 - The LoRA renders a whole scene as a diorama, so turning is for characters, not plates.
@@ -2563,11 +2604,23 @@ here too) or **[settled]** (the contract left it open).
   `seriesmith/<sha1>.png`. A character with no picked view gets that panel cut out of its live
   sheet (`h3_refsheet.py`, PIL).
 - **[added] Image defaults.** `GET /seriesmith/refs` returns `{"refs": [...], "defaults":
-  {"target", "target_source", "keyframe_target", "keyframe_target_source"}}`, sources
-  `"editor"` | `"series"` | `"default"`. **`PUT /seriesmith/refs/defaults`** `{ep, target?,
-  keyframe_target?}` (null clears; a key left out is kept) stores `overrides.json`
-  `episode.refs_target` / `episode.keyframe_target` beside the video `episode.target` and
-  returns `{"defaults": ...}`; 400 for a non-image target or a body with neither key.
+  {"target", "target_source", "keyframe_target", "keyframe_target_source", "edit_target",
+  "edit_target_source"}}`, sources `"editor"` | `"series"` | `"default"`. **`PUT
+  /seriesmith/refs/defaults`** `{ep, target?, keyframe_target?, edit_target?, turn_target?}` (null clears;
+  a key left out is kept) stores `overrides.json` `episode.refs_target` /
+  `episode.keyframe_target` / `episode.edit_target` beside the video `episode.target` and
+  returns `{"defaults": ...}`; 400 for a non-image target, an `edit_target` that can't edit
+  a picture, or a body with none of the keys.
+- **[added 2026-11] The Edits model.** `edit_target` is the image target an edit of a
+  picture uses (Edit, Relight, a frame's cut-out, a Turn without Qwen 2.1 + angles): the
+  editor's episode choice, else the series config's `refs.edit_target` (an image target
+  with `mode: "edit"` and `max_refs` >= 1, else the series config is refused), else the
+  first of `keyframe_target` and `target` that can edit (`null` when neither can). An edit
+  with no `target` (`refs.edit_target_for`) takes the ref's own model if it can edit, then
+  `edit_target`, then the keyframe model, then the refs model. Promote moves an episode's
+  `edit_target` to `refs.edit_target`. `turn_target` (`turn_target_source`) is Turn's,
+  set the same ways (an image target that can edit; `null`: automatic); promote moves it
+  to `refs.turn_target`.
   Precedence: request, then the ref's override (`target` in `refs/_overrides.json`, now a
   `PUT /seriesmith/refs/override` field), then the episode's, then the series config's `refs`,
   then built-in. "Ready" for the built-in keyframe default means every required file of
