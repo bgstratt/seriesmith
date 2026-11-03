@@ -98,7 +98,8 @@ Which drafts you've enabled is kept in seriesmith's settings (`enabled_drafts`).
 ## In seriesmith's code
 
 A model that ships with seriesmith is a folder, `seriesmith/targets/<kind>/<id>/`, where
-`<kind>` is `video`, `image` or `audio`, and `<id>` is the name scripts and the API use
+`<kind>` is `video`, `image`, `audio` (a voice), `music` (cues and songs), `ambience`
+(a place's bed) or `foley` (a shot's effects), and `<id>` is the name scripts and the API use
 (`ltx2`, `seedance_2_5`). Its `target.json` has these parts:
 
 | Part | What it says |

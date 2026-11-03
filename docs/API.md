@@ -321,7 +321,7 @@ what makes the episode discoverable; a name that isn't a folder name, or is one
   `seriesmith new Shows\ep02 [--title "…"] [--series-id …]`.
 
 ### `POST /seriesmith/import`
-The editor's **Import series…**: a series config and a stack of scripts in, episode
+The editor's **Import…** › a seriesmith series: a series config and a stack of scripts in, episode
 folders out (`source.import_series`). Body `{"parent"` (a folder inside a root), `"show"?`
 (the show folder to make or fill inside it; without one the episodes go straight into
 `parent`), `"series"?` (the series config's text, for every script without its own),
@@ -2619,10 +2619,13 @@ here too) or **[settled]** (the contract left it open).
   sheet (`h3_refsheet.py`, PIL).
 - **[added] Image defaults.** `GET /seriesmith/refs` returns `{"refs": [...], "defaults":
   {"target", "target_source", "keyframe_target", "keyframe_target_source", "edit_target",
-  "edit_target_source"}}`, sources `"editor"` | `"series"` | `"default"`. **`PUT
-  /seriesmith/refs/defaults`** `{ep, target?, keyframe_target?, edit_target?, turn_target?}` (null clears;
-  a key left out is kept) stores `overrides.json` `episode.refs_target` /
-  `episode.keyframe_target` / `episode.edit_target` beside the video `episode.target` and
+  "edit_target_source", "turn_target", "turn_target_source", "ambience_target",
+  "ambience_target_source", ...}}` (the voice and dub defaults below), sources `"editor"` |
+  `"series"` | `"default"` (`ambience_target` is the series config's `refs.ambience_target`
+  or the default, never the editor's). **`PUT /seriesmith/refs/defaults`** `{ep, target?,
+  keyframe_target?, edit_target?, turn_target?}` (null clears; a key left out is kept)
+  stores `overrides.json` `episode.refs_target` / `episode.keyframe_target` /
+  `episode.edit_target` / `episode.turn_target` beside the video `episode.target` and
   returns `{"defaults": ...}`; 400 for a non-image target, an `edit_target` that can't edit
   a picture, or a body with none of the keys.
 - **[added 2026-11] The Edits model.** `edit_target` is the image target an edit of a

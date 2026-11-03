@@ -79,6 +79,9 @@ uses it.
 |---|---|---|
 | [ComfyUI-PlagueKind-Nodes](https://github.com/PlagueKind/ComfyUI-PlagueKind-Nodes) | `H3SLAAttention` (sparse attention the H3 turbo LoRAs were distilled against) | `minimax_h3_ref2va` and `minimax_h3_still`. Without the pack they render with the node spliced out, show as **degraded**, and the take notes it. The location tours (`seriesmith/workflows/h3_tour.json`) still need it |
 | [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo) | `LTXVAudioOnlyModel`, `LTXVAudioOnlyEmptyVideoLatent`; `LTXICLoRALoaderModelOnly`, `LTXAddVideoICLoRAGuide` | `ltx2_voice` (the default voice target); `ltx2` only for reference sheets |
+| [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo), as above | `GuiderParameters`, `MultimodalGuider`, `LTXVSetAudioVideoMaskByTime` | `ltx23_foley` (a shot's effects on LTX-2.3 Foley) |
+| [ComfyUI-MMAudio](https://github.com/kijai/ComfyUI-MMAudio) | `MMAudioModelLoader`, `MMAudioFeatureUtilsLoader`, `MMAudioSampler` | `mmaudio_ambience` (the default ambience target: a place's bed) |
+| [ComfyUI-HunyuanVideo-Foley](https://github.com/phazei/ComfyUI-HunyuanVideo-Foley) | `HunyuanModelLoader`, `HunyuanDependenciesLoader`, `HunyuanFoleySampler` | `hunyuan_xl_foley` (a shot's effects on HunyuanVideo-Foley XL) |
 | [Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler) | `MinimaxH3LatentUpscaler3D` | `seriesmith upscale` on H3 takes only — see **The upscaler**, below |
 | [comfyui-obvpm-timeline](https://github.com/chanon/comfyui-obvpm-timeline) | `H3ContextWindows` (H3 Context Windowing: sampling along time in overlapping windows) | an H3 upscale of a take longer than 5.5 s, so it fits a 32 GB card — see **The upscaler**. Its README also asks for [comfyui-obvpm](https://github.com/chanon/comfyui-obvpm); that's for its own timeline workflows, not this node |
 
@@ -93,12 +96,12 @@ Cloud's own nodes, leaving out what a model can do without ([docs/SETUP.md](docs
 |---|---|
 | `pip install faster-whisper numpy` | `seriesmith align` / the editor's Recording window: transcribe a dialogue recording and write `audio:` windows onto every shot |
 | `pip install nvidia-cublas-cu12`, in the same Python | Whisper on an NVIDIA card instead of the CPU (faster-whisper is built on CUDA 12 and brings no cuBLAS) |
-| `pip install demucs`, for the `python` first on **ComfyUI's** PATH | the `dub_keep_foley` audio policy (H3's foley kept under your own vocal): the saver node shells out to `python -m demucs` |
+| `pip install demucs`, in **ComfyUI's own** Python (the portable build's `python_embeded\python.exe -m pip install demucs`), and its htdemucs model downloaded in the Features window (**Keep H3's foley under your vocal**) | the `dub_keep_foley` audio policy (H3's foley kept under your own vocal): the saver node runs demucs on ComfyUI's own interpreter |
 | `pip install -e .[test]` | `python -m pytest`, the test suite (six workers in parallel) |
 | Node.js 20.19+ (or 22.12+) and `npm install` in `web/` | rebuilding the editor. Only if you change `web/`; the built pages are committed |
 | The Comfyui_Minimax_h3_latent_Upscaler node pack and its model (**The upscaler**, below) | `seriesmith upscale` and the editor's Upscale on H3 takes |
 | The comfyui-obvpm-timeline node pack (**The upscaler**) | upscaling H3 takes longer than 5.5 s without running out of memory |
-| Three LoRAs (**For the editor's 360s and turned views**, section 4) | the Refs tab's **Make 360** and a character's **Turn** |
+| Three LoRAs (**For the editor's 360s and turned views**, section 4) | the Refs tab's **Make 360**, and the best **Turn** of a character (Turn also runs on any edit model without its LoRA, told the turn in words) |
 
 **Which Python gets faster-whisper.** `align` runs as a subprocess, and seriesmith picks
 its interpreter, best first:
@@ -143,8 +146,9 @@ comfy-api-proxy**, or `"local_via": "proxy"` in the settings file
 ### The node pack
 
 `comfy_nodes/` is seriesmith's side of ComfyUI: the shot loader and saver, the
-`continuous: latent` chain, the upscale loaders and saver, and the upscale and post
-compute nodes. Everything seriesmith sends a backend runs on these; they never read or
+`continuous: latent` chain, the upscale loaders and saver, the upscale and post
+compute nodes, and two audio nodes (a song's vocal stem, and the mask that repaints a
+span of a music take). Everything seriesmith sends a backend runs on these; they never read or
 write an episode folder (files go up with each job and come back as its outputs).
 
 **From ComfyUI-Manager** (the usual way): **Manager → Custom Nodes Manager**, search for
@@ -1118,9 +1122,13 @@ for it. To force one, set `SERIESMITH_ALIGN_PYTHON` to that interpreter's full p
 environment `seriesmith serve` (or your shell) starts in, and restart it.
 
 **No foley bed on `dub_keep_foley` shots.**
-The saver node shells out to `python -m demucs`, so `demucs` has to be importable by
-the `python` first on ComfyUI's PATH — not necessarily ComfyUI's own interpreter. The
-take's status line says `demucs not installed - foley bed skipped`.
+The take's notes say which of two things is missing. `demucs not installed in ComfyUI's
+Python - foley bed skipped` (with the pip line for that interpreter): the saver node runs
+demucs on ComfyUI's own Python, so install it there (the portable build's
+`python_embeded\python.exe -m pip install demucs`), not in whichever `python` is first on
+PATH. `demucs's htdemucs model isn't downloaded - foley bed skipped`: download it in the
+Features window (**Keep H3's foley under your vocal**); demucs is never left to fetch it
+itself.
 
 **A workflow ComfyUI refuses.**
 seriesmith converts a canvas workflow to API format itself. If your graph uses something the
