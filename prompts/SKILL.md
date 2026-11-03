@@ -571,8 +571,11 @@ take says so.
 
 ### Writing the `design` sentence
 
-This is the highest-leverage sentence in the pipeline. It is injected verbatim into every
-prompt the character appears in, and the model sheet is generated from it.
+This is the highest-leverage sentence in the pipeline. The model sheet is generated from it,
+and a model that gets no picture of the character draws them from it alone. Where the sheet
+goes with the shot, H3 Ref2VA's prompt names the character by their picture and leaves the
+sentence out: the sheet already shows it, and wardrobe listed in words gets drawn whether the
+framing has room for it or not. Other models get the sentence beside the picture.
 
 Describe **what a model sheet artist could draw**. Age and build, silhouette, hair, wardrobe
 with specific colors, one or two distinctive accessories, line quality. Concrete nouns.

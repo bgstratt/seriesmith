@@ -133,10 +133,12 @@ def subject_defs(book: dict, subjects: list[str], subj: dict, pic: dict, unref: 
                 f"is ever drawn twice. Preserve the exact reference styling: "
                 f"{clause(e['design'])}.")
         elif e.get("kind", "character") == "character":
+            # The picture is the character: their design in words as well had H3
+            # draw what it lists whether the framing has room or not (a close-up
+            # on a gurney grew a second pair of legs in the jeans and bracelet the
+            # design named), and leaving it out lost nothing the sheet shows.
             picture = whole if int(e.get("sheet_panels") or 0) == 1 else ref_clause
-            defs.append(
-                f"{subj[s]} is {e['name']}, defined by {pic[s]} — {picture} "
-                f"Preserve the exact reference styling: {clause(e['design'])}.")
+            defs.append(f"{subj[s]} is {e['name']}, defined by {pic[s]} — {picture}")
         else:
             defs.append(
                 f"{subj[s]} is {e['name']}, defined by {pic[s]} — a single reference image "
@@ -339,8 +341,9 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
     # ---- summary ------------------------------------------------------------
     tasks = ["reference generation"] + (
         (["audio reuse"] if copying else ["audio reference"]) if shot.get("_audio_ref") else [])
-    beat = shot["action"][:220] or "A held moment in the scene."
-    summary = f"summary:\n[{' + '.join(tasks)}] {beat}"
+    # the action's first sentence, as a multishot's beats are: cut at a length
+    # it ended mid-word
+    summary = f"summary:\n[{' + '.join(tasks)}] {_beat(shot)}"
 
     # ---- retention_analysis -------------------------------------------------
     ret = ["retention_analysis:"]
