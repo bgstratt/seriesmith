@@ -25,6 +25,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
+if __name__ == "__main__":
+    # run as a script (--update): on the tests' empty settings, as pytest runs
+    # it, never this machine's (its own models could reach the snapshot)
+    import conftest  # noqa: E402,F401
 from seriesmith import jobs as J  # noqa: E402
 from test_render import build_episode  # noqa: E402
 
