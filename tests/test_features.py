@@ -326,6 +326,15 @@ class StatusTest(unittest.TestCase):
         self.assertEqual(FT.item_status(item, env), "missing")
 
 
+class PythonHasTest(unittest.TestCase):
+    def test_a_dotted_module_whose_parent_is_missing_is_not_installed(self):
+        # find_spec("nvidia.cublas") raises when "nvidia" isn't there: in ComfyUI's own
+        # Python (asked in-process) that broke the whole Features route
+        self.assertFalse(INS.python_has(sys.executable, "no_such_parent_pkg.child"))
+        self.assertTrue(INS.python_has(sys.executable, "json.decoder"))
+        self.assertFalse(INS.python_has(sys.executable, "no_such_module_at_all"))
+
+
 class ResolveTest(unittest.TestCase):
     def test_files_by_name_only_and_classes_to_their_pack(self):
         items, skipped = FT.resolve(files=["minimax_h3_video_vae_fp16.safetensors", "made_up.bin"],

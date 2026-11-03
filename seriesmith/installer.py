@@ -487,7 +487,12 @@ def python_has(python: str | None, module: str) -> bool | None:
         return None
     if os.path.normcase(os.path.abspath(python)) == os.path.normcase(os.path.abspath(sys.executable)):
         import importlib.util
-        return importlib.util.find_spec(module) is not None
+        try:
+            return importlib.util.find_spec(module) is not None
+        except (ImportError, ValueError):
+            # a dotted name whose parent isn't there ("nvidia.cublas" without "nvidia")
+            # raises rather than answering None
+            return False
     key = (python, module)
     hit = _PY_HAS.get(key)
     if hit and time.monotonic() - hit[1] < 60:
