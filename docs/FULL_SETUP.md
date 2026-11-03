@@ -301,8 +301,10 @@ their own words. The voice comes out close, not identical: listen before you pic
   card, `pip install nvidia-cublas-cu12` there too: faster-whisper is built on CUDA 12 and
   doesn't bring its cuBLAS (ComfyUI's PyTorch has CUDA 13's), so without it Whisper runs on
   the CPU, minutes instead of seconds.
-- `pip install demucs`, in the `python` first on ComfyUI's PATH, for the
-  `dub_keep_foley` audio policy. It strips H3's own vocal and keeps the foley under yours.
+- `pip install demucs`, in ComfyUI's own Python (the portable build's
+  `python_embeded\python.exe -m pip install demucs`), for the `dub_keep_foley` audio
+  policy. It strips H3's own vocal and keeps the foley under yours; its model (htdemucs)
+  downloads itself the first time it runs.
 - The **vocal stem** of a song (optional: `align --vocals`, and dub shots that hear the
   singing alone) is made on your ComfyUI by seriesmith's own node pack with torchaudio,
   which ComfyUI already has: nothing to install. Its weights (`hdemucs_high_trained.pt`,

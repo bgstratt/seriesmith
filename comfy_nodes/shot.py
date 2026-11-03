@@ -605,11 +605,14 @@ class SeriesmithSaveTake:
 
     @staticmethod
     def _strip_vocals(wav_path: str, out_path: str) -> str:
-        """Demucs the H3 mix and keep everything except the vocal stem."""
+        """Demucs the H3 mix and keep everything except the vocal stem. It runs in
+        ComfyUI's own Python (sys.executable), where the Features window says demucs
+        goes; a bare "python" was whatever came first on PATH."""
+        import sys
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 subprocess.run(
-                    ["python", "-m", "demucs", "--two-stems", "vocals",
+                    [sys.executable, "-m", "demucs", "--two-stems", "vocals",
                      "-o", tmp, wav_path],
                     check=True, capture_output=True, timeout=600,
                 )
@@ -623,7 +626,11 @@ class SeriesmithSaveTake:
         except FileNotFoundError:
             return "demucs not installed - foley bed skipped (pip install demucs)"
         except subprocess.CalledProcessError as exc:
-            return f"demucs failed: {exc.stderr.decode('utf-8', 'replace')[:160]}"
+            err = exc.stderr.decode("utf-8", "replace")
+            if "No module named demucs" in err:
+                return (f"demucs not installed in ComfyUI's Python - foley bed skipped "
+                        f"(\"{sys.executable}\" -m pip install demucs)")
+            return f"demucs failed: {err[:160]}"
         except subprocess.TimeoutExpired:
             return "demucs timed out - foley bed skipped"
 
