@@ -114,7 +114,12 @@ def stage(name: str, ep: str, extra: list[str], skip_build: bool = False) -> int
         series_cfg, md = episode_files(ep)
         base = [series_cfg, md]
         if name == "check":
-            return call("check", _check, base + ["--check"]) or call("check", _check, base + ["--pace"])
+            rc = call("check", _check, base + ["--check"]) or call("check", _check, base + ["--pace"])
+            # the plates' pictures, which build (standard library only) can't open
+            from seriesmith import refs
+            for w in refs.letterboxed_plates(ep):
+                print(f"    ! {w}")
+            return rc
         rest = [a for a in extra if a != "--proxy"]
         return (call("build", _build, base + ["-o", ep] + rest)
                 or call("build", _build, base + ["-o", ep, "--proxy"] + rest))

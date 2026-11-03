@@ -91,10 +91,12 @@ class EpisodeTest(unittest.TestCase):
         return J._prompt_text(job.prompt)
 
     def test_the_prose(self):
-        hosted, local = self.prompt("seedance_2_5"), self.prompt(None)    # None: its own, local
+        hosted, local = self.prompt("seedance_2_5"), self.prompt("ltx2")
         self.assertFalse([w for w in BODY if w in hosted.lower()], hosted)
         self.assertIn("a mustard apron over a striped shirt", hosted)
         self.assertIn("large breasts", local)                               # as written
+        # H3 (the shot's own, local) names her by her picture: no design to moderate
+        self.assertNotIn("mustard apron", self.prompt(None))
 
     def test_a_reference_pictures_prompt(self):
         s = R.load_series(self.root)

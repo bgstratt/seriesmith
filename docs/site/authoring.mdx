@@ -101,7 +101,7 @@ sound: a metal hook ringing, the soft pop of a flame going out
 who: ada
 size: close
 dur: auto
-Ada grins and pulls her hood up.
+Ada grins and pulls her hood up, her eyes out over the lawn, off to frame left, not on the camera.
 camera: pushes in with small amplitude at slow speed
 ADA: It rained all night and nobody saw it but me.
 sound: rustling raincoat, dripping water, distant birds
@@ -551,8 +551,11 @@ take says so.
 
 ### Writing the `design` sentence
 
-This is the highest-leverage sentence in the pipeline. It is injected verbatim into every
-prompt the character appears in, and the model sheet is generated from it.
+This is the highest-leverage sentence in the pipeline. The model sheet is generated from it,
+and a model that gets no picture of the character draws them from it alone. Where the sheet
+goes with the shot, H3 Ref2VA's prompt names the character by their picture and leaves the
+sentence out: the sheet already shows it, and wardrobe listed in words gets drawn whether the
+framing has room for it or not. Other models get the sentence beside the picture.
 
 Describe **what a model sheet artist could draw**. Age and build, silhouette, hair, wardrobe
 with specific colors, one or two distinctive accessories, line quality. Concrete nouns.
@@ -608,6 +611,14 @@ windows, candles and lamps go in each location's description, where the shots th
 read them. `seriesmith check` warns when a look (the series' or a profile's) names a light
 source. (`style.look_parts` is the editor's look builder's own record; only `style.look`
 reaches a prompt.)
+
+**A series with day exteriors keeps the light's level out of the look too.** "Low-key" and
+"pools of light" ask every shot for night. Under a look of "low-key light motivated by the
+practical lamps, windows, screens and signs in each place", an H3 shot on a sunlit morning
+parking-lot plate came out at dusk, string lights and all, on every take. For a show that
+goes outdoors in daylight, say only how the light behaves ("natural motivated light with
+soft contrast, deep soft shadows") and let each location say day or night (**Time of day is
+part of the location**).
 
 Each clause is something the model can see: shallow focus and bokeh separate the subject
 from the room and soften what the model draws worst, low-key practical light gives the frame
@@ -736,20 +747,34 @@ who: skye
 plate: cafe_couch_on_skye
 size: close
 dur: 2.33
-Skye watches him over the rim of her cup, her eyes off to frame right where he sits.
+Skye looks up over the rim of her cup, her eyes off to frame right, not on the camera.
 SKYE: You're early.
 ```
 
 **Keep them on one side of the line.** Decide who sits on which side and keep it: if Skye is
 on the left of the two-shot, she stays screen-left in her single and looks off to frame
 right, and Walter looks off to frame left. Write that into the **action** line — *"her eyes
-off to frame right where he sits"*, *"he answers without looking up, his eyes down and to
+off to frame right, not on the camera"*, *"he answers without looking up, his eyes down and to
 frame left"*. There is no field for it; the action sentence reaches every target's prompt and
 is where a real script would put it anyway. Without it a model does what it was trained to do
 and talks to the camera.
 
 The same applies to a character alone in a room who is meant to be aware of someone off
-screen: say where they are looking, and say that it is not at the camera.
+screen: say where they are looking, and say that it is not at the camera. `seriesmith check`
+warns about a single whose one person speaks and whose action never says where they look.
+
+**An eyeline is a direction, never a person.** In a single, the one being spoken to isn't in
+the shot, so don't name them in it: write where the eyes go, "looking off to frame left, not
+at the camera", not "looking off to frame left at Junior", "at him" or even "at Junior, who
+is out of frame". The model draws whoever the words mention, wherever the sentence puts them.
+The same goes for anyone the action reaches toward or stages ("holds up a hand to stop her at
+the foot of the steps", "slides the folder toward him") or puts where the frame can see in
+passing ("her shoulder soft in the foreground", "past her"): say the gesture and its
+direction ("holds up a flat hand off to frame right"). In one H3 test, a single of Earl,
+"looking off to frame right down at her", with no one else in `who:`, got an invented girl
+in a plaid bow. Who they're looking at is the cut's job: the reverse shot shows them. If the
+shot really does hold both people, put both in `who:` (an over-the-shoulder is `size: ots`),
+and then naming them is right.
 
 ### A wardrobe change is a new subject
 
@@ -1537,8 +1562,14 @@ gone unless this shot says it again.
 - **Settle carried props.** If a character's `design` has a bag on the arm and the shot seats
   them, set the bag down in the action ("her handbag set beside the ledger"), or H3 draws a
   second, standing copy of them to carry it.
-- **Write to the plate's angle.** A plate shot from the visitors' side sees the back of the
-  monitor; if the screen matters, have someone turn it.
+- **The plate is where the camera stands.** The model keeps the plate's point of view and
+  puts the people into it; it doesn't move the camera. A shot that faces someone needs a
+  plate seen from the camera's side of them. A plate looking forward out through a truck's
+  windshield sees the road, not the driver's face. In one H3 test, a shot asking for the
+  driver's face on that plate failed on eight takes of ten, whatever the prompt said. Pick
+  the angle whose camera is where this shot's is, or author one (**A location is one angle,
+  not one place**). The same holds for things: a plate shot from the visitors' side sees the
+  back of the monitor; if the screen matters, have someone turn it.
 - **One or two physical steps per shot.** Crossing a lot, climbing steps and knocking is three
   shots, not one 4-second shot; crammed motion smears into interlace-like lines. Start the shot
   where its plate is.
@@ -1560,6 +1591,11 @@ speeds up when it should stop, and smears.
   door already opening.
 - **Parking is its own beat**, and the shot starts with the vehicle already slowing. Say where
   it stops, so the next shot can pick up from there.
+- **Inside, a cab is a location with angles.** Its plate decides which way everyone faces, so
+  give it one per kind of shot: the driver from the passenger seat (his window and the
+  ridges sliding past behind him), the windshield from outside on the hood (both front seats
+  facing camera), the back seat looking forward (both heads, the road ahead). The view
+  forward out of the windshield is for a POV or a shot from behind, never a face.
 
 Reserve `camera: holds a static shot` for reactions where stillness is the point. On a wide
 you have just cut to, a slow push gives the space depth, and costs nothing extra.

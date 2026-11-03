@@ -197,6 +197,7 @@ def story_warnings(story: ir.Episode, series_cfg: dict | None = None) -> list[st
                 f"the cut reads as a single camera rather than a reverse angle. Give the "
                 f"location an angle per speaker and name it with `plate:`.")
     out += jump_cuts(story, person, name)
+    out += no_eyeline(story, person)
     # the old forms of `continuous:` (docs/CONTINUOUS.md), read as the new ones
     for sq in story.sequences:
         out += list(getattr(sq, "legacy", None) or [])
@@ -287,6 +288,35 @@ def jump_cuts(story: ir.Episode, person, name) -> list[str]:
                 f"by two or more steps, give {b.id} another `plate:`, or put a cutaway between "
                 f"them (docs/AUTHORING.md, \"Cutting within a location\").")
     return out
+
+
+# Words that say where someone is looking: "off to frame left", "her eyes
+# down", "looks up at", "watches", "not at the camera".
+EYELINE = re.compile(
+    r"\b(off (?:to )?frame|frame (?:left|right)|eyes?|look(?:s|ing|ed)?|gaz(?:e|es|ing)|"
+    r"glanc(?:e|es|ing)|watch(?:es|ing)?|star(?:e|es|ing)|camera)\b", re.I)
+
+
+def no_eyeline(story: ir.Episode, person) -> list[str]:
+    """Singles where the one person in frame speaks and the action never says
+    where they look: without it a model does what it was trained to do and
+    talks to the camera (docs/AUTHORING.md, "Keep them on one side of the
+    line"). One warning naming every such shot."""
+    bare = []
+    for sq in story.sequences:
+        for sh in sq.shots:
+            if len(sh.cast) != 1 or sh.size == "pov":
+                continue
+            speaks = any(ln.mode == "on" and person(ln.speaker) == person(sh.cast[0])
+                         for ln in sh.dialogue)
+            if speaks and not EYELINE.search(sh.action or ""):
+                bare.append(sh.id)
+    if not bare:
+        return []
+    return [f"{', '.join(bare)}: one person speaks on screen and the action doesn't say where "
+            f"they look, so the model has them talk to the camera. Say it in the action "
+            f"(\"his eyes off to frame left, not at the camera\") "
+            f"(docs/AUTHORING.md, \"Keep them on one side of the line\")."]
 
 
 # ---------------------------------------------------------------------------

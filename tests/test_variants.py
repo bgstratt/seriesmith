@@ -541,7 +541,8 @@ class BuiltShotTest(unittest.TestCase):
         defs, _summary, ret, desc, _sound, _music = self.built["prompt"]
         self.assertEqual(self.built["subjects"], ["ada_wet"])
         self.assertIn("<Subject 1> is Ada, defined by <Picture 1>", defs)
-        self.assertIn("soaked through and clinging", defs)
+        # the variant's own picture shows it soaked: its design isn't repeated in words
+        self.assertNotIn("soaked through and clinging", defs)
         self.assertIn("<Subject 1> (appears in [Shot 1]): fully_preserved", ret)
         # the line is the variant's own, not an invented off-screen voice
         self.assertIn("<Subject 1> (S1), flat, says,", desc)

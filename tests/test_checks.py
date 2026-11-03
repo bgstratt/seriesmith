@@ -212,5 +212,33 @@ class LookLightSourcesTest(unittest.TestCase):
             "shadow; a muted, desaturated grade with lifted blacks"))), [])
 
 
+class NoEyelineTest(unittest.TestCase):
+    """A single whose one person speaks, and whose action never says where they
+    look: they talk to the camera."""
+
+    def warn(self, action: str, who: str = "ada", line: str = "ADA: Well.") -> list[str]:
+        c = series_config_from(cfg())
+        st = story(f"= ep01 T\n\n# sq01 kitchen\n\n## sh010\nwho: {who}\ndur: 3\n{action}\n"
+                   f"{line}\n", c)
+        return [w for w in B.story_warnings(st, c) if "where they look" in w]
+
+    def test_no_eyeline_warns(self):
+        w = self.warn("Seated at the table, Ada sets down her cup.")
+        self.assertEqual(len(w), 1)
+        self.assertTrue(w[0].startswith("sh010: "), w[0])
+        self.assertIn("Keep them on one side of the line", w[0])
+
+    def test_an_eyeline_is_quiet(self):
+        for action in ("Ada sets down her cup, her eyes off to frame left.",
+                       "Ada glances at the door.",
+                       "Ada sets down her cup, not at the camera."):
+            self.assertEqual(self.warn(action), [], action)
+
+    def test_only_singles_where_they_speak(self):
+        self.assertEqual(self.warn("They set down their cups.", who="ada, bo"), [])   # two-shot
+        self.assertEqual(self.warn("Ada sets down her cup.", line="BO (O.S.): Well."), [])
+        self.assertEqual(self.warn("Ada sets down her cup.", line="ADA (V.O.): Well."), [])
+
+
 if __name__ == "__main__":
     unittest.main()

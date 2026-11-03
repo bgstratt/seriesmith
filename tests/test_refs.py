@@ -687,5 +687,55 @@ class ImageSizeTest(unittest.TestCase):
             self.assertIsNone(R.image_size(p))
 
 
+def _barred(path: str, w=640, h=360, top=46, side=0) -> str:
+    """A grey picture with black bars `top` rows deep top and bottom, `side` wide
+    left and right."""
+    from PIL import Image, ImageDraw
+    im = Image.new("RGB", (w, h), (120, 110, 100))
+    d = ImageDraw.Draw(im)
+    if top:
+        d.rectangle((0, 0, w, top - 1), fill=(0, 0, 0))
+        d.rectangle((0, h - top, w, h), fill=(0, 0, 0))
+    if side:
+        d.rectangle((0, 0, side - 1, h), fill=(0, 0, 0))
+        d.rectangle((w - side, 0, w, h), fill=(0, 0, 0))
+    im.save(path)
+    return path
+
+
+class BlackBarsTest(unittest.TestCase):
+    """A plate with black bars baked in, which every shot on it keeps."""
+
+    def test_bars(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "p.png")
+            self.assertEqual(R.black_bars(_barred(p)), "top and bottom")
+            self.assertEqual(R.black_bars(_barred(p, top=0, side=80)), "left and right")
+            self.assertIsNone(R.black_bars(_barred(p, top=0)))
+            self.assertIsNone(R.black_bars(_barred(p, top=6)))          # a hairline, not bars
+            # a dark floor along the bottom only is a night scene, not a letterbox
+            from PIL import Image, ImageDraw
+            im = Image.new("RGB", (640, 360), (120, 110, 100))
+            ImageDraw.Draw(im).rectangle((0, 300, 640, 360), fill=(0, 0, 0))
+            im.save(p)
+            self.assertIsNone(R.black_bars(p))
+            self.assertIsNone(R.black_bars(os.path.join(d, "missing.png")))
+
+
+class LetterboxedPlatesTest(RefsTest):
+    def test_a_used_plate_with_bars_warns_naming_its_shots(self):
+        self.assertEqual(R.letterboxed_plates(self.ep), [])
+        uses = R.used_by(self.s, [r for r in R.series_refs(self.s) if r.kind == "location"])
+        rid = next(r for r, by in uses.items() if by["final"])
+        ref = self.ref(rid)
+        os.makedirs(os.path.dirname(ref.file), exist_ok=True)
+        _barred(ref.file)
+        w = R.letterboxed_plates(self.ep)
+        self.assertEqual(len(w), 1)
+        self.assertIn(f"{rid}'s plate", w[0])
+        self.assertIn("top and bottom", w[0])
+        self.assertIn(uses[rid]["final"][0], w[0])
+
+
 if __name__ == "__main__":
     unittest.main()

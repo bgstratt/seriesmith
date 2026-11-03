@@ -37,7 +37,13 @@ import unittest
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
-ROOTS = [(os.path.join(HERE, "fixtures"), os.path.join(HERE, "golden")),
+if __name__ == "__main__":
+    # run as a script (--update): on the tests' empty settings, as pytest runs
+    # it, never this machine's (its own models turned up in a golden, 2026-11-03)
+    sys.path.insert(0, HERE)
+    import conftest  # noqa: E402,F401
+
+ROOTS =[(os.path.join(HERE, "fixtures"), os.path.join(HERE, "golden")),
          (os.path.join(HERE, "local", "fixtures"), os.path.join(HERE, "local", "golden"))]
 ERRORS = os.path.join(HERE, "fixtures", "errors")
 ERROR_SERIES_CFG = os.path.join(HERE, "fixtures", "kitchen_sink", "series.json")
