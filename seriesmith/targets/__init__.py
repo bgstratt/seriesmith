@@ -715,6 +715,17 @@ class Target:
                 if not k.startswith("_") and isinstance(v, dict)}
 
     @property
+    def fetches(self) -> dict[str, dict]:
+        """target.json `fetches`: what the target's node pack downloads by
+        itself the first time it runs, recorded so the Features window
+        downloads it instead and readiness holds the target back until it's
+        there (seriesmith.hubcache): {Hugging Face repo: {"into": "hf" (its
+        cache) | a models folder (the repo's files in <folder>/<repo>/),
+        "files": [the patterns it reads], "extra"?: [more to fetch]}}."""
+        return {k: dict(v) for k, v in (self.spec.get("fetches") or {}).items()
+                if not k.startswith("_") and isinstance(v, dict) and v.get("into")}
+
+    @property
     def nodes(self) -> dict[str, dict]:
         """Node classes the target needs beyond its workflow's own (target.json
         `nodes`): {class: {"tier": "required" | "optional", "feature"}}. A list

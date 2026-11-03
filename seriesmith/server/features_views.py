@@ -114,7 +114,8 @@ def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tup
         p, env = here(ctx)
         items, skipped = FT.resolve(body.get("features") or [], body.get("files") or [],
                                     body.get("classes") or [], env=env)
-        if items and p.why_not and any(i.kind == "model" for i in items):
+        if items and p.why_not and any(i.kind == "model" or (i.kind == "hub" and i.folder not in
+                                                             ("hf", "torch")) for i in items):
             return 409, {"error": p.why_not, "skipped": skipped}
         return 200, {"job": installer.start(items) if items else installer.state(),
                      "queued": [i.key for i in items], "skipped": skipped}

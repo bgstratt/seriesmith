@@ -1,7 +1,10 @@
 """
 installer — puts in what the Features window asks for (seriesmith.features):
 model files downloaded into ComfyUI's models folders, a full ffmpeg build,
-seriesmith's own node pack linked from this repo. One item at a time, on a
+seriesmith's own node pack linked from this repo, and what a package would
+otherwise fetch by itself (hub items: a Hugging Face repo's files into its
+cache or a models folder, a file into torch's hub cache: seriesmith.hubcache,
+fetched file by file through download() below). One item at a time, on a
 thread of its own; `state()` says how far it has got, for the window to poll.
 Other node packs and Python packages it never installs (the Comfy Registry's
 rules): the window says how (features.how).
@@ -263,11 +266,13 @@ class Installer:
     Hugging Face token at the moment it's needed (the settings can change)."""
 
     def __init__(self, place: Callable[[], Place], token: Callable[[], str | None] = lambda: None,
-                 runner=run, downloader=download, on_change: Callable[[], None] | None = None):
+                 runner=run, downloader=download, on_change: Callable[[], None] | None = None,
+                 listing=None):
         self._place = place
         self._token = token
         self._run = runner
         self._download = downloader
+        self._listing = listing             # a repo's files (hubcache.repo_listing; tests)
         self._on_change = on_change
         self._lock = threading.Lock()
         self._tasks: list[dict] = []
@@ -368,6 +373,8 @@ class Installer:
             return self._link(item, place)
         if item.kind == "ffmpeg":
             return self._ffmpeg(item)
+        if item.kind == "hub":
+            return self._hub(item, place)
         raise InstallError(f"can't install a {item.kind}")
 
     def _progress(self, key):
@@ -391,6 +398,30 @@ class Installer:
             return "already there"
         self._download(item.url, dest, self._token(), self._progress(item.key), lambda: self._cancel)
         return f"saved in {d}"
+
+    def _hub(self, item: FT.Item, place: Place) -> str | None:
+        """A hub item into the place its package reads it from (hubcache):
+        Hugging Face's cache, torch's hub folder, or a models folder."""
+        from seriesmith import hubcache as HC
+        if HC.present(item, place.models_dir if place.root() else None):
+            return "already there"
+        progress, cancelled = self._progress(item.key), lambda: self._cancel
+        if item.folder == "torch":
+            dest = HC.path_of(item)
+            self._download(item.url, dest, None, progress, cancelled)
+            return f"saved in {os.path.dirname(dest)}"
+        into = None
+        if item.folder != "hf":
+            d = place.models_dir(item.folder) if place.root() else None
+            if not d:
+                raise InstallError(place.why_not or "ComfyUI's models folders aren't known here")
+            into = os.path.join(d, *item.name.split("/"))
+        try:
+            got = HC.fetch_repo(item, into, self._download, self._token(), progress, cancelled,
+                                **({"listing": self._listing} if self._listing else {}))
+        except (ValueError, OSError) as e:
+            raise InstallError(f"{item.name}: {e}") from None
+        return f"saved in {got}"
 
     def _link(self, item: FT.Item, place: Place) -> str | None:
         """seriesmith's own node pack: <custom_nodes>/seriesmith made a link to
@@ -475,7 +506,9 @@ def python_has(python: str | None, module: str) -> bool | None:
 def env_for(place: Place, readiness: dict, object_info: dict | None,
             api_key_set: bool | None = None) -> FT.Env:
     from seriesmith import ff as FF
+    from seriesmith import hubcache as HC
     return FT.Env(
+        hub_has=lambda item: HC.present(item, place.models_dir if place.root() else None),
         model_exists=place.find,
         node_classes=set(object_info) if object_info is not None else None,
         pack_dirs=place.pack_dirs(),

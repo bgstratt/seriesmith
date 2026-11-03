@@ -713,6 +713,19 @@ no other node pack; the default models are the ones installed.
       gated (all of LTX-2.5, all of Black Forest Labs'). Tried for real into a
       scratch ComfyUI folder: RAFT downloaded, PlagueKind cloned (restart),
       gyan.dev's ffmpeg 9.0.2 downloaded and used first.
+- [x] Nothing downloads behind a job's back (2026-11-02): what a package would
+      fetch by itself the first time it runs is a Features line (kind `hub`,
+      `seriesmith/hubcache.py`) downloaded where that package looks, and the job
+      refuses until it's there. faster-whisper's models (the Hugging Face cache;
+      align reads them with local_files_only, 409 / exit naming the Features
+      line), demucs's htdemucs (torch's hub cache; the foley strip skipped with a
+      note, demucs run offline for the Hub), the vocal stem's Hybrid Demucs
+      (models/demucs or torchaudio's own copy, never the bundle's download),
+      ComfyUI-MMAudio's BigVGAN (two files into models/mmaudio/nvidia, not its
+      4 GB snapshot) and HunyuanVideo-Foley's SigLIP2 and CLAP (target.json
+      `fetches`: readiness not_ready, a bed or effects take refused on this
+      machine's ComfyUI). The Hub's files fetched one by one through the
+      installer's download (stdlib; huggingface_hub's own layout, refs/main last).
 - [x] MOSS-Image as two image targets (2026-10-18): `moss_image_sft` (the one
       to draw with; default_rank 55, after FLUX.3 Klein) and `moss_image_base`
       (for LoRAs trained on the base; never a default by itself). ComfyUI 0.41's

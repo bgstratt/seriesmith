@@ -7,7 +7,7 @@
   "code": "prompt.py",
 
   "capabilities": {
-    "_note": "Video to sound: Tencent's HunyuanVideo-Foley, the XL model, through phazei's ComfyUI-HunyuanVideo-Foley. Measured 2026-11-01 (docs/SOUND.md 'Models', Foley): it hit the marks, a close second to the LTX-2.3 Foley LoRA by ear; 68-125 s a shot (50 steps). Tencent's HunyuanVideo-Foley community licence: it doesn't apply in some territories (read it) and claims no rights in the outputs. The pack fetches SigLIP2 and CLAP into the Hugging Face cache on first use.",
+    "_note": "Video to sound: Tencent's HunyuanVideo-Foley, the XL model, through phazei's ComfyUI-HunyuanVideo-Foley. Measured 2026-11-01 (docs/SOUND.md 'Models', Foley): it hit the marks, a close second to the LTX-2.3 Foley LoRA by ear; 68-125 s a shot (50 steps). Tencent's HunyuanVideo-Foley community licence: it doesn't apply in some territories (read it) and claims no rights in the outputs. SigLIP2 and CLAP are read from the Hugging Face cache (`fetches`: downloaded in Features, never by the pack).",
     "mode": "v2a"
   },
 
@@ -52,6 +52,29 @@
       "synchformer": "synchformer_state_dict_fp16.safetensors",
       "steps": 50, "cfg": 4.5, "width": 512, "height": 0,
       "negative": "music, speech, talking, voices, singing, noisy, harsh"
+    }
+  },
+
+  "fetches": {
+    "_note": "ComfyUI-HunyuanVideo-Foley's HunyuanDependenciesLoader loads SigLIP2 and CLAP with transformers' from_pretrained: from the Hugging Face cache when they're there, else downloaded then and there. The Features window downloads them instead, and the target isn't ready without them (seriesmith/hubcache.py). The files are what from_pretrained reads: SigLIP2's model (its pictures are prepared by torchvision, not its processor), CLAP's tokenizer and text model.",
+    "google/siglip2-base-patch16-512": {
+      "into": "hf",
+      "files": [
+        "config.json",
+        "model.safetensors"
+      ]
+    },
+    "laion/larger_clap_general": {
+      "into": "hf",
+      "files": [
+        "config.json",
+        "pytorch_model.bin",
+        "tokenizer_config.json",
+        "tokenizer.json",
+        "vocab.json",
+        "merges.txt",
+        "special_tokens_map.json"
+      ]
     }
   },
 

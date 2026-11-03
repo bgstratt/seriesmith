@@ -15,6 +15,14 @@ A feature is a few items, each of one kind:
     ffmpeg  a full ffmpeg build, downloaded into seriesmith's folder (seriesmith.ff)
     key     an account's key, not a file: the Comfy API key the hosted models
             (Comfy Router), Comfy Cloud and deployments run on, set in Settings
+    hub     what a package would otherwise fetch by itself the first time a job
+            runs (seriesmith.hubcache): a Hugging Face repo's files into its
+            cache (faster-whisper's models, HunyuanVideo-Foley's SigLIP2 and
+            CLAP) or into a models folder (ComfyUI-MMAudio's BigVGAN), or a file
+            into torch's hub cache (demucs's htdemucs). Downloaded here, where
+            that package looks; the job that needs one refuses until it's there,
+            so nothing downloads behind its back. A target's are its target.json
+            `fetches`; the rest are constants beside the code that reads them
 
 A pack, a pip package or a key is put in by you, not by seriesmith
 (`Item.manual`): the Comfy Registry's rules let a node pack neither install
@@ -125,17 +133,25 @@ CORE_CLASSES = frozenset({
 
 @dataclass
 class Item:
-    kind: str                      # model | pack | link | pip | ffmpeg | key
+    kind: str                      # model | pack | link | pip | ffmpeg | key | hub
     name: str                      # the file, the pack's folder, the pip spec, "ffmpeg",
-                                   # the key's setting ("api_key")
-    folder: str = ""               # model: its models folder
-    url: str = ""                  # model: its download; pack: its repo
+                                   # the key's setting ("api_key"); hub: the Hugging Face
+                                   # repo, or the file's path in torch's hub folder
+    folder: str = ""               # model: its models folder; hub: "hf", "torch" or a
+                                   # models folder (hubcache)
+    url: str = ""                  # model: its download; pack: its repo; hub: the repo's
+                                   # page or the file's download
     target: str = ""               # model: the target that names it (status from readiness)
     where: str = "comfyui"         # pip: which Python: "comfyui", "seriesmith", or "align"
                                    # (the one align runs on: track.align_python)
     module: str = ""               # pip: the module that says it's installed
     pip_args: tuple = ()           # pip: extra arguments (an index URL)
     classes: tuple = ()            # pack: the node classes it loads
+    files: tuple = ()              # hub (a repo): the files it must have (patterns)
+    extra: tuple = ()              # hub (a repo): more fetched with them, not required
+    label: str = ""                # hub: what it is, in words
+    alt: str = ""                  # model: the same file in torch's hub folder (its path
+                                   # there), which counts as installed too
 
     @property
     def key(self) -> str:
@@ -156,9 +172,13 @@ class Item:
         d = {"key": self.key, "kind": self.kind, "name": self.name}
         if self.manual:
             d["manual"] = True
-        for k in ("folder", "url", "target", "module"):
+        for k in ("folder", "url", "target", "module", "label"):
             if getattr(self, k):
                 d[k] = getattr(self, k)
+        if self.kind == "hub":
+            from seriesmith import hubcache as HC
+            d["into"] = HC.where_text(self)
+            d.pop("folder", None)              # not a models folder, or said in `into`
         if self.kind == "pip":
             d["where"] = self.where
         if self.gated:
@@ -225,7 +245,46 @@ def _target_items(tid: str) -> list[Item]:
             continue
         seen.add(base)
         out.append(Item("model", base, folder=d["folder"], url=d.get("url") or "", target=tid))
+    return out + fetch_items(t)
+
+
+def fetch_items(target) -> list[Item]:
+    """What a target's node pack would fetch by itself (target.json
+    `fetches`), as hub items: downloaded in Features, and readiness holds the
+    target back until they're there."""
+    from seriesmith import hubcache as HC
+    out = []
+    for repo, f in getattr(target, "fetches", {}).items():
+        out.append(Item("hub", repo, folder=f["into"], url=f"{HC.HF}/{repo}",
+                        files=tuple(f.get("files") or ()), extra=tuple(f.get("extra") or ()),
+                        label=f.get("label") or ""))
     return out
+
+
+def whisper_item(model: str) -> Item:
+    """A faster-whisper model align transcribes with, in the Hugging Face
+    cache where faster-whisper looks (track.WHISPER_REPOS)."""
+    from seriesmith import hubcache as HC
+    from seriesmith import track as K
+    repo = K.WHISPER_REPOS[model]
+    return Item("hub", repo, folder="hf", url=f"{HC.HF}/{repo}", files=K.WHISPER_FILES,
+                extra=K.WHISPER_EXTRA, label=f"Whisper {model} (faster-whisper)")
+
+
+def nodes_hub():
+    """comfy_nodes/_hub.py (what the node pack reads from torch's hub cache),
+    loaded by its path: the node pack isn't a package seriesmith imports."""
+    import importlib.util
+    import sys
+    name = "seriesmith_nodes_hub"
+    if name not in sys.modules:
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "comfy_nodes", "_hub.py")
+        spec = importlib.util.spec_from_file_location(name, path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        sys.modules[name] = mod
+    return sys.modules[name]
 
 
 def _optional_items(tid: str, param: str) -> list[Item]:
@@ -303,7 +362,9 @@ def catalog() -> list[Feature]:
     from seriesmith import sdk as SDK
     from seriesmith import upscale as U
     from seriesmith import targets as TG
+    from seriesmith import track as K
     from seriesmith import vocals as V
+    hub = nodes_hub()
 
     def target_feature(fid, group, tid, label, about, extra=()):
         items = _target_items(tid)
@@ -425,21 +486,30 @@ def catalog() -> list[Feature]:
                 "faster-whisper, for align and the Recording window, in the Python align runs on; "
                 "with an NVIDIA card, CUDA 12's cuBLAS too, or it transcribes on the CPU (its "
                 "CTranslate2 is built on CUDA 12 and brings cuDNN, not cuBLAS; ComfyUI's PyTorch "
-                "has CUDA 13's, which it can't use). The Whisper model itself (medium.en) "
-                "downloads once, the first time align runs.",
+                "has CUDA 13's, which it can't use). And the Whisper model align uses "
+                f"({K.DEFAULT_MODEL}), into the Hugging Face cache: align won't run without it.",
                 [Item("pip", "faster-whisper", where="align", module="faster_whisper"),
                  Item("pip", "numpy", where="align", module="numpy"),
-                 Item("pip", "nvidia-cublas-cu12", where="align", module="nvidia.cublas")]),
+                 Item("pip", "nvidia-cublas-cu12", where="align", module="nvidia.cublas"),
+                 whisper_item(K.DEFAULT_MODEL)]),
+        *[Feature(f"sound.whisper.{m}", "sound", f"Whisper {m} (align)",
+                  "Another Whisper model for align (the Recording window's Model): "
+                  f"{K.WHISPER_ABOUT.get(m, '')}", [whisper_item(m)])
+          for m in K.MODELS if m != K.DEFAULT_MODEL],
         Feature("sound.vocals", "sound", "Vocal stem (Hybrid Demucs)",
                 "A song's singing split from the band, for align --vocals and an episode that "
                 "dubs from the stem (optional; off by default): seriesmith's node pack and "
-                "torchaudio's Hybrid Demucs weights (torchaudio downloads them itself if "
-                "they aren't here).",
+                "torchaudio's Hybrid Demucs weights (a copy torchaudio downloaded before, in "
+                "torch's hub cache, counts). The split won't run without them.",
                 [OWN_PACK, Item("model", V.WEIGHTS_FILE, folder=V.WEIGHTS_FOLDER,
-                                url=V.WEIGHTS_URL)], restart=True),
+                                url=V.WEIGHTS_URL, alt=hub.TORCHAUDIO_HDEMUCS)], restart=True),
         Feature("sound.demucs", "sound", "Keep H3's foley under your vocal",
-                "demucs in ComfyUI's Python, for the dub_keep_foley audio policy.",
-                [Item("pip", "demucs", where="comfyui", module="demucs")]),
+                "demucs in ComfyUI's Python, for the dub_keep_foley audio policy, and its "
+                "htdemucs model in torch's hub cache, where demucs looks: without it the take "
+                "keeps no foley bed.",
+                [Item("pip", "demucs", where="comfyui", module="demucs"),
+                 Item("hub", hub.HTDEMUCS, folder="torch", url=hub.HTDEMUCS_URL,
+                      label="demucs's htdemucs model")]),
         Feature("upscale.h3_latent", "upscale", "H3 latent re-sample (2x)",
                 "The best upscale for H3 takes: the LBH-123-AI pack and its model. Clone the pack: "
                 "ComfyUI-Manager lists only its Plus fork, which invents detail.",
@@ -537,6 +607,7 @@ class Env:
     python_for: Callable[[str], str | None] = lambda where: None   # a pip item's Python
     ffmpeg_installed: bool = False
     api_key_set: bool | None = None          # a Comfy API key in Settings (or COMFY_API_KEY)
+    hub_has: Callable[[Item], bool | None] = lambda item: None   # a hub item (hubcache.present)
 
 
 def shell_line(cmd: list[str]) -> str:
@@ -582,6 +653,8 @@ def item_status(item: Item, env: Env) -> str:
         got = env.model_exists(item.folder, item.name)
         if got:
             return "installed"
+        if item.alt and env.hub_has(Item("hub", item.alt, folder="torch")):
+            return "installed"
         if item.target:
             # readiness knows a substitute of the same family counts
             rd = env.readiness.get(item.target) or {}
@@ -604,6 +677,9 @@ def item_status(item: Item, env: Env) -> str:
         return "installed" if env.ffmpeg_installed else "missing"
     if item.kind == "key":
         return "unknown" if env.api_key_set is None else "installed" if env.api_key_set else "missing"
+    if item.kind == "hub":
+        got = env.hub_has(item)
+        return "installed" if got else ("missing" if got is False else "unknown")
     return "unknown"
 
 
@@ -640,14 +716,14 @@ def status(features: list[Feature], env: Env) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def known_files(features: list[Feature] | None = None) -> dict[str, Item]:
-    """Every model file with a recorded download, by name: what the What's
-    missing window may ask for by name (the server never takes a URL from
-    the page)."""
+    """Every model file with a recorded download, by name, and every hub
+    item, by its repo or path: what the What's missing window may ask for by
+    name (the server never takes a URL from the page)."""
     from seriesmith import targets as TG
     out: dict[str, Item] = {}
     for f in features or catalog():
         for i in f.items:
-            if i.kind == "model" and i.url:
+            if i.kind in ("model", "hub") and i.url:
                 out.setdefault(i.name, i)
     for t in TG.list_targets():
         for name, d in t.downloads.items():
@@ -686,7 +762,9 @@ def resolve(feature_ids=(), files=(), classes=(), features: list[Feature] | None
         known = known_files(feats)
         for name in files:
             base = str(name).replace("\\", "/").rsplit("/", 1)[-1]
-            if base in known:
+            if str(name) in known and known[str(name)].kind == "hub":
+                items.append(known[str(name)])            # a repo, by its whole name
+            elif base in known:
                 items.append(known[base])
             else:
                 skipped.append(f"{base}: no recorded download")
@@ -712,12 +790,21 @@ def resolve(feature_ids=(), files=(), classes=(), features: list[Feature] | None
     return out, skipped
 
 
+def feature_label_of(item: Item, features: list[Feature] | None = None) -> str:
+    """The label of the first feature that has `item` ("" if none does)."""
+    for f in features or catalog():
+        if any(i.key == item.key for i in f.items):
+            return f.label
+    return ""
+
+
 def managed_ffmpeg_dir() -> str:
     """Where tools.ffmpeg puts the build: beside the settings file."""
     from seriesmith.settings import settings_path
     return os.path.join(os.path.dirname(settings_path()), "ffmpeg")
 
 
-__all__ = ["CORE_CLASSES", "Env", "Feature", "GROUPS", "Item", "PACKS", "catalog", "how",
-           "item_status", "known_files", "managed_ffmpeg_dir", "pack_for_class", "pip_command",
-           "resolve", "shell_line", "status"]
+__all__ = ["CORE_CLASSES", "Env", "Feature", "GROUPS", "Item", "PACKS", "catalog",
+           "feature_label_of", "fetch_items", "how", "item_status", "known_files",
+           "managed_ffmpeg_dir", "nodes_hub", "pack_for_class", "pip_command", "resolve",
+           "shell_line", "status", "whisper_item"]

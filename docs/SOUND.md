@@ -301,8 +301,8 @@ Foley (video -> sound):
 |---|---|---|
 | **LTX-2.3 Foley LoRA** (`ltx-2.3-22b-lora-foley-v2a-1.0`, Lightricks) | LoRA installed; the saved workflow `LTX-2.3_-_V2V_Foley_Add_Sound_To_Any_Video_Foley-Lora.json` (ComfyUI user workflows) needs the LTX-2.3 dev transformer, VAEs, text projection and Gemma 3 12B encoder: **downloaded again 2026-11-01** (Kijai/LTX2.3_comfy, Comfy-Org/ltx-2) | the picture frozen (`LTXVSetAudioVideoMaskByTime`, mask_video false, mask_audio true), sound generated; LoRA 0.8-1.0, audio cfg ~6. Validated on 2.3 only; try it on 2.5 too |
 | **MiniMax H3** | the models are here | untested as video-to-audio: the take's frames anchored with `MiniMaxH3AddGuide` (no sound), the prompt the shot's `sound:` line; the inverse of what `H3JointAudioMask` does |
-| **HunyuanVideo-Foley** | **installed 2026-11-01**: phazei/ComfyUI-HunyuanVideo-Foley in custom_nodes; `hunyuanvideo_foley` (XXL) and `_xl`, its synchformer and DAC VAE in models/foley; SigLIP2 and CLAP in the Hugging Face cache | strong on Tencent's own benchmark against MMAudio and ThinkSound; Tencent's community licence (territory limits): read it |
-| **MMAudio** | **installed 2026-11-01**: kijai/ComfyUI-MMAudio; the large 44k v2 model, its synchformer, VAE and CLIP (fp16) in models/mmaudio | MIT weights; BigVGAN fetched on first use |
+| **HunyuanVideo-Foley** | **installed 2026-11-01**: phazei/ComfyUI-HunyuanVideo-Foley in custom_nodes; `hunyuanvideo_foley` (XXL) and `_xl`, its synchformer and DAC VAE in models/foley; SigLIP2 and CLAP in the Hugging Face cache (downloaded in Features: target.json `fetches`) | strong on Tencent's own benchmark against MMAudio and ThinkSound; Tencent's community licence (territory limits): read it |
+| **MMAudio** | **installed 2026-11-01**: kijai/ComfyUI-MMAudio; the large 44k v2 model, its synchformer, VAE and CLIP (fp16) in models/mmaudio | MIT weights; BigVGAN v2 (its two files) downloaded in Features into models/mmaudio/nvidia, never by the pack (target.json `fetches`) |
 | ControlFoley | official nodes | CC BY-NC: not offered |
 
 Measured 2026-11-01 (local, RTX 5090): three LAST LIGHT takes (sh040 a steel door slamming,

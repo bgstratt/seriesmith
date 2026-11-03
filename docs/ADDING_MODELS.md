@@ -111,9 +111,12 @@ A model that ships with seriesmith is a folder, `seriesmith/targets/<kind>/<id>/
 | `router` | a Router model's request: the model id, and where each value goes (`inputs`) |
 | `binding` | a local model's workflow, and which node widget takes each value |
 | `models`, `downloads`, `nodes` | a local model's files (each with a family and name patterns), where to download each, and any node classes beyond its workflow's |
+| `fetches` | what its node pack downloads by itself the first time it runs (a Hugging Face repo, `into` its cache, `"hf"`, or a models folder, with the `files` it reads): the Features window downloads it instead, and readiness holds the model back until it's there |
 | `presets` | the `final` and `proxy` passes' model, steps and size |
 
-The Features window and INSTALL.md's model list are built from `models` and `downloads`.
+The Features window and INSTALL.md's model list are built from `models` and `downloads`
+(and the window's lines from `fetches` too). A node pack that downloads something itself
+must have it in `fetches`: tests/test_features.py knows the classes that do.
 A download link must be one recorded there: the tests fail on a link that isn't.
 
 ### A Comfy Router model

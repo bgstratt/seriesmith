@@ -13,6 +13,7 @@ Use this when you have real recorded lines (actors, you, or TTS) instead of lett
 cd <your projects folder>
 pip install faster-whisper                                    # once
 pip install nvidia-cublas-cu12                                # an NVIDIA card: Whisper on the GPU
+# and the Whisper model: the Features window, Recorded dialogue (medium.en)
 
 seriesmith align    Shows\ep05 audio\ep05_dialogue.wav --dry-run   # look first
 seriesmith align    Shows\ep05 audio\ep05_dialogue.wav
@@ -21,7 +22,7 @@ seriesmith render   Shows\ep05 --proxy
 seriesmith assemble Shows\ep05 --proxy --audio master  # picture + your recording, to check sync
 ```
 
-Put the recording inside the episode folder (for example `ep05\audio\`) so the series config can point at it with a relative path. faster-whisper isn't one of seriesmith's dependencies: install it into the Python that runs seriesmith. The editor does the same from its dialogue track: attach the recording, then align (`seriesmith/track.py`).
+Put the recording inside the episode folder (for example `ep05\audio\`) so the series config can point at it with a relative path. faster-whisper isn't one of seriesmith's dependencies: install it into the Python that runs seriesmith. Its model is downloaded in the Features window (**Recorded dialogue** has `medium.en`, the default; each other model is a line of its own, **Whisper large-v3 (align)** and so on) into the Hugging Face cache; align reads it from there and never downloads it itself, so with the model not there it stops and says which line to download. The editor does the same from its dialogue track: attach the recording, then align (`seriesmith/track.py`).
 
 ## Recording
 
@@ -71,7 +72,7 @@ On other models a dub shot works too, without retention: on LTX (`ltx2`, `ltx2_i
 
 ## A recording with music: the vocal stem
 
-A song, or lines with music under them, can be split into its **vocal stem** (the voice alone) and the rest. seriesmith does it on your local ComfyUI with its own Vocal Stem node (torchaudio's Hybrid Demucs, which ComfyUI already has; its weights download once). The stem lands beside the recording as `<recording>.vocals.wav` and is kept until the recording changes. Nothing uses it unless you ask, in two places:
+A song, or lines with music under them, can be split into its **vocal stem** (the voice alone) and the rest. seriesmith does it on your local ComfyUI with its own Vocal Stem node (torchaudio's Hybrid Demucs, which ComfyUI already has; its weights you download in the Features window, **Vocal stem**). The stem lands beside the recording as `<recording>.vocals.wav` and is kept until the recording changes. Nothing uses it unless you ask, in two places:
 
 - **Align from the stem.** `seriesmith align <ep> --vocals`, or **from the vocal stem** in the editor's Recording window. Whisper hears the voice without the band, and the cuts land in the pauses of the singing. The series config still points at the recording.
 - **Dub shots hear the stem.** `"audio": {"dub_from": "vocals"}` in the series config, or **dub shots hear the vocal stem** in the Recording window. Each dub shot's window is cut from the stem instead of the recording. The episode's own sound (the mix, `assemble --audio master`) is still the recording.

@@ -20,7 +20,7 @@
   },
 
   "binding": {
-    "_note": "kijai's ComfyUI-MMAudio, text to audio: MMAudioModelLoader (the large 44k v2 model, fp16), MMAudioFeatureUtilsLoader (its VAE, synchformer and CLIP, 44k mode; BigVGAN v2 is fetched by the pack on first use into models/mmaudio/nvidia), MMAudioSampler at 25 steps, cfg 4.5, SaveAudio (flac; the take is converted to wav and finished when it comes back). Validated on local ComfyUI 0.43, 2026-11-01.",
+    "_note": "kijai's ComfyUI-MMAudio, text to audio: MMAudioModelLoader (the large 44k v2 model, fp16), MMAudioFeatureUtilsLoader (its VAE, synchformer and CLIP, 44k mode; BigVGAN v2 read from models/mmaudio/nvidia: `fetches`), MMAudioSampler at 25 steps, cfg 4.5, SaveAudio (flac; the take is converted to wav and finished when it comes back). Validated on local ComfyUI 0.43, 2026-11-01.",
     "workflow": "workflow.json",
     "workflow_name": "seriesmith_mmaudio_ambience.json",
     "env": "SERIESMITH_MMAUDIO_AMBIENCE_WORKFLOW",
@@ -55,6 +55,17 @@
       "clip": "apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors",
       "steps": 25, "cfg": 4.5,
       "negative": "music, melody, singing, speech, talking, voices"
+    }
+  },
+
+  "fetches": {
+    "_note": "ComfyUI-MMAudio's MMAudioFeatureUtilsLoader (44k mode) fetches NVIDIA's BigVGAN v2 vocoder by itself into models/mmaudio/nvidia/bigvgan_v2_44khz_128band_512x when that folder isn't there (snapshot_download, the whole repo: 4 GB with the training checkpoints it never reads). The Features window downloads the two files it reads instead, and the target isn't ready without them (seriesmith/hubcache.py).",
+    "nvidia/bigvgan_v2_44khz_128band_512x": {
+      "into": "mmaudio",
+      "files": [
+        "config.json",
+        "bigvgan_generator.pt"
+      ]
     }
   },
 

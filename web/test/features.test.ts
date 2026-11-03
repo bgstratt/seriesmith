@@ -35,6 +35,10 @@ describe("features", () => {
     const hosted = feature("hosted", [item({ kind: "key", name: "api_key", key: "key:api_key", manual: true }),
       item({ kind: "pip", name: "comfy-sdk", key: "pip:comfy-sdk", manual: true })]);
     expect(itemsLine(hosted)).toBe("1 Python package · a Comfy API key");
+    // what a package would fetch by itself, downloaded here instead: a file like any other
+    const hub = item({ kind: "hub", name: "Systran/faster-whisper-medium.en", key: "hub:hf/Systran/faster-whisper-medium.en", into: "the Hugging Face cache" });
+    expect(itemsLine(feature("align", [item({ kind: "pip", name: "faster-whisper", key: "pip:faster-whisper" }), hub])))
+      .toBe("1 file · 1 Python package");
   });
 
   it("writes sizes for people", () => {

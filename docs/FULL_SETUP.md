@@ -301,15 +301,22 @@ their own words. The voice comes out close, not identical: listen before you pic
   card, `pip install nvidia-cublas-cu12` there too: faster-whisper is built on CUDA 12 and
   doesn't bring its cuBLAS (ComfyUI's PyTorch has CUDA 13's), so without it Whisper runs on
   the CPU, minutes instead of seconds.
+- The Whisper model align transcribes with: download it in the Features window (**Recorded
+  dialogue** has the default, `medium.en`; each other model the Recording window offers is a
+  line of its own, **Whisper large-v3 (align)** and so on). It goes into the Hugging Face
+  cache, where faster-whisper looks; align reads it from there and never downloads it, so
+  until it's there align stops and says to download it.
 - `pip install demucs`, in ComfyUI's own Python (the portable build's
   `python_embeded\python.exe -m pip install demucs`), for the `dub_keep_foley` audio
-  policy. It strips H3's own vocal and keeps the foley under yours; its model (htdemucs)
-  downloads itself the first time it runs.
+  policy. It strips H3's own vocal and keeps the foley under yours. Its model (htdemucs, 80
+  MB) you download in the Features window (**Keep H3's foley under your vocal**), into
+  torch's hub cache where demucs looks; until it's there a take keeps no foley bed, and its
+  notes say to download it.
 - The **vocal stem** of a song (optional: `align --vocals`, and dub shots that hear the
   singing alone) is made on your ComfyUI by seriesmith's own node pack with torchaudio,
-  which ComfyUI already has: nothing to install. Its weights (`hdemucs_high_trained.pt`,
-  320 MB) download once the first time; the Features window's **Vocal stem** puts them in
-  `models/demucs/` ahead of time.
+  which ComfyUI already has. Its weights (`hdemucs_high_trained.pt`, 320 MB) you download in
+  the Features window (**Vocal stem**), into `models/demucs/` (a copy torchaudio downloaded
+  before, in torch's hub cache, counts); without them the split stops and says so.
 
 **Music** cues use ComfyUI's own nodes. Score's default, `stable_audio3`, needs
 `stable_audio_3_medium.safetensors` in `checkpoints` and `t5gemma_b_b_ul2.safetensors` in
@@ -328,8 +335,12 @@ sounds like"). The default, `mmaudio_ambience`, needs
 it and its requirements) and four files in `models/mmaudio`, from
 [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors):
 `mmaudio_large_44k_v2_fp16`, `mmaudio_vae_44k_fp16`, `mmaudio_synchformer_fp16` and
-`apple_DFN5B-CLIP-ViT-H-14-384_fp16` (`.safetensors`). The pack downloads BigVGAN v2 into
-`models/mmaudio/nvidia` the first time. `sa3_sfx_ambience` (Stable Audio 3 Small SFX, ComfyUI's
+`apple_DFN5B-CLIP-ViT-H-14-384_fp16` (`.safetensors`), and NVIDIA's BigVGAN v2 vocoder
+(`config.json` and `bigvgan_generator.pt` from
+[nvidia/bigvgan_v2_44khz_128band_512x](https://huggingface.co/nvidia/bigvgan_v2_44khz_128band_512x))
+in `models/mmaudio/nvidia/bigvgan_v2_44khz_128band_512x`, where the pack looks for it: the
+Features window downloads all of them. (Left to itself the pack would fetch the whole BigVGAN
+repo, 4 GB, the first time a bed is made; seriesmith doesn't queue a bed until it's there.) `sa3_sfx_ambience` (Stable Audio 3 Small SFX, ComfyUI's
 own nodes) needs `stable_audio_3_small_sfx.safetensors` in `checkpoints` and
 `t5gemma_b_b_ul2.safetensors` in `text_encoders`
 ([Comfy-Org/stable-audio-3](https://huggingface.co/Comfy-Org/stable-audio-3)). The Features
@@ -349,8 +360,12 @@ and seven files, about 36 GB (the dev transformer, the text projection and both 
 `hunyuan_xl_foley` is Tencent's HunyuanVideo-Foley XL through
 [ComfyUI-HunyuanVideo-Foley](https://github.com/phazei/ComfyUI-HunyuanVideo-Foley) and three
 files in `models/foley` from [phazei/HunyuanVideo-Foley](https://huggingface.co/phazei/HunyuanVideo-Foley)
-(the pack fetches SigLIP2 and CLAP the first time); its licence is Tencent's community licence,
-which doesn't apply in some territories. The Features window has all three under Sound.
+, and Google's SigLIP2 ([google/siglip2-base-patch16-512](https://huggingface.co/google/siglip2-base-patch16-512))
+and LAION's CLAP ([laion/larger_clap_general](https://huggingface.co/laion/larger_clap_general))
+in the Hugging Face cache, where the pack reads them: the Features window downloads them all
+(left to itself the pack would fetch SigLIP2 and CLAP the first time it runs; seriesmith
+doesn't queue an effects take until they're there). Its licence is Tencent's community
+licence, which doesn't apply in some territories. The Features window has all three under Sound.
 
 ## Upscaling
 

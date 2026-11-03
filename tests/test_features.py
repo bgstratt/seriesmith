@@ -213,6 +213,47 @@ class CoverageTest(unittest.TestCase):
                 if d.get("url") and d.get("folder"):
                     self.assertIn(name.replace("\\", "/").rsplit("/", 1)[-1], known)
 
+    # The node classes that fetch something by themselves the first time they run, and
+    # what (read in the packs' code, 2026-11-02): a target whose graph uses one must
+    # record it in target.json `fetches`, so the Features window downloads it and
+    # readiness holds the target back until it's there (seriesmith/hubcache.py)
+    FETCHING = {"MMAudioFeatureUtilsLoader": {"nvidia/bigvgan_v2_44khz_128band_512x"},
+                "HunyuanDependenciesLoader": {"google/siglip2-base-patch16-512",
+                                              "laion/larger_clap_general"}}
+
+    def test_what_a_pack_fetches_by_itself_is_in_a_feature(self):
+        from seriesmith import edit as E
+        from seriesmith import targets as TG
+        hub = {i.name: i for f in self.cat for i in f.items if i.kind == "hub"}
+        known = FT.known_files(self.cat)
+        for t in TG.list_targets():
+            want = set().union(*[v for c, v in self.FETCHING.items() if c in E.target_nodes(t)])
+            with self.subTest(target=t.id):
+                self.assertEqual({i.name for i in FT.fetch_items(t)}, want,
+                                 f"{t.id}: record what its pack fetches in target.json `fetches`")
+                for name in want:
+                    self.assertIn(name, hub, f"{name} ({t.id}) is in no feature")
+        for name, i in hub.items():
+            with self.subTest(hub=name):
+                self.assertTrue(i.url.startswith("https://"))
+                self.assertTrue(i.folder)
+                self.assertTrue(i.files or i.folder == "torch")
+                self.assertIs(known.get(name), i)          # Install asks for it by name
+                self.assertFalse(i.manual)
+
+    def test_every_whisper_model_align_offers_is_in_a_feature(self):
+        from seriesmith import track as K
+        hub = {i.name for f in self.cat for i in f.items if i.kind == "hub"}
+        self.assertEqual(set(K.WHISPER_REPOS), set(K.MODELS))
+        for m in K.MODELS:
+            self.assertIn(K.WHISPER_REPOS[m], hub, m)
+        try:
+            from faster_whisper.utils import _MODELS
+        except ImportError:
+            return
+        for m in K.MODELS:                                  # the repos faster-whisper reads
+            self.assertEqual(K.WHISPER_REPOS[m], _MODELS[m])
+
     def test_the_hosted_models_are_a_feature_of_a_key(self):
         from seriesmith import targets as TG
         hosted = next(f for f in self.cat if any(i.kind == "key" for i in f.items))
@@ -299,7 +340,8 @@ class ResolveTest(unittest.TestCase):
 
     def test_packs_and_packages_are_never_queued(self):
         items, skipped = FT.resolve(["sound.demucs", "upscale.h3_latent"], features=FT.catalog())
-        self.assertEqual([i.kind for i in items], ["model"])
+        # demucs's htdemucs (into torch's hub cache) and the upscaler's file
+        self.assertEqual([i.kind for i in items], ["hub", "model"])
         self.assertTrue(any("pip install demucs" in s for s in skipped))
         self.assertTrue(any("Comfyui_Minimax_h3_latent_Upscaler" in s for s in skipped))
 

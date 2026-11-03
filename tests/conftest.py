@@ -43,10 +43,15 @@ os.environ.pop("COMFY_API_KEY", None)
 # never beside the settings file above (tests/)
 import tempfile  # noqa: E402
 os.environ["SERIESMITH_CACHE_DIR"] = tempfile.mkdtemp(prefix="seriesmith-test-cache-")
+# what a package would fetch by itself (seriesmith/hubcache.py: the Whisper models,
+# SigLIP2 and CLAP, htdemucs) is looked for in empty caches, never this machine's
+_HUB = tempfile.mkdtemp(prefix="seriesmith-test-hub-")
+os.environ["HF_HUB_CACHE"] = os.path.join(_HUB, "huggingface", "hub")
+os.environ["TORCH_HOME"] = os.path.join(_HUB, "torch")
 
 _PINNED = {k: os.environ[k] for k in ("SERIESMITH_SETTINGS", "SERIESMITH_LOCAL_URL",
                                       "SERIESMITH_COMFYUI_URL", "SERIESMITH_CLOUD_URL",
-                                      "SERIESMITH_CACHE_DIR")}
+                                      "SERIESMITH_CACHE_DIR", "HF_HUB_CACHE", "TORCH_HOME")}
 
 try:
     import pytest

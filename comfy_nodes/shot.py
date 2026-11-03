@@ -49,6 +49,7 @@ import torch
 
 try:
     from . import _ff
+    from . import _hub
     from . import shotplan as _plan
 except ImportError:                       # this file loaded on its own (a test), not as the pack
     import importlib.util as _iu
@@ -60,6 +61,7 @@ except ImportError:                       # this file loaded on its own (a test)
         spec.loader.exec_module(mod)
         return mod
     _ff = _sibling("_ff", "seriesmith_nodes_ff")
+    _hub = _sibling("_hub", "seriesmith_nodes_hub")
     _plan = _sibling("shotplan", "seriesmith_nodes_shotplan")
 
 # ---------------------------------------------------------------------------
@@ -607,14 +609,19 @@ class SeriesmithSaveTake:
     def _strip_vocals(wav_path: str, out_path: str) -> str:
         """Demucs the H3 mix and keep everything except the vocal stem. It runs in
         ComfyUI's own Python (sys.executable), where the Features window says demucs
-        goes; a bare "python" was whatever came first on PATH."""
+        goes; a bare "python" was whatever came first on PATH. Only with its htdemucs
+        model already downloaded (the Features window), and offline for the Hugging
+        Face hub: demucs fetches a model it hasn't got, which is never done here."""
         import sys
+        blocked = _hub.strip_blocked()
+        if blocked:
+            return blocked
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 subprocess.run(
                     [sys.executable, "-m", "demucs", "--two-stems", "vocals",
                      "-o", tmp, wav_path],
-                    check=True, capture_output=True, timeout=600,
+                    check=True, capture_output=True, timeout=600, env=_hub.demucs_env(),
                 )
                 stem = os.path.splitext(os.path.basename(wav_path))[0]
                 for dirpath, _, files in os.walk(tmp):

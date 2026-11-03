@@ -209,7 +209,9 @@ function FeatureRow({ f, sizes, checked, open, onToggle, onOpen, lit = false }: 
           {f.items.map((i) => (
             <li key={i.key}>
               <span className="h3-mono">{i.name}</span>
+              {i.label && <span className="h3-muted"> ({i.label})</span>}
               {i.folder && <span className="h3-muted"> → models/{i.folder}</span>}
+              {i.into && <span className="h3-muted"> → {i.into}</span>}
               {i.kind === "pack" && <span className="h3-muted"> → custom_nodes, with ComfyUI-Manager</span>}
               {i.kind === "link" && <span className="h3-muted"> → linked into custom_nodes from this repo</span>}
               {i.kind === "pip" && <span className="h3-muted"> → pip, by you, in {i.where === "comfyui" ? "ComfyUI's Python" : i.where === "align" ? "align's Python" : "seriesmith's Python"}</span>}
