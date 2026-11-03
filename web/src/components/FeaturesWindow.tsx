@@ -201,7 +201,7 @@ function FeatureRow({ f, sizes, checked, open, onToggle, onOpen, lit = false }: 
       {yours(f).map((i) => (
         <div key={i.key} className="h3-row h3-small" style={{ paddingLeft: 24, gap: 6 }}>
           <span className="h3-grow" style={{ wordBreak: "break-all" }}>{i.how}</span>
-          <CopyButton text={i.kind === "pip" ? i.how!.replace(/^Run: /, "") : i.name} what={i.kind === "pip" ? "Command" : "Node pack name"} />
+          {i.kind !== "key" && <CopyButton text={i.kind === "pip" ? i.how!.replace(/^Run: /, "") : i.name} what={i.kind === "pip" ? "Command" : "Node pack name"} />}
         </div>
       ))}
       {open && (
@@ -209,10 +209,13 @@ function FeatureRow({ f, sizes, checked, open, onToggle, onOpen, lit = false }: 
           {f.items.map((i) => (
             <li key={i.key}>
               <span className="h3-mono">{i.name}</span>
+              {i.label && <span className="h3-muted"> ({i.label})</span>}
               {i.folder && <span className="h3-muted"> → models/{i.folder}</span>}
+              {i.into && <span className="h3-muted"> → {i.into}</span>}
               {i.kind === "pack" && <span className="h3-muted"> → custom_nodes, with ComfyUI-Manager</span>}
               {i.kind === "link" && <span className="h3-muted"> → linked into custom_nodes from this repo</span>}
               {i.kind === "pip" && <span className="h3-muted"> → pip, by you, in {i.where === "comfyui" ? "ComfyUI's Python" : i.where === "align" ? "align's Python" : "seriesmith's Python"}</span>}
+              {i.kind === "key" && <span className="h3-muted"> → Settings › Comfy API key, by you</span>}
               {i.url && sizes[i.url] != null && <span className="h3-muted"> · {fmtBytes(sizes[i.url]!)}</span>}
               {" "}<span className={i.status === "installed" ? "h3-ok" : "h3-muted"}>{i.status === "installed" ? "✓" : i.status === "restart" ? "(restart ComfyUI)" : ""}</span>
               {i.gated && i.status !== "installed" && i.licence && (

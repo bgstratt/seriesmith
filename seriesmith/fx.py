@@ -318,10 +318,12 @@ def graph(target, sc: dict, picture) -> dict:
     return g
 
 
-def prepare(root: str, pass_: str, shot: str, n: int) -> tuple[dict, str]:
+def prepare(root: str, pass_: str, shot: str, n: int, backend=None) -> tuple[dict, str]:
     """When a take's job starts: its picture staged from the take it records (FxError when
     that take has changed since it was asked: the request is made again), and its graph.
-    Returns (the graph, the staged picture's path: removed when the job ends)."""
+    With `backend`, RuntimeError first when what the target's node pack would fetch by
+    itself isn't downloaded (hubcache.check_target). Returns (the graph, the staged
+    picture's path: removed when the job ends)."""
     from seriesmith.backends import File
     sc = get_take(root, pass_, shot, n)
     if sc is None:
@@ -334,6 +336,9 @@ def prepare(root: str, pass_: str, shot: str, n: int) -> tuple[dict, str]:
     if why:
         raise FxError(f"{shot}'s picture changed since this take was asked ({why}): ask again")
     target = TG.load_target(sc["target"], "foley")
+    if backend is not None:
+        from seriesmith import hubcache as HC
+        HC.check_target(target, backend)
     picture = take_paths(root, pass_, shot, n)["picture"]
     stage(take.paths.mp4, picture, sc["video"])
     return graph(target, sc, File(picture)), picture
@@ -402,12 +407,20 @@ def queue(runner, root: str, pass_: str, shots: list[str], target_id: str | None
     planned (FxError for a shot that can't be: no take in the cut, no words), reserved and
     queued. Returns (queued: [{"shot", "take", "job", "seed", "target"}], skipped: [{"shot",
     "why"}])."""
+    from seriesmith import hubcache as HC
     takes = cut_takes(root, pass_)
     queued, skipped = [], []
+    try:
+        on = runner.backend_for(backend)
+    except (AttributeError, ValueError):
+        on = None                                         # enqueue_fx says why
     for shot in shots:
         try:
             p = plan(root, pass_, shot, target_id, takes)
-        except FxError as e:
+            if on is not None:
+                # what its node pack would fetch by itself, not downloaded: never queued
+                HC.check_target(TG.load_target(p["target"], "foley"), on)
+        except (FxError, RuntimeError) as e:
             skipped.append({"shot": shot, "why": str(e)})
             continue
         for _ in range(count):

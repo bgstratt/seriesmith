@@ -3908,13 +3908,29 @@ def _make_readiness(ctx: Context, fresh: bool = False, locked: bool = False) -> 
     except Exception as e:
         info, error = None, f"ComfyUI didn't answer /object_info: {e}"
     rd = E.readiness(TG.list_targets(), info, ctx.model_resolve, ctx.model_cache,
-                     error=error, graph_of=E.graph_lookup(target_graphs(ctx, refresh=fresh)))
+                     error=error, graph_of=E.graph_lookup(target_graphs(ctx, refresh=fresh)),
+                     hub_has=_hub_check(ctx) if info is not None else None)
     # an unanswered ComfyUI isn't worth remembering, nor one from before an install
     if info is not None and gen == _GEN[0]:
         _READY[ctx.comfy_url] = (time.monotonic(), rd)
         if DETECT_DEFAULTS:
             remember_defaults(rd)
     return rd
+
+
+def _hub_check(ctx: Context):
+    """hub_has for readiness (edit.readiness): what a target's node pack would
+    fetch by itself, looked for where it reads it, when its ComfyUI is on this
+    machine (hubcache.local_models_dir); None when it isn't (its caches are
+    another machine's)."""
+    from seriesmith import hubcache as HC
+    try:
+        md = HC.local_models_dir(ctx.comfy_url)
+    except Exception:                                     # noqa: BLE001
+        md = None
+    if md is None:
+        return None
+    return lambda item: HC.present(item, md)
 
 
 # whether readiness answers update the settings' detected_targets (the
@@ -5269,7 +5285,7 @@ def post_align(ctx: Context, body):
         if not isinstance(v, bool):
             raise ApiError(400, f"{name} must be true or false")
 
-    K.check_align(ep, track, vocals=vocals)
+    K.check_align(ep, track, vocals=vocals, model=(model or "").strip() or None)
     params = {"ep": ep, "pass": pass_, "track": track, "model": (model or "").strip() or None,
               "snap": snap, "dry_run": dry, "vocals": vocals}
     with _LOCAL_GUARD:

@@ -119,6 +119,172 @@ class CatalogTest(unittest.TestCase):
         self.assertIn("conv_v1", model.url)
 
 
+def shipped_graph_classes() -> dict[str, set[str]]:
+    """{node class: where} every class a shipped graph uses: each target's
+    readiness list (its workflow's classes, loader, saver, target.json
+    `nodes`), every class_type target.json names (the upscale blocks'
+    upscalers too), the Python graph builders' *_NODES tuples, and every
+    "class_type": "X" written in seriesmith's Python. h3pipe's names are sent
+    as seriesmith's own (jobs.SENT_AS, finishing.portable): left out."""
+    import re
+    from seriesmith import cloud as C
+    from seriesmith import edit as E
+    from seriesmith import post as P
+    from seriesmith import shotnodes as SN
+    from seriesmith import targets as TG
+    from seriesmith import upscale as U
+    out: dict[str, set[str]] = {}
+
+    def add(c, where):
+        if c not in SN.H3PIPE_NODES:
+            out.setdefault(c, set()).add(where)
+
+    def walk(v, where):
+        if isinstance(v, dict):
+            if isinstance(v.get("class_type"), str):
+                add(v["class_type"], where)
+            for x in v.values():
+                walk(x, where)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x, where)
+    for t in TG.list_targets():
+        for c in E.target_nodes(t):
+            add(c, t.id)
+        walk(t.spec, t.id + "/target.json")
+    for name, nodes in (("UPSCALE_NODES", U.UPSCALE_NODES), ("PIXEL_NODES", U.PIXEL_NODES),
+                        ("SEEDVR2_NODES", U.SEEDVR2_NODES), ("VSR_NODES", U.VSR_NODES),
+                        ("post.BASE_NODES", P.BASE_NODES), ("SUPIR_NODES", P.SUPIR_NODES),
+                        ("BLUR_NODES", P.BLUR_NODES), ("CHAIN_NODES", C.CHAIN_NODES)):
+        for c in nodes:
+            add(c, name)
+    pkg = os.path.join(os.path.dirname(HERE), "seriesmith")
+    lit = re.compile(r"""["']class_type["']\s*:\s*["']([A-Za-z][A-Za-z0-9_.]*)["']""")
+    for root, _dirs, files in os.walk(pkg):
+        for fn in files:
+            if fn.endswith(".py"):
+                with open(os.path.join(root, fn), encoding="utf-8") as fh:
+                    for c in lit.findall(fh.read()):
+                        add(c, fn)
+    return out
+
+
+class CoverageTest(unittest.TestCase):
+    """Every node pack, file and package a shipped feature needs has a line in
+    the Features window: a target, graph or constant added without one fails
+    here (the shipped targets only: conftest points settings, and so this
+    machine's own targets, elsewhere)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cat = FT.catalog()
+        cls.names = {i.name for f in cls.cat for i in f.items}
+
+    def test_every_node_class_is_comfyuis_ours_or_a_packs_in_a_feature(self):
+        for c, where in sorted(shipped_graph_classes().items()):
+            with self.subTest(cls=c, used_by=sorted(where)[:3]):
+                if c in FT.CORE_CLASSES:
+                    continue
+                p = FT.pack_for_class(c)
+                self.assertIsNotNone(p, f"{c}: add it to features.CORE_CLASSES (checked in "
+                                        f"ComfyUI's source) or to its pack in features.PACKS")
+                self.assertIn(p.name, self.names, f"{c}'s pack {p.name} is in no feature")
+
+    def test_every_file_a_shipped_target_loads_is_in_a_feature(self):
+        from seriesmith import targets as TG
+        for t in TG.list_targets():
+            if t.spec.get("router"):
+                continue
+            with self.subTest(target=t.id):
+                for i in FT._target_items(t.id):
+                    self.assertIn(i.name, self.names, f"{t.id} loads {i.name}: no feature has it")
+                # an optional file is a feature of its own (the duration head, SheetSage2)
+                for param, spec in t.models.items():
+                    if isinstance(spec, dict) and spec.get("tier") == "optional":
+                        for i in FT._optional_items(t.id, param):
+                            self.assertIn(i.name, self.names,
+                                          f"{t.id}'s optional {param} ({i.name}): no feature has it")
+
+    def test_every_download_a_shipped_target_records_can_be_asked_for(self):
+        from seriesmith import targets as TG
+        known = FT.known_files(self.cat)
+        for t in TG.list_targets():
+            for name, d in t.downloads.items():
+                if d.get("url") and d.get("folder"):
+                    self.assertIn(name.replace("\\", "/").rsplit("/", 1)[-1], known)
+
+    # The node classes that fetch something by themselves the first time they run, and
+    # what (read in the packs' code, 2026-11-02): a target whose graph uses one must
+    # record it in target.json `fetches`, so the Features window downloads it and
+    # readiness holds the target back until it's there (seriesmith/hubcache.py)
+    FETCHING = {"MMAudioFeatureUtilsLoader": {"nvidia/bigvgan_v2_44khz_128band_512x"},
+                "HunyuanDependenciesLoader": {"google/siglip2-base-patch16-512",
+                                              "laion/larger_clap_general"}}
+
+    def test_what_a_pack_fetches_by_itself_is_in_a_feature(self):
+        from seriesmith import edit as E
+        from seriesmith import targets as TG
+        hub = {i.name: i for f in self.cat for i in f.items if i.kind == "hub"}
+        known = FT.known_files(self.cat)
+        for t in TG.list_targets():
+            want = set().union(*[v for c, v in self.FETCHING.items() if c in E.target_nodes(t)])
+            with self.subTest(target=t.id):
+                self.assertEqual({i.name for i in FT.fetch_items(t)}, want,
+                                 f"{t.id}: record what its pack fetches in target.json `fetches`")
+                for name in want:
+                    self.assertIn(name, hub, f"{name} ({t.id}) is in no feature")
+        for name, i in hub.items():
+            with self.subTest(hub=name):
+                self.assertTrue(i.url.startswith("https://"))
+                self.assertTrue(i.folder)
+                self.assertTrue(i.files or i.folder == "torch")
+                self.assertIs(known.get(name), i)          # Install asks for it by name
+                self.assertFalse(i.manual)
+
+    def test_every_whisper_model_align_offers_is_in_a_feature(self):
+        from seriesmith import track as K
+        hub = {i.name for f in self.cat for i in f.items if i.kind == "hub"}
+        self.assertEqual(set(K.WHISPER_REPOS), set(K.MODELS))
+        for m in K.MODELS:
+            self.assertIn(K.WHISPER_REPOS[m], hub, m)
+        try:
+            from faster_whisper.utils import _MODELS
+        except ImportError:
+            return
+        for m in K.MODELS:                                  # the repos faster-whisper reads
+            self.assertEqual(K.WHISPER_REPOS[m], _MODELS[m])
+
+    def test_the_hosted_models_are_a_feature_of_a_key(self):
+        from seriesmith import targets as TG
+        hosted = next(f for f in self.cat if any(i.kind == "key" for i in f.items))
+        self.assertTrue(any(t.spec.get("router") for t in TG.list_targets()))
+        self.assertIn("pip", {i.kind for i in hosted.items})   # comfy-sdk
+        key = next(i for i in hosted.items if i.kind == "key")
+        self.assertTrue(key.manual)
+        for state, want in ((True, "installed"), (False, "missing"), (None, "unknown")):
+            self.assertEqual(FT.item_status(key, FT.Env(api_key_set=state)), want)
+        got = FT.status([hosted], FT.Env(api_key_set=False, python_has=lambda w, m: True))[0]
+        how = next(i for i in got["items"] if i["kind"] == "key")["how"]
+        self.assertIn("Settings", how)
+        _, skipped = FT.resolve([hosted.id], features=self.cat)
+        self.assertTrue(any("Settings" in s for s in skipped))
+
+    def test_a_core_node_missing_says_update_comfyui(self):
+        _, skipped = FT.resolve(classes=["SeedVR2Preprocess"], features=self.cat)
+        self.assertEqual(len(skipped), 1)
+        self.assertIn("update ComfyUI", skipped[0])
+
+    def test_turn_and_relight_name_the_edit_models(self):
+        by = {f.id: f for f in self.cat}
+        for fid in ("refs.turn", "refs.relight"):
+            self.assertIn("Klein edit", by[fid].about)
+
+    @unittest.skipUnless(os.name == "nt", "cmd's quoting")
+    def test_a_version_spec_is_quoted_for_the_shell(self):
+        line = FT.pip_command(FT.Item("pip", "comfy-sdk>=0.4,<0.5"), r"C:\Py 3\python.exe")
+        self.assertEqual(line, r'"C:\Py 3\python.exe" -m pip install "comfy-sdk>=0.4,<0.5"')
+
+
 class StatusTest(unittest.TestCase):
     def feature(self):
         return FT.Feature("x", "tools", "X", "", [
@@ -160,6 +326,15 @@ class StatusTest(unittest.TestCase):
         self.assertEqual(FT.item_status(item, env), "missing")
 
 
+class PythonHasTest(unittest.TestCase):
+    def test_a_dotted_module_whose_parent_is_missing_is_not_installed(self):
+        # find_spec("nvidia.cublas") raises when "nvidia" isn't there: in ComfyUI's own
+        # Python (asked in-process) that broke the whole Features route
+        self.assertFalse(INS.python_has(sys.executable, "no_such_parent_pkg.child"))
+        self.assertTrue(INS.python_has(sys.executable, "json.decoder"))
+        self.assertFalse(INS.python_has(sys.executable, "no_such_module_at_all"))
+
+
 class ResolveTest(unittest.TestCase):
     def test_files_by_name_only_and_classes_to_their_pack(self):
         items, skipped = FT.resolve(files=["minimax_h3_video_vae_fp16.safetensors", "made_up.bin"],
@@ -174,7 +349,8 @@ class ResolveTest(unittest.TestCase):
 
     def test_packs_and_packages_are_never_queued(self):
         items, skipped = FT.resolve(["sound.demucs", "upscale.h3_latent"], features=FT.catalog())
-        self.assertEqual([i.kind for i in items], ["model"])
+        # demucs's htdemucs (into torch's hub cache) and the upscaler's file
+        self.assertEqual([i.kind for i in items], ["hub", "model"])
         self.assertTrue(any("pip install demucs" in s for s in skipped))
         self.assertTrue(any("Comfyui_Minimax_h3_latent_Upscaler" in s for s in skipped))
 

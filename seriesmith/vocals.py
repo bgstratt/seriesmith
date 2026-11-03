@@ -3,9 +3,10 @@ vocals.py — a recording's vocal stem (docs/SOUND.md phase 7: a song as the epi
 
 A song's singing, split from the band by Hybrid Demucs (torchaudio's HDEMUCS_HIGH_MUSDB_PLUS)
 in seriesmith's node pack (comfy_nodes/audio.py SeriesmithVocals), run as a job on this
-machine's ComfyUI: LoadAudio -> SeriesmithVocals -> SaveAudio. Nothing is installed for it:
-torchaudio comes with ComfyUI, and the weights are read from models/demucs/ (the Features
-window's "Vocal stem") or downloaded once by torchaudio.
+machine's ComfyUI: LoadAudio -> SeriesmithVocals -> SaveAudio. torchaudio comes with ComfyUI;
+the weights are read from models/demucs/ (the Features window's "Vocal stem" downloads them)
+or from a copy torchaudio downloaded before into torch's hub cache, and never fetched by the
+node: without them the job fails saying to download them.
 
 The stem lands beside the recording as `<recording>.vocals.wav` and is kept while it's at
 least as new as the recording (as align's `<recording>.words.json`). It's **optional and off

@@ -43,7 +43,8 @@ Needs
     ffmpeg on PATH, numpy, and one of:
         pip install faster-whisper        (recommended; uses GPU if it can, else CPU)
         pip install openai-whisper        (fallback)
-    The Whisper model downloads once on first use (--model, default medium.en).
+    and the Whisper model (--model, default medium.en), downloaded in the Features
+    window: align reads it from the Hugging Face cache and never fetches it itself.
 
 For the editor
     --progress prints one `##align {json}` line per stage (transcribe,
@@ -67,6 +68,7 @@ from seriesmith import build as BLD  # noqa: E402  (parse_script, parse_story)
 from seriesmith import source as HS  # noqa: E402  (the editor's read/save: _history, atomic writes)
 from seriesmith import ff as FF  # noqa: E402
 from seriesmith import takes as T  # noqa: E402  (write_json: atomic)
+from seriesmith import track as K  # noqa: E402  (the Whisper models: downloaded in Features)
 from seriesmith.core import fileio as F
 from seriesmith.core import paths as P  # noqa: E402
 
@@ -142,6 +144,24 @@ def cuda_libs() -> None:
                     ctypes.CDLL(p, mode=ctypes.RTLD_GLOBAL)
 
 
+def local_whisper(model: str) -> str:
+    """The folder of faster-whisper's `model` in the Hugging Face cache (a
+    folder given as the model is itself), never downloaded here: exits
+    saying to download it in the Features window when it isn't there."""
+    if os.path.isdir(model):
+        return model
+    why = K.whisper_missing(model)
+    if why:
+        sys.exit(f"  !! {why}")
+    from faster_whisper.utils import download_model
+    try:
+        return download_model(model, local_files_only=True)
+    except Exception as e:                  # noqa: BLE001  not in the cache, a name it doesn't know
+        sys.exit(f"  !! faster-whisper's {model} isn't downloaded, and align doesn't let it "
+                 f"download by itself: pick one of {', '.join(K.MODELS)} and download it in "
+                 f"the Features window ({K.WHISPER_FEATURE}) ({str(e)[:120]})")
+
+
 def transcribe(path: str, model: str, device: str, language: str, prompt: str) -> list[dict]:
     cuda_libs()
     try:
@@ -149,13 +169,14 @@ def transcribe(path: str, model: str, device: str, language: str, prompt: str) -
     except ImportError:
         WhisperModel = None
     if WhisperModel is not None:
+        where = local_whisper(model)
         tries = [("cuda", "float16"), ("cpu", "int8")] if device == "auto" else \
                 [(device, "float16" if device == "cuda" else "int8")]
         last = None
         for dev, ct in tries:
             try:
                 print(f"  transcribing with faster-whisper {model} on {dev} ...", flush=True)
-                wm = WhisperModel(model, device=dev, compute_type=ct)
+                wm = WhisperModel(where, device=dev, compute_type=ct, local_files_only=True)
                 # decoded here (16 kHz mono, as it wants): its own decoder opens the file
                 # with an argument PyAV 15+ dropped (faster-whisper 1.2 on PyAV 19 fails)
                 segs, _ = wm.transcribe(load_pcm(path), language=language, word_timestamps=True,
@@ -176,6 +197,15 @@ def transcribe(path: str, model: str, device: str, language: str, prompt: str) -
     except ImportError:
         sys.exit("  !! no Whisper installed. Run:  pip install faster-whisper\n"
                  "     (or pass --words with an existing word-timing JSON)")
+    # openai-whisper downloads a model it hasn't got the first time it's asked: only one
+    # already in its cache is used (seriesmith downloads faster-whisper's, not these)
+    url = getattr(whisper, "_MODELS", {}).get(model)
+    root = os.path.join(os.environ.get("XDG_CACHE_HOME")
+                        or os.path.join(os.path.expanduser("~"), ".cache"), "whisper")
+    if url and not os.path.isfile(os.path.join(root, os.path.basename(url))):
+        sys.exit(f"  !! openai-whisper's {model} isn't downloaded, and align doesn't let it "
+                 f"download by itself: install faster-whisper and download the model in "
+                 f"the Features window ({K.WHISPER_FEATURE})")
     print(f"  transcribing with openai-whisper {model} ...", flush=True)
     m = whisper.load_model(model)
     res = m.transcribe(path, language=language, word_timestamps=True,

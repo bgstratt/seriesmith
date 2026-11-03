@@ -361,6 +361,11 @@ class Runner:
 
         backend = self.backend_for(backend_name)
         hosted = bool(job.target.spec.get("router"))
+        if not hosted:
+            # what its node pack would fetch by itself (an ambience bed's BigVGAN), not
+            # downloaded: refused before anything is reserved
+            from seriesmith import hubcache as HC
+            HC.check_target(job.target, backend)
         self.reserve(backend, s.ep, "ref")
         collector = J.InputCollector(keep_dir=os.path.join(R.takes_dir(job.ref), "_staged"))
         if not hosted:
@@ -649,7 +654,7 @@ class Runner:
             progress = progress_to(report)
             picture = None
             try:
-                graph, picture = FX.prepare(root, pass_, shot, n)
+                graph, picture = FX.prepare(root, pass_, shot, n, backend)
                 run = backend.submit(graph)
                 self.started(qjob, run, backend, report)
                 FX.update(root, pass_, shot, n, backend_job=run.id)

@@ -13,11 +13,26 @@ A feature is a few items, each of one kind:
             from this repo (a junction on Windows, a symlink elsewhere)
     pip     a Python package, in ComfyUI's Python or in seriesmith's own
     ffmpeg  a full ffmpeg build, downloaded into seriesmith's folder (seriesmith.ff)
+    key     an account's key, not a file: the Comfy API key the hosted models
+            (Comfy Router), Comfy Cloud and deployments run on, set in Settings
+    hub     what a package would otherwise fetch by itself the first time a job
+            runs (seriesmith.hubcache): a Hugging Face repo's files into its
+            cache (faster-whisper's models, HunyuanVideo-Foley's SigLIP2 and
+            CLAP) or into a models folder (ComfyUI-MMAudio's BigVGAN), or a file
+            into torch's hub cache (demucs's htdemucs). Downloaded here, where
+            that package looks; the job that needs one refuses until it's there,
+            so nothing downloads behind its back. A target's are its target.json
+            `fetches`; the rest are constants beside the code that reads them
 
-A pack or a pip package is put in by you, not by seriesmith (`Item.manual`):
-the Comfy Registry's rules let a node pack neither install Python packages at
-runtime nor install other packs. status() says how for each one missing
-(`how`): ComfyUI-Manager for a pack, the pip command for the right Python.
+A pack, a pip package or a key is put in by you, not by seriesmith
+(`Item.manual`): the Comfy Registry's rules let a node pack neither install
+Python packages at runtime nor install other packs. status() says how for each
+one missing (`how`): ComfyUI-Manager for a pack, the pip command for the right
+Python, Settings for a key.
+
+Every node class a shipped graph uses is ComfyUI's own (CORE_CLASSES),
+seriesmith's (OWN_PACK) or a pack's here (PACKS), and every file a shipped
+target loads is in a feature: tests/test_features.py checks both.
 
 A target's feature takes its files from the target itself (the required and
 accelerator files its passes load), and its status from readiness, which knows
@@ -47,7 +62,9 @@ PACKS: dict[str, dict] = {
     "ComfyUI-LTXVideo": {
         "repo": "https://github.com/Lightricks/ComfyUI-LTXVideo",
         "classes": ["LTXVAudioOnlyModel", "LTXVAudioOnlyEmptyVideoLatent",
-                    "LTXICLoRALoaderModelOnly", "LTXAddVideoICLoRAGuide"]},
+                    "LTXICLoRALoaderModelOnly", "LTXAddVideoICLoRAGuide",
+                    # ltx23_foley's guiders and mask
+                    "GuiderParameters", "MultimodalGuider", "LTXVSetAudioVideoMaskByTime"]},
     "Comfyui_Minimax_h3_latent_Upscaler": {
         "repo": "https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler",
         "classes": ["MinimaxH3LatentUpscaler3D"]},
@@ -74,6 +91,41 @@ PACKS: dict[str, dict] = {
         "classes": ["PromptRelayEncode"]},
 }
 
+# The node classes seriesmith's graphs use (the shipped targets' workflows and
+# target.json, and the graphs built in Python: upscale, post, refs, chain) that
+# are ComfyUI's own, each found in ComfyUI's source (nodes.py, comfy_extras/,
+# comfy_api_nodes/; checked 2026-11-02). Nothing to install but a newer ComfyUI:
+# a missing one says so. tests/test_features.py fails on a class a graph adds
+# that is neither one of these, seriesmith's own, nor a pack's above.
+CORE_CLASSES = frozenset({
+    "AudioEncoderLoader", "BasicGuider", "BasicScheduler", "BlockSparseAttention", "CFGGuider",
+    "CLIPLoader", "CLIPTextEncode", "CheckpointLoaderSimple", "ComfySwitchNode",
+    "ConditioningZeroOut", "CreateVideo", "DualCLIPLoader", "EmptyAceStep1.5LatentAudio",
+    "EmptyFlux2LatentImage", "EmptyImage", "EmptyLTXVLatentVideo", "EmptyLatentAudio",
+    "EmptyLatentImage", "EmptySD3LatentImage", "EmptyYuE2LatentAudio", "Flux2Scheduler",
+    "FluxGuidance", "FluxKVCache", "FluxKontextImageScale", "GetICLoRAParameters",
+    "GetVideoComponents", "ImageBatch", "ImageFromBatch", "ImageInvert", "ImageScale",
+    "ImageScaleToTotalPixels", "ImageToMask", "KSampler", "KSamplerAdvanced", "KSamplerSelect",
+    "LTXAVTextEncoderLoader", "LTXVAddGuide", "LTXVAudioVAEDecode", "LTXVAudioVAEEncode",
+    "LTXVAudioVAELoader", "LTXVConcatAVLatent", "LTXVConditioning", "LTXVCropGuides",
+    "LTXVDualCFGGuider", "LTXVDurationPredictor", "LTXVEmptyLatentAudio", "LTXVImgToVideoInplace",
+    "LTXVLatentUpsampler", "LTXVPreprocess", "LTXVScheduler", "LTXVSeparateAVLatent",
+    "LatentConcat", "LatentCut", "LatentUpscaleModelLoader", "LoadAudio", "LoadImage",
+    "LoadVideo", "LoraLoader", "LoraLoaderModelOnly", "ManualSigmas", "MiniMaxH3AddGuide",
+    "MiniMaxH3ImageToVideo", "MiniMaxH3ReferenceToVideo", "MiniMaxH3SigmaShift",
+    "ModelPatchLoader", "ModelSamplingAuraFlow", "ModelSamplingSD3", "OpticalFlowLoader",
+    "QwenImage21Cache", "RandomNoise", "RebatchImages", "ReferenceLatent", "ReferenceMultiLatent",
+    "ReferenceTimbreAudio", "RegexReplace", "RepeatImageBatch", "ResizeAndPadImage",
+    "ResizeImageMaskNode", "SUPIRApply", "SamplerCustomAdvanced", "SaveAudio", "SaveImage",
+    "SaveVideo", "SeedVR2Conditioning", "SeedVR2PostProcessing", "SeedVR2Preprocess",
+    "SeedVR2TemporalChunk", "SeedVR2TemporalMerge", "SetLatentNoiseMask", "SheetSage2AudioToABC",
+    "SolidMask", "SplitSigmas", "TextEncodeAceStepAudio1.5", "TextEncodeFibo2",
+    "TextEncodeQwenImage21", "TextEncodeQwenImageEditPlus", "TrimAudioDuration", "TrimVideoLatent",
+    "UNETLoader", "UpscaleModelLoader", "VAEDecode", "VAEDecodeAudio", "VAEDecodeTiled",
+    "VAEEncode", "VAEEncodeAudio", "VAEEncodeTiled", "VAELoader", "Wan22ImageToVideoLatent",
+    "WanFirstLastFrameToVideo", "WanImageToVideo", "WanVaceToVideo", "YuE2GenerateABC",
+    "YuE2GenerateMusic"})
+
 # ---------------------------------------------------------------------------
 # items and features
 # ---------------------------------------------------------------------------
@@ -81,16 +133,25 @@ PACKS: dict[str, dict] = {
 
 @dataclass
 class Item:
-    kind: str                      # model | pack | link | pip | ffmpeg
-    name: str                      # the file, the pack's folder, the pip spec, "ffmpeg"
-    folder: str = ""               # model: its models folder
-    url: str = ""                  # model: its download; pack: its repo
+    kind: str                      # model | pack | link | pip | ffmpeg | key | hub
+    name: str                      # the file, the pack's folder, the pip spec, "ffmpeg",
+                                   # the key's setting ("api_key"); hub: the Hugging Face
+                                   # repo, or the file's path in torch's hub folder
+    folder: str = ""               # model: its models folder; hub: "hf", "torch" or a
+                                   # models folder (hubcache)
+    url: str = ""                  # model: its download; pack: its repo; hub: the repo's
+                                   # page or the file's download
     target: str = ""               # model: the target that names it (status from readiness)
     where: str = "comfyui"         # pip: which Python: "comfyui", "seriesmith", or "align"
                                    # (the one align runs on: track.align_python)
     module: str = ""               # pip: the module that says it's installed
     pip_args: tuple = ()           # pip: extra arguments (an index URL)
     classes: tuple = ()            # pack: the node classes it loads
+    files: tuple = ()              # hub (a repo): the files it must have (patterns)
+    extra: tuple = ()              # hub (a repo): more fetched with them, not required
+    label: str = ""                # hub: what it is, in words
+    alt: str = ""                  # model: the same file in torch's hub folder (its path
+                                   # there), which counts as installed too
 
     @property
     def key(self) -> str:
@@ -98,8 +159,8 @@ class Item:
 
     @property
     def manual(self) -> bool:
-        """Put in by you (ComfyUI-Manager, pip), not by the installer."""
-        return self.kind in ("pack", "pip")
+        """Put in by you (ComfyUI-Manager, pip, Settings), not by the installer."""
+        return self.kind in ("pack", "pip", "key")
 
     @property
     def gated(self) -> bool:
@@ -111,9 +172,13 @@ class Item:
         d = {"key": self.key, "kind": self.kind, "name": self.name}
         if self.manual:
             d["manual"] = True
-        for k in ("folder", "url", "target", "module"):
+        for k in ("folder", "url", "target", "module", "label"):
             if getattr(self, k):
                 d[k] = getattr(self, k)
+        if self.kind == "hub":
+            from seriesmith import hubcache as HC
+            d["into"] = HC.where_text(self)
+            d.pop("folder", None)              # not a models folder, or said in `into`
         if self.kind == "pip":
             d["where"] = self.where
         if self.gated:
@@ -145,11 +210,12 @@ GROUPS = [
     ("video", "Video models", "What shots render on. seriesmith uses the first one installed."),
     ("pictures", "Picture models", "What draws characters, places, props and keyframes."),
     ("h3", "MiniMax H3 extras", "For H3 at full quality and for the location tours."),
-    ("sound", "Sound", "Generated voices, recorded dialogue, ambience beds and effects."),
+    ("sound", "Sound", "Generated voices, recorded dialogue, music, ambience beds and effects."),
     ("upscale", "Upscaling", "Upscale takes (Upscale, Export 2x, master). Pick the methods you want."),
     ("post", "Post-processing", "Enhancement and motion blur after the upscale."),
-    ("refs", "360s and turned views", "The Refs tab's Make 360 and a character's Turn."),
-    ("tools", "Tools", "seriesmith's node pack, and a full ffmpeg."),
+    ("refs", "360s, turned views and relights", "The Refs tab's Make 360, a character's Turn and a relight."),
+    ("hosted", "Hosted models", "Comfy's cloud: no files, a Comfy API key."),
+    ("tools", "Tools", "seriesmith's node pack, comfy-api-proxy and a full ffmpeg."),
 ]
 
 
@@ -179,7 +245,96 @@ def _target_items(tid: str) -> list[Item]:
             continue
         seen.add(base)
         out.append(Item("model", base, folder=d["folder"], url=d.get("url") or "", target=tid))
+    return out + fetch_items(t)
+
+
+def fetch_items(target) -> list[Item]:
+    """What a target's node pack would fetch by itself (target.json
+    `fetches`), as hub items: downloaded in Features, and readiness holds the
+    target back until they're there."""
+    from seriesmith import hubcache as HC
+    out = []
+    for repo, f in getattr(target, "fetches", {}).items():
+        out.append(Item("hub", repo, folder=f["into"], url=f"{HC.HF}/{repo}",
+                        files=tuple(f.get("files") or ()), extra=tuple(f.get("extra") or ()),
+                        label=f.get("label") or ""))
     return out
+
+
+def whisper_item(model: str) -> Item:
+    """A faster-whisper model align transcribes with, in the Hugging Face
+    cache where faster-whisper looks (track.WHISPER_REPOS)."""
+    from seriesmith import hubcache as HC
+    from seriesmith import track as K
+    repo = K.WHISPER_REPOS[model]
+    return Item("hub", repo, folder="hf", url=f"{HC.HF}/{repo}", files=K.WHISPER_FILES,
+                extra=K.WHISPER_EXTRA, label=f"Whisper {model} (faster-whisper)")
+
+
+def nodes_hub():
+    """comfy_nodes/_hub.py (what the node pack reads from torch's hub cache),
+    loaded by its path: the node pack isn't a package seriesmith imports."""
+    import importlib.util
+    import sys
+    name = "seriesmith_nodes_hub"
+    if name not in sys.modules:
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "comfy_nodes", "_hub.py")
+        spec = importlib.util.spec_from_file_location(name, path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        sys.modules[name] = mod
+    return sys.modules[name]
+
+
+def _optional_items(tid: str, param: str) -> list[Item]:
+    """An optional model setting's file (its `default`, else what a pass
+    names), with the target's download record of it: the extras a target
+    leaves out of its own feature (the LTX duration head, SheetSage2). Status
+    from the file alone: readiness counts the target ready without it."""
+    from seriesmith import targets as TG
+    try:
+        t = TG.load_target(tid)
+    except Exception:                                     # noqa: BLE001  not here (a trimmed install)
+        return []
+    spec = t.models.get(param) or {}
+    names = [spec.get("default")] + [TG.wanted_files(t, p, None).get(param) for p in t.presets]
+    if not any(isinstance(n, str) and n for n in names):
+        # named nowhere but its download (a file no pass loads by name)
+        names = [n for n, d in t.downloads.items() if d.get("folder") == spec.get("folder")
+                 and TG.download_for(t, n, spec.get("folder")).get("url")
+                 and any(_match(n, p) for p in spec.get("patterns") or [])]
+    out = []
+    for n in names:
+        if isinstance(n, str) and n:
+            base = n.replace("\\", "/").rsplit("/", 1)[-1]
+            d = TG.download_for(t, n, spec.get("folder"))
+            if d.get("folder") and base not in {i.name for i in out}:
+                out.append(Item("model", base, folder=d["folder"], url=d.get("url") or ""))
+    return out
+
+
+def _match(name: str, pattern: str) -> bool:
+    import fnmatch
+    return fnmatch.fnmatch(name.lower(), pattern.lower())
+
+
+def _edit_models() -> str:
+    """The local picture models that edit (an edit, a relight, a Turn told in
+    words runs on any of them), by their short names."""
+    from seriesmith import targets as TG
+    return ", ".join(t.short for t in TG.list_targets("image")
+                     if TG.can_edit(t) and not t.spec.get("router") and not t.draft)
+
+
+def _hosted_models(kind: str) -> list:
+    from seriesmith import targets as TG
+    return [t for t in TG.list_targets(kind) if t.spec.get("router")]
+
+
+def _names(targets: list) -> str:
+    """Their short names, each once (Seedance's four sizes are one)."""
+    return ", ".join(dict.fromkeys(t.short for t in targets))
 
 
 def _lora_of(tid: str, name: str) -> Item:
@@ -204,9 +359,12 @@ def catalog() -> list[Feature]:
     """Every feature, in the window's order."""
     from seriesmith import post as P
     from seriesmith import refs as R
+    from seriesmith import sdk as SDK
     from seriesmith import upscale as U
     from seriesmith import targets as TG
+    from seriesmith import track as K
     from seriesmith import vocals as V
+    hub = nodes_hub()
 
     def target_feature(fid, group, tid, label, about, extra=()):
         items = _target_items(tid)
@@ -217,18 +375,39 @@ def catalog() -> list[Feature]:
                 if n == U.SEEDVR2_VAE or size in n]
 
     h3_up = TG.load_target("minimax_h3_ref2va").downloads.get("minimax_h3_latent_upscaler_3d_fp16.safetensors") or {}
+    hosted_video, hosted_image = _hosted_models("video"), _hosted_models("image")
     feats = [
-        target_feature("video.h3", "video", "minimax_h3_ref2va", "MiniMax H3 Ref2VA",
-                       "The default: characters and places like their pictures, lip-synced dialogue. "
-                       "Wants a recent NVIDIA card (developed on 32 GB)."),
+        Feature("video.h3", "video", "MiniMax H3 Ref2VA",
+                "The default: characters and places like their pictures, lip-synced dialogue. "
+                "Wants a recent NVIDIA card (developed on 32 GB). Also a picture model (H3 still).",
+                _merge(_target_items("minimax_h3_ref2va"), _target_items("minimax_h3_still"))),
         target_feature("video.h3_fl2va", "video", "minimax_h3_fl2va", "MiniMax H3 FL2VA",
                        "Shots that carry on from the one before (continuous: first), and the location tours."),
         Feature("video.fasth3_omni", "video", "FastH3 Omni",
                 "FastVideo's 8-step H3: up to eight characters and things per shot, no turbo LoRA. "
-                "Also a picture model (Omni still). Shares H3's text encoder and VAEs.",
-                _merge(_target_items("fasth3_omni"), _target_items("fasth3_omni_still"))),
+                "Also a picture model (Omni still), and its shots that carry on from the one "
+                "before (FastH3 FL2VA). Shares H3's text encoder and VAEs.",
+                _merge(_target_items("fasth3_omni"), _target_items("fasth3_omni_still"),
+                       _target_items("fasth3_fl2va"))),
+        Feature("video.h3_singularity", "video", "H3 Singularity",
+                "AIGC-Singularity's fine-tune of H3 Ref2VA (clearer HDR, distant faces, motion), and "
+                "its shots that carry on from the one before. H3's text encoder, VAEs and turbo "
+                "LoRAs. Apache 2.0 over H3's community licence.",
+                _merge(_target_items("h3_singularity"), _target_items("h3_singularity_fl2va"))),
         target_feature("video.ltx2", "video", "ltx2", "LTX-2.5",
                        "Quick, and makes its own sound. Gated: accept the licence on Hugging Face."),
+        Feature("video.ltx2_duration", "video", "LTX-2.5 duration head",
+                "dur: model: LTX-2.5 chooses a shot's length as it renders. Without it the shot "
+                "renders at seriesmith's estimate. Gated, as LTX-2.5.",
+                _optional_items("ltx2", "duration_head")),
+        Feature("video.ltx2_quality", "video", "LTX-2.5 quality profile",
+                "The LTX-2.5 dev transformer, for LTX-2.5's quality profile (more steps, real "
+                "guidance; slower than the distilled one). Gated, as LTX-2.5.",
+                _optional_items("ltx2", "quality_model")),
+        Feature("video.ltx2_sheets", "video", "LTX-2.5 reading reference sheets",
+                "LTX-2.5 working from the characters' and places' sheets: the ingredients IC-LoRA "
+                "and ComfyUI-LTXVideo's IC-LoRA nodes. Gated, as LTX-2.5.",
+                [_pack("ComfyUI-LTXVideo")] + _optional_items("ltx2", "reference_lora"), restart=True),
         target_feature("video.ltx2_ingredients", "video", "ltx2_ingredients", "LTX-2.3 ingredients",
                        "LTX working from your character sheets and plates."),
         target_feature("video.ltx2_msr", "video", "ltx2_msr", "LTX-2.5 + MSR",
@@ -261,14 +440,29 @@ def catalog() -> list[Feature]:
                        "Text to image, strong on lettering and layout (Apache 2.0). 50 steps."),
         target_feature("pictures.moss_image_base", "pictures", "moss_image_base", "MOSS-Image Base",
                        "The base MOSS-Image the SFT is tuned from: for LoRAs trained on it, and comparing."),
+        target_feature("pictures.flux_kontext", "pictures", "flux_kontext", "FLUX.1 Kontext dev",
+                       "Edits from one reference picture (relights and turns too). Its VAE is FLUX.1's."),
+        target_feature("pictures.qwen_rapid_aio", "pictures", "qwen_rapid_aio", "Qwen-Image-Edit Rapid AIO",
+                       "A 4-step all-in-one edit checkpoint, up to three reference pictures (relights and "
+                       "turns too)."),
         Feature("h3.sparse_attention", "h3", "H3 sparse attention",
                 "ComfyUI-PlagueKind-Nodes: the attention H3's turbo LoRAs were trained with. "
                 "Without it H3 renders without it (degraded). The location tours need it.",
                 [_pack("ComfyUI-PlagueKind-Nodes")], restart=True),
         Feature("sound.voice", "sound", "Generated voice samples",
                 "A voice per character, that `clone` shots speak in: ComfyUI-LTXVideo and three LTX-2.5 "
-                "files (gated). It also lets LTX-2.5 read reference sheets.",
+                "files (gated). H3 FL2VA's clone shots make their lines with it too.",
                 [_pack("ComfyUI-LTXVideo")] + _target_items("ltx2_voice"), restart=True),
+        target_feature("sound.score", "sound", "stable_audio3", "Music cues (Stable Audio 3 Medium)",
+                       "Score's default: an instrumental cue from its words, on ComfyUI's own nodes."),
+        target_feature("sound.songs", "sound", "yue2", "Songs (YuE2)",
+                       "A song sung from its style words and lyrics, on ComfyUI's own nodes. "
+                       "Non-commercial licence (CC BY-NC 4.0)."),
+        Feature("sound.songs_theme", "sound", "A song's theme from a recording (SheetSage2)",
+                "YuE2 singing a melody transcribed from a recording you give it. Non-commercial "
+                "licence (CC BY-NC 4.0).", _optional_items("yue2", "sheetsage")),
+        target_feature("sound.music_ace", "sound", "ace_step15", "Music and songs (ACE-Step 1.5 XL)",
+                       "Cues and songs from words and lyrics, on ComfyUI's own nodes (MIT)."),
         Feature("sound.ambience", "sound", "Ambience beds (MMAudio)",
                 "A place's room tone or air, made once from its `ambience` words and looped under "
                 "its shots: kijai's ComfyUI-MMAudio and its four files (MIT). The default.",
@@ -292,20 +486,30 @@ def catalog() -> list[Feature]:
                 "faster-whisper, for align and the Recording window, in the Python align runs on; "
                 "with an NVIDIA card, CUDA 12's cuBLAS too, or it transcribes on the CPU (its "
                 "CTranslate2 is built on CUDA 12 and brings cuDNN, not cuBLAS; ComfyUI's PyTorch "
-                "has CUDA 13's, which it can't use).",
+                "has CUDA 13's, which it can't use). And the Whisper model align uses "
+                f"({K.DEFAULT_MODEL}), into the Hugging Face cache: align won't run without it.",
                 [Item("pip", "faster-whisper", where="align", module="faster_whisper"),
                  Item("pip", "numpy", where="align", module="numpy"),
-                 Item("pip", "nvidia-cublas-cu12", where="align", module="nvidia.cublas")]),
+                 Item("pip", "nvidia-cublas-cu12", where="align", module="nvidia.cublas"),
+                 whisper_item(K.DEFAULT_MODEL)]),
+        *[Feature(f"sound.whisper.{m}", "sound", f"Whisper {m} (align)",
+                  "Another Whisper model for align (the Recording window's Model): "
+                  f"{K.WHISPER_ABOUT.get(m, '')}", [whisper_item(m)])
+          for m in K.MODELS if m != K.DEFAULT_MODEL],
         Feature("sound.vocals", "sound", "Vocal stem (Hybrid Demucs)",
                 "A song's singing split from the band, for align --vocals and an episode that "
                 "dubs from the stem (optional; off by default): seriesmith's node pack and "
-                "torchaudio's Hybrid Demucs weights (torchaudio downloads them itself if "
-                "they aren't here).",
+                "torchaudio's Hybrid Demucs weights (a copy torchaudio downloaded before, in "
+                "torch's hub cache, counts). The split won't run without them.",
                 [OWN_PACK, Item("model", V.WEIGHTS_FILE, folder=V.WEIGHTS_FOLDER,
-                                url=V.WEIGHTS_URL)], restart=True),
+                                url=V.WEIGHTS_URL, alt=hub.TORCHAUDIO_HDEMUCS)], restart=True),
         Feature("sound.demucs", "sound", "Keep H3's foley under your vocal",
-                "demucs in ComfyUI's Python, for the dub_keep_foley audio policy.",
-                [Item("pip", "demucs", where="comfyui", module="demucs")]),
+                "demucs in ComfyUI's Python, for the dub_keep_foley audio policy, and its "
+                "htdemucs model in torch's hub cache, where demucs looks: without it the take "
+                "keeps no foley bed.",
+                [Item("pip", "demucs", where="comfyui", module="demucs"),
+                 Item("hub", hub.HTDEMUCS, folder="torch", url=hub.HTDEMUCS_URL,
+                      label="demucs's htdemucs model")]),
         Feature("upscale.h3_latent", "upscale", "H3 latent re-sample (2x)",
                 "The best upscale for H3 takes: the LBH-123-AI pack and its model. Clone the pack: "
                 "ComfyUI-Manager lists only its Plus fork, which invents detail.",
@@ -342,8 +546,28 @@ def catalog() -> list[Feature]:
                 "The pano360 LoRA (and Qwen-Image 2.1 itself).",
                 [Item("model", R.PANO_LORA, folder="loras", url=R.PANO_LORA_URL)] + _target_items("qwen_image_21")),
         Feature("refs.turn", "refs", "Turn a character",
-                "Qwen-Image 2.1's multiple-angles LoRA (and Qwen-Image 2.1 itself).",
+                "Qwen-Image 2.1's multiple-angles LoRA (and Qwen-Image 2.1 itself): the surest turn. "
+                f"Without it, Turn runs on any edit model installed ({_edit_models()}), told the "
+                "turn in words (Made with › Turns with).",
                 [Item("model", R.TURN_LORA, folder="loras", url=R.TURN_LORA_URL)] + _target_items("qwen_image_21")),
+        Feature("refs.relight", "refs", "Relight a plate or a sequence",
+                "A relight is an edit of the plate: it runs on the episode's edit model (Made "
+                f"with), any of {_edit_models()}. The default is FLUX.2 Klein 9B edit (gated): "
+                "these files.",
+                _target_items(TG.DEFAULT_KEYFRAME_TARGET)),
+        Feature("hosted.comfy_api", "hosted", "Comfy API: Router models, Cloud, deployments",
+                f"{len(hosted_video)} video models ({_names(hosted_video)}) and "
+                f"{len(hosted_image)} picture models ({_names(hosted_image)}) "
+                "on Comfy Router, and renders on Comfy Cloud or a deployment: paid per run, "
+                "nothing to download. A Comfy API key (platform.comfy.org) in Settings, and "
+                "comfy-sdk, which they run on, in the Python seriesmith runs on.",
+                [Item("key", "api_key"),
+                 Item("pip", SDK.REQUIREMENT, where="seriesmith", module="comfy_sdk")]),
+        Feature("tools.proxy", "tools", "comfy-api-proxy",
+                "Local renders through comfy-api-proxy (Settings › Through comfy-api-proxy) "
+                "instead of straight to ComfyUI: the Comfy API in front of your own ComfyUI. "
+                "Optional; seriesmith starts it when it's installed.",
+                [Item("pip", "comfy-api-proxy", where="seriesmith", module="comfy_api_proxy")]),
         Feature("tools.seriesmith_nodes", "tools", "seriesmith's node pack",
                 "Its shot loader and saver, the chain, upscale and post nodes: latent continuity, "
                 "kept latents, upscales and posts. Installed with ComfyUI-Manager, or linked "
@@ -351,7 +575,8 @@ def catalog() -> list[Feature]:
                 "ComfyUI's own nodes.", [OWN_PACK], restart=True),
         Feature("tools.ffmpeg", "tools", "ffmpeg and ffprobe",
                 "A full ffmpeg build in seriesmith's own folder, used before the built-in fallbacks "
-                "(or set your own folder in Settings).", [Item("ffmpeg", "ffmpeg")]),
+                "(or set your own folder in Settings): assemble, master, publish, the XML "
+                "import's proxies.", [Item("ffmpeg", "ffmpeg")]),
     ]
     return feats
 
@@ -381,19 +606,36 @@ class Env:
     python_has: Callable[[str, str], bool | None] = lambda where, module: None
     python_for: Callable[[str], str | None] = lambda where: None   # a pip item's Python
     ffmpeg_installed: bool = False
+    api_key_set: bool | None = None          # a Comfy API key in Settings (or COMFY_API_KEY)
+    hub_has: Callable[[Item], bool | None] = lambda item: None   # a hub item (hubcache.present)
+
+
+def shell_line(cmd: list[str]) -> str:
+    """`cmd` as one line for this system's shell: on Windows an argument with
+    a character cmd or PowerShell would read (a version spec's < or >) is
+    quoted too, which list2cmdline leaves bare."""
+    import shlex
+    import subprocess
+    if os.name != "nt":
+        return shlex.join(cmd)
+    return " ".join(f'"{a}"' if any(c in a for c in '<>|&^') and " " not in a
+                    else subprocess.list2cmdline([a]) for a in cmd)
 
 
 def pip_command(item: Item, python: str | None) -> str:
     """The pip line that puts `item` in `python` ("python" when it isn't
     known), quoted for this system's shell."""
-    import shlex
-    import subprocess
-    cmd = [python or "python", "-m", "pip", "install", item.name, *item.pip_args]
-    return subprocess.list2cmdline(cmd) if os.name == "nt" else shlex.join(cmd)
+    return shell_line([python or "python", "-m", "pip", "install", item.name, *item.pip_args])
+
+
+KEY_HOW = ("Set your Comfy API key (platform.comfy.org) in Settings › Comfy API key, or in "
+           "the COMFY_API_KEY environment variable.")
 
 
 def how(item: Item, env: Env) -> str:
-    """How you put in a pack or a pip package seriesmith doesn't install."""
+    """How you put in a pack, a pip package or a key seriesmith doesn't install."""
+    if item.kind == "key":
+        return KEY_HOW
     if item.kind == "pack":
         # some packs aren't in Manager's list (2026-10-28: the LBH latent upscaler), so
         # the clone is always offered too
@@ -410,6 +652,8 @@ def item_status(item: Item, env: Env) -> str:
     if item.kind == "model":
         got = env.model_exists(item.folder, item.name)
         if got:
+            return "installed"
+        if item.alt and env.hub_has(Item("hub", item.alt, folder="torch")):
             return "installed"
         if item.target:
             # readiness knows a substitute of the same family counts
@@ -431,6 +675,11 @@ def item_status(item: Item, env: Env) -> str:
         return "installed" if got else ("missing" if got is False else "unknown")
     if item.kind == "ffmpeg":
         return "installed" if env.ffmpeg_installed else "missing"
+    if item.kind == "key":
+        return "unknown" if env.api_key_set is None else "installed" if env.api_key_set else "missing"
+    if item.kind == "hub":
+        got = env.hub_has(item)
+        return "installed" if got else ("missing" if got is False else "unknown")
     return "unknown"
 
 
@@ -467,14 +716,14 @@ def status(features: list[Feature], env: Env) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def known_files(features: list[Feature] | None = None) -> dict[str, Item]:
-    """Every model file with a recorded download, by name: what the What's
-    missing window may ask for by name (the server never takes a URL from
-    the page)."""
+    """Every model file with a recorded download, by name, and every hub
+    item, by its repo or path: what the What's missing window may ask for by
+    name (the server never takes a URL from the page)."""
     from seriesmith import targets as TG
     out: dict[str, Item] = {}
     for f in features or catalog():
         for i in f.items:
-            if i.kind == "model" and i.url:
+            if i.kind in ("model", "hub") and i.url:
                 out.setdefault(i.name, i)
     for t in TG.list_targets():
         for name, d in t.downloads.items():
@@ -513,7 +762,9 @@ def resolve(feature_ids=(), files=(), classes=(), features: list[Feature] | None
         known = known_files(feats)
         for name in files:
             base = str(name).replace("\\", "/").rsplit("/", 1)[-1]
-            if base in known:
+            if str(name) in known and known[str(name)].kind == "hub":
+                items.append(known[str(name)])            # a repo, by its whole name
+            elif base in known:
                 items.append(known[base])
             else:
                 skipped.append(f"{base}: no recorded download")
@@ -521,6 +772,8 @@ def resolve(feature_ids=(), files=(), classes=(), features: list[Feature] | None
         p = pack_for_class(cls)
         if p:
             items.append(p)
+        elif cls in CORE_CLASSES:
+            skipped.append(f"{cls}: one of ComfyUI's own nodes: update ComfyUI and restart it")
         else:
             skipped.append(f"{cls}: no known node pack")
     out, seen = [], set()
@@ -537,12 +790,21 @@ def resolve(feature_ids=(), files=(), classes=(), features: list[Feature] | None
     return out, skipped
 
 
+def feature_label_of(item: Item, features: list[Feature] | None = None) -> str:
+    """The label of the first feature that has `item` ("" if none does)."""
+    for f in features or catalog():
+        if any(i.key == item.key for i in f.items):
+            return f.label
+    return ""
+
+
 def managed_ffmpeg_dir() -> str:
     """Where tools.ffmpeg puts the build: beside the settings file."""
     from seriesmith.settings import settings_path
     return os.path.join(os.path.dirname(settings_path()), "ffmpeg")
 
 
-__all__ = ["Env", "Feature", "GROUPS", "Item", "PACKS", "catalog", "how", "item_status",
-           "known_files", "managed_ffmpeg_dir", "pack_for_class", "pip_command", "resolve",
-           "status"]
+__all__ = ["CORE_CLASSES", "Env", "Feature", "GROUPS", "Item", "PACKS", "catalog",
+           "feature_label_of", "fetch_items", "how", "item_status", "known_files",
+           "managed_ffmpeg_dir", "nodes_hub", "pack_for_class", "pip_command", "resolve",
+           "shell_line", "status", "whisper_item"]

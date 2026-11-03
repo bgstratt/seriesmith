@@ -2122,7 +2122,7 @@ PACK_FEATURE = ("seriesmith's node pack (without it: no latent continuity, kept 
 
 def readiness(targets, object_info: dict | None, resolve=None, cache=None,
               extra: dict | None = None, series_cfg: dict | None = None,
-              error: str = "", graph_of=None) -> dict[str, dict]:
+              error: str = "", graph_of=None, hub_has=None) -> dict[str, dict]:
     """{target id: readiness} for each target (docs/API.md "Readiness"):
 
       {"status": "ready" | "degraded" | "not_ready" | "unknown",
@@ -2143,7 +2143,14 @@ def readiness(targets, object_info: dict | None, resolve=None, cache=None,
     `series_cfg` is given) resolve against the loaders' choices
     (targets.resolve_models); a missing accelerator is judged through the
     pass's `base`. not_ready: a required file or node is missing;
-    degraded: only accelerators or optional files (or optional nodes)."""
+    degraded: only accelerators or optional files (or optional nodes).
+
+    `hub_has(item) -> bool | None` says whether what a target's node pack
+    would fetch by itself (target.json `fetches`: features.fetch_items) is
+    here (hubcache.present, for a ComfyUI on this machine): one that isn't is
+    a required file missing (param "fetches", its repo as `want`, the
+    Features window's Install fetches it), so the job never goes to fetch it
+    silently. None (a ComfyUI elsewhere, the tests): not asked."""
     out = {}
     for t in targets:
         if HO.is_hold(t):
@@ -2184,6 +2191,21 @@ def readiness(targets, object_info: dict | None, resolve=None, cache=None,
             for f in r["features_off"]:
                 if f not in features_off:
                     features_off.append(f)
+        if hub_has is not None:
+            from seriesmith import features as FT
+            from seriesmith import hubcache as HC
+            for item in FT.fetch_items(t):
+                if hub_has(item) is False:
+                    blocked = True
+                    missing[("fetches", item.name)] = {
+                        "param": "fetches", "tier": "required", "want": item.name,
+                        "family": None, "label": item.label or item.name,
+                        "folder": (f"{item.folder}/{item.name}" if item.folder not in HC.PLACES
+                                   else None),
+                        "url": item.url,
+                        "source": f"{HC.where_text(item)}: download it in the Features window "
+                                  f"({FT.feature_label_of(item)}), never by the node pack itself",
+                        "passes": list(t.presets)}
         nodes_missing = []
         for cls, spec in target_nodes(t, *(graph_of(t) if graph_of else (None, ""))).items():
             if cls in object_info:

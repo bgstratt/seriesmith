@@ -1408,27 +1408,41 @@ editor shows Render on, Jobs and Settings once `GET /seriesmith/backends` answer
 
 - **`GET /seriesmith/features`** answers:
   `{"groups": [{id, label, about}], "features": [{id, group, label, about, restart, status,
-  "items": [{key, kind: "model" | "pack" | "link" | "pip" | "ffmpeg", name, folder?, url?,
-  target?, where?, gated?, licence?, manual?, how?, status}]}], "place": {root, custom_nodes,
+  "items": [{key, kind: "model" | "pack" | "link" | "pip" | "ffmpeg" | "key" | "hub", name, folder?,
+  url?, target?, where?, into?, label?, gated?, licence?, manual?, how?, status}]}], "place": {root, custom_nodes,
   python, why_not},
   "hf_token": bool, "job": {running, restart, "tasks": [{key, kind, name, folder, status:
   "queued" | "running" | "done" | "failed" | "canceled", bytes, total, error, note}]}}`.
   - An item's status is `installed`, `missing`, `restart` (a pack in custom_nodes, not
     loaded yet) or `unknown`.
-  - A node pack or Python package is `manual`: you put it in, not seriesmith. While it's
-    missing, `how` says how: ComfyUI-Manager for a pack, the pip command for its Python.
+  - A node pack, Python package or key is `manual`: you put it in, not seriesmith. While
+    it's missing, `how` says how: ComfyUI-Manager for a pack, the pip command for its
+    Python, Settings for a key (`name: "api_key"`, the Comfy API key the hosted models run
+    on: `installed` when one is set).
   - A feature's status is `installed`, `partial`, `missing`, `restart`, `unknown` or
     `unavailable`.
   - A target's files count as installed when readiness says so, so a substitute of the
     same family counts.
+  - A `hub` item is what a package would otherwise fetch by itself the first time a job
+    runs (`seriesmith/hubcache.py`): a Hugging Face repo (`name`, its page as `url`) into the
+    Hugging Face cache or a models folder, or a file into torch's hub cache (`name` its
+    path there); `into` says where in words. seriesmith downloads it, where that package
+    looks, and the job that needs one refuses until it's there: readiness lists a
+    target's (target.json `fetches`) as a required file missing (`param: "fetches"`, the
+    repo as `want`), align answers 409 for its Whisper model, the foley strip and the vocal
+    stem say to download it.
 - **`GET /seriesmith/features/sizes`** answers `{"sizes": {url: bytes | null}}`, asked
   of each download's server once (HEAD, with the Hugging Face token).
 - **`POST /seriesmith/features/install`** takes `{features?: [id], files?: [file name],
   classes?: [node class]}`.
   - What's already installed is left out, and each item is queued once.
-  - Files are taken by name only: the server downloads only URLs the code records.
-  - A node pack or Python package is never queued: it comes back in `skipped` as
-    `"<name>: <how>"`.
+  - Files are taken by name only: the server downloads only URLs the code records. A
+    hub item is asked for by its whole name (a repo, `laion/larger_clap_general`).
+  - A node pack, Python package or key is never queued: it comes back in `skipped` as
+    `"<name>: <how>"`. A node class is looked up by `features.pack_for_class`:
+    seriesmith's own pack is queued (linked), another pack comes back with its how, one of
+    ComfyUI's own nodes (`features.CORE_CLASSES`) as `"<class>: one of ComfyUI's own
+    nodes: update ComfyUI and restart it"`, any other as `"<class>: no known node pack"`.
   - It answers `{"job", "queued": [key], "skipped": [why]}`.
   - It answers 409 with `place.why_not` when a file has nowhere to go (a ComfyUI on
     another machine).

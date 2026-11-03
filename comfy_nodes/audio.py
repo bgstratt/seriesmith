@@ -17,6 +17,16 @@ from __future__ import annotations
 
 import torch
 
+try:
+    from . import _hub
+except ImportError:                       # this file loaded on its own (a test), not as the pack
+    import importlib.util as _iu
+    import os as _os
+    _spec = _iu.spec_from_file_location(
+        "seriesmith_nodes_hub", _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "_hub.py"))
+    _hub = _iu.module_from_spec(_spec)
+    _spec.loader.exec_module(_hub)
+
 
 class SeriesmithAudioSpanMask:
     """The latent with a noise mask of ones from `start` to `end` seconds (the
@@ -58,8 +68,9 @@ class SeriesmithAudioSpanMask:
 
 
 # Hybrid Demucs's weights (torchaudio's HDEMUCS_HIGH_MUSDB_PLUS): read from
-# models/demucs/ when they're there (the Features window puts them there), else
-# torchaudio downloads them once into torch's hub cache, as its bundle does
+# models/demucs/ (the Features window puts them there), else from the copy
+# torchaudio's bundle downloaded into torch's hub cache before; never fetched
+# here (the bundle would, silently): without them the split fails saying so
 DEMUCS_FOLDER = "demucs"
 DEMUCS_FILE = "hdemucs_high_trained.pt"
 DEMUCS_RATE = 44100
@@ -83,13 +94,15 @@ def _register_folder() -> None:
 _register_folder()
 
 
-def demucs_weights() -> str | None:
-    """The weights file in models/demucs/, or None (torchaudio downloads its own)."""
+def demucs_weights() -> str:
+    """The weights file: models/demucs/, else torchaudio's copy in torch's hub
+    cache; RuntimeError saying to download them in the Features window."""
     try:
         import folder_paths
-        return folder_paths.get_full_path(DEMUCS_FOLDER, DEMUCS_FILE)
+        mine = folder_paths.get_full_path(DEMUCS_FOLDER, DEMUCS_FILE)
     except Exception:                                     # noqa: BLE001
-        return None
+        mine = None
+    return _hub.hdemucs_weights(mine)
 
 
 def demucs_model(device):
@@ -97,12 +110,8 @@ def demucs_model(device):
     if "model" not in _MODEL:
         from torchaudio.models import hdemucs_high
         path = demucs_weights()
-        if path:
-            model = hdemucs_high(sources=DEMUCS_SOURCES)
-            model.load_state_dict(torch.load(path, map_location="cpu", weights_only=True))
-        else:
-            from torchaudio.pipelines import HDEMUCS_HIGH_MUSDB_PLUS
-            model = HDEMUCS_HIGH_MUSDB_PLUS.get_model()
+        model = hdemucs_high(sources=DEMUCS_SOURCES)
+        model.load_state_dict(torch.load(path, map_location="cpu", weights_only=True))
         _MODEL["model"] = model.eval()
     return _MODEL["model"].to(device)
 

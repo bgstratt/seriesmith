@@ -43,6 +43,28 @@ AUDIO_DIR = "audio"
 AUDIO_EXT = (".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".opus")
 DEFAULT_MODEL = "medium.en"
 MODELS = ("tiny.en", "base.en", "small.en", "medium.en", "large-v3", "large-v3-turbo")
+# Each model's Hugging Face repo, as faster-whisper names them (faster_whisper/utils.py
+# _MODELS, 1.2), and the files it reads (its download_model's allow_patterns): downloaded
+# in the Features window into the Hugging Face cache, where align reads them with
+# local_files_only. align never lets faster-whisper fetch one itself.
+WHISPER_REPOS = {
+    "tiny.en": "Systran/faster-whisper-tiny.en",
+    "base.en": "Systran/faster-whisper-base.en",
+    "small.en": "Systran/faster-whisper-small.en",
+    "medium.en": "Systran/faster-whisper-medium.en",
+    "large-v3": "Systran/faster-whisper-large-v3",
+    "large-v3-turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+}
+WHISPER_FILES = ("config.json", "model.bin", "tokenizer.json", "vocabulary.*")
+WHISPER_EXTRA = ("preprocessor_config.json",)          # large-v3's 128 mel bins
+WHISPER_ABOUT = {
+    "tiny.en": "the smallest and quickest (75 MB), least sure of a word.",
+    "base.en": "small and quick (145 MB).",
+    "small.en": "a middle way (480 MB).",
+    "large-v3": "the most accurate, slowest (3 GB), and any language.",
+    "large-v3-turbo": "nearly large-v3's accuracy, much quicker (1.6 GB), any language.",
+}
+WHISPER_FEATURE = "Recorded dialogue"                   # the Features line of the default
 SOURCE_TRACK = "source_track"
 NO_TRACK_MODE = "generate"          # the mode a cleared track falls back to
 ALIGN_TIMEOUT = 3600
@@ -177,8 +199,26 @@ def align_ready(python: str | None = None) -> dict:
         "ffmpeg_hint": ("install ffmpeg and put it on PATH (winget install "
                         "Gyan.FFmpeg)" if not ffmpeg else ""),
         "packages": pkgs,
-        "models": {"default": DEFAULT_MODEL, "choices": list(MODELS)},
+        "models": {"default": DEFAULT_MODEL, "choices": list(MODELS),
+                   "downloaded": [m for m in MODELS if whisper_missing(m) is None]},
     }
+
+
+def whisper_missing(model: str | None = None) -> str | None:
+    """Why faster-whisper can't transcribe with `model` (default DEFAULT_MODEL):
+    it isn't downloaded into the Hugging Face cache, where align reads it
+    with local_files_only. None when it's there, or isn't one of MODELS (a
+    folder of a model, another name: align.py says, if it comes to that)."""
+    name = model or DEFAULT_MODEL
+    repo = WHISPER_REPOS.get(name)
+    if repo is None:
+        return None
+    from seriesmith import hubcache as HC
+    if HC.hf_snapshot(repo, WHISPER_FILES) is not None:
+        return None
+    feature = WHISPER_FEATURE if name == DEFAULT_MODEL else f"Whisper {name} (align)"
+    return (f"the Whisper model {name} isn't downloaded: download it in the Features window "
+            f"({feature}); align never fetches it by itself")
 
 
 # ---------------------------------------------------------------------------
@@ -452,11 +492,14 @@ def why(log: str, rc: int) -> str:
 
 
 def check_align(ep: str, track: str | None = None, words: str | None = None,
-                python: str | None = None, vocals: bool = False) -> None:
+                python: str | None = None, vocals: bool = False,
+                model: str | None = None) -> None:
     """TrackError 409 with `missing` when a dependency align needs isn't
     installed (a Whisper isn't one when the recording already has a
-    transcript): asked before an align is queued, so the page hears at once.
-    With `vocals` the transcript is the vocal stem's (vocals.py)."""
+    transcript), or with `model` when faster-whisper's model (`model`, else
+    DEFAULT_MODEL) isn't downloaded (whisper_missing): asked before an align
+    is queued, so the page hears at once. With `vocals` the transcript is the
+    vocal stem's (vocals.py)."""
     py = python or align_python()
     ready = align_ready(py)
     # a transcript already beside the recording (or handed over) means no
@@ -473,6 +516,12 @@ def check_align(ep: str, track: str | None = None, words: str | None = None,
                          missing=need, install=ready["install"],
                          python=ready["python"], ffmpeg=ready["ffmpeg"],
                          words=cached)
+    if not cached and (ready.get("packages") or {}).get("faster-whisper") is not None:
+        why_not = whisper_missing(model)
+        if why_not:
+            raise TrackError(409, "align needs " + why_not, model=model or DEFAULT_MODEL,
+                             feature="sound.align" if (model or DEFAULT_MODEL) == DEFAULT_MODEL
+                             else f"sound.whisper.{model}")
 
 
 def align(ep: str, track: str | None = None, model: str | None = None, snap: bool = True,
@@ -488,7 +537,7 @@ def align(ep: str, track: str | None = None, model: str | None = None, snap: boo
     py = python or align_python()
     timeout = ALIGN_TIMEOUT if timeout is None else timeout
     if check_deps:
-        check_align(ep, track, words, py, vocals)
+        check_align(ep, track, words, py, vocals, model)
     with tempfile.TemporaryDirectory(prefix="h3align_") as tmp:
         out = os.path.join(tmp, "align.json")
         args = [ep]

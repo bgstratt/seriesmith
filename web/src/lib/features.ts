@@ -9,15 +9,21 @@ export type FeatureStatus = ItemStatus | "partial" | "unavailable";
 
 export interface FeatureItem {
   key: string;
-  kind: "model" | "pack" | "link" | "pip" | "ffmpeg";
+  /** hub: what a package would fetch by itself the first time a job runs, downloaded
+   * where it looks (the Hugging Face cache, torch's hub cache, a models folder) */
+  kind: "model" | "pack" | "link" | "pip" | "ffmpeg" | "key" | "hub";
   name: string;
   folder?: string;
   url?: string;
   target?: string;
   where?: string;
+  /** hub: where it goes, in words */
+  into?: string;
+  /** hub: what it is */
+  label?: string;
   gated?: boolean;
   licence?: string;
-  /** a node pack or Python package: you put it in (ComfyUI-Manager, pip), not seriesmith */
+  /** a node pack, Python package or API key: you put it in (ComfyUI-Manager, pip, Settings), not seriesmith */
   manual?: boolean;
   /** how, while it's missing */
   how?: string;
@@ -131,12 +137,13 @@ export const STATUS_TEXT: Record<FeatureStatus, string> = {
 export function itemsLine(f: Feature): string {
   const n = (k: FeatureItem["kind"]) => f.items.filter((i) => i.kind === k).length;
   const parts: string[] = [];
-  const files = n("model");
+  const files = n("model") + n("hub");
   if (files) parts.push(`${files} file${files === 1 ? "" : "s"}`);
   const packs = n("pack") + n("link");
   if (packs) parts.push(`${packs} node pack${packs === 1 ? "" : "s"}`);
   const pips = n("pip");
   if (pips) parts.push(`${pips} Python package${pips === 1 ? "" : "s"}`);
   if (n("ffmpeg")) parts.push("a download");
+  if (n("key")) parts.push("a Comfy API key");
   return parts.join(" · ");
 }
