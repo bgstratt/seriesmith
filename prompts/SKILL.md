@@ -767,14 +767,14 @@ who: skye
 plate: cafe_couch_on_skye
 size: close
 dur: 2.33
-Skye watches him over the rim of her cup, her eyes off to frame right where he sits.
+Skye looks up over the rim of her cup, her eyes off to frame right, not on the camera.
 SKYE: You're early.
 ```
 
 **Keep them on one side of the line.** Decide who sits on which side and keep it: if Skye is
 on the left of the two-shot, she stays screen-left in her single and looks off to frame
 right, and Walter looks off to frame left. Write that into the **action** line — *"her eyes
-off to frame right where he sits"*, *"he answers without looking up, his eyes down and to
+off to frame right, not on the camera"*, *"he answers without looking up, his eyes down and to
 frame left"*. There is no field for it; the action sentence reaches every target's prompt and
 is where a real script would put it anyway. Without it a model does what it was trained to do
 and talks to the camera.
@@ -783,15 +783,18 @@ The same applies to a character alone in a room who is meant to be aware of some
 screen: say where they are looking, and say that it is not at the camera. `seriesmith check`
 warns about a single whose one person speaks and whose action never says where they look.
 
-**The one they talk to is off screen, and the action says so.** In a single, the person
-being spoken to is out of frame: write the side they're on and that they're out of it
-("looking off to frame left at Junior, who is out of frame"). Don't put them where the
-frame can see in passing ("her shoulder soft in the foreground", "past her") or stage the
-action on them ("holds up a hand to stop her at the foot of the steps") without putting them
-in `who:`: the model draws whoever the words place there. In one H3 test, a single of Earl
-doing just that, "looking off to frame right down at her", with no one else in `who:`, got
-an invented girl in a plaid bow. If the shot really does hold them, it's an
-over-the-shoulder: `size: ots` with both in `who:`.
+**An eyeline is a direction, never a person.** In a single, the one being spoken to isn't in
+the shot, so don't name them in it: write where the eyes go, "looking off to frame left, not
+at the camera", not "looking off to frame left at Junior", "at him" or even "at Junior, who
+is out of frame". The model draws whoever the words mention, wherever the sentence puts them.
+The same goes for anyone the action reaches toward or stages ("holds up a hand to stop her at
+the foot of the steps", "slides the folder toward him") or puts where the frame can see in
+passing ("her shoulder soft in the foreground", "past her"): say the gesture and its
+direction ("holds up a flat hand off to frame right"). In one H3 test, a single of Earl,
+"looking off to frame right down at her", with no one else in `who:`, got an invented girl
+in a plaid bow. Who they're looking at is the cut's job: the reverse shot shows them. If the
+shot really does hold both people, put both in `who:` (an over-the-shoulder is `size: ots`),
+and then naming them is right.
 
 ### A wardrobe change is a new subject
 

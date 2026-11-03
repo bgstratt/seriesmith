@@ -315,7 +315,7 @@ def no_eyeline(story: ir.Episode, person) -> list[str]:
         return []
     return [f"{', '.join(bare)}: one person speaks on screen and the action doesn't say where "
             f"they look, so the model has them talk to the camera. Say it in the action "
-            f"(\"his eyes off to frame left where she sits\", \"not at the camera\") "
+            f"(\"his eyes off to frame left, not at the camera\") "
             f"(docs/AUTHORING.md, \"Keep them on one side of the line\")."]
 
 
