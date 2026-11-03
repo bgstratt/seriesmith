@@ -335,6 +335,18 @@ class PythonHasTest(unittest.TestCase):
         self.assertFalse(INS.python_has(sys.executable, "no_such_module_at_all"))
 
 
+class AlignHowTest(unittest.TestCase):
+    def test_an_align_package_says_which_python_it_goes_in(self):
+        pys = {"align": r"C:\venv\python.exe", "comfyui": r"C:\Comfy\python.exe"}
+        env = FT.Env(python_for=pys.get)
+        cublas = FT.Item("pip", "nvidia-cublas-cu12", where="align", module="nvidia.cublas")
+        how = FT.how(cublas, env)
+        self.assertIn("venv", how)
+        self.assertIn("the server you start it from", how)
+        self.assertNotIn("the server you start it from",
+                         FT.how(FT.Item("pip", "demucs", where="comfyui", module="demucs"), env))
+
+
 class ResolveTest(unittest.TestCase):
     def test_files_by_name_only_and_classes_to_their_pack(self):
         items, skipped = FT.resolve(files=["minimax_h3_video_vae_fp16.safetensors", "made_up.bin"],

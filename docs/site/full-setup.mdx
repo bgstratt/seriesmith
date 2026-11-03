@@ -303,7 +303,10 @@ their own words. The voice comes out close, not identical: listen before you pic
   window names the one it found and prints the exact `pip install` line for it. With an NVIDIA
   card, `pip install nvidia-cublas-cu12` there too: faster-whisper is built on CUDA 12 and
   doesn't bring its cuBLAS (ComfyUI's PyTorch has CUDA 13's), so without it Whisper runs on
-  the CPU, minutes instead of seconds.
+  the CPU, minutes instead of seconds. Align runs in the Python of the server you start it
+  from: seriesmith's own server uses seriesmith's Python, the editor inside ComfyUI uses
+  ComfyUI's. Install these in the one you run align from; the Features window's command is
+  for the server it's open on.
 - The Whisper model align transcribes with: download it in the Features window (**Recorded
   dialogue** has the default, `medium.en`; each other model the Recording window offers is a
   line of its own, **Whisper large-v3 (align)** and so on). It goes into the Hugging Face
