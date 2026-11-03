@@ -37,4 +37,5 @@
     ! sh340 overrides steps: 5
     ! sequence sq01: Ada and Bo each get their own shot on the same plate (kitchen), so they are drawn against one background from one view and the cut reads as a single camera rather than a reverse angle. Give the location an angle per speaker and name it with `plate:`.
     ! sequence sq04: Ada, Bo and Cy each get their own shot on the same plate (kitchen), so they are drawn against one background from one view and the cut reads as a single camera rather than a reverse angle. Give the location an angle per speaker and name it with `plate:`.
+    ! sh120, sh320, sh330, sh340: one person speaks on screen and the action doesn't say where they look, so the model has them talk to the camera. Say it in the action ("his eyes off to frame left where she sits", "not at the camera") (docs/AUTHORING.md, "Keep them on one side of the line").
 

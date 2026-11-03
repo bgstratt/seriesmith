@@ -479,7 +479,13 @@ def _beat(shot: dict) -> str:
         if at != -1:
             action = action[at + len(lead):].lstrip()
             break
-    first = action.split(". ")[0].rstrip(".")
+    # a time of day the action opens with ("Night.") isn't the beat: it runs
+    # on into the sentence after it
+    sentences = action.split(". ")
+    first, rest = sentences[0], sentences[1:]
+    while rest and len(first.split()) < 4:
+        first += ". " + rest.pop(0)
+    first = first.rstrip(".")
     return f"{first}." if first else "A held moment."
 
 

@@ -12,6 +12,7 @@
     ! sh060 overrides model: profile_model.safetensors
     ! sh060 overrides steps: 7
     ! series.steps is 6 but the LoRA series_turbo_8step.safetensors is distilled for 8 steps — set steps: 8 or pick a matching lora
+    ! sh040: one person speaks on screen and the action doesn't say where they look, so the model has them talk to the camera. Say it in the action ("his eyes off to frame left where she sits", "not at the camera") (docs/AUTHORING.md, "Keep them on one side of the line").
 
   target ltx2 (LTX-2): 3 shot(s) of this episode
 

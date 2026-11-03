@@ -1229,6 +1229,50 @@ def image_size(path: str) -> tuple[int, int] | None:
     return None
 
 
+def black_bars(path: str) -> str | None:
+    """"top and bottom" or "left and right" when a picture has black bars
+    baked in (each at least 4 % of the picture, every pixel in them near
+    black), else None. A plate with bars gives every shot on it the bars: the
+    model keeps them (Porchlights, two of 752 plates, 2026-11-03)."""
+    try:
+        import numpy as np
+        from PIL import Image
+        with Image.open(path) as im:
+            a = np.asarray(im.convert("L").reduce(4))
+    except Exception:
+        return None
+
+    def run(lines) -> float:
+        black = (lines.max(axis=1) < 16) & (lines.mean(axis=1) < 2)
+        n = int(np.argmin(black)) if not black.all() else len(black)
+        return n / len(black)
+
+    if min(run(a), run(a[::-1])) >= 0.04:
+        return "top and bottom"
+    if min(run(a.T), run(a.T[::-1])) >= 0.04:
+        return "left and right"
+    return None
+
+
+def letterboxed_plates(ep: str) -> list[str]:
+    """A warning for each location the episode's shots use whose plate has
+    black bars (black_bars), naming those shots."""
+    s = load_series(ep)
+    plates = [r for r in series_refs(s)
+              if r.kind == "location" and r.file and os.path.isfile(r.file)]
+    uses = used_by(s, plates)
+    out = []
+    for r in plates:
+        shots = list(dict.fromkeys(sh for p in T.PASSES for sh in uses[r.id][p]))
+        where = black_bars(r.file) if shots else None
+        if where:
+            listed = ", ".join(shots[:6]) + (f" and {len(shots) - 6} more" if len(shots) > 6 else "")
+            out.append(f"{r.id}'s plate ({os.path.basename(r.file)}) has black bars "
+                       f"{where}, and the model keeps them: {listed} will have them too. "
+                       f"Make the plate again, or crop the bars off and scale it back up.")
+    return out
+
+
 def image_ext(data: bytes) -> str:
     """The extension a picture's bytes call for (a hosted model's result may
     be a JPEG or WebP behind a URL that doesn't say): .png unless it's one of those."""

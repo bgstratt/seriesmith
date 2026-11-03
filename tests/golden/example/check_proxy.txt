@@ -9,4 +9,5 @@
   references   0/6 on disk, 6 to make
     ! sequence sq01: Huey and Riley each get their own shot on the same plate (street), so they are drawn against one background from one view and the cut reads as a single camera rather than a reverse angle. Give the location an angle per speaker and name it with `plate:`.
     ! sequence sq03: sh060 -> sh070 cuts between two medium shots of Huey and Riley on the same plate (path): a jump cut, everyone re-posed in place. Change the size by two or more steps, give sh070 another `plate:`, or put a cutaway between them (docs/AUTHORING.md, "Cutting within a location").
+    ! sh055: one person speaks on screen and the action doesn't say where they look, so the model has them talk to the camera. Say it in the action ("his eyes off to frame left where she sits", "not at the camera") (docs/AUTHORING.md, "Keep them on one side of the line").
 
