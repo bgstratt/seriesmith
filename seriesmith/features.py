@@ -483,7 +483,9 @@ def catalog() -> list[Feature]:
                 "(Tencent's community licence: it doesn't apply in some territories).",
                 [_pack("ComfyUI-HunyuanVideo-Foley")] + _target_items("hunyuan_xl_foley"), restart=True),
         Feature("sound.align", "sound", "Recorded dialogue",
-                "faster-whisper, for align and the Recording window, in the Python align runs on; "
+                "faster-whisper, for align and the Recording window, in the Python align runs on "
+                "(the server's you start it from: seriesmith's own, or ComfyUI's in the editor "
+                "inside ComfyUI); "
                 "with an NVIDIA card, CUDA 12's cuBLAS too, or it transcribes on the CPU (its "
                 "CTranslate2 is built on CUDA 12 and brings cuDNN, not cuBLAS; ComfyUI's PyTorch "
                 "has CUDA 13's, which it can't use). And the Whisper model align uses "
@@ -643,7 +645,13 @@ def how(item: Item, env: Env) -> str:
                 f"\"{item.name}\"), or if it isn't listed there, clone {item.url} into "
                 f"custom_nodes (git clone, or Manager's Install via Git URL); then restart ComfyUI.")
     if item.kind == "pip":
-        return f"Run: {pip_command(item, env.python_for(item.where))}"
+        line = f"Run: {pip_command(item, env.python_for(item.where))}"
+        if item.where == "align":
+            # align runs in the Python of the server it's started from: the command is this one's
+            line += (" Align runs in the Python of the server you start it from: seriesmith's own "
+                     "server uses seriesmith's Python, the editor inside ComfyUI uses ComfyUI's. "
+                     "This command is for this server's; install it in the one you run align from.")
+        return line
     return ""
 
 
