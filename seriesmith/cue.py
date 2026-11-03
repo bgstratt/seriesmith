@@ -509,7 +509,7 @@ def script_notes(root: str, shots: list[str]) -> list[dict]:
 def model_for(spec: dict, series: dict) -> str:
     """The cue's music target: its own, else its kind's in the series config's `sound`
     (`music_model` for score, `song_model` for a song), else the kind's default (Stable Audio
-    3 for score; ACE-Step for a song, the model here that sings lyrics)."""
+    3 for score; YuE2 for a song, the model here that sings lyrics)."""
     if spec.get("model"):
         return spec["model"]
     key, default = KIND_MODEL[spec.get("kind", "score")]

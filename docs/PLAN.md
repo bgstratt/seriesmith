@@ -1608,10 +1608,10 @@ XML covers every editor that reads one), not FCPXML (Final Cut X; less portable)
 - [x] **Docs:** EDITOR.md (the Export menu, the XML and what it carries), COMMANDS.md
       (`--xml`), API.md (`xml`), DESIGN.md's cut section; `npm run build:standalone` and
       `npm run build`; `tools/make_site_docs.py`.
-- [x] **Live:** a real episode's XML (one with trims, a dissolve, a fade, an audio source,
+- [ ] **Live:** a real episode's XML (one with trims, a dissolve, a fade, an audio source,
       a placeholder and a 16 fps clip) opened in DaVinci Resolve and in Premiere Pro; the
-      cut plays as Export's mp4 does, and a trimmed clip's handles are there. A Resolve XML
-      imported by the user 2026-11-02.
+      cut plays as Export's mp4 does, and a trimmed clip's handles are there. (The other
+      way works: a Resolve export imported into seriesmith by the user, 2026-11-02.)
 
 ## Faster episode open, and the CLI's `continuous: first` chains (2026-10-31)
 

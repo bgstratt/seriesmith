@@ -1,6 +1,6 @@
 # The episode's sound: four tracks, cues, a mix
 
-Status (2026-11-02): **building**, on the `sound-tracks` branch (phases 1-6 built, 7 tried). This file is the design
+Status (2026-11-02): **built**, merged in #86 (0.1.13). This file is the design
 record and the checklist; the contracts go into the docstrings, `docs/API.md` and the user
 docs as each phase is built.
 
