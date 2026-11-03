@@ -1103,8 +1103,8 @@ collide with the package.
       demucs in ComfyUI's Python, quoted pip commands, align's packages naming their Python.
       Story structures not in the reference outlined the same way (#84); the skill with no
       links into the repo (#85). Published by the merge's version bump.
-- [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
-      editor in the sidebar, a local render, a Router render.
+- [x] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
+      editor in the sidebar, a local render, a Router render. Done by the user.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
   clicking, Manager installing); whether routes on PromptServer and a served editor page
   are fine (the docs don't say); the icon's size (400x400 in the spec, 800x400 in
@@ -1608,10 +1608,10 @@ XML covers every editor that reads one), not FCPXML (Final Cut X; less portable)
 - [x] **Docs:** EDITOR.md (the Export menu, the XML and what it carries), COMMANDS.md
       (`--xml`), API.md (`xml`), DESIGN.md's cut section; `npm run build:standalone` and
       `npm run build`; `tools/make_site_docs.py`.
-- [ ] **Live:** a real episode's XML (one with trims, a dissolve, a fade, an audio source,
+- [x] **Live:** a real episode's XML (one with trims, a dissolve, a fade, an audio source,
       a placeholder and a 16 fps clip) opened in DaVinci Resolve and in Premiere Pro; the
-      cut plays as Export's mp4 does, and a trimmed clip's handles are there. (The other
-      way works: a Resolve export imported into seriesmith by the user, 2026-11-02.)
+      cut plays as Export's mp4 does, and a trimmed clip's handles are there. Opened in both
+      by the user; and the other way, a Resolve export imported into seriesmith (2026-11-02).
 
 ## Faster episode open, and the CLI's `continuous: first` chains (2026-10-31)
 
