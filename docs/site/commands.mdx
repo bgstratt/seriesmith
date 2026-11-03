@@ -687,6 +687,12 @@ the series config). `clone` and `generate` shots don't use it.
                                where a shot or the episode renders (`backend`)
   cut.json                     editor / `seriesmith cut` / `pick`: per pass, the order, the take
                                each shot uses, trims, locks and each clip's audio source
+  mix.json                     editor / `fx --pick`: per pass, the sound beyond the takes: tracks,
+                               faders, items, hits, fades, ducking, loudness, beds, effects, voices only
+  sound/<cue>/spec.json        a music cue: what it is asked (span, style, tempo, sections, hits)
+  sound/<cue>/tNN.wav          a cue's take, stretched to its tempo (tNN_raw.wav as it came;
+                               tNN.json its sidecar; tNN.abc a song's plan as sung)
+  sound/fx/<pass>/<shot>/tNN.wav   a shot's effects take (`seriesmith fx`; tNN.json its sidecar)
   align_report.md              generated: what align matched (seriesmith align)
   _history/                    old copies of the script, series config and cut.json,
                                kept by the editor, promote and align
@@ -694,6 +700,7 @@ the series config). `clone` and `generate` shots don't use it.
   refs/<char>/<char>_sheet_4panel.png   horizontal 4-panel strip
   refs/props/<name>.png                 single clean object image
   refs/_bg/<location>.png               background plate -> <Picture 4>
+  refs/_amb/<place>.wav                 a place's ambience bed (beside its plate's refs folder)
   refs/voices/<char>.wav                a generated voice sample (audio target)
   refs/_takes/<ref>/…_tNN.png/.json     every ref candidate (refs)
   refs/_takes/_trash/<ref>/             discarded ref candidates
@@ -705,6 +712,8 @@ the series config). `clone` and `generate` shots don't use it.
     <shot_id>_t01.mp4
     <shot_id>_t01_h3.wav
     <shot_id>_t01_foley.wav      (dub_keep_foley only)
+    <shot_id>_t01.voice.wav      the take's voices alone, for voices only (`seriesmith voices`;
+                                 .voice.json its record)
     <shot_id>_t01.jpg            mid-frame thumbnail (480 px long side)
     <shot_id>_t01_strip.jpg      8 frames side by side, for hover scrub
     <shot_id>_t01.json           take record: written queued, closed when its job's files come back

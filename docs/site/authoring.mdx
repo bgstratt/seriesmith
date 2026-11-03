@@ -509,6 +509,37 @@ The picture models, and what each needs installed, are in [FULL_SETUP.md](/full-
   `voice_sample` line to `series.json`. Don't invent a `voice_sample` path for a file that
   doesn't exist.
 
+### The episode's sound: the `sound` block
+
+The sound under the cut (the Dialogue, Effects, Ambience and Music tracks, the cues, the
+levels) is made in the editor and kept in each episode's `mix.json`, not in the series
+config. The `sound` block holds only what carries across a series, and every key is
+optional; leave the block out for the defaults:
+
+```json
+"sound": {"score": "orchestral, a solo horn for the hero, low strings for the sea",
+          "music_model": "stable_audio3", "song_model": "yue2", "effects_model": "h3_foley",
+          "tracks": {"music": {"gain_db": -14}, "ambience": {"duck_db": -9}},
+          "loudness": {"target_lufs": -16, "true_peak_db": -1}}
+```
+
+- `score` is the series' score direction in words. It goes before each score cue's own
+  style in the music model's prompt, so write the sound of the show, not of one scene.
+- `music_model` is what score cues render on (`stable_audio3`, the default, or
+  `ace_step15`); `song_model` what songs render on (`yue2`, the default, non-commercial).
+  A cue given its own model in the editor keeps it.
+- `effects_model` is what a shot's effects are made on (`h3_foley`, the default,
+  `ltx23_foley` or `hunyuan_xl_foley`).
+- `tracks` are each track's default level: `gain_db` (the fader; music sits at -12 dB when
+  nothing sets it), `duck_db` (how far it dips under speech), `mute`. A level set in the
+  editor's mix wins over these.
+- `loudness` is the export's target: `target_lufs` (default -16) and `true_peak_db` (the
+  limiter's ceiling, default -1). The episode's mix can set its own.
+
+The place's ambience bed is the location's `ambience` (below) and its model
+`refs.ambience_target` (above). How to score an episode is in [SCORING.md](/scoring); a
+music video, with the song as the recording, in [MUSIC_VIDEO.md](/music-video).
+
 ### Negative prompts
 
 Targets that take a negative prompt (LTX-2, Wan 2.2 and the image models; not H3) use, most

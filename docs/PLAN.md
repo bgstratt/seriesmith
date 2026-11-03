@@ -1083,8 +1083,28 @@ collide with the package.
       the takes' prompt ids only while queued and save notes only when failed (Porchlights
       ep01 cold: ~5.3 s -> ~3.5 s). `render --dry-run` writes into the episode folder.
       Published by the merge's version bump.
-- [ ] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
-      editor in the sidebar, a local render, a Router render.
+- [x] **0.1.13** (2026-11-02, `release-0.1.13`): the episode's sound (#86): four tracks
+      (Dialogue, Effects, Ambience, Music) in `mix.json` per pass, with faders, fades, volume
+      points, ducking under speech and duck regions, loudness to -16 LUFS with a true-peak
+      limiter, float stems and the XML's tracks; music cues on Stable Audio 3 / ACE-Step 1.5
+      and songs on YuE2 (non-commercial), written to land hits, with the spotting sheet, the
+      cue window (Score, Arc, Orchestration & takes), themes and repaint; a place's ambience
+      bed; effects from the take (H3, LTX-2.3, HunyuanVideo-Foley) trimmed and faded; voices
+      only; beats as trim snaps; tracks of your own; the export's checks; music videos (the
+      song as the recording, an optional vocal stem; MUSIC_VIDEO.md, SCORING.md); one voice
+      model list; align on the GPU (cuBLAS) and Whisper turbo. An edit as a new show or a
+      show's next episode (#87): FCP7 XML from Premiere, Resolve, Final Cut 7 or our own,
+      footage as handles, reference or proxies (`import-xml`, Import…, the wizard's From an
+      edit; IMPORT_XML.md); the Edits and Turn models (`refs.edit_target`, `refs.turn_target`,
+      ↻ Turn with); preview zoom; RTX VSR a window at a time; `continuous: first` chains on
+      the CLI; frames read with `-fps_mode passthrough`. Features covers everything (#88,
+      #89): a line for every pack, model, package and the API key (`key`, `hub` kinds), no
+      download behind a job's back (Whisper, htdemucs, Hybrid Demucs, BigVGAN, SigLIP2/CLAP),
+      demucs in ComfyUI's Python, quoted pip commands, align's packages naming their Python.
+      Story structures not in the reference outlined the same way (#84); the skill with no
+      links into the repo (#85). Published by the merge's version bump.
+- [x] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
+      editor in the sidebar, a local render, a Router render. Done by the user.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
   clicking, Manager installing); whether routes on PromptServer and a served editor page
   are fine (the docs don't say); the icon's size (400x400 in the spec, 800x400 in
@@ -1588,9 +1608,10 @@ XML covers every editor that reads one), not FCPXML (Final Cut X; less portable)
 - [x] **Docs:** EDITOR.md (the Export menu, the XML and what it carries), COMMANDS.md
       (`--xml`), API.md (`xml`), DESIGN.md's cut section; `npm run build:standalone` and
       `npm run build`; `tools/make_site_docs.py`.
-- [ ] **Live:** a real episode's XML (one with trims, a dissolve, a fade, an audio source,
+- [x] **Live:** a real episode's XML (one with trims, a dissolve, a fade, an audio source,
       a placeholder and a 16 fps clip) opened in DaVinci Resolve and in Premiere Pro; the
-      cut plays as Export's mp4 does, and a trimmed clip's handles are there.
+      cut plays as Export's mp4 does, and a trimmed clip's handles are there. Opened in both
+      by the user; and the other way, a Resolve export imported into seriesmith (2026-11-02).
 
 ## Faster episode open, and the CLI's `continuous: first` chains (2026-10-31)
 
@@ -1643,7 +1664,7 @@ its batch (`api.py`, `cut_at_start=True`) and is right.
       take's last frame (mean abs difference 1.0 of 255 at 480x272, against 32-43 for that
       take's first frame), and each take's own first frame came out 3.2-3.4 from it.
 
-## The episode's sound: dialogue, effects, ambience, music (designing; 2026-11-01)
+## The episode's sound: dialogue, effects, ambience, music (built; 2026-11-02)
 
 Four tracks under the picture, each optional with its own level: Dialogue (the take's own
 sound, or its voices alone: voices only), Effects (foley from the picked take), Ambience (a place's bed across cuts),

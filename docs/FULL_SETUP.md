@@ -84,7 +84,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Music cues and songs | | Stable Audio 3 Medium's 2 (score); YuE2's checkpoint (songs), SheetSage2's for a theme from a recording; ACE-Step 1.5's 4 | |
 | Ambience beds | ComfyUI-MMAudio | MMAudio's 4 files (or Stable Audio 3 Small SFX's 2) | |
 | Effects from the picture | ComfyUI-LTXVideo for LTX-2.3 Foley; ComfyUI-HunyuanVideo-Foley for Hunyuan | H3 FL2VA's 4 files (or LTX-2.3 Foley's 7, HunyuanVideo-Foley XL's 3) | |
-| Voices only (the takes' voices without their music) | seriesmith's node pack (its vocal-stem node) | Hybrid Demucs's weights (Features: Vocal stem; or downloaded once by torchaudio) | |
+| Voices only (the takes' voices without their music) | seriesmith's node pack (its vocal-stem node) | Hybrid Demucs's weights (Features: Vocal stem; a copy torchaudio downloaded before counts) | |
 | Upscaling H3 takes | Comfyui_Minimax_h3_latent_Upscaler; comfyui-obvpm-timeline for takes over 5.5 s | H3's latent upscaler | |
 | Upscaling any take | Nvidia RTX Nodes (optional) | RealESRGAN, or SeedVR2 | |
 | Post-processing | | RealESRGAN / SeedVR2 7B / SUPIR + SDXL; RAFT for motion blur | |
@@ -500,7 +500,8 @@ config so the pipeline knows which one it is:
 | Install | For |
 |---|---|
 | Python 3.10 or later | the editor on its own page and the `seriesmith` command (`run_seriesmith` sets up the rest) |
-| `pip install faster-whisper numpy` | recorded dialogue: `align` and the Recording window |
+| `pip install faster-whisper numpy`, in the Python of the server align runs from | recorded dialogue: `align` and the Recording window (seriesmith's own server: seriesmith's Python; the editor inside ComfyUI: ComfyUI's) |
+| `pip install nvidia-cublas-cu12`, in that same Python | Whisper on an NVIDIA card instead of the CPU (faster-whisper brings no CUDA 12 cuBLAS) |
 | `pip install demucs`, for ComfyUI's `python` | the `dub_keep_foley` audio policy |
 | `pip install comfy-api-proxy`, in seriesmith's Python | local renders through comfy-api-proxy (optional; [SETUP.md](SETUP.md)) |
 | Node.js 20.19+ and `npm install` in `web/` | only to rebuild the editor after changing `web/` |

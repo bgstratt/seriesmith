@@ -1018,7 +1018,7 @@ character's views pick, *then* regenerate the variant. To check which happened, 
 candidate and read the **drawn** row: `edited from Dana (three-quarter)`, or `from the
 prompt alone`.
 
-## Importing a series
+## Importing a series or an edit
 
 **Import…** (in **Project folders**, beside New series/project… and New episode…) asks which:
 **An edit (FCP7 XML)…** (above: the wizard's From an edit), or a seriesmith series, which brings a
@@ -1677,6 +1677,7 @@ These work while the timeline or Play all has focus, and never while you are typ
 | `Alt+←` `Alt+→` | Move the selected clip in the cut |
 | `Ctrl+Z` / `Ctrl+Y`, `Ctrl+Shift+Z` | Undo / redo the cut (and the mix) |
 | `Ctrl + wheel` | Zoom the track |
+| Wheel over the picture, drag, double-click | Zoom the picture about the pointer, look round while zoomed, back to the whole picture (the Viewer, Play all, the gallery) |
 | `←` `→` | Step candidates, in the Viewer |
 | `,` `.` | Step a frame back / forward, in the Viewer, Play all and the spotting sheet |
 | `[` `]` | The hit before / the next, in the spotting sheet |
@@ -1687,6 +1688,8 @@ These work while the timeline or Play all has focus, and never while you are typ
 
 Everything the editor does is a file in the episode folder, and the command line does the
 same things to the same files: `overrides.json` (prompts, seeds, models, targets),
-`cut.json` (order, trims, locks, flags, per-clip audio), take sidecars beside each render, and
+`cut.json` (order, trims, locks, flags, per-clip audio), `mix.json` (the sound: tracks, faders,
+items, hits, ducking, loudness), `sound/` (music cues and their takes, the shots' effects
+takes), take sidecars beside each render, and
 `_history/` copies of the script and series config each time you save. Nothing is hidden in
 a database, and nothing is lost — a discarded take moves to `_trash/`.

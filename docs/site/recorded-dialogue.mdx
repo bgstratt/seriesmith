@@ -11,7 +11,7 @@ Use this when you have real recorded lines (actors, you, or TTS) instead of lett
 
 ```
 cd <your projects folder>
-pip install faster-whisper                                    # once
+pip install faster-whisper numpy                              # once
 pip install nvidia-cublas-cu12                                # an NVIDIA card: Whisper on the GPU
 # and the Whisper model: the Features window, Recorded dialogue (medium.en)
 
@@ -22,7 +22,7 @@ seriesmith render   Shows\ep05 --proxy
 seriesmith assemble Shows\ep05 --proxy --audio master  # picture + your recording, to check sync
 ```
 
-Put the recording inside the episode folder (for example `ep05\audio\`) so the series config can point at it with a relative path. faster-whisper isn't one of seriesmith's dependencies: install it into the Python that runs seriesmith. Its model is downloaded in the Features window (**Recorded dialogue** has `medium.en`, the default; each other model is a line of its own, **Whisper large-v3 (align)** and so on) into the Hugging Face cache; align reads it from there and never downloads it itself, so with the model not there it stops and says which line to download. The editor does the same from its dialogue track: attach the recording, then align (`seriesmith/track.py`).
+Put the recording inside the episode folder (for example `ep05\audio\`) so the series config can point at it with a relative path. faster-whisper isn't one of seriesmith's dependencies: install it and numpy (and, with an NVIDIA card, `nvidia-cublas-cu12`) in the Python align runs from: seriesmith's own server and the command line use seriesmith's Python, the editor inside ComfyUI uses ComfyUI's ([FULL_SETUP.md](/full-setup), "Sound: voices and recorded dialogue"). Its model is downloaded in the Features window (**Recorded dialogue** has `medium.en`, the default; each other model is a line of its own, **Whisper large-v3 (align)** and so on) into the Hugging Face cache; align reads it from there and never downloads it itself, so with the model not there it stops and says which line to download. The editor does the same from its dialogue track: attach the recording, then align (`seriesmith/track.py`).
 
 ## Recording
 

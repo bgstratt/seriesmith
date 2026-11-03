@@ -102,6 +102,13 @@ gets the defaults written into its series config when they aren't the
 built-in ones, so it renders on the same models wherever it is opened.
 Hosted (Router) models are never picked by themselves: they are paid.
 
+The sound models have fixed defaults, not picked by Settings or by what's installed: a
+score cue renders on Stable Audio 3 (`stable_audio3`), a song on YuE2 (`yue2`), a place's
+ambience bed on MMAudio (`mmaudio_ambience`) and a shot's effects on H3 FL2VA
+(`h3_foley`). The series config's `sound` block names others for a series (`music_model`,
+`song_model`, `effects_model`), and `refs.ambience_target` the ambience model; the editor
+can make any of them on another model too.
+
 ## Comfy Cloud, deployments and Router
 
 All three use your Comfy API key (platform.comfy.org). Keep it in the
