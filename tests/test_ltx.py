@@ -618,6 +618,9 @@ class MixedEpisodeTest(unittest.TestCase):
         p = os.path.join(self.root, "series.json")
         cfg = json.load(open(p, encoding="utf-8"))
         cfg["subjects"]["ada"]["design"] = "someone else entirely"
+        # the name too: H3 names a character with a sheet by its picture, so a
+        # new design alone leaves its build as it was
+        cfg["subjects"]["ada"]["name"] = "Adele"
         json.dump(cfg, open(p, "w", encoding="utf-8"))
         job = self.plan("sh010", ov={}, target=LTX)
         self.assertTrue(job.runs, job.error)
