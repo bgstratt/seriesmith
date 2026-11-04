@@ -48,6 +48,7 @@ from dataclasses import dataclass
 
 from seriesmith import targets as TG
 from seriesmith.targets import moderate as MOD
+from seriesmith.targets import prompt_template as TP
 from seriesmith.core import framing, ir
 from seriesmith.targets.video.ltx2.compile import _duration, shotlist_extra
 from seriesmith.core import paths as P
@@ -64,10 +65,13 @@ class Style:
     """What a prose target words its own way. `build_prompt(shot, seq,
     series_cfg)` writes the paragraph; `silent_dialogue` is the `--check`
     warning for dialogue a silent model can't voice, with {n} and {ids}
-    ("" for none). Defaults come from the target (style_for)."""
+    ("" for none). `parts(shot, seq, series_cfg)` gives the same paragraph's parts,
+    for a target's prompt template (targets.prompt_template); None for a writer that has
+    none. Defaults come from the target (style_for)."""
     build_prompt: object
     silent_dialogue: str = ("{n} dialogue shot(s): no audio or lip-sync on {short} "
                             "(the lines are acted silently): {ids}")
+    parts: object = None
 
 
 def prose_writer(silent: bool):
@@ -81,6 +85,24 @@ def prose_writer(silent: bool):
     return fn
 
 
+def prose_parts(silent: bool):
+    """The parts the writer prose_writer gives."""
+    if silent:
+        from seriesmith.targets.video.wan.prompt import shot_parts as fn
+    else:
+        from seriesmith.targets.video.ltx2.prompt import shot_parts as fn
+    return fn
+
+
+def written(ctx: "Ctx", shot: ir.Shot, sq: ir.Sequence, series_cfg: dict) -> str:
+    """A shot's prompt: its parts through the target's template, or its writer's own
+    paragraph when the writer gives no parts."""
+    template = TP.shot_template(ctx.target)
+    if template and ctx.style.parts:
+        return TP.render(template, ctx.style.parts(shot, sq, series_cfg))
+    return ctx.style.build_prompt(shot, sq, series_cfg)
+
+
 def style_for(target, style: "Style | None" = None) -> Style:
     """`style`, else the one the target's own data asks for. A target that makes
     no sound gets the silent writer whatever else it says (a soundscape and
@@ -90,8 +112,8 @@ def style_for(target, style: "Style | None" = None) -> Style:
     if style is not None:
         return style
     silent = (not makes_sound(target)
-              or (target.recipe.get("prompt") or "").strip() == "prose_silent")
-    return Style(prose_writer(silent))
+              or TP.writer_of(target) == "prose_silent")
+    return Style(prose_writer(silent), parts=prose_parts(silent))
 
 
 def makes_sound(target) -> bool:
@@ -302,7 +324,7 @@ def compile_entry(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     # a hosted model's content filter reads it: its subjects' designs without
     # what describes a body (targets.moderate; the pictures carry the look)
     told = MOD.moderated_config(series_cfg) if ctx.target.moderated else series_cfg
-    entry["prompt"] = ctx.style.build_prompt(shot, sq, told)
+    entry["prompt"] = written(ctx, shot, sq, told)
     entry["negative"] = ctx.preset.extra.get("negative", "")
     entry["keyframes"] = {end: keyframe_path(ctx.recipe, shot.id, end)
                           for end in TG.keyframe_ends(ctx.recipe, shot, sq)}

@@ -66,6 +66,7 @@ import re
 
 from seriesmith.targets import hosted_block
 from seriesmith.targets import moderate as MOD
+from seriesmith.targets import prompt_template as TP
 from seriesmith.targets.generic.request_map import (  # noqa: F401
     NAMED, append, field_name, fill, fit, max_chars, nearest_ratio, nearest_resolution, place,
     put, put_seed, seconds_for, size_of)
@@ -396,15 +397,9 @@ def router_call(target, job) -> tuple[str, dict]:
     # the pictures defined first (Seedance: its prompt guide's "Define ... in @Image N as ...")
     head = (definitions(pics, shot, J.series_config(job.root) or {})
             if (inp.get("references") or {}).get("define") and mode == "references" and pics else "")
-    # the audio named after the pictures ("Use @Audio 1 as the voice of Ada.")
-    head = "\n\n".join(x for x in (head, voice_line) if x)
-    limit = max_chars(pspec)
-    if limit:
-        text = fit(text, limit - sum(len(x) + 2 for x in (head, tail) if x))
-    if head:
-        text = f"{head}\n\n{text}"
-    if tail:
-        text = f"{text}\n\n{tail}"
+    # and the audio named after them ("Use @Audio 1 as the voice of Ada."): the template places them
+    text = TP.request_prompt(TP.request_template(target), text, max_chars(pspec), fit,
+                             definitions=head, voices=voice_line, mentions=tail)
 
     # the prompt, then the pictures, in that order (a content list keeps it); a
     # multishot group on a model that takes a storyboard sends each shot's own

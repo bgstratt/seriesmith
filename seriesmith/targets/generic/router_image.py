@@ -43,6 +43,7 @@ from __future__ import annotations
 import copy
 
 from seriesmith.targets import hosted_block
+from seriesmith.targets import prompt_template as TP
 from seriesmith.targets.generic.request_map import (  # noqa: F401
     append, clamp, field_name, fill, fit, fit_size, k_of, max_chars, nearest_ratio, nearest_size,
     pick_resolution, place, put, put_seed)
@@ -75,11 +76,8 @@ def router_call(target, job) -> tuple[str, dict]:
     if imgs and imgs.get("mention") and files:
         tail = " ".join(f"{imgs['mention'].replace('{n}', str(n))}" for n in range(1, len(files) + 1))
         tail = f"Reference pictures: {tail}."
-    limit = max_chars(pspec)
-    if limit:
-        text = fit(text, limit - (len(tail) + 1 if tail else 0))
-    if tail:
-        text = f"{text} {tail}"
+    text = TP.request_prompt(TP.request_template(target, "image"), text, max_chars(pspec), fit,
+                             mentions=tail)
     if not (imgs and imgs.get("first") and files):
         place(args, pspec, prompt=text)
     if inp.get("negative") and getattr(job, "negative", ""):

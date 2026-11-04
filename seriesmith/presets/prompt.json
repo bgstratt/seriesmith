@@ -1,0 +1,21 @@
+{
+  "_note": "Prompt profiles (seriesmith/targets/prompt_template.py): `recipe.prompt` in a target.json names one. A writer gives a shot's parts, `template` joins them, and `request` joins that to what only the request knows. A profile is shared by every model that takes prompts the same way, whoever serves it.",
+  "profiles": {
+    "prose": {
+      "label": "Prose with sound",
+      "writer": "prose",
+      "template": "{style} {framing} {subjects} {extras} {action} {text} {lines} {sound} {music}",
+      "request": "{definitions}\n\n{voices}\n\n{prompt}\n\n{mentions}"
+    },
+    "prose_silent": {
+      "label": "Prose, silent",
+      "writer": "prose_silent",
+      "template": "{style} {framing} {subjects} {extras} {action} {text} {lines} {sound} {music}",
+      "request": "{definitions}\n\n{voices}\n\n{prompt}\n\n{mentions}"
+    },
+    "image": {
+      "label": "A picture's prompt",
+      "request": "{prompt} {mentions}"
+    }
+  }
+}

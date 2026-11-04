@@ -1972,9 +1972,21 @@ is asked for first.
       4:3 on Kling and MiniMax H3 is now 16:9 (was 1:1; an exact tie). The goldens didn't move.
 
 **2. Prompt parts and templates** (the goldens byte-identical)
-- [ ] Writers give parts; each default template reproduces today's prompt exactly.
-- [ ] Seedance's definitions and Kling's mentions as template values, not code in `router_call`.
-- [ ] Prompt profiles, shared across providers.
+- [x] `targets/prompt_template.py`: `{part}`, and `[[...]]` sections that go whole when a part in
+      them is empty; read in one pass, so a shot's words can't act as syntax.
+- [x] The two prose writers give parts (`shot_parts`; what they share in `prose.scene_parts`), and
+      each default template reproduces today's prompt exactly: every golden unchanged.
+      `recipe.prompt_template` in a target.json changes a shot's prompt, on a Router model, a Wan
+      model or LTX-2.
+- [x] Seedance's definitions, its voices and Kling's mentions as request template values
+      (`recipe.prompt_request`), placed by the template rather than by code in `router_call`.
+      Their wording, and whether they're filled (`define`, `mention`), stay as they were.
+- [x] Prompt profiles: `recipe.prompt` names one in `presets/prompt.json` (a writer and its two
+      templates). Ships `prose`, `prose_silent` and `image` only: a `seedance` profile is worth
+      having when a second provider serves Seedance (step 4), until then it'd say what `prose` says.
+- Not templated yet: H3's `fields` writer and the other targets with a writer of their own, image
+  prompts' own wording (their request template is), and sound (step 5). A wrong template stops
+  the job and says why (`job.error`); checking one as it's saved comes with the tool (step 3).
 
 **3. The mapping tool, on Router models** (no new connections)
 - [ ] The Models window: a job's values with the chosen shot's real ones, the API's fields,

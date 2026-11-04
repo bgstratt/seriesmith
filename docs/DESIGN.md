@@ -308,12 +308,15 @@ prompt. Three things, kept apart because each is reused differently:
 - **A prompt profile**: how a model family wants its prompt, shared across providers:
   Seedance's wording is the same on Router, BytePlus and Atlas.
 
-**A prompt is a template over a shot's parts.** Writers give their parts (`style`, `framing`,
-`camera`, `action`, `lines`, `sound`, ...) and a template joins them; a section whose values
-are empty drops out. Placeholders only: no code, no Jinja, so a template is safe to share.
-A model's default template reproduces today's prompt byte for byte (the goldens hold it).
-The shotlist's prompt stays what is sent, apart from what only the request knows (the
-pictures' numbering: `@Image 1`), which the dry run shows.
+**A prompt is a template over a shot's parts** (`targets/prompt_template.py`). Writers give
+their parts (`style`, `framing`, `subjects`, `action`, `lines`, `sound`, ..., and the raw `look`,
+`size`, `place`, `sound_words`, ...) and a template joins them. An empty part leaves no gap, and
+a `[[...]]` section goes whole when a part in it is empty. Placeholders only: no code, no Jinja,
+so a template is safe to share. A model's default template reproduces today's prompt byte for
+byte (the goldens hold it). The shotlist's prompt stays what is sent, apart from what only the
+request knows (the pictures' numbering: `@Image 1`), which a second template places (`{prompt}`,
+`{definitions}`, `{voices}`, `{mentions}`) and the dry run shows. A profile is a writer and those
+two templates, by name (`recipe.prompt`, `presets/prompt.json`); a template in the recipe wins.
 
 **A submission is a list of steps**: an HTTP request, the values taken from its answer, and
 optionally a condition to wait for. Seedance through an asset library is upload, register,
