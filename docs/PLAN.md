@@ -1964,10 +1964,12 @@ is asked for first.
       `router_image` and `cue.hosted_call`, which now takes its prompt and lyrics in any place an
       input can name. The Router goldens unchanged. What a request contains stays with its
       caller; there's no one function for all three, as pictures differ too much.
-- Found, left as is: video and image pick a ratio by different rules (`nearest_ratio`,
-  `nearest_ratio_log`), which disagree for shapes between two ratios (1360x1000 between 1:1 and
-  16:9), and video's can't read a ratio like `2.35:1` (`int`). Merging them changes requests:
-  do it on purpose, with the goldens, if at all.
+- [x] One rule for the nearest ratio (2026-11-04). Video measured the plain difference of the
+      shapes and image the difference of their logs. Plain difference favours tall ratios: on
+      Veo's `16:9` / `9:16` anything from square to 1.17 wide was sent as 9:16; and it couldn't
+      read `2.35:1`. Now the log rule for both, a tie to the ratio listed first. Requests
+      change for video shapes between two ratios: a square on Veo is now 16:9 (was 9:16), and
+      4:3 on Kling and MiniMax H3 is now 16:9 (was 1:1; an exact tie). The goldens didn't move.
 
 **2. Prompt parts and templates** (the goldens byte-identical)
 - [ ] Writers give parts; each default template reproduces today's prompt exactly.

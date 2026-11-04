@@ -8,10 +8,6 @@ range, a multiple); these are the functions that read it, for pictures and video
 What a model's request contains is decided by its caller; here is only how a value gets
 there and how it is snapped to what the model takes.
 
-There are two `nearest_ratio`s on purpose: video's measures the difference of the shapes
-and image's the difference of their logs, so they can pick differently for a shape between
-two ratios. The goldens pin video's; merging them would change requests that are sent.
-
 Stdlib only.
 """
 from __future__ import annotations
@@ -103,26 +99,16 @@ def put_seed(args: dict, spec: dict, seed: int, largest: int) -> None:
 # -- what the model takes ----------------------------------------------------------
 
 def nearest_ratio(width: int, height: int, ratios: list[str]) -> str:
-    """The ratio (e.g. "16:9") nearest the picture's shape ("adaptive" and
-    the like are not shapes: left out)."""
-    want = width / height
-    shapes = [r for r in ratios if ":" in r]
-
-    def off(r: str) -> float:
-        a, b = (int(x) for x in r.split(":"))
-        return abs(a / b - want)
-    return min(shapes, key=off)
-
-
-def nearest_ratio_log(width: int, height: int, ratios: list[str]) -> str:
-    """The ratio ("16:9", "2.35:1") nearest the picture's shape; names that
-    aren't shapes ("auto") are left out."""
+    """The ratio ("16:9", "2.35:1") nearest the picture's shape; names that aren't shapes
+    ("auto", "adaptive") are left out. Nearest by the logs of the shapes, so landscape and
+    portrait count alike: by plain difference a slightly wide picture was nearer 9:16 than
+    16:9. A tie goes to the ratio the model lists first."""
     want = width / height
     shapes = [r for r in ratios if re.fullmatch(r"\d+(\.\d+)?:\d+(\.\d+)?", str(r))]
 
     def off(r: str) -> float:
         a, b = (float(x) for x in r.split(":"))
-        return abs(math.log((a / b) / want))
+        return round(abs(math.log((a / b) / want)), 9)
     return min(shapes, key=off)
 
 

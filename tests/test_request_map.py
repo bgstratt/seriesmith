@@ -70,14 +70,25 @@ class Mapping(unittest.TestCase):
         self.assertEqual(M.max_chars({"field": "prompt", "max_chars": 1000}), 1000)
         self.assertIsNone(M.max_chars("prompt"))
 
-    def test_the_two_ratio_rules_are_kept_apart(self):
-        """Pinned because they differ: merging them would change what is sent."""
-        for ratios in (["1:1", "16:9"], ["4:3", "16:9"]):
-            self.assertIn(M.nearest_ratio(1280, 720, ratios), ratios)
-            self.assertIn(M.nearest_ratio_log(1280, 720, ratios), ratios)
-        w, h = 1360, 1000                 # between 1:1 and 16:9, where the two disagree
-        self.assertEqual(M.nearest_ratio(w, h, ["1:1", "16:9"]), "1:1")
-        self.assertEqual(M.nearest_ratio_log(w, h, ["1:1", "16:9"]), "16:9")
+    def test_a_wide_picture_is_never_sent_as_a_tall_one(self):
+        """By plain difference, anything from square to 1.17 wide came out 9:16 (Veo's list)."""
+        for w in (1001, 1100, 1170, 1280):
+            self.assertEqual(M.nearest_ratio(w, 1000, ["16:9", "9:16"]), "16:9", w)
+            self.assertEqual(M.nearest_ratio(1000, w, ["16:9", "9:16"]), "9:16", w)
+
+    def test_a_tie_goes_to_the_ratio_listed_first(self):
+        self.assertEqual(M.nearest_ratio(1024, 1024, ["16:9", "9:16"]), "16:9")
+        self.assertEqual(M.nearest_ratio(1024, 1024, ["9:16", "16:9"]), "9:16")
+        self.assertEqual(M.nearest_ratio(1440, 1080, ["16:9", "9:16", "1:1"]), "16:9")
+        self.assertEqual(M.nearest_ratio(1440, 1080, ["1:1", "16:9"]), "1:1")
+
+    def test_a_decimal_ratio_can_be_read(self):
+        self.assertEqual(M.nearest_ratio(2350, 1000, ["16:9", "2.35:1", "auto"]), "2.35:1")
+
+    def test_video_and_image_use_the_same_rule(self):
+        from seriesmith.targets.generic import router_image, router_video
+        self.assertIs(router_video.nearest_ratio, M.nearest_ratio)
+        self.assertIs(router_image.nearest_ratio, M.nearest_ratio)
 
 
 class HostedSound(unittest.TestCase):

@@ -44,9 +44,8 @@ import copy
 
 from seriesmith.targets import hosted_block
 from seriesmith.targets.generic.request_map import (  # noqa: F401
-    append, clamp, field_name, fill, fit, fit_size, k_of, max_chars, nearest_size, pick_resolution,
-    place, put, put_seed)
-from seriesmith.targets.generic.request_map import nearest_ratio_log as nearest_ratio
+    append, clamp, field_name, fill, fit, fit_size, k_of, max_chars, nearest_ratio, nearest_size,
+    pick_resolution, place, put, put_seed)
 from seriesmith.targets.image.common import keyframe_prompt, ref_prompt  # noqa: F401
 
 
