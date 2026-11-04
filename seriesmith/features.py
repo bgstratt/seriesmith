@@ -113,6 +113,7 @@ CORE_CLASSES = frozenset({
     "LatentConcat", "LatentCut", "LatentUpscaleModelLoader", "LoadAudio", "LoadImage",
     "LoadVideo", "LoraLoader", "LoraLoaderModelOnly", "ManualSigmas", "MiniMaxH3AddGuide",
     "MiniMaxH3ImageToVideo", "MiniMaxH3ReferenceToVideo", "MiniMaxH3SigmaShift",
+    "MiniMaxMusic3TextEncode", "EmptyMiniMaxMusic3LatentAudio",
     "ModelPatchLoader", "ModelSamplingAuraFlow", "ModelSamplingSD3", "OpticalFlowLoader",
     "QwenImage21Cache", "RandomNoise", "RebatchImages", "ReferenceLatent", "ReferenceMultiLatent",
     "ReferenceTimbreAudio", "RegexReplace", "RepeatImageBatch", "ResizeAndPadImage",
@@ -121,7 +122,8 @@ CORE_CLASSES = frozenset({
     "SeedVR2TemporalChunk", "SeedVR2TemporalMerge", "SetLatentNoiseMask", "SheetSage2AudioToABC",
     "SolidMask", "SplitSigmas", "TextEncodeAceStepAudio1.5", "TextEncodeFibo2",
     "TextEncodeQwenImage21", "TextEncodeQwenImageEditPlus", "TrimAudioDuration", "TrimVideoLatent",
-    "UNETLoader", "UpscaleModelLoader", "VAEDecode", "VAEDecodeAudio", "VAEDecodeTiled",
+    "UNETLoader", "UpscaleModelLoader", "VAEDecode", "VAEDecodeAudio", "VAEDecodeAudioTiled",
+    "VAEDecodeTiled",
     "VAEEncode", "VAEEncodeAudio", "VAEEncodeTiled", "VAELoader", "Wan22ImageToVideoLatent",
     "WanFirstLastFrameToVideo", "WanImageToVideo", "WanVaceToVideo", "YuE2GenerateABC",
     "YuE2GenerateMusic"})
@@ -467,6 +469,10 @@ def catalog() -> list[Feature]:
                 "licence (CC BY-NC 4.0).", _optional_items("yue2", "sheetsage")),
         target_feature("sound.music_ace", "sound", "ace_step15", "Music and songs (ACE-Step 1.5 XL)",
                        "Cues and songs from words and lyrics, on ComfyUI's own nodes (MIT)."),
+        target_feature("sound.songs_minimax", "sound", "minimax_music3", "Songs (MiniMax Music 3)",
+                       "Songs whose words come through clearest, on ComfyUI's own nodes; the tempo "
+                       "follows the song, not the cut. MiniMax's community licence (free under $20M "
+                       "yearly revenue)."),
         Feature("sound.ambience", "sound", "Ambience beds (MMAudio)",
                 "A place's room tone or air, made once from its `ambience` words and looped under "
                 "its shots: kijai's ComfyUI-MMAudio and its four files (MIT). The default.",

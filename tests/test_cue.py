@@ -275,6 +275,16 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(enc["duration"], by["EmptyAceStep1.5LatentAudio"]["seconds"])
         self.assertEqual(by["UNETLoader"]["unet_name"], "acestep_v1.5_xl_turbo_bf16.safetensors")
         self.assertEqual(by["KSampler"]["steps"], 8)
+        pm = CU.plan(self.root, "final", self.spec(model="minimax_music3"), {})
+        g = CU.graph(TG.load_target("minimax_music3"), pm, 11, "final")
+        by = {v["class_type"]: v["inputs"] for v in g.values()}
+        enc = by["MiniMaxMusic3TextEncode"]
+        self.assertEqual((enc["seed"], by["KSampler"]["seed"]), (11, 11))
+        self.assertEqual(enc["max_duration"], round(pm["ask_seconds"], 3))
+        # score: the sections as its tags only, and no voice in the caption
+        self.assertEqual(enc["lyrics"].splitlines(), [f"[{s['name'].lower()}]" for s in pm["sections"]])
+        self.assertIn("Vocal Details: None.", enc["caption"])
+        self.assertIn(f"{int(pm['fit']['ask_bpm'])} BPM", enc["caption"])
 
     def test_seeds_differ_and_follow_on(self):
         spec = self.spec()
