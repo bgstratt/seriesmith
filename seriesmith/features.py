@@ -462,6 +462,11 @@ def catalog() -> list[Feature]:
                 "Each take rendered from a theme scored by how much of its melody it kept, so the "
                 "ones that lost it rank last. Non-commercial licence (CC BY-NC 4.0).",
                 _optional_items("stable_audio3", "sheetsage")),
+        target_feature("sound.score_mrt2", "sound", "mrt2", "Music cues (Magenta RealTime 2)",
+                       "Score that follows a cue's arc bar by bar: Google's Magenta RealTime 2 on "
+                       "seriesmith's own node (its node pack), the base model for the final pass and "
+                       "the small one for the proxy, and its style encoder, about 11 GB. Weights CC BY "
+                       "4.0: credit Magenta RealTime 2 by Google.", [OWN_PACK]),
         target_feature("sound.songs", "sound", "yue2", "Songs (YuE2)",
                        "A song sung from its style words and lyrics, on ComfyUI's own nodes. "
                        "Non-commercial licence (CC BY-NC 4.0)."),

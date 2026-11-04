@@ -6,6 +6,7 @@ mix, and the routes (with a stand-in for the queue).
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sys
@@ -293,6 +294,16 @@ class PlanTest(unittest.TestCase):
         self.assertTrue(node["_meta"]["partner"])
         self.assertEqual((node["inputs"]["seed"], node["inputs"]["lyrics"]), (11, ""))
         self.assertEqual(node["inputs"]["prompt"], enc["caption"])
+        # Magenta RealTime 2: the arc as a style a bar, the frames the cue's length
+        pr = CU.plan(self.root, "final", self.spec(model="mrt2"), {})
+        g = CU.graph(TG.load_target("mrt2"), pr, 13, "proxy")
+        node = next(v["inputs"] for v in g.values() if v["class_type"] == "SeriesmithMRT2")
+        segs = json.loads(node["schedule"])["segments"]
+        self.assertEqual((node["seed"], node["model"]), (13, "magenta-realtime-2-small"))
+        self.assertEqual(len(segs), pr["bars"])
+        self.assertEqual(sum(s["frames"] for s in segs), round(pr["ask_seconds"] * 25))
+        # quiet bars have drums off; the rest leave them to the model
+        self.assertTrue(all(s.get("drums", 0) == 0 for s in segs))
 
     def test_seeds_differ_and_follow_on(self):
         spec = self.spec()

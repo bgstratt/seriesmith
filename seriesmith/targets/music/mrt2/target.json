@@ -1,0 +1,65 @@
+{
+  "id": "mrt2",
+  "kind": "music",
+  "label": "Magenta RealTime 2 (score)",
+  "short": "Magenta RT 2",
+  "code": "prompt.py",
+
+  "capabilities": {
+    "_note": "A stream whose style can change at every 40 ms frame (MusicCoCa's style tokens from text, or a recording), with drums and MIDI notes as further controls; Google's model, the magenta-community PyTorch port carried in seriesmith's node pack (comfy_nodes/_mrt2). A cue's arc is a style a bar (prompt.py). Measured outside the repo 2026-11-03/04 on the shared 20-bar arc (docs/SOUND.md 'Measured: MiniMax Music 3, HeartMuLa and Magenta RealTime 2'): the shape error a median of 0.23 (best 0.18) against Stable Audio 3's 0.34, the climax in place 5 of 8, the drop 6 of 8; one prompt for the whole cue didn't follow the arc (0 of 4). It doesn't hold a tempo (72 asked: 60-67; note onsets on each beat didn't hold it either), and 'very quiet' came out all but silent. About 1.15 s a second of music on an RTX 5090 (CUDA graphs). Instrumental. Weights CC BY 4.0 (credit 'Magenta RealTime 2 by Google'); the port's code Apache-2.0.",
+    "mode": "t2m",
+    "tempo": "text",
+    "structure": "schedule",
+    "lyrics": false,
+    "theme": "timbre",
+    "max_seconds": 600
+  },
+
+  "template": {
+    "_note": "Any length: it streams. 10 minutes is a bound for the editor, not the model's.",
+    "default_seconds": 30.0,
+    "min_seconds": 1.0,
+    "max_seconds": 600.0
+  },
+
+  "binding": {
+    "_note": "seriesmith's SeriesmithMRT2 (comfy_nodes/mrt2.py): the model (base or small), the schedule as JSON (prompt.py), the seed, temperature 1.3, top-k 40 and MusicCoCa guidance 3.0 as the port's config; then SaveAudio (48 kHz stereo).",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_mrt2.json",
+    "env": "SERIESMITH_MRT2_WORKFLOW",
+    "saver": {"class_type": "SaveAudio"},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "SeriesmithMRT2", "field": "model"},
+      "schedule": {"class_type": "SeriesmithMRT2", "field": "schedule"},
+      "seed": {"class_type": "SeriesmithMRT2", "field": "seed"}
+    }
+  },
+
+  "nodes": {
+    "_note": "seriesmith's own node (its node pack, ComfyUI restarted after updating it); what a theme adds is ComfyUI core.",
+    "SeriesmithMRT2": {"tier": "required"},
+    "LoadAudio": {"tier": "optional", "feature": "a cue's theme blended into its style"}
+  },
+
+  "fetches": {
+    "_note": "SeriesmithMRT2 reads the model and MusicCoCa from models/magenta_rt/<repo>/ and fetches nothing: the Features window downloads them, and the target isn't ready without them. The small model (1.1 GB) is the proxy pass's; the base (9.8 GB) the final's.",
+    "magenta-community/magenta-realtime-2": {
+      "into": "magenta_rt", "files": ["config.json", "model.safetensors"],
+      "label": "Magenta RealTime 2 (base)"
+    },
+    "magenta-community/magenta-realtime-2-small": {
+      "into": "magenta_rt", "files": ["config.json", "model.safetensors"],
+      "label": "Magenta RealTime 2 (small)"
+    },
+    "magenta-community/magenta-rt-musiccoca-torch": {
+      "into": "magenta_rt", "files": ["text_encoder.pt", "quantizer.pt", "spm.model", "music_encoder.pt", "mel_params.npz"],
+      "label": "MusicCoCa (its style encoder)"
+    }
+  },
+
+  "presets": {
+    "final": {"model": "magenta-realtime-2", "takes": 4},
+    "proxy": {"model": "magenta-realtime-2-small", "takes": 4}
+  }
+}

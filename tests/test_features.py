@@ -217,9 +217,14 @@ class CoverageTest(unittest.TestCase):
     # what (read in the packs' code, 2026-11-02): a target whose graph uses one must
     # record it in target.json `fetches`, so the Features window downloads it and
     # readiness holds the target back until it's there (seriesmith/hubcache.py)
+    # (seriesmith's SeriesmithMRT2 fetches nothing: it reads its folders from models/magenta_rt,
+    # recorded the same way)
     FETCHING = {"MMAudioFeatureUtilsLoader": {"nvidia/bigvgan_v2_44khz_128band_512x"},
                 "HunyuanDependenciesLoader": {"google/siglip2-base-patch16-512",
-                                              "laion/larger_clap_general"}}
+                                              "laion/larger_clap_general"},
+                "SeriesmithMRT2": {"magenta-community/magenta-realtime-2",
+                                   "magenta-community/magenta-realtime-2-small",
+                                   "magenta-community/magenta-rt-musiccoca-torch"}}
 
     def test_what_a_pack_fetches_by_itself_is_in_a_feature(self):
         from seriesmith import edit as E

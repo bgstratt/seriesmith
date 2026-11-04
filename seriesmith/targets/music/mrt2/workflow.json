@@ -1,0 +1,4 @@
+{
+ "1": {"class_type": "SeriesmithMRT2", "inputs": {"model": "magenta-realtime-2", "schedule": "{\"segments\": []}", "seed": 0, "temperature": 1.3, "top_k": 40, "cfg_musiccoca": 3.0}, "_meta": {"title": "Magenta RealTime 2"}},
+ "2": {"class_type": "SaveAudio", "inputs": {"audio": ["1", 0], "filename_prefix": "seriesmith/cue"}, "_meta": {"title": "Save"}}
+}

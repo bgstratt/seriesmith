@@ -2096,8 +2096,8 @@ export interface Target {
     max_seconds?: number;
     /** music targets: the tempo is asked in words ("text"), as its own input ("bpm"), or in its plan's Q: line ("abc": YuE2) */
     tempo?: "text" | "bpm" | "abc";
-    /** music targets: an arc told as a story, sections as tags, or its own plan (YuE2) */
-    structure?: "story" | "sections" | "plan";
+    /** music targets: an arc told as a story, sections as tags, its own plan (YuE2), or a style a bar (Magenta RT 2) */
+    structure?: "story" | "sections" | "plan" | "schedule";
     /** music targets: it sings a section's lyrics */
     lyrics?: boolean;
     /** music targets: bars of a take can be made again (POST /seriesmith/cue/repaint; ACE-Step) */
