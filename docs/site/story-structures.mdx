@@ -25,6 +25,7 @@ runtime to estimate each beat's screen time, and so how many shots it gets.
 | Virgin's Promise | Inner discovery of the true self | Community changed by the hero being herself | Medium–long | Season arc or character-focused episode |
 | Three-Act / Change Arc | Goal + obstacles + a low point | Victory (or a meaningful loss) earned through growth | Any | Strong standalone episodes |
 | Sitcom / Circular | A problem spirals into chaos, then is fixed | Back to the exact starting point | Short–half-hour | Built for it |
+| Episodic Drama | A case of the week, act-outs at the breaks, a thread that runs on | The case solved, the thread moved a step, a hook | Half-hour–hour | Built for it: procedurals, serial drama |
 | Dan Harmon's Story Circle | Want → get it → pay for it | Back home, but changed | Short–half-hour | Built for it |
 | Kishōtenketsu | Contrast and a surprising turn, not conflict | A new understanding from combining the turn with the setup | Very short–medium | Quiet, reflective, slice-of-life episodes |
 | Fable | A flaw meets its consequence | A moral, often stated outright | Very short | Bedtime / children's episodes |
@@ -49,15 +50,16 @@ example. Then ask the two follow-ups at the end.
 > 2. **Finding yourself (Virgin's Promise)**: someone secretly becomes who they really are, and everyone around them is better for it. *Billy Elliot, Frozen.*
 > 3. **Classic three-act**: a goal, rising obstacles, a darkest moment and a hard-won climax. *Most films.*
 > 4. **Reset comedy (Sitcom)**: a small problem snowballs into chaos, gets fixed and everything goes back to normal. *Seinfeld, Friends.*
-> 5. **Story Circle**: someone wants something, gets it, pays for it and comes home a little different. *Rick and Morty, Community.*
-> 6. **Quiet twist (Kishōtenketsu)**: no villain; a calm setup, then an unexpected turn that changes how you see it. *My Neighbor Totoro.*
-> 7. **Fable**: a character's flaw leads straight to its consequence, and there's a lesson at the end. *The Tortoise and the Hare.*
-> 8. **Parable**: an everyday human situation that carries a deeper moral meaning. *The Good Samaritan.*
-> 9. **Cautionary tale**: someone ignores a warning, enjoys it for a while, then pays. *The Boy Who Cried Wolf, Gremlins.*
-> 10. **Five-act drama (Freytag)**: rising action, a central turning point, then the fall. *Macbeth, Romeo and Juliet.*
-> 11. **Nonstop escalation (Fichtean Curve)**: start straight in trouble, with each crisis bigger than the last. *Mad Max: Fury Road.*
-> 12. **Start at the end (In Medias Res)**: open on the crisis, then jump back to show how we got there. *Breaking Bad pilot, Sunset Boulevard.*
-> 13. **Story Spine**: "Once upon a time… every day… until one day…" A simple chain of cause and effect. *Most Pixar shorts.*
+> 5. **Case of the week (Episodic Drama)**: a teaser, acts that each end on a twist, the case solved by the end, and an ongoing thread that leaves a hook for next week. *The Blacklist, House.*
+> 6. **Story Circle**: someone wants something, gets it, pays for it and comes home a little different. *Rick and Morty, Community.*
+> 7. **Quiet twist (Kishōtenketsu)**: no villain; a calm setup, then an unexpected turn that changes how you see it. *My Neighbor Totoro.*
+> 8. **Fable**: a character's flaw leads straight to its consequence, and there's a lesson at the end. *The Tortoise and the Hare.*
+> 9. **Parable**: an everyday human situation that carries a deeper moral meaning. *The Good Samaritan.*
+> 10. **Cautionary tale**: someone ignores a warning, enjoys it for a while, then pays. *The Boy Who Cried Wolf, Gremlins.*
+> 11. **Five-act drama (Freytag)**: rising action, a central turning point, then the fall. *Macbeth, Romeo and Juliet.*
+> 12. **Nonstop escalation (Fichtean Curve)**: start straight in trouble, with each crisis bigger than the last. *Mad Max: Fury Road.*
+> 13. **Start at the end (In Medias Res)**: open on the crisis, then jump back to show how we got there. *Breaking Bad pilot, Sunset Boulevard.*
+> 14. **Story Spine**: "Once upon a time… every day… until one day…" A simple chain of cause and effect. *Most Pixar shorts.*
 >
 > Follow-ups: *About how long should the episode be?* and *Is this a standalone story, or part of a longer arc?*
 
@@ -80,14 +82,56 @@ turn them into shots. Going from one to the other:
   2-minute episode leaves several stages one shot each: combine them (the notes under each
   structure say which), or pick a shorter structure. For 1 to 3 minutes, the Fable, the
   Story Spine, Kishōtenketsu, the Story Circle and the Cautionary Tale fit best.
-- **Mark the beats in the script** with a comment above each beat's first shot, so the
-  outline survives into the script and the next edit can see it. The build ignores them:
+- **Mark the structure and the beats in the script**: `// structure: <name>` once near the
+  top, and `// beat: <name>` above each beat's first shot, the names as in the structure's
+  table. The outline then survives into the script, the next edit can see it, and the
+  score can be drafted from it (each structure's **Music** table, below). The build ignores
+  comments:
 
   ```
-  // Inciting Incident
+  // structure: Three-Act
+  ...
+  // beat: Inciting Incident
   ## sh060
   ```
 
+  A beat can start on any shot, not only a sequence's first. A beat that repeats (the Story
+  Spine's "Because of that…", the Fichtean Curve's crises) is marked each time. A converted
+  screenplay is marked the same way, with the structure that fits it best.
+- **Each structure's Music table** is a first pass at the score: how each beat is scored
+  before anyone adjusts it.
+  - **Music**: `score` (a cue), `under` (a cue held low under the lines or a narrator),
+    `sting` (a few seconds at the beat's start or end, otherwise dry) or `dry` (no music:
+    the scene and its room tone carry it).
+  - **Mood**: words added to the show's sound (`sound.score`), so they stay in its world,
+    with an energy from 1 (barely there) to 5 (everything).
+  - **Theme**: `story` is the episode's own melody, made by its first scored beat and played
+    again by the later ones; `show` is the series' theme, the same every episode; `runner`
+    is the thread that carries on from episode to episode (a serial's ongoing story, the
+    one character who follows the cast), the same across them. A *statement* plays it
+    whole; an *echo* recalls it, changed as the mood says.
+  - **Hit**: where the music lands on the picture: `turn` (it changes as the beat starts),
+    `arrive` (it peaks), `drop` (it cuts out).
+- **Music in every structure.** Whatever the structure, a few moments are scored the same
+  way, so write them where the draft can see them:
+  - **Music in the scene** (a radio, a band, a carousel, a song someone plays, in a shot's
+    `sound:`): two musics fight, so the score sits out under it, or takes up its tune and
+    becomes it. Which is a choice the first pass leaves to a person: it marks the spot.
+  - **A montage** (a run of short shots with no lines): one scored cue across the cuts, at
+    the beat's mood but fuller. Write it as a montage, not as scenes with a line or two.
+  - **Titles and credits** (a card, a `target: hold` shot, at the open or the end): the
+    `show` theme, stated.
+  - **A flashback** (a memory, a whole sequence): its theme's echo, thinner and further
+    away. Mark it, `// flashback` above the sequence, besides the card or the look that
+    tells the viewer (**Time jumps need a marker**, below).
+  - **A moment the beats can't find** (the heart of a comedy, a look that changes the
+    scene, a show's recurring device): `// theme: <theme>, <words>` above its shot puts
+    that theme there, held low from that shot to the end of its scene, or, when the words
+    say `sting`, a few seconds on the shot. `<theme>` is `story`, `show`, `runner` or a
+    theme the series names; `<words>` say how (`tender`, `sting`, a variant the series
+    lists).
+  - **Beats in a row with music are one cue**, its sections the beats: the music changes
+    at each beat (its `turn`) rather than stopping and starting.
 - **A beat is not a sequence.** A `#` sequence is a place; a beat can run across several of
   them, or share one with the next beat.
 - **Every beat has to be on screen.** Each shot is rendered by a model with no memory of the
@@ -144,6 +188,23 @@ multi-episode arcs.
 | 11 | **Resurrection** | A final, higher-stakes test where the hero must use everything they've learned. They are purified and reborn. | 80–95 |
 | 12 | **Return with the Elixir** | The hero comes home changed, with something that heals or improves the ordinary world. | 95–100 |
 
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| Ordinary World | score | at home, settled (2) | story, statement | — |
+| Call to Adventure | score | a stir, something calling (2→3) | story, echo | turn |
+| Refusal of the Call | under | hesitant, held back (2) | story, echo, minor | — |
+| Meeting the Mentor | under | warm, steady (2) | story, echo | — |
+| Crossing the Threshold | score | bold, opening out (3→4) | story, statement, full | arrive |
+| Tests, Allies, Enemies | score | lively, varied (3) | story, echo | — |
+| Approach to the Inmost Cave | score | tense, gathering (3→4) | story, echo, low | — |
+| The Ordeal | score | dark, at its fullest, then nothing (4→5) | story, echo, broken | drop |
+| Reward | score | relief, glowing (3) | story, statement | arrive |
+| The Road Back | score | urgent, driving (4) | story, echo | turn |
+| Resurrection | score | the biggest, everything at once (5) | story, statement, full | arrive |
+| Return with the Elixir | score | home again, warm, changed (2) | story, statement, soft | the end |
+
 **Example:** *Star Wars: A New Hope*: Tatooine → Leia's message → Luke refuses → Obi-Wan →
 leaving Tatooine → the cantina and the Falcon → the Death Star → the trash compactor and
 Obi-Wan's death → rescuing Leia → escape and pursuit → the trench run → the medal ceremony.
@@ -192,6 +253,9 @@ episode can take one block. Vogler's stages are in brackets.
 | | 26 | **Climax** | The decisive moment the battle turns on. |
 | | 27 | **Resolution** | The new ordinary world, and what the hero brought back. [Return with the Elixir] |
 
+**Music:** score each of the 27 beats as the stage in brackets after it (the 12-stage
+table above); a beat without one takes the stage of the beat before it.
+
 The two Pinches (8 and 20) and the Midpoint (14) are what keep a long middle from sagging:
 plan them first, then fill the beats between.
 
@@ -227,6 +291,24 @@ protagonists in a restrictive world.
 | 11 | **Chooses Her Light** | They fully commit to their true self, whatever it costs. | 80–88 |
 | 12 | **Re-ordering (Rescue)** | The community reorganizes around the new reality and often comes to their aid. | 88–95 |
 | 13 | **The Kingdom Is Brighter** | Everyone is better off because the protagonist became themselves. | 95–100 |
+
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| Dependent World | score | safe, contained, a little small (2) | story, statement, held back | — |
+| Price of Conformity | under | muted, constrained (2) | story, echo, muted | — |
+| Opportunity to Shine | score | a spark, the tune opening up (3) | story, statement, full for a moment | turn |
+| Dresses the Part | score | playful, daring (3) | story, echo | — |
+| Secret World | score | free, joyful (3) | story, echo, full | — |
+| No Longer Fits Her World | under | uneasy, two sounds at odds (2→3) | story, echo | — |
+| Caught Shining | sting (at its start) | exposed (4) | story, echo | turn |
+| Gives Up What Kept Her Stuck | score | letting go, quiet (2) | story, echo, soft | — |
+| Kingdom in Chaos | score | turmoil, clashing (4) | story, echo, broken | — |
+| Wanders in the Wilderness | under | lonely, sparse (1) | story, echo, a fragment | — |
+| Chooses Her Light | score | resolve, rising (3→4) | story, statement | arrive |
+| Re-ordering (Rescue) | score | others joining in, fuller (3) | story, echo, full | — |
+| The Kingdom Is Brighter | score | bright, open, warm (2→3) | story, statement | the end |
 
 **Example:** *Billy Elliot*: a mining-town boy (Dependent World) is expected to box (Price of
 Conformity), stumbles into a ballet class (Opportunity to Shine), trains in secret (Secret
@@ -275,6 +357,22 @@ drama.
 | | **Climax** | The final confrontation. The protagonist wins (or loses meaningfully) by acting as their changed self. | 80–95 |
 | | **Resolution / Final Image** | The new normal, often a mirror of the opening image to show the change. | 95–100 |
 
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| Opening / Status Quo | score | the world as it is (2) | story, statement | — |
+| Inciting Incident | score | a change, unsettling (3) | story, echo | turn |
+| Debate | under | uncertain (2) | story, echo | — |
+| Plot Point 1 | score | committed, moving out (3) | story, statement | arrive |
+| Rising Complications | under | pressure building (3) | story, echo | — |
+| Midpoint | score | a lift or a fall, the stakes raised (4) | story, statement | turn |
+| Pressure Mounts | score | tightening, darker (3→4) | story, echo, low | — |
+| Low Point | under | near silence, a held tone (1) | story, echo, a fragment | drop (as it starts) |
+| Plot Point 2 | score | a new resolve (2→3) | story, echo | turn |
+| Climax | score | full, driving (4→5) | story, statement, full | arrive |
+| Resolution / Final Image | score | settled, the opening's music again (2) | story, statement, soft | the end |
+
 **Example:** *Toy Story*: Woody is the top toy → Buzz arrives → rivalry → Woody knocks Buzz
 out the window and both are lost → the gas station and Pizza Planet → Buzz learns he's a toy
 (low point for Buzz) → trapped at Sid's (low point for Woody) → they work together → the
@@ -318,6 +416,28 @@ shouldn't change much between episodes.
 | 8 | **Reset** | Back to the status quo. The lesson is learned, or comically not learned. | 92–97 |
 | 9 | **Tag** | A final callback joke after the resolution. | 97–100 |
 
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| Cold Open / Teaser | sting (at its end) | the main title (3) | show, statement | — |
+| Status Quo | dry | — | — | — |
+| The Problem | dry | — | — | — |
+| The Bad Decision / Scheme | sting (at its end) | sneaky, playful (3) | show, echo | — |
+| Complications | dry | — | — | — |
+| Peak Chaos / Misunderstanding | sting (at its end) | the act out (4) | show, echo | — |
+| Confession / Fix | under (its last scene) | warm, soft: the small emotional beat (1→2) | show, echo, slowed | — |
+| Reset | dry | — | — | — |
+| Tag | sting (at its end) | the end titles: a button (3) | show, statement | — |
+
+A sitcom plays its scenes dry; its music is the show's theme between them. So besides the
+beats above, a short `show` echo (a bumper) plays at each change of scene, a new place or a
+jump in time (a new `#` sequence's location), unless a beat's sting is already there, and
+there is no `story` theme. Its heart is rarely where the beats say (the late-night talk
+in the Complications, the wrap-up in the Reset): mark that moment with `// theme:` (below)
+to hold the theme low under it. A comedy that wants its scenes scored (a dramedy) uses the Story Circle's
+Music table instead.
+
 **Example:** A typical *Seinfeld* episode: four separate small problems escalate in parallel
 and collide in one absurd climax, and nobody grows.
 
@@ -333,7 +453,60 @@ and collide in one absurd climax, and nobody grows.
 
 ---
 
-### 2.2 Dan Harmon's Story Circle
+### 2.2 Episodic Drama (Teaser and Acts)
+
+**Origin:** The hour (and half-hour) television drama, cut into acts for the commercial
+breaks: the procedural, the legal and medical show, the prestige serial.
+
+**Pitch:** A case of the week inside a story that keeps going. A teaser hooks; each act ends
+on an **act-out**, a twist that makes you stay through the break; the case is solved by the
+last act; and a **runner**, the serialized thread (the ongoing investigation, the
+relationship, the one character who follows the cast), moves a step in the tag, leaving a
+hook for next week. It's the drama's counterpart to the Sitcom: the case resets, the runner
+doesn't.
+
+**Best for:** Procedurals, crime, legal and medical dramas, thrillers with a case each
+episode, and any drama series with a season-long thread.
+
+**Beats:**
+
+| # | Beat | What happens | ~% |
+|---|---|---|---|
+| 1 | **Teaser / Cold Open** | A hook: the case's first moment (a crime, a stranger, a body, a request), ending on a question. | 0–8 |
+| 2 | **Act One** | The case set up: who, what's at stake, the first obstacle. Act-out: a complication. | 8–28 |
+| 3 | **Act Two** | The investigation or pursuit; the B-plot (often the runner) crosses it. Act-out: a reversal. | 28–50 |
+| 4 | **Act Three** | Pressure: the case at its worst and what it costs. Act-out: the low point. | 50–72 |
+| 5 | **Act Four** | The turn and the climax: the case resolved, won or lost. | 72–92 |
+| 6 | **Tag / Stinger** | The aftermath, then the runner moves on: a hook for next week. | 92–100 |
+
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| Teaser / Cold Open | score | watchful, a question (2→3) | story, statement | turn (on the first shot), a sting at its end (the title) |
+| Act One | under | building (2→3) | story, echo | a sting at its end (the act-out) |
+| Act Two | under | pursuit, tightening (3) | story, echo; runner, echo, where the B-plot is the runner | a sting at its end (the act-out) |
+| Act Three | score | heavy, the cost (3→4) | story, echo, low | drop (at its end, the act-out) |
+| Act Four | score | the turn, then the release (4→2) | story, statement | arrive |
+| Tag / Stinger | score | the aftermath, then a cold edge (2→3) | show, echo; then runner, statement | a sting at its end |
+
+The act-outs are what this format adds to a score: a hit at the end of every act, which is
+what keeps it sounding like television rather than a film. A show with its own names for
+its beats (a recurring format of its own) is still this structure underneath.
+
+**Example:** *The Blacklist*: a teaser with the week's blacklister, acts that end on the
+case turning, the blacklister caught or killed in the last act, and a tag that moves Red
+and Liz's story on.
+
+**Pitfalls:**
+- Act-outs that are only loud. Each should change what the case is about, not just raise
+  the volume.
+- A runner that takes over the episode. The case still has to be solved here.
+- A tag that resolves the runner. It should open a question, not close one.
+
+---
+
+### 2.3 Dan Harmon's Story Circle
 
 **Origin:** Dan Harmon (*Community*, *Rick and Morty*), a streamlined 8-step version of the
 Monomyth for episodic TV.
@@ -358,6 +531,19 @@ needs a real arc. It also works at scene level.
 | 7 | **Return** | Back to the familiar | They come back to where they started. | 75–90 |
 | 8 | **Change** | Having changed | They are different now, and can do or see something they couldn't before. | 90–100 |
 
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| You | score | at home (2) | story, statement | — |
+| Need | under | a want, restless (2) | story, echo | turn |
+| Go | score | crossing over, curious (3) | story, echo | turn |
+| Search | under | adapting, busy (3) | story, echo | — |
+| Find | score | getting it, a lift (3→4) | story, statement | arrive |
+| Take | score | the cost: heavy, then nothing (4→1) | story, echo, minor | drop |
+| Return | under | home again, quieter (2) | story, echo | — |
+| Change | score | the opening's music, changed (2) | story, statement, changed | the end |
+
 **Example:** A typical *Rick and Morty* episode: Morty wants something → an adventure in
 another dimension → he gets it → it goes horribly wrong → he's back home, a little more
 jaded or a little wiser.
@@ -370,7 +556,7 @@ jaded or a little wiser.
 
 ---
 
-### 2.3 Kishōtenketsu (Four-Act Structure)
+### 2.4 Kishōtenketsu (Four-Act Structure)
 
 **Origin:** Classical Chinese poetry (起承轉合, *qǐ chéng zhuǎn hé*), adopted in Japanese
 (起承転結) and Korean narrative. It's the basis of four-panel *yonkoma* comics.
@@ -391,6 +577,15 @@ villains, poetry-like shorts and gentle twists.
 | 2 | **Shō (承): Development** | Deepen and expand the introduction without any big change. More texture, routine and detail. | 25–50 |
 | 3 | **Ten (転): Twist** | An unexpected element or a big shift in perspective. It may seem unrelated at first. | 50–75 |
 | 4 | **Ketsu (結): Conclusion** | Link the twist back to the premise. The resolution comes from combining the two, not from defeating someone. | 75–100 |
+
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| Ki (起): Introduction | score | calm, observational (1→2) | story, statement | — |
+| Shō (承): Development | under | texture, routine, gently moving (2) | story, echo | — |
+| Ten (転): Twist | score | something new: another colour, another instrument (3) | a new figure, not the story's | turn |
+| Ketsu (結): Conclusion | score | the two together, understanding (2) | story, statement, in the twist's colour | the end |
 
 **Example:** *My Neighbor Totoro*: a family moves to the countryside (Ki) → everyday life,
 exploring and settling in (Shō) → the forest spirits appear, and later Mei goes missing
@@ -433,6 +628,16 @@ clear lesson is the point.
 | 4 | **Consequence** | The result follows immediately and is often ironic. The flaw backfires (or the virtue pays off). | 60–85 |
 | 5 | **Moral** | The lesson, stated outright by a narrator or a character ("Slow and steady wins the race"). | 85–100 |
 
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| Character & Trait | score | light, characterful: the trait in one instrument (2) | story, statement | — |
+| Situation / Temptation | score | playful, building (2→3) | story, echo | turn |
+| The Choice | under | a wrong note, uneasy (3) | story, echo, bent | — |
+| Consequence | score | ironic or sad: the flaw backfiring (3→2) | story, echo, minor | drop (at the backfire) |
+| Moral | under | warm, simple, under the narrator (1) | story, statement, soft | the end |
+
 **Example:** *The Tortoise and the Hare*: the boastful Hare challenges the Tortoise → the
 race → the Hare naps because he's overconfident → the Tortoise wins → "Slow and steady wins
 the race."
@@ -468,6 +673,16 @@ moral courage, and grounded realism with a message.
 | 4 | **The Reversal** | The unlikely person does the right thing, or the expected one fails. | 60–85 |
 | 5 | **Recognition** | The meaning lands, through a closing question, a quiet image or the consequence. It's rarely stated outright. | 85–100 |
 
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| Ordinary Situation | under | plain, everyday (1→2) | story, statement, simple | — |
+| Expected Pattern | under | assured, conventional (2) | story, echo | — |
+| The Test | score | a question hanging (2→3) | story, echo | turn |
+| The Reversal | score | surprise, tender (3) | story, statement, warm | arrive |
+| Recognition | under | quiet, open, unresolved (1) | story, echo, left hanging | the end |
+
 **Example:** *The Good Samaritan*: a traveler is beaten and left by the road → a priest and
 a Levite (the expected helpers) pass by → a Samaritan (the despised outsider) stops and
 cares for him → "Which of these was a neighbor?"
@@ -502,6 +717,18 @@ severe punishment that serves as an example.
 | 5 | **Warning Signs** | Small hints that something is wrong. They're ignored. | 60–75 |
 | 6 | **The Punishment** | A swift, fitting and often disproportionate consequence. | 75–95 |
 | 7 | **The Example** | A final image or line that turns the character into a warning for others. | 95–100 |
+
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| The Rule / Warning | under | ominous, a low hint (2) | story, statement, low | — |
+| The Temptation | score | alluring, sweet (2→3) | story, echo, bright | — |
+| The Transgression | sting (at its start) | a sly turn (3) | story, echo | turn |
+| The Thrill | score | fun, carefree, too bright (3→4) | story, echo, bright | — |
+| Warning Signs | under | something off: a sour note under the fun (3) | story, echo, a note wrong | — |
+| The Punishment | score | dark, sudden (4→5) | story, echo, dark | turn, then drop at its end |
+| The Example | under | cold, still (1) | story, echo, a fragment | the end |
 
 **Example:** *Gremlins*: three rules (no bright light, no water, never feed after midnight)
 → a cute pet → the rules are broken → chaos → a town in ruins and the pet taken back. *The
@@ -544,6 +771,16 @@ stories where the second half shows the fallout.
 | 4 | **Falling Action** | The consequences unfold and opposing forces gain ground. It includes a *moment of final suspense*, where the outcome seems briefly in doubt. | 55–85 |
 | 5 | **Denouement** | The final outcome: **catastrophe** (the tragic fall) or **resolution** (order restored). | 85–100 |
 
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| Exposition | score | the world, tension under it (2) | story, statement | turn (at the exciting force) |
+| Rising Action | score | climbing (3→4) | story, echo | — |
+| Climax (Turning Point) | score | the peak, decisive (5) | story, statement, full | arrive |
+| Falling Action | score | slower, heavier, a hush at the final suspense (3→2) | story, echo, minor | — |
+| Denouement | score | catastrophe: dark and spare; resolution: calm (1→2) | story, statement, changed | the end |
+
 **Example:** *Macbeth*: the witches' prophecy (exposition) → the murder of Duncan and the
 rise to power (rising action) → Banquo's murder and Fleance's escape (the turning point) →
 the descent into paranoia and the gathering opposition (falling action) → Birnam Wood,
@@ -585,6 +822,19 @@ episodes that need to hook immediately.
 | 7 | **Climax** | The biggest confrontation of all. | 80–95 |
 | 8 | **Brief Falling Action** | A short resolution. Get out fast. | 95–100 |
 
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| Immediate Inciting Crisis | score | urgent, already in it (4) | story, statement | turn (on the first shot) |
+| Crisis 1 | score | driving (3→4) | story, echo | — |
+| Breather | under | a breath, quiet (1) | story, echo, soft | — |
+| Crisis 2 | score | bigger (4) | story, echo | turn |
+| Breather | dry | the silence is the breath | — | — |
+| Crisis 3+ | score | each harder than the last (4→5) | story, echo | turn (each) |
+| Climax | score | everything (5) | story, statement, full | arrive |
+| Brief Falling Action | score | out fast, a short release (2) | story, echo | the end |
+
 **Example:** *Mad Max: Fury Road*: Max is captured in the first minutes, followed by one
 escalating chase after another with short quiet stretches (the night in the bog, the Many
 Mothers), ending in the final chase back to the Citadel.
@@ -621,6 +871,17 @@ heading, but not how), and cold opens.
 | 4 | **Convergence** | The timeline catches up to the opening scene. Replay it with the new understanding: what it *really* meant. | 65–75 |
 | 5 | **Continuation & Climax** | Push past the opening moment into the true climax. | 75–95 |
 | 6 | **Resolution** | Resolve the aftermath. | 95–100 |
+
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| The Hook | score | tense, unexplained (4) | story, statement, in pieces | drop (at the cut away) |
+| The Jump Back | sting (at its start) | time turned back (2) | — | turn |
+| Build-Up | as the structure underneath | that structure's Music table | story, echo | — |
+| Convergence | score | the hook's music again, now understood (4) | story, statement, as in the hook | arrive |
+| Continuation & Climax | score | past it, to the peak (5) | story, statement, full | arrive |
+| Resolution | score | the aftermath (2) | story, echo, soft | the end |
 
 **Example:** *Breaking Bad* pilot: a man in his underwear and a gas mask crashes an RV and
 records a goodbye video with a gun in hand (the hook) → "three weeks earlier" he's a mild
@@ -663,6 +924,19 @@ ending.
 | 7 | **And ever since then…** | The new normal. | 90–100 |
 | (8) | **And the moral is…** | *Optional:* add this when combining with the Fable. | — |
 
+**Music:**
+
+| Beat | Music | Mood (energy) | Theme | Hit |
+|---|---|---|---|---|
+| Once upon a time… | score | gentle, wondering (2) | story, statement | — |
+| Every day… | under | light, a simple repeating figure: the routine (2) | story, echo | — |
+| Until one day… | score | curious, a lift: something new (2→3) | story, echo | turn |
+| Because of that… | score | unsettled (3) | story, echo, darker | — |
+| Because of that… (again) | score | rising, each one darker (3→4) | story, echo, low | — |
+| Until finally… | score | a hush at the low point, then warm (1→3) | story, statement | arrive |
+| And ever since then… | score | warm, slowing to a close (2→1) | story, statement, soft | the end |
+| (And the moral is…) | under | quiet, simple (1) | story, echo | — |
+
 **Example:** *Finding Nemo*: once upon a time there was a widowed fish, Marlin, who was very
 protective of his only son, Nemo. Every day, Marlin warned Nemo about the ocean's dangers.
 One day, Nemo swam out to sea in defiance. Because of that, he was caught by a diver.
@@ -691,6 +965,11 @@ Structures can be stacked at different levels:
 - **Scene level:** The Story Circle and Kishōtenketsu both scale down to a single scene or
   sequence.
 
+In a script, `// structure:` names the episode's own shape (the season arc lives in the
+outline), and the `// beat:` lines use that structure's beat names: in a frame, the frame's
+(In Medias Res: Build-Up), with the core's beats inside it marked by the core's names; in a
+spine + fable, the Spine's.
+
 ## Choosing by need
 
 | If the user wants… | Suggest |
@@ -699,6 +978,7 @@ Structures can be stacked at different levels:
 | A gentle, conflict-free, wonder-filled piece | Kishōtenketsu |
 | A repeatable half-hour comedy | Sitcom Formula |
 | A repeatable half-hour with real (small) change | Story Circle |
+| A drama series: a case each episode, a story across them | Episodic Drama |
 | A satisfying standalone drama | Three-Act |
 | A grounded story about doing the right thing | Parable |
 | A big transformation across many episodes | Hero's Journey or its 27 beats (outward), Virgin's Promise (inward) |

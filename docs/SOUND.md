@@ -773,6 +773,110 @@ Each phase is tested live on local ComfyUI before the next starts.
    The user's verdict: both spot on and hard to tell apart at proxy size (unlikely to differ
    much in full HD), so both ways are offered; the stem is the cleaner input. A shot with no lines renders in `generate`
    mode, its own sound, so the song must come from the master or the mix, never the clips.
+8. **Themes across a season, and a first-pass score** (design, 2026-11-03; not built). Two
+   things a cue can't do alone today: carry a recognisable tune from episode to episode, and
+   exist before someone spots it by hand. Measured first (*Measured: leitmotifs*, below): the
+   score models can't follow a melody from words or a timbre reference, but Stable Audio 3,
+   given a recording as audio-to-audio with its sampling started part-way down the noise
+   schedule, plays that recording's tune in the cue's own instruments.
+   - **A theme is a take.** `sound.themes` in the series config: each a name, what it belongs
+     to (a character, a place, the show), what it means in words, and a picked take of any
+     episode's cue (`{"ep", "cue", "take"}`: pinned, so a pick elsewhere never makes another
+     episode stale). A theme is made the first time it's needed: eight takes in its beat's
+     style with no theme, and the one picked becomes the theme. A take, not notes: it is
+     already real instruments, so nothing synthetic carries into the cues made from it (a
+     synth sketch did, wherever it kept the tune), and nobody writes music to have one.
+   - **A cue renders from its theme's take**: audio-to-audio at a **strength** (where the
+     schedule starts, `t0`: 0.89 by default, a beat type's own when the format sets one;
+     about 0.86 states the theme, 0.91 alludes to it), in the cue's style words. The tune
+     recurs and the sound is made for each scene, as a film's theme comes back as a solo
+     piano, then full strings. A take carries its own timing: a theme under a longer cue is
+     looped or cut at bar lines, at another tempo stretched (the cue's refit stretches ±3 %;
+     how far a theme can be stretched before it suffers is to measure). Where the same sound
+     must recur (a main title, a sting such as Porch Lights' Glance) the theme is **fixed**:
+     the picked take placed as a file, the same in every episode.
+   - **A take gets a melody score**: SheetSage2 (already installed, for YuE2) transcribes the
+     theme's take and each new take, and the new one's pitch class per sixteenth is matched
+     against the theme's (best shift of up to two beats). It is a band, not a maximum: from a
+     piano take at 0.89 about 30-55 % (below ~25 % the theme is lost, as takes with no theme
+     score ~20 %; above ~65 % the source shows through), to be tuned on real cues. The score
+     can't hear whether a take sounds right, so it filters rather than picks: eight takes,
+     those outside the band dropped, the rest ranked by their hits, and the person picks by
+     ear from takes that are all on theme (a minute or so a cue, local, on the 5090).
+   - **Notes, optionally.** A theme can also start as notes: ABC by hand or from an LLM over
+     MCP, or a recording or a hummed idea through SheetSage2. The notes become a plain sketch
+     (the melody over a chord and a bass per bar, numpy), then two passes: the sketch to a grand
+     piano (t0 0.86, the better of two seeds by the score), whose take is the theme. Notes also
+     allow transforms no take does (to minor, a fragment, another tempo).
+   - **A first pass, without an LLM** (`seriesmith score-draft`, the editor, an MCP tool):
+     draft cues written into the mix, not rendered, for a person (or an LLM over MCP) to
+     adjust. What it reads is what the script already has, by rule:
+     - the **beats**: a `// beat: <type>` comment above each beat's first shot (Porch Lights'
+       scripts have them since 2026-11-03, inside their act banners; the build ignores
+       comments) and the sequences;
+     - a **format** in the series config (`sound.format`): each beat type's job, written once
+       for a show whose episodes share a shape: whether it has music (and whether only in the
+       gaps between lines), its style words (in the show's world, `sound.score`, but its
+       own), its energy (1-5) and shape, its theme and strength, a hit at its start (`turn`)
+       or end (`arrive`, `drop`). Porch Lights' draft: the show folder's SCORE_FORMAT.md (Cold
+       Open, The Read, The Cost and The Handoff are in all ten episodes; twenty one-off beats
+       fall to the rules below);
+     - **who leads** a beat (the most shots in `who:` and the most lines), for a beat the
+       format doesn't name: whose theme;
+     - **the lines**: a beat's dialogue share, and the gaps between lines (the shots with none),
+       where the music can rise; under lines it is sparse and ducked (the mix ducks already);
+     - the script's own **`music:` notes**: their words go into the cue's prompt;
+     - **`// theme: <name>, <variant>`** above a shot: a theme placed by hand on the moment
+       rules can't find (Porch Lights' Glance, in every episode, its variants given,
+       confirmed, missed, failed, inverted: thirty shots across season 1, marked 2026-11-03).
+       A comment, not a `music:` note, because the video prompts read `music:` and a changed
+       note makes the shot's takes stale.
+     A cue's prompt is the show's words, its beat type's, then its shots' `music:` notes.
+     What rules can't find is the moment only the words carry (a look that changes the
+     scene). Those stay a person's hits, or an LLM's over MCP, added to the draft.
+   - **The simple first pass** (2026-11-03), what every show gets with no format: the
+     script's `// structure: <name>` and `// beat: <name>` lines (the skill writes them,
+     STORY_STRUCTURES' **From beats to shots**), and that structure's **Music** table: each
+     beat's treatment (`score`, `under`, `sting`, `dry`), mood words with an energy (1-5),
+     theme by role (`story`: the episode's own melody, made by its first scored beat;
+     `show`: the series' one; `runner`: the serialized thread, the same across episodes;
+     stated or echoed), and a hit (`turn`, `arrive`, `drop`). The Sitcom plays dry with a
+     `show` bumper at each change of place; Episodic Drama (teaser, four acts, tag) stings
+     every act-out and ends on the `runner`. Across every structure, by rule: a shot whose
+     `sound:` has music in the scene is flagged, the score to sit out or take up its tune (a
+     person's choice: ep35's carousel starts on the climax's `arrive`); a montage (a run of short
+     shots with no lines) is one fuller cue; a title or credits card (`target: hold` at the
+     open or end) is the `show` theme stated; a `// flashback` sequence is its theme's echo,
+     thinner and further away. And two timings, the draft's own: a cue starts a moment
+     before the cut into its beat (a pre-lap, about a second) and ends on a cut or a line
+     (a button), never mid-shot. Beats in a row with music (`score`, `under`) are **one
+     cue**, its sections the beats and a `turn` at each, not a cue per beat: Dean's spine
+     drafted beat by beat was seven cues in 74 s, some 5 s long; joined, it is one lullaby
+     that changes as the story does, what its own `music:` notes say. A sitcom's bumpers go
+     at each new sequence location (a place or a time: the boys' living room to the same
+     room at night), merged into a beat's sting already there. `under (its last scene)`
+     holds a beat's cue to its last sequence (the Sitcom's Confession / Fix, 2:15 of talk in
+     Fair Trade otherwise). `// theme: <theme>, <words>` above a shot places a theme the
+     beats can't (a sitcom's heart, the Glance): held low from the shot to its scene's end,
+     or a sting on the shot when the words say `sting` (Fair Trade's two marked, sh540 the
+     sofa-bed talk and sh820 the wrap-up: 44 s and 62 s under the talk).
+     Tried by hand 2026-11-03 (a scratch drafter reading the Music tables from
+     STORY_STRUCTURES.md): Dean ep35 and ep38 and Fair Trade, beat lines added to each. Checked by hand against
+     Dean Stories (the Story Spine; its `music:` notes already state, darken, warm and close
+     one lullaby) and Fair Trade (FRTEST: a sitcom, no `music:` notes, thirteen sequences).
+     No beat lines: one cue per sequence, flat. A show's own format (`sound.format`) adds
+     beat names of its own, and `"like": "<structure>"` for the beats it doesn't name
+     (Porch Lights: Episodic Drama; Kell is its `runner`). Character themes (`sound.themes`, `"for": [ids]`:
+     the beat's lead's theme echoed) and `// theme:` markers are the next layer, not the
+     first pass.
+   - **The whole sound, drafted together**: a cue alone doesn't end the chops at cuts. The
+     draft also turns the Dialogue track to voices only and lays each location's bed, so the
+     room tone and the score run across the cuts and the takes' own music is gone.
+   - **The season view**: themes by episode, which beat and strength each sounds in, so an
+     arc shows.
+   Order: a theme's take under a cue of another length and tempo (the measurement left),
+   then `sound.themes` and the melody score in the cue's takes, then the draft with the
+   format, then the season view. Paid models add nothing yet (*Measured: leitmotifs*).
 
 ## Measured: voices only (2026-11-02, local, RTX 5090)
 
@@ -1102,6 +1206,95 @@ each against the take's own bars and against a plain repaint's. Files and number
   (`POST /seriesmith/cue/comp`: same tempo and grid, any model), which is what a composer
   would do: the cue rendered again with the section's words ("[Break 2 bars] solo piano"), the
   take that follows them picked by ear, its bars spliced into the take that is right elsewhere.
+
+## Measured: leitmotifs (2026-11-03, local, RTX 5090)
+
+Can a score model play a given tune? An 8-bar theme in D major (a scratch script: notes ->
+a plain additive-synth sketch, melody, a triad and a bass per bar), at 80 bpm (25 s) and as
+its minor variant at 64 bpm on cello (31 s); each render transcribed by SheetSage2 (`melody`
+mode) and scored as the share of the theme's sixteenths whose pitch class it matches (best
+shift of +-2 beats). SheetSage2 read the sketch itself back exactly (tempo, key, every note:
+1.00), so the score measures the render, not the transcriber. Prompts: horn and strings;
+folk (guitar, fiddle; the same major sketch); cello, sparse piano (the minor one).
+
+| Render | Melody kept |
+|---|---|
+| no theme, same prompt (chance) | SA3 19 %, ACE-Step 17-22 % |
+| ACE-Step, the theme through `ReferenceTimbreAudio` (seriesmith's "timbre" theme), 7 seeds | 17-72 %: 17, 42, 23, 22, 69 (horn), 72, 66 (cello) |
+| ACE-Step, audio-to-audio (the sketch as the latent), denoise 0.5 / 0.7 / 0.85 | 100 / 75 / 20 % |
+| SA3, audio-to-audio, KSampler denoise 0.70-0.80, 3 seeds, horn / folk / cello | 95-100 / 89-98 / 100 % |
+| SA3, KSampler denoise 0.82-0.88, 3 seeds | 66-80 / 47-77 / 41-67 % |
+| SA3, KSampler denoise 0.90 | 19-36 / 12-19 / 16-23 % |
+
+- **ACE-Step's reference is a cover, not only timbre.** In ComfyUI (`model_base.ACEStep15`) a
+  reference latent sets `is_covers`, and its 5 Hz semantic codes become the structural context
+  (`ace_step15.prepare_condition`). It still didn't keep the tune: by ear none of the covers had
+  the theme, whatever the numbers of the luckier seeds. The cue docs' "its timbre, not the
+  tune" stands as what to expect.
+- **KSampler's denoise snaps at 8 steps.** It runs the last 8 steps of an `int(8 / denoise)`
+  step schedule, so 0.75 and 0.80 gave byte-identical audio, as did 0.82, 0.85 and 0.88, and 0.90
+  was a whole render (int(8.9) = 8). SA3 is a flow model (shift 2: sigma = 2t / (1 + t)); the
+  levels start at t = 0.80, 0.889 and 1.0. A strength between them needs the schedule set
+  directly: `ManualSigmas` (sigma(t0 x (8 - i) / 8), i = 0..7, then 0) -> `SamplerCustom`, lcm,
+  cfg 1. KSampler's own 9-step tail through that path scored as d85 did (66 %; not
+  byte-identical, the sigmas written to six places). Melody kept, seeds 1 / 2 / 3:
+
+  | t0 | 0.83 | 0.86 | 0.89 | 0.91 | 0.94 |
+  |---|---|---|---|---|---|
+  | horn | 78 / 94 / 92 | 78 / 90 / 92 | 66 / 69 / 78 | 56 / 50 / 56 | 39 / 36 / 44 |
+  | folk | 74 / 96 / 91 | 67 / 88 / 81 | 47 / 71 / 77 | 48 / 19 / 68 | 32 / 14 / 23 |
+  | cello (minor, 64 bpm) | 100 / 84 / 94 | 94 / 64 / 85 | 70 / 55 / 38 | 56 / 48 / 23 | 25 / 28 / 19 |
+
+  A smooth knob, with a wide spread between seeds (folk at 0.91: 19-68 %), so several takes
+  per cue, ranked by the score, matter more than the exact t0. By ear (the user): cello is
+  fine at 0.86; folk keeps the tune at 0.91; past 0.90 the tune starts to go, and 0.91 is
+  close to the theme without being it. So t0 is a choice, not one right value: about 0.86
+  states the theme, about 0.91 alludes to it (an echo, a character's theme heard in another's
+  episode).
+- **By ear** (the user, 2026-11-03): SA3 at the t = 0.80 level is the same notes on another
+  instrument (horn, cello); at t = 0.889 the horn is music following the theme, not a recolour,
+  the best of the set; folk follows the theme without being a recolour at the 0.80 level; cello
+  sounds recoloured at every level heard (0.70-0.80), 0.80 the least. ACE-Step audio-to-audio
+  at 0.7 is on a par; the cover with the sketch as its latent too (0.8) is dull and muted. The no-theme renders are good and in the same world (the series' style words do
+  that much) but a different tune: what words alone give.
+- **So the band**, in one pass: the take wanted scores roughly 60-85 %; near 100 % is a
+  recolour, near 20 % lost. A sparse, slow sketch (the cello) needs a stronger start than a
+  full one.
+
+**Porch Lights' themes** (the same day, local): five ideas composed as notes (the Porch, D
+major; one Mark theme for every episode's Mark, B minor, its variants a statement, a squeeze (a
+fragment, faster), a cost (slow, an octave down) and a win (its last two bars the Porch's
+cadence: the Mark joins the porch); Kell's thread (a half step, then a tritone, over a drone);
+the Glance (a rising fifth, a sting)) and rendered three ways:
+
+- **Slow sketches, an Americana palette** (banjo, fiddle): in the band at 0.86 (Porch 70-80 %,
+  Mark 75-80 %, win 85-86 %), but too slow and western for a modern drama (the user). A sketch
+  without rhythm can only come back slow: the take keeps its timing.
+- **Sketches with a pulse** (an eighth-note arpeggio, kick and hat; 88-108 bpm) and a modern
+  palette: the pulse competes with the tune (0.86: Porch 42-53 %, Mark 59 %; 0.91: 14-47 %).
+  By ear 0.86 still has the sketch's synth; the 0.91 takes sound right, but they keep little of
+  the tune (Porch 20 %, chance).
+- **Two passes** (the pulsed sketch -> a grand piano at 0.86 -> a dark hybrid arrangement:
+  low synth pulse, ticking percussion, low strings; the Porch and the win warmer): the piano
+  pass kept 53-86 %; the arrangement, best seed at 0.83 / 0.86 / 0.89: Porch 56 / 52 / 48 %,
+  Mark 50 / 42 / 38 %, squeeze 66 / 78 / 42 %, cost 84 / 59 / 45 %, win 59 / 53 / 41 % (Kell and
+  the Glance too low or short to score). By ear no synth at 0.83 or 0.86, but the piano too
+  clear; **0.89 the default**. The piano pass is where the tune leaks: the sketch's arpeggio is
+  as loud as its melody, so the next sketch puts the melody on top.
+- **So a theme is a take** (the user's call, the same day): the second pass alone, from a
+  recording, is what sounded right, and a picked take is already one. A theme is made by
+  seed-hunting a cue in its beat's style and picking; later cues render from that take.
+  Notes stay an option, through the piano pass.
+
+Paid and other models (2026-11-03, a survey; nothing paid was run): Comfy Router's catalog has
+no music model (255 models: speech, sound effects, cleanup). Comfy's partner nodes here have
+Sonilo and MiniMax Music 3 Cloud, neither taking a melody. Of hosted services only Stability's
+Stable Audio 2.5 API takes audio and a strength (`StabilityAudioToAudio`, documented by Comfy
+but not in this ComfyUI 0.43); Suno has no official API, Udio no downloads, MiniMax's
+`music-cover` closed to new users on 2026-08-20, Lyria 3 takes no audio, ElevenLabs Music
+conditions on a clip of at most 30 s with no stated fidelity. Open models that follow a melody
+well (MusicGen-Melody, JASCO, MelodyFlow, MuLaCover) are non-commercial; MuseControlLite (on
+Stable Audio Open 1.0) has no ComfyUI node. SA3 locally is the one to build on.
 
 ## Open questions
 

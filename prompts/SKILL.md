@@ -26,8 +26,11 @@ show's: add what the episode needs and change nothing else unasked, but if it ha
 Converting an existing screenplay, keep its story and dialogue and break it into shots
 (`references/script_conversion.md` works a scene through). Writing fresh, outline the story
 before the shots: if the person hasn't given it a shape, offer the menu in
-`references/story_structures.md` (with the questions above, in the same message), then mark
-each beat in the script with a `//` comment. Either way, write the film, not the model. Leave `target:` lines out unless a shot
+`references/story_structures.md` (with the questions above, in the same message). Either
+way, mark the structure and each beat in the script (`// structure:` near the top, `// beat:`
+above each beat's first shot; the structure that fits a converted screenplay best), so the
+score can be drafted from them (that file's **From beats to shots**). Write the film, not
+the model. Leave `target:` lines out unless a shot
 needs something only one model does (see **Choosing a video target**); advice that holds for
 one target only is marked with that target's name. Validate with `seriesmith check
 series.json <script>` and `--pace` before calling a script finished. Rendering, upscaling
