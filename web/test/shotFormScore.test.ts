@@ -86,6 +86,11 @@ describe("the shot form's score marks", () => {
     const more = [...el.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.includes("the score's beat"))!;
     await act(async () => more.click());
     await act(async () => {});
+    // the help links the spotting sheet, where the score is drafted from the beats
+    const link = [...el.querySelectorAll<HTMLButtonElement>("button.h3-linkbtn")].find((b) => b.textContent === "the spotting sheet")!;
+    expect(link.closest(".h3-col")!.textContent).toContain("// beat: line above it");
+    await act(async () => link.click());
+    expect(store.get().viewer?.spot).toBe(true);
     await change("input[aria-label=Beat]", "Until one day…");
     await change("input[aria-label='Theme mark']", "show, tender");
     await change("select[aria-label=Hit]", "turn");

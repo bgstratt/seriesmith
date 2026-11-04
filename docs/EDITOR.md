@@ -404,8 +404,9 @@ pictures to pick from, and pointing at a name shows it larger.
   you point at it, and picking one starts the line with it), **Sound**,
   **Extras**, **On-screen text**.
 - **More** (the arrow, folded): music, and the score's marks: **Beat** (the beat of the
-  episode's structure this shot starts, its beats offered from the script's `// structure:`
-  line: a `// beat:` line above the shot), **Theme mark** (a theme on this moment, `glance,
+  episode's structure this shot starts, its beats offered from the series config's own
+  `sound.format`, else the script's `// structure:` line: a `// beat:` line above the shot;
+  its help links the spotting sheet, whose Draft… drafts the score from them), **Theme mark** (a theme on this moment, `glance,
   given`: a `// theme:` line) and **Hit** (accent, arrive, drop or turn on the shot's first
   frame as it plays in the cut, in the pass's mix: one undoable mix edit, saved with the
   shot); **Video model class** (another model for this shot, with

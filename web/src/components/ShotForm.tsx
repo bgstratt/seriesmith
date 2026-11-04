@@ -17,6 +17,7 @@ import {
 } from "../lib/shotForm";
 import { currentPlaylist } from "../actions";
 import { currentMix, loadMix, setShotHit } from "../mixActions";
+import { openSpotting } from "../spotActions";
 import type { HitKind } from "../types";
 import { clearDraft, keptAt, readDraft, useDraft } from "../lib/drafts";
 import { conflictOf } from "../lib/sourceSession";
@@ -571,13 +572,21 @@ function ScoreMarks({ ep, text, marks, setMarks, hit, setHit }: {
   const want = words(named);
   const st = named ? all.find((s) => s.id === named || [...want].every((w) => words(s.name).has(w))) : undefined;
   const used = [...text.matchAll(/^\/\/\s*beat:\s*(.+)$/gm)].map((m) => m[1].trim());
-  const beats = [...new Set([...(st?.beats ?? []), ...used])];
+  // a show's own beats (the series config's sound.format), then its structure's, then the script's
+  const own = Object.keys(((sc.base as Record<string, any> | null)?.sound?.format?.beats ?? {}) as object);
+  const beats = [...new Set([...own, ...(st?.beats ?? []), ...used])];
+  const spot = (
+    <button type="button" className="h3-linkbtn" title="Open the spotting sheet (Scoring): its Draft… drafts the score from the beats, and lays a structure out when the script has none"
+      onClick={() => openSpotting(null)}>the spotting sheet</button>
+  );
   const themes = ["story", "show", "runner", ...Object.keys(((sc.base as Record<string, any> | null)?.sound?.themes ?? {}) as object)];
   return (
     <>
-      <Row label="Beat" help={st ? `The ${st.name} beat this shot starts (a // beat: line above it), for the first-pass score; empty: it carries on the beat before.`
-        : named ? `The beat this shot starts (a // beat: line above it); "${named}" isn't one of the structures with a Music table.`
-          : "The beat this shot starts (a // beat: line above it). The script has no // structure: line yet: the spotting sheet's Draft… lays one out."}>
+      <Row label="Beat" help={own.length
+        ? <>The beat this shot starts (a // beat: line above it): the show's own ({named || "its format"}, the series config's sound.format), else {st?.name ?? "the structure it's like"}; empty: it carries on the beat before. The score is drafted from them on {spot}.</>
+        : st ? <>The {st.name} beat this shot starts (a // beat: line above it); empty: it carries on the beat before. The score is drafted from them on {spot}.</>
+          : named ? <>The beat this shot starts (a // beat: line above it). &quot;{named}&quot; isn&apos;t one of the structures with a Music table, and the series config has no format of its own: {spot}&apos;s Draft… lays one out.</>
+            : <>The beat this shot starts (a // beat: line above it). The script has no // structure: line yet: {spot}&apos;s Draft… lays one out.</>}>
         <input className="h3-in" list={`sf-beats-${ep}`} value={marks.beat} placeholder={beats[0] ? `e.g. ${beats[0]}` : "a beat's name"}
           aria-label="Beat" onChange={(e) => setMarks({ ...marks, beat: e.target.value })} />
         <datalist id={`sf-beats-${ep}`}>{beats.map((b) => <option key={b} value={b} />)}</datalist>
@@ -600,7 +609,7 @@ function ScoreMarks({ ep, text, marks, setMarks, hit, setHit }: {
   );
 }
 
-export function Row({ label, help, children }: { label: string; help: string; children: React.ReactNode }) {
+export function Row({ label, help, children }: { label: string; help: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="h3-col" style={{ gap: 2, minWidth: 0 }}>
       <span className="h3-small"><b>{label}</b></span>
