@@ -13,6 +13,23 @@ way you run it, it's the same app, with the same projects and settings.
 Pick one way into a ComfyUI. The Manager install and a clone both take the folder
 `custom_nodes/seriesmith`.
 
+### No ComfyUI yet?
+
+Get one of ComfyUI's own installs first (seriesmith installs none of them):
+
+| Install | Good for |
+|---|---|
+| [ComfyUI Desktop](https://comfy.org/download) | The simplest: an app with an installer (Windows 10+, an Apple Silicon Mac on macOS 13+, Linux). Its address is in its settings, usually `http://127.0.0.1:8000`. |
+| [Windows portable](https://github.com/Comfy-Org/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z) | An NVIDIA card, a folder you can move or delete. Extract it with [7-Zip](https://7-zip.org), run `run_nvidia_gpu.bat`; it answers at `http://127.0.0.1:8188`. Older cards (GTX 10-series), AMD and Intel have their own archives in the same release. |
+| [comfy-cli](https://docs.comfy.org/comfy-cli/getting-started) | One command: `pip install comfy-cli`, `comfy install`, `comfy launch` (Linux and macOS especially). |
+| [By hand](https://docs.comfy.org/installation/manual_install) | Your own Python environment, updated with git. |
+
+Then add seriesmith to it (way 1 or 3 below). Running seriesmith on a page of its own
+(way 2) without a ComfyUI, its **Features** window shows these same choices, and its
+**Find my ComfyUI** button looks for one running on this computer (the address in
+Settings, then `:8188` and `:8000`) and saves the address it finds. Without any ComfyUI,
+seriesmith still renders on Comfy's cloud, with a Comfy API key in Settings.
+
 ## 1. Inside ComfyUI, from ComfyUI-Manager
 
 You need a ComfyUI that runs (developed against 0.38 and later) with ComfyUI-Manager.

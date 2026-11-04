@@ -1421,6 +1421,14 @@ editor shows Render on, Jobs and Settings once `GET /seriesmith/backends` answer
     another machine).
 - **`POST /seriesmith/features/cancel`** stops after the current item; a download's
   `.part` is kept and resumes.
+- **No ComfyUI** (`place.why_not` set, seriesmith on a page of its own): `GET   /seriesmith/features` also answers `"setup": [{id, label, for, url, steps: [text]}]`, the
+  official ways to get ComfyUI on this system, best first (`seriesmith/comfysetup.py`:
+  ComfyUI Desktop, the Windows portable build, comfy-cli, by hand). seriesmith installs
+  none of them.
+- **`POST /seriesmith/comfyui/find`** (body ignored) looks for a ComfyUI running on this
+  computer: the address in Settings, then `http://127.0.0.1:8188` (portable, by hand) and
+  `:8000` (ComfyUI Desktop), all at once. It answers `{"found": url | null, "tried": [{url,   ok, version}], "configured": url | null}`; nothing is changed (the window saves a found
+  address through `PUT /seriesmith/settings`, as `comfyui_url`).
 
 ### `GET /seriesmith/settings` / `PUT /seriesmith/settings`
 This machine's settings (`seriesmith/settings.py`; never the series config). GET answers

@@ -64,6 +64,17 @@ export interface FeaturesView {
   place: { root: string | null; custom_nodes: string | null; python: string | null; why_not: string | null };
   hf_token: boolean;
   job: InstallJob;
+  /** no ComfyUI found (seriesmith on a page of its own): the official ways to get one, best first */
+  setup?: SetupWay[];
+}
+
+/** A way to get ComfyUI (seriesmith/comfysetup.py): who it suits, where to get it, the steps. */
+export interface SetupWay { id: string; label: string; for: string; url: string; steps: string[] }
+
+export interface FoundComfyUI {
+  found: string | null;
+  tried: { url: string; ok: boolean; version: string | null }[];
+  configured: string | null;
 }
 
 async function call<T>(path: string, body?: unknown): Promise<T> {
@@ -78,6 +89,16 @@ async function call<T>(path: string, body?: unknown): Promise<T> {
 export const getFeatures = () => call<FeaturesView>("/seriesmith/features");
 export const getSizes = () => call<{ sizes: Record<string, number | null> }>("/seriesmith/features/sizes");
 export const cancelInstall = () => call<{ job: InstallJob }>("/seriesmith/features/cancel", {});
+/** A ComfyUI running on this computer: the address in Settings, then :8188 and :8000. */
+export const findComfyUI = () => call<FoundComfyUI>("/seriesmith/comfyui/find", {});
+
+/** Use a found ComfyUI: its address saved as Settings' ComfyUI. */
+export async function setComfyUI(url: string): Promise<void> {
+  const r = await api().fetch("/seriesmith/settings", {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ comfyui_url: url }),
+  });
+  if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { error?: string }).error ?? `HTTP ${r.status}`);
+}
 
 export interface InstallAsk { features?: string[]; files?: string[]; classes?: string[] }
 export const startInstall = (ask: InstallAsk) =>

@@ -249,7 +249,7 @@ function SettingsBody({ server }: { server: boolean }) {
             <KindStatus kinds={["local"]} ok="ComfyUI answering" />
           </div>
           <div className="h3-form">
-            {url("comfyui_url", "ComfyUI", "Your ComfyUI: local renders go to it, and model lists and node checks come from it.")}
+            {url("comfyui_url", "ComfyUI", "Your ComfyUI: local renders go to it, and model lists and node checks come from it. No ComfyUI yet? Features says how to get one, and finds it once it runs.")}
             {defaultPick("video", video, "minimax_h3_ref2va")}
             {defaultPick("image", images, "krea2")}
           </div>

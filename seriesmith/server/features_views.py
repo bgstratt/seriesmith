@@ -14,6 +14,8 @@ added; seriesmith.installer: putting it in):
                                        with how to put it in)
     POST /seriesmith/features/cancel   stop after the current item (a download's
                                        .part is kept and resumes)
+    POST /seriesmith/comfyui/find      a ComfyUI running on this computer, looked for
+                                       where one usually answers (comfysetup.find)
 
 Files are asked for by name only: the server downloads only URLs the code
 records (features.known_files), never one the page sends.
@@ -48,7 +50,8 @@ def head_size(url: str, token: str | None) -> int | None:
 
 # what feature_routes registers (server/routes.all_paths)
 PATHS = [("GET", "/seriesmith/features"), ("GET", "/seriesmith/features/sizes"),
-         ("POST", "/seriesmith/features/install"), ("POST", "/seriesmith/features/cancel")]
+         ("POST", "/seriesmith/features/install"), ("POST", "/seriesmith/features/cancel"),
+         ("POST", "/seriesmith/comfyui/find")]
 
 
 def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tuple]:
@@ -85,11 +88,25 @@ def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tup
 
     @A.handler
     def features(ctx, query):
+        import sys
+
+        from seriesmith import comfysetup as CS
         p, env = here(ctx)
-        return 200, {"groups": [{"id": g, "label": label, "about": about}
-                                for g, label, about in FT.GROUPS],
-                     "features": FT.status(FT.catalog(), env), "place": p.to_json(),
-                     "hf_token": bool(settings.hf_token), "job": installer.state()}
+        out = {"groups": [{"id": g, "label": label, "about": about}
+                          for g, label, about in FT.GROUPS],
+               "features": FT.status(FT.catalog(), env), "place": p.to_json(),
+               "hf_token": bool(settings.hf_token), "job": installer.state()}
+        if p.why_not and not in_comfyui:
+            # no ComfyUI found: the ways to get one, for the window to show
+            out["setup"] = CS.guide(sys.platform)
+        return 200, out
+
+    @A.handler
+    def find_comfyui(ctx, body):
+        from seriesmith import comfysetup as CS
+        got = CS.find(CS.candidates(settings.local_comfyui))
+        got["configured"] = (settings.local_comfyui or "").rstrip("/") or None
+        return 200, got
 
     @A.handler
     def sizes(ctx, query):
@@ -128,6 +145,7 @@ def feature_routes(settings, make_context, in_comfyui: bool = False) -> list[tup
         ("GET", "/seriesmith/features", features, "query"),
         ("GET", "/seriesmith/features/sizes", sizes, "query"),
         ("POST", "/seriesmith/features/install", install, "body"),
+        ("POST", "/seriesmith/comfyui/find", find_comfyui, "body"),
         ("POST", "/seriesmith/features/cancel", cancel, "query"))]
 
 

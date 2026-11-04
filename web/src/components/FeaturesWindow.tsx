@@ -10,8 +10,9 @@ import { useEffect, useMemo, useState } from "react";
 import { closeFeatures, loadTargets, openSettings } from "../actions";
 import { store, useApp } from "../store";
 import {
-  STATUS_TEXT, cancelInstall, downloadSize, fmtBytes, getFeatures, getSizes, installable, itemsLine, startInstall,
-  toInstall, yours, type Feature, type FeaturesView, type InstallJob, type InstallTask,
+  STATUS_TEXT, cancelInstall, downloadSize, findComfyUI, fmtBytes, getFeatures, getSizes, installable, itemsLine,
+  setComfyUI, startInstall, toInstall, yours, type Feature, type FeaturesView, type FoundComfyUI, type InstallJob,
+  type InstallTask, type SetupWay,
 } from "../lib/features";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { CopyButton } from "./Readiness";
@@ -132,6 +133,7 @@ function FeaturesBody() {
       <div className="h3-cards" style={{ overflow: "auto", flex: "1 1 auto", minHeight: 0 }}>
         {!view && !error && <div className="h3-muted h3-pad">Looking at what's installed…</div>}
         {view?.place.why_not && <div className="h3-note h3-note-err">{view.place.why_not}</div>}
+        {view?.place.why_not && view.setup && <ComfySetup ways={view.setup} onFound={() => void load()} />}
         {view && !view.place.why_not && view.place.root && (
           <div className="h3-small h3-muted">Installs into <span className="h3-mono">{view.place.root}</span></div>
         )}
@@ -263,5 +265,79 @@ function JobCard({ job, onCancel }: { job: InstallJob; onCancel: () => void }) {
       )}
       {job.running && <span className="h3-small h3-muted">A stopped download resumes where it left off next time.</span>}
     </section>
+  );
+}
+
+/** No ComfyUI found: the official ways to get one (the first open), and finding one that runs. */
+function ComfySetup({ ways, onFound }: { ways: SetupWay[]; onFound: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [got, setGot] = useState<FoundComfyUI | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  async function find() {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await findComfyUI();
+      setGot(r);
+      if (r.found && r.found === r.configured) onFound();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function use(url: string) {
+    setBusy(true);
+    try {
+      await setComfyUI(url);
+      onFound();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="h3-card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <b>No ComfyUI on this computer yet?</b>
+      <span className="h3-small h3-muted">
+        seriesmith renders on a ComfyUI. Get one of these (ComfyUI's own installs), start it, then press Find my
+        ComfyUI. Or render only on Comfy's cloud: a Comfy API key in Settings.
+      </span>
+      {ways.map((w, k) => (
+        <details key={w.id} open={k === 0}>
+          <summary><b>{w.label}</b> <span className="h3-small h3-muted">{w.for}</span></summary>
+          <ol className="h3-small" style={{ margin: "4px 0 4px 18px", padding: 0 }}>
+            {w.steps.map((s) => <li key={s}>{s}</li>)}
+          </ol>
+          <a className="h3-btn" href={w.url} target="_blank" rel="noreferrer">
+            <i className="pi pi-external-link" /> {w.url.endsWith(".7z") ? "Download" : "Open its page"}
+          </a>
+        </details>
+      ))}
+      <div className="h3-row" style={{ gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <button className="h3-btn h3-primary" disabled={busy} onClick={() => void find()}>
+          <i className="pi pi-search" /> Find my ComfyUI
+        </button>
+        {got?.found && got.found !== got.configured && (
+          <button className="h3-btn" disabled={busy} title="Save it as Settings' ComfyUI address"
+            onClick={() => void use(got.found!)}>Use {got.found}</button>
+        )}
+        {got && !got.found && (
+          <>
+            <span className="h3-small h3-muted">
+              Nothing answers at {got.tried.map((t) => t.url).join(", ")}. Is it running? Its address is in its window.
+            </span>
+            <button className="h3-btn" onClick={() => openSettings()}>Settings</button>
+          </>
+        )}
+      </div>
+      {got?.found && got.found !== got.configured && (
+        <span className="h3-small">
+          Found ComfyUI{got.tried.find((t) => t.url === got.found)?.version ? ` ${got.tried.find((t) => t.url === got.found)!.version}` : ""} at {got.found}.
+        </span>
+      )}
+      {error && <div className="h3-note h3-note-err">{error}</div>}
+    </div>
   );
 }
