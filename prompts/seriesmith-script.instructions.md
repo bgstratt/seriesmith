@@ -984,6 +984,10 @@ sound: running footsteps on grass, fabric movement
 | `NAME (O.S.): line` | off-screen: in the space, outside the frame |
 | `NAME (V.O., on the truck radio): line` | a voice marker and a delivery together; the note describes the voice and is never spoken |
 | `// text` | comment |
+| `// structure: Pixar Story Spine` | the episode's story structure (`docs/STORY_STRUCTURES.md`), near the top: the first-pass score reads it. A comment: nothing renders from it |
+| `// beat: Until one day…` | above the first shot of a beat (or its sequence's `#` header), the beat's name as its structure writes it: the score's sections and turns |
+| `// theme: show, tender` | above a shot: a theme on that moment, held low to the end of its scene (`sting` in the words: a sting on the shot). The theme is `story`, `show`, `runner` or one the series config names |
+| `// flashback` | above a sequence that's a flashback: its music an echo, thinner and further away |
 
 Any other line is action prose. Prose under a `#` header before its first shot is a
 scene-setting note and is ignored. A line under a `#` header (`model:`, `lora:`, `steps:`,

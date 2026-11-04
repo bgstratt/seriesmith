@@ -3,7 +3,9 @@
 Music under a cut, made to fit it: where it goes, what it does, which take, how loud. This
 guide walks through it in the order you'd do it, with Ballroom's ep03 "Choice" as the example.
 The editor's buttons are listed in [EDITOR.md](EDITOR.md); the design and the measurements
-behind it are in [SOUND.md](SOUND.md).
+behind it are in [SOUND.md](SOUND.md). The rest of the sound the score sits on (voices only, a
+bed for each place, a shot's effects, the mix and its stems), and the order to do it in, is in
+[SOUND_GUIDE.md](SOUND_GUIDE.md).
 
 ## The idea in one paragraph
 

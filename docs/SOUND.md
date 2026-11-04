@@ -775,7 +775,7 @@ Each phase is tested live on local ComfyUI before the next starts.
    mode, its own sound, so the song must come from the master or the mix, never the clips.
 8. **Themes across a season, and a first-pass score** (design, 2026-11-03; themes built
    2026-11-03, the draft 2026-11-04: `seriesmith score-draft`, the spotting sheet's Draft…;
-   the season view not yet). Two
+   the season view and themes from notes deferred). Two
    things a cue can't do alone today: carry a recognisable tune from episode to episode, and
    exist before someone spots it by hand. Measured first (*Measured: leitmotifs*, below): the
    score models can't follow a melody from words or a timbre reference, but Stable Audio 3,
@@ -884,10 +884,33 @@ Each phase is tested live on local ComfyUI before the next starts.
      lines between them one cue, a run under 10 s none (6 s / 8 s gave twelve cues in the
      Squeeze, 10 / 15 one continuous one, 10 / 10 eight of 25-67 s). A cue past 3 minutes
      splits where a sequence starts. Without beat lines, a cue per sequence, not joined. The
-     story theme is the first scored cue's take (`{"cue": "d01"}`); a draft cue never lands
-     on a cue of the episode's own. `sound.format` adds `other` (`talk_max`, and `lead` with
-     `theme_else`: Porch Lights' rule for its twenty one-off beats) and `marks` (`{"glance":
-     "sting"}`).
+     story theme is the first scored cue's take (`{"cue": "d01"}`). `sound.format` adds
+     `other` (`talk_max`, and `lead` with `theme_else`: Porch Lights' rule for its twenty
+     one-off beats) and `marks` (`{"glance": "sting"}`).
+   - **Drafting again** (2026-11-04, from Dean ep16, drafted flat before its beat lines were
+     in, then rendered): a draft cue with a finished take is the person's, kept like a cue of
+     their own, unless asked to replace the rendered ones too; a series theme's cue (and one a
+     kept cue takes its theme from) is kept always, since deleting it would orphan the theme.
+     A draft cue over a kept one is trimmed to the longest stretch it leaves free (8 s or
+     more, else left out), not dropped: ep16's spine, where `intro` (its first cue, pinned)
+     plays the opening, became one cue from the next beat to the end, taking `intro` as its
+     theme. One cue across a story told straight through was heard and kept (the user: "good,
+     consistent, and on theme"); a split at a scene change is a person's, by hand.
+   - **Character themes**: a series theme's `for` (whose it is) makes it the episode's
+     `story` theme whenever that character leads the episode (the most shots in `who:` and
+     lines on screen; a narrator's voice-over left out), carried across episodes instead of
+     one made in each. Set in ★ Series theme's **whose**.
+   - **A script with no beat lines** drafts flat (a cue a sequence), and Draft says so at the
+     top. A structure picked there is laid over the cut: each beat at its place in a story
+     (the `~%` of STORY_STRUCTURES' beat tables, read into structures.json), on the nearest
+     sequence start (a shot's start costs 4 % of the episode more), and written into the
+     script as `// beat:` lines on ask, the build's parse checked unchanged. On Dean's seven
+     built episodes it put most beats in the right scene and missed some by one (ep05's
+     "Until finally…" a scene late, ep06's "Every day…" on the line that is "Until one day…"),
+     so it's a start to correct, said as such; those seven were corrected by their narration.
+   - **The editor around it**: hits dragged on the spotting map; a shot's form sets its
+     `// beat:`, `// theme:` and a hit on its first frame; the user's guide to the whole sound
+     is SOUND_GUIDE.md.
    - **The whole sound, drafted together**: a cue alone doesn't end the chops at cuts. The
      draft also turns the Dialogue track to voices only and lays each location's bed, so the
      room tone and the score run across the cuts and the takes' own music is gone.

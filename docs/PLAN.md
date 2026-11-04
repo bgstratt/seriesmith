@@ -1731,22 +1731,35 @@ score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
         **Draft…**, MCP `score_draft`. core/spotting.py the rules (stdlib), scoredraft.py the
         episode (the cut, the story IR, cue specs d01... and mix hits dh01..., voices only);
         the Music tables generated from STORY_STRUCTURES.md into core/structures.json
-        (tools/make_structures.py, checked by test_docs); `sound.format` (`like`, `beats`,
-        `other` with `talk_max` and `lead` / `theme_else`, `marks`); `gaps` (music only where no
-        one speaks, runs within 10 s joined, under 10 s none); a cue split past 3 minutes at a
-        sequence. Dry runs: Dean ep35 / ep38 one 73-83 s lullaby; Fair Trade 4 stings, 6
-        bumpers, the two marks held under the talk, the fix to its last scene; Porch Lights
-        ep01 19 cues, the Squeeze 8 cues in its gaps, written (its format in all 40 episodes'
-        series configs; every cue plans against the cut). Not yet: a cue drafted over the location beds (the beds are laid from
-        the cut already); heard. Then (2026-11-04): a rendered draft cue kept on replace
-        (`--rendered` replaces those too, a series theme's always kept), a draft cue trimmed
-        around a kept one, a character's theme (`for`, set in ★ Series theme) as the
-        episode's story theme when they lead it; Dean ep16 marked (Story Spine) and drafted
-        again around its `intro` theme; Fair Trade's proxy draft written (6 bumpers). A script
-        with no beat lines: said at the top of Draft, and a structure laid over the cut
-        (spotting.layout: each beat at its `~%`, from STORY_STRUCTURES' beat tables into
-        structures.json, on the nearest sequence start) and written into the script on ask
-        (scoredraft.mark_script, the parse checked unchanged)
+        (tools/make_structures.py, checked by test_docs)
+  - [x] a show's own shape (2026-11-04): `sound.format` (`like`, `beats`, `other` with
+        `talk_max` and `lead` / `theme_else`, `marks`); `gaps` (music only where no one
+        speaks, runs within 10 s joined, under 10 s none); a cue split past 3 minutes at a
+        sequence. Porch Lights' format in all 40 episodes' series configs
+  - [x] drafting again (2026-11-04): a rendered draft cue kept on replace (`--rendered` /
+        **Rendered ones too** replaces those too; a series theme's cue, and one a kept cue
+        takes its theme from, always kept), a draft cue trimmed around a kept one (taking its
+        take as the story theme where it made it), a trimmed cue's label its remaining beats
+  - [x] character themes (2026-11-04): a series theme's `for` (whose it is: ★ Series theme's
+        **whose**), the episode's story theme whenever its character leads it; a narrator's
+        voice-over doesn't count toward who leads
+  - [x] a script with no beat lines (2026-11-04): said at the top of Draft; a structure laid
+        over the cut (spotting.layout: each beat at its `~%` from STORY_STRUCTURES' beat tables,
+        in structures.json as `at`, on the nearest sequence start) and written into the script
+        on ask (scoredraft.mark_script, the build's parse checked unchanged). Dean's seven built
+        episodes (ep04-06, 15, 17, 19, 30) marked so, corrected by their narration
+  - [x] the editor around it (2026-11-04): the cue window's cue picker (and ‹ ›, on the same
+        tab); each cue fitted to the window on open (useSize watching a grid that appears
+        later); hits dragged on the spotting map; the shot form's **Beat**, **Theme mark**
+        (`// beat:` / `// theme:` lines above the shot) and **Hit** (on its first frame), its
+        help linking the spotting sheet, a show's format's beats offered (GET
+        /seriesmith/structures); a cue that can't be planned says why (a shot under it with no
+        take yet, left out of the cut, gone from the script)
+  - [x] docs (2026-11-04): SOUND_GUIDE.md (the user's guide to the whole sound, in order: voices
+        only, ambience beds, effects, the drafted score, themes, the mix, export), SCORING's
+        first pass, AUTHORING's score lines and `sound.format`, the site's Sound page
+  - [ ] heard: the drafts on Porch Lights ep01 and Dean, themes made from their takes, then
+        Draft again with them (the user's)
   - [x] the skill: `// structure:` and `// beat:` in STORY_STRUCTURES' From beats to shots
         and the skill's outline step (converted scripts too); a Music table under each of
         the 14 structures (treatment, mood and energy, `story`/`show`/`runner` theme, hit),
@@ -1762,8 +1775,10 @@ score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
         bumpers at each new sequence location merged into stings, the Sitcom's fix held to
         its last scene, music in the scene flagged rather than silenced; `// theme:` in
         STORY_STRUCTURES for the moments the beats can't find)
-  - [ ] notes, optionally: ABC or a hummed idea -> a sketch -> a piano take (two passes)
-  - [ ] the season view (themes by episode)
+  - [ ] notes, optionally: ABC or a hummed idea -> a sketch -> a piano take (two passes);
+        deferred (2026-11-04: themes from takes cover it)
+  - [ ] the season view (themes by episode); deferred (the user, 2026-11-04: not needed yet)
+  - [ ] a cue that ends on a line rather than a cut (the draft's button, the rest of it)
 
 ## Fixed: the voice model is two lists (noted 2026-11-01)
 
