@@ -87,27 +87,6 @@ class Yue2Test(_Base):
         # ACE-Step sings a song's sections as words: not refused
         self.assertNotIn("blocked", CU.plan(self.root, "final", self.spec(model="ace_step15", sections=[]), {}))
 
-    def test_heartmula(self):
-        p = CU.plan(self.root, "final", self.spec(model="heartmula", key="D major"), {})
-        v = p["prompt"]["values"]
-        # its own tags as named, a section's lines under its tag, a section without lyrics
-        # its tag alone (an instrumental passage)
-        self.assertEqual(v["lyrics"], "[Verse]\nCoffee in a paper cup\nNeon humming\n\n[Chorus 2]\nStay a while\n\n[Solo]")
-        tags = p["prompt"]["prompt"]
-        self.assertEqual(tags, tags.lower())
-        self.assertNotIn(", ", tags)
-        self.assertIn(f"{p['fit']['ask_bpm']} bpm", tags.split(","))
-        g = CU.graph(TG.load_target("heartmula"), p, 5, "final")
-        by = {v["class_type"]: v["inputs"] for v in g.values()}
-        gen = by["HeartMuLaGenerator"]
-        self.assertEqual((gen["seed"], gen["lyrics"]), (5, v["lyrics"]))
-        self.assertIsInstance(gen["duration_seconds"], int)
-        self.assertGreaterEqual(gen["duration_seconds"], p["ask_seconds"])
-        self.assertEqual(by["PrimitiveStringMultiline"]["value"], tags)
-        # a song with no lyrics is refused: its length comes from them
-        p = CU.plan(self.root, "final", self.spec(model="heartmula", sections=[{"name": "verse"}]), {})
-        self.assertIn("sings words", p["blocked"])
-
     def test_graph_keeps_the_plan(self):
         p = CU.plan(self.root, "final", self.spec(), {})
         g = CU.graph(TG.load_target("yue2"), p, 7, "proxy")

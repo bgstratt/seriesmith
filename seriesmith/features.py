@@ -89,9 +89,6 @@ PACKS: dict[str, dict] = {
     "ComfyUI-PromptRelay": {
         "repo": "https://github.com/kijai/ComfyUI-PromptRelay",
         "classes": ["PromptRelayEncode"]},
-    "ComfyUI-RT-HeartMuLa": {
-        "repo": "https://github.com/monnky/ComfyUI-RT-HeartMuLa",
-        "classes": ["HeartMuLaLoader", "HeartMuLaGenerator"]},
 }
 
 # The node classes seriesmith's graphs use (the shipped targets' workflows and
@@ -118,7 +115,7 @@ CORE_CLASSES = frozenset({
     "MiniMaxH3ImageToVideo", "MiniMaxH3ReferenceToVideo", "MiniMaxH3SigmaShift",
     "MiniMaxMusic3TextEncode", "EmptyMiniMaxMusic3LatentAudio",
     "ComfyCloudMiniMaxMusic3TextToAudioNode",
-    "ModelPatchLoader", "ModelSamplingAuraFlow", "PrimitiveStringMultiline", "ModelSamplingSD3", "OpticalFlowLoader",
+    "ModelPatchLoader", "ModelSamplingAuraFlow", "ModelSamplingSD3", "OpticalFlowLoader",
     "QwenImage21Cache", "RandomNoise", "RebatchImages", "ReferenceLatent", "ReferenceMultiLatent",
     "ReferenceTimbreAudio", "RegexReplace", "RepeatImageBatch", "ResizeAndPadImage",
     "ResizeImageMaskNode", "SUPIRApply", "SamplerCustom", "SamplerCustomAdvanced", "SaveAudio", "SaveImage", "SaveText",
@@ -155,8 +152,6 @@ class Item:
     classes: tuple = ()            # pack: the node classes it loads
     files: tuple = ()              # hub (a repo): the files it must have (patterns)
     extra: tuple = ()              # hub (a repo): more fetched with them, not required
-    path: str = ""                 # hub in a models folder: the folder its files go in,
-                                   # inside it ("" the repo id; "." the folder itself)
     label: str = ""                # hub: what it is, in words
     alt: str = ""                  # model: the same file in torch's hub folder (its path
                                    # there), which counts as installed too
@@ -265,7 +260,7 @@ def fetch_items(target) -> list[Item]:
     for repo, f in getattr(target, "fetches", {}).items():
         out.append(Item("hub", repo, folder=f["into"], url=f"{HC.HF}/{repo}",
                         files=tuple(f.get("files") or ()), extra=tuple(f.get("extra") or ()),
-                        label=f.get("label") or "", path=f.get("path") or ""))
+                        label=f.get("label") or ""))
     return out
 
 
@@ -484,11 +479,6 @@ def catalog() -> list[Feature]:
                        "The same model hosted on Comfy Cloud through ComfyUI's partner node: paid "
                        "per take, nothing to download; a Comfy API key in Settings.",
                        [Item("key", "api_key")]),
-        Feature("sound.songs_heartmula", "sound", "Songs (HeartMuLa 3B)",
-                "A third song model, after YuE2 and MiniMax Music 3: monnky's ComfyUI-RT-HeartMuLa "
-                "(its requirements add torchtune and torchao to ComfyUI's Python) and HeartMuLa's "
-                "model, codec and tokenizer, about 22 GB (Apache-2.0).",
-                [_pack("ComfyUI-RT-HeartMuLa")] + _target_items("heartmula"), restart=True),
         Feature("sound.ambience", "sound", "Ambience beds (MMAudio)",
                 "A place's room tone or air, made once from its `ambience` words and looped under "
                 "its shots: kijai's ComfyUI-MMAudio and its four files (MIT). The default.",

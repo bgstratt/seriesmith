@@ -89,14 +89,6 @@ def hf_snapshot(repo: str, files=()) -> str | None:
     return snap if sha and _has_all(snap, files or ["*"]) else None
 
 
-def inside(item) -> list[str]:
-    """Where a repo fetched into a models folder goes inside it: its `path` (target.json
-    `fetches`: "." the folder itself, as ComfyUI-RT-HeartMuLa reads its tokenizer), else
-    the repo id's parts (ComfyUI-MMAudio's models/mmaudio/nvidia/<name>)."""
-    p = getattr(item, "path", "") or item.name
-    return [] if p == "." else p.split("/")
-
-
 def path_of(item, models_dir: Callable[[str], str | None] | None = None) -> str | None:
     """Where an item lives: the snapshot folder (hf), the file (torch), the
     folder in a models folder (None: that models folder isn't known here)."""
@@ -105,7 +97,7 @@ def path_of(item, models_dir: Callable[[str], str | None] | None = None) -> str 
     if item.folder == "torch":
         return os.path.join(torch_hub_dir(), *item.name.split("/"))
     d = models_dir(item.folder) if models_dir else None
-    return os.path.join(d, *inside(item)) if d else None
+    return os.path.join(d, *item.name.split("/")) if d else None
 
 
 def present(item, models_dir: Callable[[str], str | None] | None = None) -> bool | None:
@@ -127,7 +119,7 @@ def where_text(item) -> str:
         return "the Hugging Face cache"
     if item.folder == "torch":
         return "torch's hub cache"
-    return "/".join(["models", item.folder, *inside(item)])
+    return f"models/{item.folder}/{item.name}"
 
 
 # ---------------------------------------------------------------------------
@@ -238,5 +230,5 @@ def local_models_dir(comfy_url: str | None = None) -> Callable[[str], str | None
 
 
 __all__ = ["HF", "PLACES", "check_target", "fetch_repo", "hf_cache_dir", "hf_snapshot",
-           "inside", "local_models_dir", "loopback", "missing_message", "path_of", "present",
+           "local_models_dir", "loopback", "missing_message", "path_of", "present",
            "repo_dir", "repo_listing", "torch_hub_dir", "where_text"]

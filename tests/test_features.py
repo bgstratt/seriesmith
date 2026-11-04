@@ -217,13 +217,9 @@ class CoverageTest(unittest.TestCase):
     # what (read in the packs' code, 2026-11-02): a target whose graph uses one must
     # record it in target.json `fetches`, so the Features window downloads it and
     # readiness holds the target back until it's there (seriesmith/hubcache.py)
-    # (HeartMuLaLoader fetches nothing: it reads Hugging Face folders its README says to
-    # clone, which are recorded the same way, 2026-11-04)
     FETCHING = {"MMAudioFeatureUtilsLoader": {"nvidia/bigvgan_v2_44khz_128band_512x"},
                 "HunyuanDependenciesLoader": {"google/siglip2-base-patch16-512",
-                                              "laion/larger_clap_general"},
-                "HeartMuLaLoader": {"HeartMuLa/HeartMuLa-oss-3B-happy-new-year",
-                                    "HeartMuLa/HeartCodec-oss-20260123", "HeartMuLa/HeartMuLaGen"}}
+                                              "laion/larger_clap_general"}}
 
     def test_what_a_pack_fetches_by_itself_is_in_a_feature(self):
         from seriesmith import edit as E
