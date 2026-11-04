@@ -290,6 +290,59 @@ upscale recipe match) is worked out each time. Within one answer a pass's cut is
 once (`edit.cut_memo`) and each reference file looked at once (`takes.one_look`). The page
 asks for the episode it had open as it starts, and refs once the shots are in.
 
+### 9. Models behind other APIs (designed 2026-11-04; docs/PLAN.md, step 15)
+
+Any hosted model, on any provider, is added as data: no code for a provider, a model or a
+prompt. Three things, kept apart because each is reused differently:
+
+- **A provider**: its base URL, how it authenticates, how files get in (inline, upload,
+  asset library), how a job is followed and where its results are. One provider serves many
+  models (Atlas lists 336). On this machine, beside the settings, with its key: **a show
+  names a provider and never defines one**, so a shared show can't send a key to a host of its
+  choosing. A URL the provider answers with (fal's `status_url`) gets the key only on that
+  provider's own hosts, and a media download gets none unless the provider says it needs it
+  (OpenAI's `/content` does; a signed link doesn't).
+- **A model**: which provider, which model id (by shot where one model has several: Atlas's
+  text, image and reference-to-video ids), its limits, and where each value goes (the
+  `inputs` form Router targets already use).
+- **A prompt profile**: how a model family wants its prompt, shared across providers:
+  Seedance's wording is the same on Router, BytePlus and Atlas.
+
+**A prompt is a template over a shot's parts.** Writers give their parts (`style`, `framing`,
+`camera`, `action`, `lines`, `sound`, ...) and a template joins them; a section whose values
+are empty drops out. Placeholders only: no code, no Jinja, so a template is safe to share.
+A model's default template reproduces today's prompt byte for byte (the goldens hold it).
+The shotlist's prompt stays what is sent, apart from what only the request knows (the
+pictures' numbering: `@Image 1`), which the dry run shows.
+
+**A submission is a list of steps**: an HTTP request, the values taken from its answer, and
+optionally a condition to wait for. Seedance through an asset library is upload, register,
+wait until active, generate, poll, download; a synchronous API is one step whose answer is
+the file. JSON or multipart in; JSON or the file's bytes out.
+
+**Code stays where data can't reach**: the signed ways of authenticating (a named method
+each), the step engine, and any model needing real logic (a `compile.py`, as now). A submit
+isn't retried after a timeout unless the API takes an idempotency key: the job may have
+started and been charged, and the error says so. An API that only reports through a webhook
+can't reach a local machine, and is refused plainly.
+
+**Overrides belong to the show.** A change to a mapping or a prompt template is saved in the
+show (`<show>/targets/`), so everyone working on it gets the same prompts; **Back to shipped**
+removes it. Only keys and provider definitions are per machine. Changing a mapping marks the
+takes it affects stale (`mapping`) and never overwrites them. (Limits on a shipped model are
+still per machine, `target_limits`: unchanged.)
+
+**Voices come before lines, and lines before the picture.** No line is paid for until the
+character has a picked voice: a provider's speaker (an id, per provider, on the subject in the
+series config) or a reference sample (the `voice:<subject>` ref), auditioned on a short sample
+in the character's own words. Lines are generated one per take, so one can be redone alone,
+with the words alone in the request (a delivery note gets read aloud unless the model takes
+it as a field or tag). They are laid in script order into the episode's recording, and
+`align` windows the shots from it, as for a recording of actors. Where the API gives timings
+(ElevenLabs `with-timestamps`), they replace Whisper (`align --words`). So the timing comes from
+the voices and the shots fit them; a redone line that changes length moves what follows, and
+those windows go stale.
+
 ## Package layout
 
 ```

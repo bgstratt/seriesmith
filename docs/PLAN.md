@@ -1945,26 +1945,52 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
 - [x] **No ComfyUI yet**: the Features window shows ComfyUI's own installs for this system and
       finds one that's running (`seriesmith/comfysetup.py`, `POST /seriesmith/comfyui/find`).
 
-## Step 15 — models behind other APIs (after the Manager listing)
+## Step 15 — models behind other APIs (designed 2026-11-04; docs/DESIGN.md, section 9)
 
-Router reaches most providers through one key; some are only (or more cheaply, or
-sooner) behind their own API, a gateway (fal, Replicate, WaveSpeed, Runware), or a
-self-hosted endpoint. The same data-driven model, a different transport:
+Add any hosted model on any provider, for video, image and sound, without code: the mapping
+from a shot to the request, the prompt, how references get in, and how the result comes back
+are all data, edited in the app. First providers: ElevenLabs, fal, Runway, BytePlus
+(Seedance, Seedream), Atlas Cloud (many models, Suno among them), then OpenAI, xAI and others
+as wanted. Decided with the user 2026-11-04: generic rather than per-API; overrides belong to
+the show, keys to the machine; a voice is heard before any line is paid for. Each paid probe
+is asked for first.
 
-- [ ] **An HTTP backend** (`backends/http.py`): a request built as `router_video` /
-      `router_image` build theirs (the same `inputs` mapping), sent to the model's own
-      endpoint; then the result found by data: synchronous (the answer is the result),
-      or submit → poll → result (the job id's path in the answer, the status URL, which
-      values mean done or failed, where the files are). Reattached after a restart by its
-      job id, as Router's are; a lane per provider with its own parallel limit.
-- [ ] **Keys per provider** in this machine's settings (never the series config),
-      environment variables over them; Settings lists them, write-only like the Comfy key.
-- [ ] **Pictures:** inline (base64 / data URI) where the API takes it, else a link it can
-      fetch (the Comfy asset store while there's a Comfy key; a provider's own upload
-      route where it has one).
-- [ ] **Asset libraries** (Seedance and its resellers; 2026-10-21): the fourth way in, beside
-      inline, a link and an upload route. Register a fetchable URL, poll until it's Active,
-      send `asset://<id>`. Router does this already (`via="seedance"`,
+**1. The mapper apart from Router** (the goldens byte-identical)
+- [ ] One check for "this target is hosted" in place of the 31 `get("router")`-style checks in 14 files.
+- [ ] One mapper (`targets/generic/`), from `router_call`, `router_image` and `cue.hosted_call`.
+
+**2. Prompt parts and templates** (the goldens byte-identical)
+- [ ] Writers give parts; each default template reproduces today's prompt exactly.
+- [ ] Seedance's definitions and Kling's mentions as template values, not code in `router_call`.
+- [ ] Prompt profiles, shared across providers.
+
+**3. The mapping tool, on Router models** (no new connections)
+- [ ] The Models window: a job's values with the chosen shot's real ones, the API's fields,
+      the prompt template below, a live dry run with the key hidden, several test shots
+      (dialogue, several subjects, no keyframe); saving refused while a required field is
+      unmapped. The same screen edits a model already added.
+- [ ] Overrides in the show (`<show>/targets/`), **Back to shipped**; the `mapping` stale reason.
+
+**4. Providers and the step engine** (`backends/http.py`, stdlib only: nothing new for
+`requirements.txt`). Proved on the hardest first: Atlas Seedance (upload first), ElevenLabs
+(bytes back), OpenAI (multipart in, download with the key).
+- [ ] Provider definitions on this machine; **keys per provider** in its settings (never the
+      series config), environment variables over them; Settings lists them, write-only like
+      the Comfy key.
+- [ ] Steps: request, values taken, wait condition; JSON or multipart in; JSON or bytes out.
+      Reattached after a restart by its job id, as Router's are; a lane per provider with its
+      own parallel limit; the paid limit counts them; no submit retried blind.
+- [ ] Results by data: the status field, its done and failed values, where the files are,
+      failure read from the result too (fal says `COMPLETED` for a failure), several outputs
+      as several takes (Suno's two tracks), links saved at once (Replicate's last an hour).
+- [ ] Authentication: a header, bearer or query key by data; signed ways (a JWT, then others
+      as wanted) as named methods.
+- [ ] Pictures: inline (base64 / data URI) where the API takes it, a provider's upload route,
+      an asset library, else a link: the Comfy asset store while there's a Comfy key, or a
+      **media host** of the user's own (a bucket) for an API that only fetches URLs.
+- [ ] Router's `seedance_asset` moved onto the steps, as the proof the asset path is data.
+- [ ] **Asset libraries** (Seedance and its resellers; 2026-10-21). Register a fetchable URL,
+      poll until it's Active, send `asset://<id>`. Router does this already (`via="seedance"`,
       `RouterBackend.seedance_asset`, Comfy's `/proxy/seedance/virtual-library`) because
       BytePlus refuses a photoreal face as a plain URL; a face sent as base64 is untested.
       Atlas Cloud exposes the same BytePlus library differently: assets on
@@ -1972,25 +1998,48 @@ self-hosted endpoint. The same data-driven model, a different transport:
       `/sd/assets/<id>` for `Active` / `Failed` with `error_code`), generation on
       `api.atlascloud.ai`, a public URL only (no base64; its `model/uploadMedia` gives one
       without a Comfy key). Video and audio must be registered there; images may go inline.
-      So a preset describes the step as data (upload route, register route, status field and
-      its done/failed values, the reference's form), as the `via` on a file does today.
       Registration validates up front (Atlas: images 300-6000 px, aspect 0.4-2.5, < 30 MB;
       video mp4/mov 2-15 s, 24-60 fps, 409,600-927,408 px; audio wav/mp3 2-15 s): its
-      refusal is the take's error, said plainly.
+      refusal is the take's error, said plainly. Atlas's docs (read 2026-11-04) show
+      `uploadMedia` but not this route: settle it from the per-model pages when building.
 - [ ] **Keep registered asset ids**, by (provider account, file sha256): an id means nothing to
       another provider. Skips the ~4-5 s per picture each Router Seedance take spends
       uploading and registering again (step 14).
 - Router's Seedance 2.5 schema takes an image or audio as URL, base64 or asset id; a video as
   URL or asset id only. Atlas's guide notes the asset step is the required way in for
   video and audio references; expect each reseller of a model to differ in exactly this.
-- [ ] **Gateway presets** for the common shapes, so a model is a pick, not a mapping:
-      fal's queue API, Replicate's predictions, OpenAI-style images, Google's Gemini /
-      Vertex, then direct providers as needed (Runway, Kling, BFL).
-- [ ] **The wizard:** a model's OpenAPI document (a URL, or pasted) read by the same
-      proposer as Router's, else a mapping started from the closest preset; dry run and
-      probe as for Router models.
 - [ ] Costs where the API reports them (often it does, in its own units, as Router's
       providers do).
+
+**5. Sound on hosted models**: each kind's job as a call as well as a graph.
+- [ ] Ambience first (text in, audio back; beds already loop), then effects (a model that
+      can't see the take works from the shot's words), then music (Atlas's Suno,
+      `instrumental` for score; check its licensing before commercial use: Suno itself had no
+      public self-serve API as of 2026-11-04).
+
+**6. Voices, then lines**
+- [ ] A voice per character: a provider's speaker (an id per provider, on the subject in the
+      series config; one private to an account fails plainly on another's) or a reference
+      sample (`voice:<subject>`), auditioned on a short sample in the character's own words.
+- [ ] Lines refused until the voice is picked; the count of lines and characters shown first.
+- [ ] A line per take, the words alone in the request; laid in script order, with the pauses
+      silent shots' `dur:` give, into the episode's recording; `align` windows the shots from it.
+- [ ] The API's own timings where it gives them (ElevenLabs `with-timestamps`) in place of
+      Whisper (`align --words`). Text-to-dialogue (all the lines in one call, its segments
+      per input) as an option for flow; one line can't be redone alone there.
+- [ ] A redone line that changes length moves what follows: those windows go stale, and the
+      shots they touch say so before anything is re-rendered.
+- [ ] Only if it proves needed: a script field for a pause between lines in one shot.
+- Replaces "ElevenLabs and the like as voice models" under "Voices before the picture".
+
+**7. Import and presets**
+- [ ] A model read from an OpenAPI document (a URL, or pasted) by the same proposer as
+      Router's; else a pasted cURL or sample JSON (Atlas publishes per-model pages, no OpenAPI
+      file). The definition is plain data, so an LLM can draft one from a provider's docs,
+      and the validator and dry run check it.
+- [ ] Presets as data files: fal, Replicate, ElevenLabs, Runway, BytePlus, Atlas, OpenAI, xAI,
+      Gemini / Vertex. Shipped as untested drafts, inert until a key is added; a user's own
+      added without a release.
 
 ## Later
 
