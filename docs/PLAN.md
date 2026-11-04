@@ -1103,6 +1103,20 @@ collide with the package.
       demucs in ComfyUI's Python, quoted pip commands, align's packages naming their Python.
       Story structures not in the reference outlined the same way (#84); the skill with no
       links into the repo (#85). Published by the merge's version bump.
+- [x] **0.1.14** (2026-11-04, `release-0.1.14`): themes across a show and a first-pass score
+      (#92): a picked take made a series theme (★ Series theme, `sound.themes`, whose it is),
+      any cue rendered from it on Stable Audio 3 (audio-to-audio at 0.86, fitted to the cue's
+      tempo and bars) with a melody score where SheetSage2 is installed; the score drafted from
+      the script's `// structure:` and `// beat:` lines and each structure's Music table
+      (`seriesmith score-draft`, the spotting sheet's Draft…, MCP `score_draft`): beats in a row
+      one cue, stings, a sitcom's bumpers, `// theme:` marks, a show's own `sound.format` with
+      `gaps`, drafting again around rendered cues, a character's theme as the episode's, a
+      structure laid over a script with no beat lines; the cue window's cue picker and fit on
+      open, hits dragged on the spotting map, the shot form's beat, theme mark and hit, a cue
+      that can't be planned saying why; SOUND_GUIDE.md. Render quality (#91): leaner H3
+      prompts (a character with a sheet named by its picture), `check` on eyelines and
+      letterboxed plates, the plate as the camera in AUTHORING. Published by the merge's
+      version bump.
 - [x] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render. Done by the user.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
