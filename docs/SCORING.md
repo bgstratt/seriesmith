@@ -3,7 +3,9 @@
 Music under a cut, made to fit it: where it goes, what it does, which take, how loud. This
 guide walks through it in the order you'd do it, with Ballroom's ep03 "Choice" as the example.
 The editor's buttons are listed in [EDITOR.md](EDITOR.md); the design and the measurements
-behind it are in [SOUND.md](SOUND.md).
+behind it are in [SOUND.md](SOUND.md). The rest of the sound the score sits on (voices only, a
+bed for each place, a shot's effects, the mix and its stems), and the order to do it in, is in
+[SOUND_GUIDE.md](SOUND_GUIDE.md).
 
 ## The idea in one paragraph
 
@@ -36,7 +38,7 @@ with them, and tells you when the change means it should be made again.
 **Spotting** (the episode's view, where scoring starts), then the selected cue's **Score**,
 **Arc** and **Orchestration & takes** (steps 3 and 4; they open the cue selected on the map,
 and with no cue in the episode yet they ask for a new one, its span and kind, and open it on that
-tab). The Spotting tab is a large picture of
+tab; the cue in their head picks another, **‹** **›** the one before or after, on the same tab). The Spotting tab is a large picture of
 the cut playing with its mix, and under it the **music map**, a row per sequence with its cues,
 ambience, effects and hits. It's where you do the first two steps below, and come back to
 between cues:
@@ -67,10 +69,63 @@ between cues:
 In ep03: the map lays *1M1*, *1M2* and *1M3* over their shots with the four hits on them in
 their colours, and the gaps between the cues are the silences the comedy wants.
 
+## A first pass from the script
+
+Instead of spotting from nothing, seriesmith can draft the score from the script's shape,
+for you to adjust: **Draft…** in the spotting sheet's head (or `seriesmith score-draft
+<episode>`, `--write` to write it).
+
+- **What it reads.** The script's `// structure: <name>` line and a `// beat: <name>` line
+  above each beat's first shot (the script-writing skill writes them; add them by hand to an
+  older script: comments change nothing the video models see). Each structure in
+  STORY_STRUCTURES.md has a **Music** table: each beat scored, held under, a sting, or dry,
+  with its mood, energy, theme and hits. A show with a shape of its own says it in the
+  series config's `sound.format` instead (AUTHORING.md).
+- **No beat lines yet?** The dialog says so at the top: on its own the draft is flat, a quiet
+  cue for each sequence. Pick the story's structure there and its beats are laid over the cut
+  by where each falls in a story (the `~%` of its beat table), each starting on the nearest
+  sequence (or shot): a start, not a reading of the story, so check them. **Write these beat
+  lines into the script** keeps them as `// structure:` and `// beat:` lines (comments: nothing
+  re-renders), to move by hand where a beat really starts (`seriesmith score-draft --structure
+  "Pixar Story Spine" --write --mark` does the same).
+- **What you get.** Draft cues, `d01`, `d02`..., labelled *Draft:*, nothing rendered. Beats in
+  a row with music are **one cue**, a section each with its mood and energy, and a `turn`
+  hit where each beat starts. A cue starts about a second before the cut into its beat and
+  ends on a cut. Stings are a few seconds at a beat's start or end; a sitcom gets a short
+  bumper of the show's theme at each change of place. A cue longer than three minutes is
+  split where a sequence starts.
+- **Themes.** The beat's theme goes on its cue: `story` is the episode's own melody, made by
+  its first scored cue and carried by the later ones (from that cue's take); `show` and
+  `runner` are the series themes of that role (**★ Series theme**, below). A **character's
+  theme** (a series theme whose **whose** names them) is the episode's own melody whenever
+  they lead it, carried from episode to episode instead of one made each time. A theme the
+  series doesn't have yet is said, and the cue renders without one until it does.
+- **Marked by hand.** `// theme: <theme>, <words>` above a shot puts that theme on the
+  moment the beats can't find (the heart of a comedy, a show's recurring look): held low from
+  that shot to the end of its scene, or a sting on the shot when the words say `sting`.
+- **Left to you.** Music playing in the scene (a radio, a band), a montage and a title card
+  are listed under *For you to decide*: two musics fight, so the score sits out or takes up
+  the tune, and that's a choice.
+- **Writing it** adds the cues and their hits, and turns the Dialogue track to **voices only**
+  (the takes' own music and room tone gone, so the score and the beds run across the cuts;
+  **Keep the takes' own sound** leaves it). A cue of your own is never touched: a draft cue
+  that would play over it is left out. Drafting again asks to **Replace** the earlier draft
+  (its cues go to `_history`): only the draft cues with no finished take. One you've rendered
+  is yours now (it may be a series theme), kept with its hits, and the new draft works around
+  it, so you can render a few, make the show's themes from them, and draft again (a draft cue
+  that would play over a kept one is trimmed to the stretch it leaves free). **Rendered ones
+  too** drafts again over those as well (their takes to `_history`), for a script that has its
+  beat lines now: only a cue that's a series theme is kept then.
+
+Then go through the cues as below: shape each one (its sections and words are a start),
+render its takes and pick. Make the show's themes from the first takes you like.
+
 ## 1. Mark the hits
 
 A **hit** is a moment the music must answer. Make one on the Hits lane: **double-click** where it
-goes (or **+** for one at Play all's playhead), then right-click it to name it and set its kind:
+goes (or **+** for one at Play all's playhead), then right-click it to name it and set its kind.
+Drag it, there or on the spotting sheet's map, to move it. A shot's form (**More**) also sets a
+hit on its first frame, and the beat and theme it starts:
 
 | Kind | What the music does there | Use it for |
 |---|---|---|
@@ -136,10 +191,10 @@ chorus land against your hits. YuE2's weights are for **non-commercial** use (CC
 ACE-Step (MIT) is the one for a commercial song.
 
 **Carrying a theme.** A cue can carry another's melody, the way a film's love theme comes back
-in a later scene: the inspector's **Theme** is *none*, *another cue's take* (pick the cue; its
-take is **the take in the mix** unless you name one of its finished takes) or *a sound file*
-(inside the episode or the show's folder: a gallery item, a recording; type its path or
-**Browse…**). **The take in the mix** follows that cue: whichever of its takes is in this pass's
+in a later scene: the inspector's **Theme** is *none*, *a series theme* (one of the show's,
+below), *another cue's take* (pick the cue; its take is **the take in the mix** unless you
+name one of its finished takes) or *a sound file* (inside the episode or the show's folder: a
+gallery item, a recording; type its path or **Browse…**). **The take in the mix** follows that cue: whichever of its takes is in this pass's
 mix (picked, muted or not) when a take of this cue is rendered, else its best finished take
 (the best measured, else the first finished) while none is picked. Each take of this cue says
 which it heard ("theme m02 t03"), and picking another take of the theme's cue makes this cue's
@@ -151,12 +206,51 @@ whatever is picked. Each model hears it its own way:
   `sheetsage2_bf16.safetensors` in `models/audio_encoders`).
 - **ACE-Step** hears its sound as the **timbre** reference: the instruments and voice, not the
   tune.
-- **Stable Audio 3** takes none: the inspector says so, renders without it, and offers
-  **Use ACE-Step for the theme** (score) or **Use YuE2 for the theme** (song).
+- **Stable Audio 3** renders **from** its sound: the theme is fitted to this cue (played at
+  this cue's tempo, its whole bars looped to the cue's length) and each take starts from it,
+  so the tune comes back in this cue's own instruments and words. **Strength** (beside the
+  theme, 0.86 unless you set it) is how far from the theme a take starts: lower keeps more of
+  it, its instruments too; higher moves further toward this cue's words, and past about 0.9
+  the tune goes. Keep the theme's tempo: a cue with a theme and no tempo of its own takes the
+  theme's, and one played much faster or slower than its theme loses it (the inspector warns
+  past 8 %). Length is free.
+
+**Series themes.** A theme that runs through the show (the show's own, a character's, a
+place's) is named once in the series config and any episode's cue can carry it. Make one
+from a take you like: its row's **★ Series theme**, a name (`porch`), a role (*show*,
+*story* or *runner*: what the first-pass score uses it for) and a line on what it is; with
+**every episode** ticked (the default) it is written into the series config of every
+episode in the show, as each has its own. Then a cue's **Theme** is *a series theme*, picked
+by name. The take is pinned: picking another take in that cue later doesn't change the
+theme or make anyone's takes stale. To start a theme from nothing, make a cue in the beat
+it belongs to with no theme, render its eight takes, pick the one whose tune you want to
+hear again, and make it the series theme. In the series config:
+
+```json
+"sound": {
+  "score": "dark hybrid drama score, instrumental",
+  "themes": {
+    "porch": {"ep": "ep01", "cue": "m04", "take": 3, "role": "show", "words": "the neighbours, the light left on"},
+    "glance": {"file": "themes/glance.wav", "bpm": 80}
+  }
+}
+```
+
+`ep` is the episode's folder beside this one; a `file` theme is relative to the series
+config's folder, and its `bpm` lets it be played at a cue's tempo (without one its tempo is
+heard when it can be, else it plays at its own).
+
+**A take's melody score.** With SheetSage2 installed (Features: *A theme's melody score*;
+non-commercial licence), each take rendered from a theme on Stable Audio 3 is checked for it:
+the take and the theme are both transcribed, in the same job, and the row says **theme kept
+52 %**, or **lost the theme (18 %)** under 30 % (a take with no theme in it keeps about 20 %).
+Takes that lost it rank after those that kept it, so the eight a render makes are sorted
+before you listen; pick by ear from the ones on theme.
 
 The spotting sheet's selected cue shows and sets its theme too. Changing the theme makes the
 cue's takes stale (hover the badge: "the theme is m02 t01"), and so does a new pick in the
-theme's cue when the theme is the take in the mix ("the theme is m02 t03, not m02 t01").
+theme's cue when the theme is the take in the mix ("the theme is m02 t03, not m02 t01"), or a
+new strength.
 
 In ep03: *1M1 The Selection* (sh010 to sh030, 72 bpm, D major), *1M2 The Departure* (sh080 to the
 door, 96 bpm), *1M3 Chosen* (sh120 to the end, 66 bpm); no music under sh040-sh070 or sh110.
@@ -326,7 +420,8 @@ Two ways to take a cue out, for two different wishes:
   `_history/cue-m03.<date-time>/` and takes it out of both passes' mixes. **Ctrl+Z can't bring
   it back**: to restore it, move that folder back to `sound/m03/` and pick its take again. A
   cue with a take still queued or rendering can't be deleted (cancel it in Jobs), nor one
-  another cue uses as its theme (give that cue another theme first).
+  another cue uses as its theme (give that cue another theme first), nor one whose take is a
+  series theme (make another take the series theme first).
 
 ## 8. When the cut changes
 
@@ -367,10 +462,12 @@ span, so a trim inside its span makes it stale (above).
 | Most of a take is right | Comp the bad bars from another take |
 | A song | Kind: Song; lyrics on its sections (YuE2 needs them) |
 | Where a song's verse and chorus land | the take's plan: its line and the strip along its waveform |
-| A melody heard again later | the later cue's **Theme**: the first cue's take (YuE2 sings it) |
+| A melody heard again later | the later cue's **Theme**: the first cue's take (Stable Audio 3 plays it in this cue's instruments; YuE2 sings it) |
+| A theme across the show | a take's **★ Series theme**, then any cue's **Theme**: *a series theme* |
 | A song in a recording's tune | **Theme**: a sound file, on YuE2 |
 | The same instruments as another cue | **Theme**: its take, on ACE-Step (its timbre) |
 | A place to start | the inspector's Preset, then adjust |
+| A first pass to start from | `// structure:` and `// beat:` lines in the script, then the spotting sheet's **Draft…** |
 | The whole episode's music at a glance | **Scoring** ▸ Spotting: the music map |
 | A cue over a whole sequence | the spotting map: right-click its row, **New cue over** it |
 | Cuts on the beat | drag a clip's edge near a beat on the Music lane (Alt: no snap) |

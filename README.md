@@ -36,8 +36,9 @@ series config format.
 | **[docs/IMPORT_XML.md](docs/IMPORT_XML.md)** | An edit from Premiere, Resolve or Final Cut 7 (an FCP7 XML) as a new show: a shot per clip, its footage the take, the cut and its sound kept; the three ways its footage comes in | You have an edit to bring in and enhance |
 | **[docs/AUTHORING.md](docs/AUTHORING.md)** | The format, and the whole of it: a first episode to copy, every field of the script and the series config, framing, timing, camera and the reference rules | Writing or fixing an episode. Read once before the first one |
 | **[docs/SCRIPT_CONVERSION.md](docs/SCRIPT_CONVERSION.md)** | A spec-format screenplay scene worked all the way through to shots | You have a screenplay and want it as an episode |
-| **[docs/STORY_STRUCTURES.md](docs/STORY_STRUCTURES.md)** | Story structures (three-act, Story Circle, Fable, Kishōtenketsu, the Hero's Journey, …): each one's beats, their share of the runtime, and how beats become shots | Outlining an episode from scratch |
-| **[docs/SCORING.md](docs/SCORING.md)** | Scoring an episode: the spotting sheet, hits, cues and the cue window, takes, levels | Putting music under a cut |
+| **[docs/STORY_STRUCTURES.md](docs/STORY_STRUCTURES.md)** | Story structures (three-act, Story Circle, Fable, Kishōtenketsu, the Hero's Journey, …): each one's beats, their share of the runtime, how beats become shots, and each beat's music for the first-pass score | Outlining an episode from scratch |
+| **[docs/SOUND_GUIDE.md](docs/SOUND_GUIDE.md)** | The episode's sound in order: voices only (the takes' voice stems), a place's ambience bed, a shot's effects, a score drafted from the script's beats, themes across a show, the mix and its stems | Making an episode sound like one piece |
+| **[docs/SCORING.md](docs/SCORING.md)** | Scoring an episode: the spotting sheet, a first pass drafted from the beats, hits, cues and the cue window, themes, takes, levels | Putting music under a cut |
 | **[docs/MUSIC_VIDEO.md](docs/MUSIC_VIDEO.md)** | A music video: the song as the episode's recording, the lyrics as lines, the vocal stem | Cutting to a finished song |
 | **[docs/FINISHING.md](docs/FINISHING.md)** | Render size, upscale, master, post and titles: how takes become a delivered master | Finishing an episode |
 | **[docs/COMMANDS.md](docs/COMMANDS.md)** | The command line in depth: build, refs, render, assemble, takes and the cut, recorded dialogue, the project layout | Working from a terminal |
@@ -207,8 +208,11 @@ http://127.0.0.1:8190:
   lock, undo, **Play all** and **Export**.
 - **Sound** (under the timeline's clips): the Dialogue, Effects, Ambience and Music lanes,
   each with its fader, mute and solo, and the mix heard in **Play all** and rendered on
-  export; the spotting sheet places the episode's music, and the cue window shapes a cue
-  and picks its take ([docs/SCORING.md](docs/SCORING.md)).
+  export: voices only (the takes' own music split off), a bed for each place, a shot's
+  effects from its frames; the spotting sheet drafts a first-pass score from the script's
+  story beats and places the episode's music, the cue window shapes a cue and picks its take,
+  and a take can become a theme the whole show carries ([docs/SOUND_GUIDE.md](docs/SOUND_GUIDE.md),
+  [docs/SCORING.md](docs/SCORING.md)).
 - **Viewer** (docked in the middle): a shot's takes with A/B compare (side by side or
   wipe), a ref's candidates, a tour to keep any frame from, a 360 in its viewer; scroll
   on the picture to zoom.

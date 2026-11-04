@@ -124,5 +124,42 @@ class EditTest(unittest.TestCase):
         self.assertEqual(A.read(out)["sections"], A.read(fixture("yue2_s1.abc"))["sections"])
 
 
+def tune(body: str, key="D", unit="1/8") -> str:
+    return f"X:1\nM:4/4\nL:{unit}\nQ:1/4=92\nK:{key}\nV:1\n{body}\n"
+
+
+class MelodyTest(unittest.TestCase):
+    """A melody's pitches read, and how much of a theme a take keeps (a theme in a cue)."""
+
+    def test_key_signatures(self):
+        self.assertEqual(A.key_signature("D"), {"F": 1, "C": 1})
+        self.assertEqual(A.key_signature("Bm"), {"F": 1, "C": 1})           # D's relative minor
+        self.assertEqual(A.key_signature("F#m"), {"F": 1, "C": 1, "G": 1})
+        self.assertEqual(A.key_signature("Eb"), {"B": -1, "E": -1, "A": -1})
+        self.assertEqual(A.key_signature("D dor"), {})                       # C's notes
+        self.assertEqual(A.key_signature("C"), {})
+        self.assertEqual(A.key_signature("none"), {})
+
+    def test_notes_with_key_and_bar_accidentals(self):
+        # D major: F and C sharp; =F holds to the bar line, then the key again
+        got = A.notes(tune("D2 F2 =F2 F2 | F4 z4 | [DFA]4 c4"))["1"]
+        self.assertEqual([p for _, _, p in got], [2, 6, 5, 5, 6, None, 2, 1])
+        self.assertEqual([(s, d) for s, d, _ in got][:3], [(0, 4), (4, 4), (8, 4)])   # eighths: 2 sixteenths
+        self.assertEqual(got[-1], (40, 8, 1))                                # c4: a half note, C#
+
+    def test_a_take_keeps_its_theme(self):
+        theme = tune("D2 E2 F2 G2 | A4 F4 | G3 F E4 | D8")
+        self.assertEqual(A.melody_match(theme, theme), 1.0)
+        # the same tune a beat late, in another voice beside a bass: still all of it
+        late = "X:1\nM:4/4\nL:1/8\nK:D\nV:1\nz2 D2 E2 F2 G2 | A4 F4 | G3 F E4 | D8\nV:2\nD,8 | D,8 | D,8 | D,8\n"
+        self.assertEqual(A.melody_match(theme, late), 1.0)
+        # half its notes changed: about half kept
+        half = tune("D2 E2 F2 G2 | B4 c4 | e3 d B4 | D8")
+        self.assertAlmostEqual(A.melody_match(theme, half), 0.5, delta=0.1)
+        # three beats late is past the shift: not found there
+        self.assertLess(A.melody_match(theme, tune("z6 D2 E2 F2 G2 | A4 F4 | G3 F E4 | D8")), 0.5)
+        self.assertIsNone(A.melody_match(tune("z8"), theme))
+
+
 if __name__ == "__main__":
     unittest.main()

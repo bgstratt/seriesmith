@@ -11,14 +11,19 @@ import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
 import { getPath, type Raw } from "../lib/seriesForm";
 import {
-  CAMERA_AMPLITUDE, CAMERA_MOVES, KEYFRAME_METHODS, CAMERA_SPEED, SIZES, cameraLine, insertAfter, listOf, newShot,
-  parseShot, replaceLines, sequenceAt, sequencesOf, shotIdBetween, writeShot, type DialogueLine, type ShotForm as Form,
+  CAMERA_AMPLITUDE, CAMERA_MOVES, KEYFRAME_METHODS, CAMERA_SPEED, SIZES, cameraLine, insertAfter, listOf, marksAbove, newShot,
+  parseShot, replaceLines, sequenceAt, sequencesOf, shotIdBetween, withMarks, writeShot, type DialogueLine, type ShotForm as Form,
+  type ShotMarks,
 } from "../lib/shotForm";
+import { currentPlaylist } from "../actions";
+import { currentMix, loadMix, setShotHit } from "../mixActions";
+import { openSpotting } from "../spotActions";
+import type { HitKind } from "../types";
 import { clearDraft, keptAt, readDraft, useDraft } from "../lib/drafts";
 import { conflictOf } from "../lib/sourceSession";
 import { isHosted } from "../lib/targets";
 import { continuityBadge, continuityText } from "../lib/continuity";
-import { useApp } from "../store";
+import { store, useApp } from "../store";
 import type { Ref, ShotPreview, SourceDoc } from "../types";
 import { LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
@@ -95,6 +100,10 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   const [more, setMore] = useState(false);
   const [showPrompt, setShowPrompt] = useState(true);
   const isNew = shot === null;
+  // the score's marks above the shot (// beat:, // theme:) and the hit on its first frame
+  const [marks, setMarks] = useState<ShotMarks>({ beat: "", theme: "" });
+  const [origMarks, setOrigMarks] = useState<ShotMarks>({ beat: "", theme: "" });
+  const [hitKind, setHitKind] = useState<HitKind | "">("");
   // unsaved edits from before a reload (lib/drafts): put back when the form opens on
   // the shot as they were made against; offered when the script has changed it since
   const draftKey = `shotform|${ep}|${shot ?? ""}`;
@@ -114,6 +123,9 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
           setError(`${shot} isn't in the script any more.`);
           return;
         }
+        const mk = marksAbove(d.text, span.line);
+        setMarks({ beat: mk.beat, theme: mk.theme });
+        setOrigMarks({ beat: mk.beat, theme: mk.theme });
         const f = parseShot(lines.slice(span.line - 1, span.end_line));
         const text = writeShot(f).join("\n");
         const dr = restore ? readDraft<{ form: Form; orig: string }>(draftKey) : null;
@@ -130,6 +142,8 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
         const at = b >= 0 ? sequenceAt(seqs, d.shots[b].line)?.id
           : i >= 0 ? sequenceAt(seqs, d.shots[i].line)?.id : seqs[seqs.length - 1]?.id;
         setSeq(at ?? "+");
+        setMarks({ beat: "", theme: "" });
+        setOrigMarks({ beat: "", theme: "" });
         const f = newShot(id);
         if (dur) f.keys.dur = dur;
         setForm(f);
@@ -179,7 +193,19 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
     }
   }, [card]);
   const block = form ? writeShot(form) : [];
-  const dirty = !!form && block.join("\n") !== orig;
+  // the hit on the shot's first frame as it plays in the cut (a trimmed head: its first frame kept)
+  const items = useApp((s) => currentPlaylist(s));
+  const fpsNow = useApp((s) => s.status[`${ep}|${pass}`]?.fps) || 24;
+  const mixHits = useApp((s) => currentMix(s)?.mix.hits);
+  const firstFrame = useMemo(() => {
+    const it = form ? items.find((i) => i.shot === form.id) : undefined;
+    return it ? Math.round(it.inT * fpsNow) : 0;
+  }, [items, form?.id, fpsNow]);
+  const shotHit = form && !isNew ? (mixHits ?? []).find((h) => h.at.shot === form.id && h.at.frame === firstFrame) ?? null : null;
+  useEffect(() => setHitKind(shotHit ? shotHit.kind ?? "accent" : ""), [shotHit?.id, shotHit?.kind]);
+  const hitChanged = hitKind !== (shotHit ? shotHit.kind ?? "accent" : "");
+  const marksChanged = marks.beat.trim() !== origMarks.beat || marks.theme.trim() !== origMarks.theme;
+  const dirty = !!form && (block.join("\n") !== orig || marksChanged || hitChanged);
   const forgetDraft = useDraft(draftKey, useMemo(() => ({ form, orig }), [form, orig]), dirty && !isNew);
 
   /** "Save as profile…": this shot's own lens and render settings as a profile in the
@@ -199,6 +225,10 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
 
   /** the script with this shot as the form has it */
   function scriptText(): string | null {
+    const t = blockText();
+    return t && form && marksChanged ? withMarks(t, form.id, marks) : t;
+  }
+  function blockText(): string | null {
     if (!doc || !form) return null;
     if (!isNew) {
       const span = doc.shots.find((x) => x.id === shot);
@@ -244,6 +274,11 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
       if (mine.length) host().toast("warn", `${form.id} saved, with problems`, mine[0].message);
       else host().toast("success", `${form.id} saved`, "The episode was rebuilt.");
       select(form.id, null);
+      if (hitChanged && !(r.build && !r.build.ok)) {
+        // the rebuild reloads the episode: the mix again before the hit goes in it
+        if (!currentMix(store.get())) await loadMix(ep, pass);
+        await setShotHit({ shot: form.id, frame: firstFrame }, hitKind, marks.beat.trim() || form.id, shotHit?.id ?? null);
+      }
       // a file dropped between two clips: its take (a picture: its first keyframe) now, and the clip where it was dropped
       if (isNew && file && !(r.build && !r.build.ok)) await finishDroppedFile(form.id, file, left);
       if (render && !mine.length) requestRender([form.id], true, `Render ${form.id}`);
@@ -418,12 +453,13 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
                 </div>
               </div>
 
-              <MoreToggle open={more} onToggle={setMore} label="More: music, the model, keyframes, continuity, audio, render settings" />
+              <MoreToggle open={more} onToggle={setMore} label="More: music and the score's beat, theme and hit, the model, keyframes, continuity, audio, render settings" />
               {more && (
                 <div className="h3-card" style={{ gap: 8 }}>
                   <Row label="Music" help="Audience-only score; usually left out and decided in the edit.">
                     <input className="h3-in" value={form.keys.music ?? ""} onChange={(e) => set("music", e.target.value)} />
                   </Row>
+                  <ScoreMarks ep={ep} text={doc?.text ?? ""} marks={marks} setMarks={setMarks} hit={hitKind} setHit={setHitKind} />
                   <Row label="Video model class" help="Which model draws this shot, only when it needs something one model does; empty: the episode's.">
                     <div className="h3-row" style={{ gap: 4 }}>
                       <select className="h3-in h3-grow" value={form.keys.target ?? ""} onChange={(e) => set("target", e.target.value)}>
@@ -511,7 +547,69 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
   );
 }
 
-export function Row({ label, help, children }: { label: string; help: string; children: React.ReactNode }) {
+let structuresAsked: Promise<{ id: string; name: string; beats: string[] }[]> | null = null;
+
+/** The score's marks for this shot: the beat it starts (the episode's structure's beats offered:
+ * its // structure: line), a theme marked on it, and a hit on its first frame (in the mix). */
+function ScoreMarks({ ep, text, marks, setMarks, hit, setHit }: {
+  ep: string; text: string; marks: ShotMarks; setMarks: (m: ShotMarks) => void; hit: HitKind | ""; setHit: (k: HitKind | "") => void;
+}) {
+  const sc = useSeriesConfig(ep);
+  const [all, setAll] = useState<{ id: string; name: string; beats: string[] }[]>([]);
+  useEffect(() => {
+    let live = true;
+    structuresAsked ??= api().structures().then((r) => r.structures, () => {
+      structuresAsked = null;
+      return [];
+    });
+    void structuresAsked.then((s) => live && setAll(s));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const named = /^\/\/\s*structure:\s*(.+)$/m.exec(text)?.[1]?.trim() ?? "";
+  const words = (s: string) => new Set(s.toLowerCase().match(/[a-z0-9]+/g)?.filter((w) => w !== "the") ?? []);
+  const want = words(named);
+  const st = named ? all.find((s) => s.id === named || [...want].every((w) => words(s.name).has(w))) : undefined;
+  const used = [...text.matchAll(/^\/\/\s*beat:\s*(.+)$/gm)].map((m) => m[1].trim());
+  // a show's own beats (the series config's sound.format), then its structure's, then the script's
+  const own = Object.keys(((sc.base as Record<string, any> | null)?.sound?.format?.beats ?? {}) as object);
+  const beats = [...new Set([...own, ...(st?.beats ?? []), ...used])];
+  const spot = (
+    <button type="button" className="h3-linkbtn" title="Open the spotting sheet (Scoring): its Draft… drafts the score from the beats, and lays a structure out when the script has none"
+      onClick={() => openSpotting(null)}>the spotting sheet</button>
+  );
+  const themes = ["story", "show", "runner", ...Object.keys(((sc.base as Record<string, any> | null)?.sound?.themes ?? {}) as object)];
+  return (
+    <>
+      <Row label="Beat" help={own.length
+        ? <>The beat this shot starts (a // beat: line above it): the show's own ({named || "its format"}, the series config's sound.format), else {st?.name ?? "the structure it's like"}; empty: it carries on the beat before. The score is drafted from them on {spot}.</>
+        : st ? <>The {st.name} beat this shot starts (a // beat: line above it); empty: it carries on the beat before. The score is drafted from them on {spot}.</>
+          : named ? <>The beat this shot starts (a // beat: line above it). &quot;{named}&quot; isn&apos;t one of the structures with a Music table, and the series config has no format of its own: {spot}&apos;s Draft… lays one out.</>
+            : <>The beat this shot starts (a // beat: line above it). The script has no // structure: line yet: {spot}&apos;s Draft… lays one out.</>}>
+        <input className="h3-in" list={`sf-beats-${ep}`} value={marks.beat} placeholder={beats[0] ? `e.g. ${beats[0]}` : "a beat's name"}
+          aria-label="Beat" onChange={(e) => setMarks({ ...marks, beat: e.target.value })} />
+        <datalist id={`sf-beats-${ep}`}>{beats.map((b) => <option key={b} value={b} />)}</datalist>
+      </Row>
+      <Row label="Theme mark" help="A theme on this moment the beats can't find (a // theme: line): the theme, then how, e.g. glance, given; show, tender; held low to the scene's end, or a sting when the words say sting.">
+        <input className="h3-in" list={`sf-themes-${ep}`} value={marks.theme} placeholder="theme, words" aria-label="Theme mark"
+          onChange={(e) => setMarks({ ...marks, theme: e.target.value })} />
+        <datalist id={`sf-themes-${ep}`}>{themes.map((t) => <option key={t} value={`${t}, `} />)}</datalist>
+      </Row>
+      <Row label="Hit" help="A moment the music must answer, on this shot's first frame as it plays in the cut (the mix's hits lane: drag it there, or on the spotting sheet, to move it).">
+        <select className="h3-in" aria-label="Hit" value={hit} onChange={(e) => setHit(e.target.value as HitKind | "")}>
+          <option value="">none</option>
+          <option value="accent">accent: the music marks it</option>
+          <option value="arrive">arrive: the music peaks here</option>
+          <option value="drop">drop: the music cuts out</option>
+          <option value="turn">turn: the music changes</option>
+        </select>
+      </Row>
+    </>
+  );
+}
+
+export function Row({ label, help, children }: { label: string; help: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="h3-col" style={{ gap: 2, minWidth: 0 }}>
       <span className="h3-small"><b>{label}</b></span>

@@ -6,7 +6,7 @@
 // reference). The arc is energy 1-5; the timeline's gain breakpoints (dB) are
 // another curve, kept apart.
 
-import type { Anchor, CueKind, CuePlan, CuePlanTheme, CuePreset, CueSection, CueSong, CueSpec, CueTake, CueTheme, Target } from "../types";
+import type { Anchor, CueKind, CueMeasured, CuePlan, CuePlanTheme, CuePreset, CueSection, CueSong, CueSpec, CueTake, CueTheme, Target } from "../types";
 import { anchorTime, newId, timeAnchor } from "./mix";
 import type { PlayItem } from "./playlist";
 
@@ -378,22 +378,25 @@ export function clipsOver(items: PlayItem[], t0: number, g: Grid): { it: PlayIte
 
 const tnum = (n: number) => `t${String(n).padStart(2, "0")}`;
 
-/** A theme as the server says it: "m01 t02", or the file's path; one that follows another cue's
- * pick is the take the plan found (`resolved`, the plan's label: "m01 t03 (in the mix)"), else its cue. */
+/** A theme as the server says it: "m01 t02", the file's path, or a series theme's name (the take or
+ * file it is, when the plan resolved it: "porch (ep01 m03 t02)"); one that follows another cue's pick
+ * is the take the plan found (`resolved`, the plan's label: "m01 t03 (in the mix)"), else its cue. */
 export function themeLabel(th: CueTheme | null | undefined, resolved?: Pick<CuePlanTheme, "label" | "from"> | null): string {
   if (!th) return "";
-  if (!("cue" in th)) return th.file;
+  if ("theme" in th) return resolved?.label ?? th.theme;
+  if ("file" in th) return th.file;
   if (th.take != null) return `${th.cue} ${tnum(th.take)}`;
   if (resolved?.from) return `${resolved.label} (${resolved.from === "mix" ? "in the mix" : "its best take: none in the mix"})`;
   return `${th.cue} (the take in the mix)`;
 }
 
 /** How the plan's model hears the theme, in words ("" when it doesn't: the plan's warning says why). */
-export function themeUseText(t: Pick<CuePlanTheme, "use">, model: string): string {
+export function themeUseText(t: Pick<CuePlanTheme, "use" | "strength">, model: string): string {
   switch (t.use) {
     case "plan": return `${model} sings its melody (the take's own plan), at this cue's tempo`;
     case "transcribe": return `${model} sings its melody (SheetSage2 transcribes it first, in the same job)`;
     case "timbre": return `${model} hears its sound as the timbre reference`;
+    case "audio": return `${model} renders from its sound, fitted to this cue's tempo and bars, at strength ${(t.strength ?? 0.86).toFixed(2)}`;
     default: return "";
   }
 }
@@ -408,6 +411,13 @@ export function themeModel(kind: CueKind | undefined, target: Target | undefined
 
 /** A take a theme can be: a finished one of another cue. */
 export const themeTakes = (takes: CueTake[]) => takes.filter((t) => t.status === "ok").map((t) => t.take).sort((a, b) => a - b);
+
+/** A take's melody score in words: "theme kept 52 %", "lost the theme (18 %)"; "" without one. */
+export function melodyText(m: Pick<CueMeasured, "melody" | "on_theme"> | null | undefined): string {
+  if (m?.melody == null) return "";
+  const pct = `${Math.round(m.melody * 100)} %`;
+  return m.on_theme === false ? `lost the theme (${pct})` : `theme kept ${pct}`;
+}
 
 /** A song take's plan in a line: "Plan: 44 bars of 2/4, intro, verse, chorus · 0.6 s short". */
 export function songSummary(s: CueSong): string {

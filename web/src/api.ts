@@ -26,6 +26,7 @@ import type {
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
   LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
   AmbienceBed, FxShot, FxShotSummary, DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake,
+  ScoreDraftResult,
 } from "./types";
 import { comboChoices } from "./lib/targets";
 import type { McpLaunch } from "./lib/mcpSetup";
@@ -206,6 +207,16 @@ export interface Api {
   renderCue(req: { ep: string; pass: Pass; cue: string; takes?: number; backend?: string | null }): Promise<{ queued: { take: number; job: string; seed: number }[] }>;
   /** POST /seriesmith/cue/pick: a take as the cue's item on the music track (gain: fit its level to the arc). */
   pickCue(req: { ep: string; pass: Pass; cue: string; take: number; gain?: boolean }): Promise<{ mix: Mix }>;
+  /** POST /seriesmith/cue/theme: a finished take made a series theme (`sound.themes.<name>`), written
+   * into the series config of this episode and (everywhere, the default) every episode beside it. */
+  pinCueTheme(req: { ep: string; cue: string; take: number; name: string; role?: string | null; words?: string | null; for?: string[] | null; everywhere?: boolean }):
+    Promise<{ theme: { name: string; ep: string; cue: string; take: number; role?: string; words?: string }; written: string[]; same: string[] }>;
+  /** GET /seriesmith/structures: the story structures with a Music table, each with its beats' names. */
+  structures(): Promise<{ structures: { id: string; name: string; beats: string[] }[] }>;
+  /** POST /seriesmith/cue/draft: the first-pass score from the script's structure; written (its cues, hits and
+   * the dialogue to voices only unless keep_sound) only with `write`. */
+  scoreDraft(req: { ep: string; pass: Pass; write?: boolean; replace?: boolean; rendered?: boolean; keep_sound?: boolean;
+    structure?: string | null; mark?: boolean }): Promise<ScoreDraftResult>;
   /** POST /seriesmith/cue/comp: a new take, take `take` with the cue's bars [a, b) from take `from`, spliced on bar lines, measured and ranked. */
   compCue(req: { ep: string; pass: Pass; cue: string; take: number; from: number; bars: [number, number] }): Promise<{ take: CueTake }>;
   /** POST /seriesmith/cue/repaint: a new take queued, take `take` with the cue's bars [a, b) made again on its own model (`fresh`: new music there), the rest kept. */
@@ -689,6 +700,9 @@ export function createHttpApi(t: Transport): Api {
     deleteCue: (ep, cue) => call("DELETE", `/seriesmith/cue?${qs({ ep, cue })}`),
     renderCue: (req) => call("POST", "/seriesmith/cue/render", req),
     pickCue: (req) => call("POST", "/seriesmith/cue/pick", req),
+    pinCueTheme: (req) => call("POST", "/seriesmith/cue/theme", req),
+    scoreDraft: (req) => call("POST", "/seriesmith/cue/draft", req),
+    structures: () => get("/seriesmith/structures"),
     compCue: (req) => call("POST", "/seriesmith/cue/comp", req),
     repaintCue: (req) => call("POST", "/seriesmith/cue/repaint", req),
     cutReset: (ep, pass, what) => call("POST", "/seriesmith/cut/reset", { ep, pass, what }),

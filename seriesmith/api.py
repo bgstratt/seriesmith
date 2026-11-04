@@ -1577,6 +1577,15 @@ def finish_backend(ctx: Context, body: dict) -> str:
     return _opt_backend(ctx, body) or "local"
 
 
+def _have_sheetsage(ctx: Context) -> bool:
+    """Whether this machine's ComfyUI has SheetSage2's weights (models/audio_encoders): a
+    theme's melody score transcribes with it. False when ComfyUI can't be asked."""
+    try:
+        return any("sheetsage" in f.lower() for f in ctx.comfy.model_files("audio_encoders"))
+    except Exception:                                         # noqa: BLE001  no score, then
+        return False
+
+
 def still_queued(ctx: Context) -> set:
     """The job ids still queued or running: ComfyUI's, and seriesmith's queue's."""
     try:
@@ -2697,7 +2706,7 @@ def _plan_summary(p: dict) -> dict:
     out = {k: p[k] for k in ("target", "fps", "span", "hits", "notes", "fit", "alternatives", "direction", "bars", "bar", "preroll",
                              "seconds", "ask_seconds", "sections", "arc", "prompt")}
     if p.get("theme"):
-        out["theme"] = {k: p["theme"][k] for k in ("spec", "label", "use", "warning", "from")}
+        out["theme"] = {k: p["theme"].get(k) for k in ("spec", "label", "use", "warning", "from", "strength", "grid")}
     for k in ("warnings", "blocked", "song"):
         if p.get(k):
             out[k] = p[k]
@@ -2763,7 +2772,8 @@ def get_cue(ctx: Context, query: dict):
     """A cue: `spec`, `plan` (what it is asked against the pass's cut: its hits in
     seconds, the fitted tempo, bars, sections, arc and the model's prompt; null with
     `plan_error` when its anchors aren't in the cut) and `takes`, best first, each with
-    `stale`: what has moved in the cut since it was rendered, in words."""
+    `stale`: what has moved in the cut since it was rendered, in words; and `themes`, the
+    series config's (cue.theme_list), for the theme to be picked from."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query.get("pass"))
     spec = _cue_spec(ep, query.get("cue"))
@@ -2775,7 +2785,91 @@ def get_cue(ctx: Context, query: dict):
     for t in takes:
         t["stale"] = CU.stale(t, full) if full else []
     return 200, {"spec": spec, "plan": _plan_summary(full) if full else None,
-                 "plan_error": why, "takes": takes}
+                 "plan_error": why, "takes": takes, "themes": CU.theme_list(ep)}
+
+
+@handler
+def post_cue_theme(ctx: Context, body):
+    """A cue's finished take made a series theme: `{ep, cue, take, name, role?, words?, for?,
+    everywhere?}` (`for`: the cast ids it belongs to, a character's theme; everywhere, default true: written into every episode's series config
+    beside this one, as each has its own). Returns cue.pin_series_theme's {"theme",
+    "written", "same"}. 400 for a name or role that isn't one, 409 for a take that isn't
+    finished."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    spec = _cue_spec(ep, body.get("cue"))
+    n = body.get("take")
+    if isinstance(n, bool) or not isinstance(n, int) or n < 1:
+        raise ApiError(400, "take is a take number")
+    everywhere = body.get("everywhere", True)
+    if not isinstance(everywhere, bool):
+        raise ApiError(400, "everywhere is true or false")
+    for k in ("role", "words"):
+        if body.get(k) is not None and not isinstance(body[k], str):
+            raise ApiError(400, f"{k} is text")
+    who = body.get("for")
+    if who is not None and (not isinstance(who, list) or not all(isinstance(x, str) and x.strip() for x in who)):
+        raise ApiError(400, "for is a list of cast ids")
+    try:
+        CU.check_series_theme(body.get("name"), {"file": "x.wav", **({"role": body["role"]} if body.get("role") else {})})
+        out = CU.pin_series_theme(ep, spec["id"], n, body["name"], body.get("role") or None,
+                                  (body.get("words") or "").strip() or None, everywhere,
+                                  [x.strip() for x in who or []] or None)
+    except CU.CueError as e:
+        raise ApiError(409 if "finished take" in str(e) else 400, str(e))
+    for name in out["written"]:
+        episode_event(ctx, os.path.join(os.path.dirname(os.path.normpath(ep)), name))
+    return 200, out
+
+
+@handler
+def post_cue_draft(ctx: Context, body):
+    """The first-pass score drafted from the script's structure (scoredraft.py, docs/SOUND.md
+    phase 8): `{ep, pass?, write?, replace?, rendered?, keep_sound?, structure?, mark?}`. Without `write` nothing is written:
+    what it would draft (`rendered`: drafted again over the earlier draft's rendered cues too,
+    a series theme's kept; `structure`: for a script with no beat lines, that structure's beats
+    laid over the cut, and with `mark` written into the script). With it, the draft's cues and hits written, the dialogue turned to
+    voices only unless `keep_sound`. Returns {"draft" (scoredraft.draft's), "text" (it in
+    words), "written" (scoredraft.write's, or null)}. 400 for a series config's sound.format
+    that doesn't check; 409 when the episode isn't built, or has a draft already and
+    `replace` isn't set."""
+    from seriesmith import scoredraft as SD
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    for k in ("write", "replace", "rendered", "keep_sound", "mark"):
+        if not isinstance(body.get(k, False), bool):
+            raise ApiError(400, f"{k} is true or false")
+    structure = body.get("structure")
+    if structure is not None and not isinstance(structure, str):
+        raise ApiError(400, "structure is a structure's name or number")
+    try:
+        d = SD.draft(ep, pass_, rendered=body.get("rendered", False), structure=structure or None)
+        written = None
+        if body.get("write"):
+            # the beat lines first: a script that would read differently stops it all
+            marked = bool(body.get("mark")) and SD.mark_script(ep, d)
+            written = SD.write(ep, pass_, d, replace=body.get("replace", False),
+                               voices=not body.get("keep_sound", False))
+            written["marked"] = marked
+            episode_event(ctx, ep)
+    except SD.DraftError as e:
+        raise ApiError(409, str(e))
+    except (CU.CueError, ValueError) as e:
+        raise ApiError(400, str(e))
+    return 200, {"draft": d, "text": SD.summary(d), "written": written}
+
+
+@handler
+def get_structures(ctx: Context, query: dict):
+    """The story structures with a Music table (docs/STORY_STRUCTURES.md, core/structures.json):
+    `{"structures": [{"id", "name", "beats": [their names, as a script's // beat: line writes
+    them]}]}`: what the shot form offers for a shot's beat."""
+    from seriesmith.core import spotting as SP
+    return 200, {"structures": [
+        {"id": s["id"], "name": s["name"],
+         "beats": list(dict.fromkeys(re.sub(r"\s*\(again\)\s*$", "", b["beat"]) for b in s["beats"]))}
+        for s in SP.structures()]}
 
 
 @handler
@@ -2842,6 +2936,14 @@ def post_cue_render(ctx: Context, body):
         raise ApiError(400, f"takes is 1 to {CU.TAKES_MAX}")
     count = n or CU.takes_wanted(target, pass_, spec)
     backend = finish_backend(ctx, body)
+    if (p.get("theme") or {}).get("use") == "audio":
+        # the theme reshaped to this cue once, for every take; its melody score when this
+        # machine's ComfyUI has SheetSage2 (non-commercial: only installed by choice)
+        try:
+            CU.stage_theme(ep, spec["id"], p)
+        except Exception as e:                                # noqa: BLE001  said, not fatal
+            raise ApiError(400, f"cue {spec['id']}: the theme couldn't be fitted to the cue: {e}")
+        p["melody"] = backend == "local" and _have_sheetsage(ctx)
     queued = []
     for seed in CU.seeds(ep, spec, count, len(CU.list_takes(ep, spec["id"]))):
         g = CU.graph(target, p, seed, pass_)
@@ -5651,6 +5753,9 @@ ROUTES = [
     ("DELETE", "/seriesmith/cue", delete_cue, "query"),
     ("POST", "/seriesmith/cue/render", post_cue_render, "body"),
     ("POST", "/seriesmith/cue/pick", post_cue_pick, "body"),
+    ("POST", "/seriesmith/cue/theme", post_cue_theme, "body"),
+    ("POST", "/seriesmith/cue/draft", post_cue_draft, "body"),
+    ("GET", "/seriesmith/structures", get_structures, "query"),
     ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
     ("POST", "/seriesmith/cue/repaint", post_cue_repaint, "body"),
     ("GET", "/seriesmith/fx", get_fx, "query"),

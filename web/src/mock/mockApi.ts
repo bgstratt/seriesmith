@@ -8,7 +8,7 @@
 import type { Api } from "../api";
 import { ApiError, UPLOAD_LIMIT, parseJsonSeedSafe, targetsQuery } from "../api";
 import type { HostEvent } from "../host";
-import type { XmlImportMedia, XmlImportSummary } from "../types";
+import type { SeriesTheme, XmlImportMedia, XmlImportSummary } from "../types";
 import { reachable } from "../lib/browse";
 import { insideRoot, nameError } from "../lib/newEpisode";
 import { promptText } from "../lib/format";
@@ -28,7 +28,7 @@ import { TRACK_RATE, makeTrack, makeVoice, slicePeaks, takePeaks, type MockWindo
 import { AlignError, createMockAlign } from "./mockTrack";
 import { MIX_DEFAULTS } from "../api";
 import { MixError, checkMix, speechCurve } from "./mockMix";
-import { CUE_PRESETS, CueError, MUSIC_TARGETS, checkCue, compMeasured, measureCue, planCue } from "./mockCue";
+import { CUE_PRESETS, CueError, MUSIC_TARGETS, SERIES_THEMES, checkCue, compMeasured, measureCue, planCue } from "./mockCue";
 import { buildPlaylist } from "../lib/playlist";
 import type { CueSpec, CueSummary, CueTake, MixVoice, MixVoices } from "../types";
 import { CutError, applyCut, checkEntries, copyEntries, materialize, resetEntries } from "./mockCut";
@@ -1337,7 +1337,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         if (!(e instanceof CueError)) throw e;
         why = e.message;
       }
-      return { spec: clone(spec), plan, plan_error: why, takes: clone(rankedTakes(cue)) };
+      return { spec: clone(spec), plan, plan_error: why, takes: clone(rankedTakes(cue)), themes: clone(SERIES_THEMES) };
     },
     async putCue(ep, cue) {
       await wait();
@@ -1346,6 +1346,50 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       cueSpecs.set(spec.id, spec);
       emit("seriesmith.episode", { ep: EP });
       return { spec: clone(spec) };
+    },
+    async structures() {
+      await wait();
+      return { structures: [
+        { id: "5.1", name: "The Pixar Story Spine", beats: ["Once upon a time…", "Every day…", "Until one day…", "Because of that…", "Until finally…", "And ever since then…", "(And the moral is…)"] },
+        { id: "2.1", name: "The Sitcom Formula (Circular Structure)", beats: ["Cold Open / Teaser", "Status Quo", "The Problem"] },
+      ] };
+    },
+    async scoreDraft(req) {
+      await wait();
+      need(req.ep);
+      // seriesmith/scoredraft.py in small: the first shots as one beat-joined cue that makes the story theme
+      const shots = status[req.pass]?.shots ?? [];
+      if (shots.length < 2) throw new MockError("the episode isn't built (shotlist/shots.json): build it first", 409);
+      const drafted = [...cueSpecs.keys()].filter((k) => /^d\d{2,3}$/.test(k));
+      const last = shots[Math.min(3, shots.length - 1)].shot;
+      const spec: CueSpec = {
+        id: "d01", label: "Draft: Once upon a time… → Every day…", in: { shot: shots[0].shot, frame: 0 }, out: { shot: last, frame: 96 },
+        sections: [{ name: "Once upon a time…", from: 2, to: 2, bars: 4, words: "gentle, wondering" },
+                   { name: "Every day…", from: 2, to: 2, bars: 6, words: "light, a simple repeating figure: the routine" }],
+        hits: ["dh01"],
+      };
+      const draft: import("../types").ScoreDraft = {
+        structure: "The Pixar Story Spine", pass: req.pass, missing: [], voices_only: false, drafted, kept: [], rendered: !!req.rendered,
+        marked: true, laid: null, structures: [{ id: "5.1", name: "The Pixar Story Spine" }, { id: "2.1", name: "The Sitcom Formula (Circular Structure)" }],
+        beats: [{ beat: "Once upon a time…", from: "structure", music: "score", t0: 0, t1: 8, shot: shots[0].shot },
+                { beat: "Every day…", from: "structure", music: "under", t0: 8, t1: 20, shot: shots[1].shot }],
+        cues: [{ kind: "cue", label: "Once upon a time… → Every day…", id: "d01", t0: 0, t1: 20, theme: null, makes: "story",
+                 sections: [{ name: "Once upon a time…", words: "gentle, wondering", from: 2, to: 2, seconds: 8 },
+                            { name: "Every day…", words: "light, a simple repeating figure: the routine", from: 2, to: 2, seconds: 12 }],
+                 hits: [{ kind: "turn", shot: shots[1].shot, name: "Every day…: turn" }], spec }],
+        flags: [{ kind: "in-scene", shot: shots[1].shot, text: "music in the scene (\"radio\"): the score sits out, or takes up its tune" }],
+        notes: [],
+      };
+      const text = "The Pixar Story Spine: 2 beat(s), 1 cue(s)";
+      if (!req.write) return { draft, text, written: null };
+      if (drafted.length && !req.replace) throw new MockError(`the episode has a draft already (${drafted.join(", ")}): replace it, or delete those cues first`, 409);
+      for (const k of drafted) { cueSpecs.delete(k); cueTakes.delete(k); }
+      cueSpecs.set("d01", spec);
+      const m = mixes[req.pass];
+      mixes[req.pass] = { ...m, hits: [...(m.hits ?? []).filter((h) => !/^dh\d+$/.test(h.id)), { id: "dh01", name: "Every day…: turn", at: { shot: shots[1].shot, frame: 0 }, kind: "turn", must: false }],
+                          ...(req.keep_sound ? {} : { tracks: { ...m.tracks, dialogue: { ...m.tracks?.dialogue, voices_only: true } } }) };
+      emit("seriesmith.episode", { ep: EP });
+      return { draft, text, written: { cues: ["d01"], hits: 1, removed: drafted, voices_only: !req.keep_sound } };
     },
     async deleteCue(ep, cue) {
       await wait();
@@ -1407,6 +1451,20 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       }
       emit("seriesmith.episode", { ep: EP });
       return { queued };
+    },
+    async pinCueTheme(req) {
+      await wait();
+      need(req.ep);
+      const t = (cueTakes.get(req.cue) ?? []).find((x) => x.take === req.take);
+      if (!cueSpecs.get(req.cue)) throw new MockError(`no cue ${req.cue}`, 404);
+      if (!t || t.status !== "ok") throw new MockError(`cue ${req.cue} has no finished take ${req.take} to make a theme of`, 409);
+      if (!/^[A-Za-z0-9_-]{1,40}$/.test(req.name)) throw new MockError(`a series theme's name is 1-40 letters, digits, _ or -, not ${JSON.stringify(req.name)}`, 400);
+      const theme = { name: req.name, ep: "ep01", cue: req.cue, take: req.take, ...(req.role ? { role: req.role } : {}), ...(req.words ? { words: req.words } : {}), ...(req.for?.length ? { for: req.for } : {}) };
+      const row = { name: req.name, label: `${req.name} (ep01 ${req.cue} t${String(req.take).padStart(2, "0")})`, role: (req.role ?? null) as SeriesTheme["role"],
+                    words: req.words ?? null, for: req.for ?? null, error: null };
+      const i = SERIES_THEMES.findIndex((x) => x.name === req.name);
+      if (i >= 0) SERIES_THEMES[i] = row; else SERIES_THEMES.push(row);
+      return { theme, written: req.everywhere === false ? ["ep01"] : ["ep01", "ep02"], same: [] };
     },
     async pickCue(req) {
       await wait();

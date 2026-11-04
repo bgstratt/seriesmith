@@ -407,7 +407,12 @@ pictures to pick from, and pointing at a name shows it larger.
   **Camera moves, as clips** shows each move as a short clip of the same street, played while
   you point at it, and picking one starts the line with it), **Sound**,
   **Extras**, **On-screen text**.
-- **More** (the arrow, folded): music; **Video model class** (another model for this shot, with
+- **More** (the arrow, folded): music, and the score's marks: **Beat** (the beat of the
+  episode's structure this shot starts, its beats offered from the series config's own
+  `sound.format`, else the script's `// structure:` line: a `// beat:` line above the shot;
+  its help links the spotting sheet, whose Draft… drafts the score from them), **Theme mark** (a theme on this moment, `glance,   given`: a `// theme:` line) and **Hit** (accent, arrive, drop or turn on the shot's first
+  frame as it plays in the cut, in the pass's mix: one undoable mix edit, saved with the
+  shot); **Video model class** (another model for this shot, with
   the Models button beside it) and right under it what that model loads, its **Model
   file**, **LoRAs** and **Steps**, each picked from what it can load; continuity
   (**Continues**: its own line, or *the sequence's (latent)* when the `#` header sets it,
@@ -1499,7 +1504,8 @@ under the picture as Play all plays it, and every Play all key works in it.
   lane), **Music** (the cues: label, score or song, the take in the mix or *not placed*,
   *stale* when the cut has moved under it), **Ambience** (the places' beds) and **Effects**
   (the shots', stale ones marked). Click a cue to select it, then a tab (or double-click it)
-  to shape it, and the **Spotting** tab to come back; click a hit, or anywhere on a row, to go
+  to shape it, and the **Spotting** tab to come back; drag a hit along its row to move it (it
+  snaps to a frame and is anchored to the shot there; Esc cancels, Ctrl+Z undoes); click a hit, or anywhere on a row, to go
   there. **Right-click a row** (its head, or any lane at the frame under the pointer) for **New
   cue here** (to the end of that shot), **New cue over &lt;sequence>**, **New cue from here to the
   end of &lt;sequence>**, **Mark a hit here**, **Make effects for &lt;sequence>** and, when its shots
@@ -1519,6 +1525,19 @@ under the picture as Play all plays it, and every Play all key works in it.
   window. **Direction**: the series' score direction and the script's `music:` notes.
 - **Stale cues** at the foot: every cue whose take in the mix the cut has moved under (or, with
   none picked, all of whose takes it has), with **Render** each, or **Render all stale**.
+- **Draft…** in its head drafts a first-pass score from the script's `// structure:` and
+  `// beat:` lines ([SCORING.md](/scoring), "A first pass from the script"): it asks first and
+  writes nothing, showing each draft cue (its time, a section per beat with its mood and energy,
+  its theme, its hits), what it leaves to you (music in the scene, a montage, a card) and its
+  notes (a theme the series doesn't have yet). **Write N cues** writes them (`d01`...,
+  *Draft:* labels, nothing rendered) with their hits, and turns the Dialogue track to voices
+  only unless **Keep the takes' own sound** is ticked; a cue of yours under one leaves it out.
+  A script with no beat lines is said at the top, with a **Structure** to lay out over the cut
+  (its beats where each falls in a story, on the nearest sequence; listed under it) and
+  **Write these beat lines into the script** to keep them.
+  With a draft there already, **Replace the earlier draft** must be ticked first; a draft cue
+  with a finished take is kept (listed as *Kept*) and the new draft trimmed around it, unless
+  **Rendered ones too** is ticked (a series theme's cue is kept either way).
 - The **?** in its head shows how to use it.
 
 ### The cue window: a piece of score
@@ -1529,7 +1548,9 @@ one, select the shots it plays over and **right-click the Music lane (or the hit
 New cue over the shots selected…**, or right-click where it should start for **New cue
 here**, which runs to the end of that shot. A cue's block on the Music lane shows a note
 icon; **double-click it** to open the cue. The window takes the viewer's place; **Timeline**
-or **Esc** goes back, and the pass toggle switches it with the rest of the editor.
+or **Esc** goes back, and the pass toggle switches it with the rest of the editor. The cue in
+its head is a list of the episode's cues: pick another (or **‹** **›** for the one before or
+after) to see it on the same tab, without going back to Spotting.
 
 **Muting or deleting a cue.** To stop hearing a cue but keep it, untick **plays in the mix**
 (the Refs tab's Music row, its block's menu on the Music lane, or its menu on the spotting map):
@@ -1577,13 +1598,22 @@ model is told**, and the script's `music:` notes it took in. Each change is save
 cue planned again (typing saves when you pause). A YuE2 song with no lyrics says so under the
 fit: it can't render until a section has some.
 
-**Theme** carries another cue's melody into this one (the leitmotif): **none**, **another cue's
-take** (the cue, then one of its finished takes, fetched when you pick the cue) or **a sound
-file** (a path inside the episode or the show's folder, typed or **Browse…**). Under it, how the
-cue's model hears it: YuE2 sings its melody (a YuE2 take's own plan, or a transcription of
-anything else), ACE-Step takes its sound as its timbre; Stable Audio 3 takes none, says so, and
-offers **Use ACE-Step for the theme** (score) or **Use YuE2 for the theme** (song). A changed
-theme makes the takes stale.
+**Theme** carries another cue's melody into this one (the leitmotif): **none**, **a series
+theme** (one of the series config's `sound.themes`, by name), **another cue's take** (the cue,
+then one of its finished takes, fetched when you pick the cue) or **a sound file** (a path
+inside the episode or the show's folder, typed or **Browse…**). Under it, how the cue's model
+hears it: Stable Audio 3 renders from its sound, fitted to the cue's tempo and bars, at a
+**strength** (0.86 unless set: lower keeps more of the theme, higher moves toward the cue's
+words); YuE2 sings its melody (a YuE2 take's own plan, or a transcription of anything else);
+ACE-Step takes its sound as its timbre. A model that hears no theme says so and offers one that
+does. A changed theme or strength makes the takes stale.
+
+Each finished take's row has **★ Series theme**: a name, a role (show, story, runner), whose
+it is (cast ids, the series' characters offered: a character's theme), a line
+on what it is and **every episode** (on: written into every episode's series config beside
+this one, as each has its own), and **Save** makes the take a series theme any cue can carry.
+A take rendered from a theme with SheetSage2 installed says how much of the theme's melody it
+kept (**theme kept 52 %**, or **lost the theme** under 30 %, ranked after the rest).
 
 **Meter** is a choice of 2/4, 3/4, 4/4, 5/4, 6/8, 7/8, 9/8 and 12/8, or **Other…** for your own
 (beats/unit, 1 to 16 beats of a 2, 4, 8 or 16); the grid's beats to the bar are its top number.

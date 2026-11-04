@@ -29,6 +29,7 @@ failed exits 1.
 | `seriesmith align <episode> <recording>` | The script timed against a dialogue recording (`--vocals`: from its vocal stem, made on local ComfyUI first) |
 | `seriesmith assemble <episode>` | The review cut |
 | `seriesmith fx <episode> --shots sh010,…` | A shot's effects (sync sound) made from the frames of the take the cut plays, on the Effects track (`--proxy`, `--target`, `--takes`, `--pick`, `--list`) |
+| `seriesmith score-draft <episode>` | A first-pass score from the script's `// structure:` and `// beat:` lines: draft cues with their sections, themes and hits, shown; written with `--write` (`--proxy`, `--replace`, `--keep-sound`) |
 | `seriesmith voices <episode>` | The cut's takes split into their voice stems (the model's music and room tone taken off), for the mix's voices only (`--proxy`, `--shots`, `--redo`, `--list`) |
 | `seriesmith upscale` / `post` / `master` / `publish` | Finishing (below) |
 | `seriesmith all <episode>` | build → refs → render → assemble (`--skip-build` keeps the shotlists on disk) |
@@ -407,6 +408,28 @@ seriesmith fx Shows\ep05 --proxy --list                       # each shot's take
   Effects lane's **Keep as it is**, `fx: {shot: {keep_stale: true}}`).
 - Runs on a queue of its own and waits (`--backend`, default `local`); the editor's server
   queues them on its own queue (`POST /seriesmith/fx/render`).
+
+### A first-pass score: score-draft
+
+```
+seriesmith score-draft Shows\ep05                    # what it would draft, nothing written
+seriesmith score-draft Shows\ep05 --write            # its cues (d01...), hits, voices only
+seriesmith score-draft Shows\ep05 --write --replace  # the earlier draft replaced
+seriesmith score-draft Shows\ep05 --write --replace --rendered  # its rendered cues too
+seriesmith score-draft Shows\ep05 --structure "Pixar Story Spine" --write --mark  # no beat lines: laid out, kept
+```
+
+- Reads the script's `// structure:`, `// beat:`, `// theme:` and `// flashback` lines, that
+  structure's Music table (docs/STORY_STRUCTURES.md) or the series config's `sound.format`,
+  and the pass's cut (a shot with no take yet at its shotlist length). Needs the episode built.
+- Writes each draft cue as a cue (`sound/d01/spec.json`...: a section per beat, its theme),
+  its hits in the pass's mix (`dh01`..., none a must), and the Dialogue track to voices only
+  (`--keep-sound` leaves it). Nothing is rendered: shape and render them in the editor
+  (docs/SCORING.md "A first pass from the script").
+- A cue of the episode's own is never touched; a draft cue over one is left out. An earlier
+  draft is replaced only with `--replace` (its cues to `_history`); a draft cue with a finished
+  take is kept, with its hits, and a new one over it trimmed around it, unless `--rendered`
+  (a series theme's cue is kept either way).
 
 ### Voice stems: voices
 

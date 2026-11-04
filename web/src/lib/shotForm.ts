@@ -104,6 +104,59 @@ export function writeShot(f: ShotForm): string[] {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// the score's marks above a shot (docs/STORY_STRUCTURES.md: `// beat:` starts a beat of the
+// episode's structure at the shot below it, `// theme: <theme>, <words>` puts a theme on it):
+// comments above the `## id` line, outside the shot's own block, so read and written apart
+// ---------------------------------------------------------------------------
+
+export interface ShotMarks { beat: string; theme: string }
+
+const MARK_RE = /^\/\/\s*(beat|theme)\s*:\s*(.*)$/;
+
+/** The marks above the shot whose `## id` is line `line` (1-based), and their lines: up past
+ * blank lines, other comments and its sequence's header (a beat that opens a sequence is
+ * written above it), to the first other line. */
+export function marksAbove(text: string, line: number): ShotMarks & { lines: number[] } {
+  const lines = text.split("\n");
+  const out = { beat: "", theme: "", lines: [] as number[] };
+  let header = false;
+  for (let i = line - 2; i >= 0; i--) {
+    const l = lines[i].trim();
+    const m = MARK_RE.exec(l);
+    if (m) {
+      if (!out[m[1] as "beat" | "theme"]) out[m[1] as "beat" | "theme"] = m[2].trim();
+      out.lines.push(i + 1);
+      continue;
+    }
+    if (!l || l.startsWith("//")) continue;
+    if (/^#\s/.test(l) && !header) {
+      header = true;
+      continue;
+    }
+    break;
+  }
+  return out;
+}
+
+/** The script with the marks above shot `id` set: the old ones taken out, the new ones (each
+ * when not empty) just above its `## id` line. Unchanged when the shot isn't there. */
+export function withMarks(text: string, id: string, marks: ShotMarks): string {
+  const lines = text.split("\n");
+  const at = lines.findIndex((l) => new RegExp(`^##\\s+${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`).test(l));
+  if (at < 0) return text;
+  const old = new Set(marksAbove(text, at + 1).lines.map((n) => n - 1));
+  const add = [marks.beat.trim() && `// beat: ${marks.beat.trim()}`, marks.theme.trim() && `// theme: ${marks.theme.trim()}`]
+    .filter(Boolean) as string[];
+  const out: string[] = [];
+  lines.forEach((l, i) => {
+    if (old.has(i)) return;
+    if (i === at) out.push(...add);
+    out.push(l);
+  });
+  return out.join("\n");
+}
+
 /** "ada, bo" <-> ["ada", "bo"] */
 export function listOf(v: string | undefined): string[] {
   return (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);

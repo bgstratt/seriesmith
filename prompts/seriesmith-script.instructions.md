@@ -24,8 +24,11 @@ show's: add what the episode needs and change nothing else unasked, but if it ha
 Converting an existing screenplay, keep its story and dialogue and break it into shots
 (`references/script_conversion.md` works a scene through). Writing fresh, outline the story
 before the shots: if the person hasn't given it a shape, offer the menu in
-`references/story_structures.md` (with the questions above, in the same message), then mark
-each beat in the script with a `//` comment. Either way, write the film, not the model. Leave `target:` lines out unless a shot
+`references/story_structures.md` (with the questions above, in the same message). Either
+way, mark the structure and each beat in the script (`// structure:` near the top, `// beat:`
+above each beat's first shot; the structure that fits a converted screenplay best), so the
+score can be drafted from them (that file's **From beats to shots**). Write the film, not
+the model. Leave `target:` lines out unless a shot
 needs something only one model does (see **Choosing a video target**); advice that holds for
 one target only is marked with that target's name. Validate with `seriesmith check
 series.json <script>` and `--pace` before calling a script finished. Rendering, upscaling
@@ -553,6 +556,24 @@ optional; leave the block out for the defaults:
   editor's mix wins over these.
 - `loudness` is the export's target: `target_lufs` (default -16) and `true_peak_db` (the
   limiter's ceiling, default -1). The episode's mix can set its own.
+- `themes` are the show's recurring music, by name, for any episode's cue to carry: each a
+  picked take of a cue (`{"ep": "ep01", "cue": "m04", "take": 3}`, the episode's folder beside
+  this one) or a file (`{"file": "themes/glance.wav", "bpm": 80}`, relative to the series
+  config), with `role` (`show`, `story` or `runner`), `words` (what it is) and `for` (whose it
+  is: cast ids; a character's theme is the episode's own whenever they lead it). They're made
+  in the editor from a take you pick (its **★ Series theme**), not written by hand; leave the
+  key out when writing a new series.
+- `format` is a show's own first-pass score, for a show whose episodes share a shape of their
+  own (Porch Lights' Cold Open, The Read, The Cost...): what the draft (**Draft…** on the
+  spotting sheet, `seriesmith score-draft`) does with each of its `// beat:` names, in place
+  of a structure's Music table (STORY_STRUCTURES.md). `{"like": "episodic drama", "beats":
+  {"Cold Open": {"music": "score", "words": "felt piano, a low pulse", "energy": [2, 3],
+  "theme": "mark", "hits": ["turn"]}}, "other": {...}, "marks": {"glance": "sting"}}`:
+  `music` is `score`, `under`, `gaps` (only where no one speaks), `sting` or `dry`; `theme`
+  a role (`story`, `show`, `runner`), `lead` (the theme `for` the beat's lead, else
+  `theme_else`) or a theme's name; `like` the structure for the beats it doesn't name;
+  `other` any beat neither names (`talk_max`: dry above that share of lines); `marks` how a
+  `// theme:` mark of that theme plays. A show that follows one of the structures needs none.
 
 The place's ambience bed is the location's `ambience` (below) and its model
 `refs.ambience_target` (above). How to score an episode is in `docs/SCORING.md`; a
@@ -963,6 +984,10 @@ sound: running footsteps on grass, fabric movement
 | `NAME (O.S.): line` | off-screen: in the space, outside the frame |
 | `NAME (V.O., on the truck radio): line` | a voice marker and a delivery together; the note describes the voice and is never spoken |
 | `// text` | comment |
+| `// structure: Pixar Story Spine` | the episode's story structure (`docs/STORY_STRUCTURES.md`), near the top: the first-pass score reads it. A comment: nothing renders from it |
+| `// beat: Until one day…` | above the first shot of a beat (or its sequence's `#` header), the beat's name as its structure writes it: the score's sections and turns |
+| `// theme: show, tender` | above a shot: a theme on that moment, held low to the end of its scene (`sting` in the words: a sting on the shot). The theme is `story`, `show`, `runner` or one the series config names |
+| `// flashback` | above a sequence that's a flashback: its music an echo, thinner and further away |
 
 Any other line is action prose. Prose under a `#` header before its first shot is a
 scene-setting note and is ignored. A line under a `#` header (`model:`, `lora:`, `steps:`,

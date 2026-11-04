@@ -17,17 +17,19 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent 
 import { closeViewer, currentPlaylist, setCutPlaying } from "../actions";
 import { cueKey, deleteCue, newCue, saveCueAt } from "../cueActions";
 import { fmtClock, tn } from "../lib/format";
-import { hitChip, cueTitle, withSpec } from "../lib/cue";
+import { hitChip, cueTitle, melodyText, withSpec } from "../lib/cue";
 import { HIT_KIND_TITLE, anchorTime, regionLabel, regionMode, timeAnchor, type RegionMode } from "../lib/mix";
 import {
   bedBlocks, cueBlocks, cutHits, fitWords, fxBlocks, hitTable, inRow, sequenceRows, staleCues, takeColumns, timecode,
   type CueBlock, type CutHit, type MapRow,
 } from "../lib/spotting";
-import { addMixHit, currentMix, makeBed, makeEffects, openSoundAdd, setMixItemMute } from "../mixActions";
+import { addMixHit, currentMix, makeBed, makeEffects, moveMixHit, openSoundAdd, setMixItemMute } from "../mixActions";
 import {
   auditionTake, jumpToHit, loadCueStates, openCueFromSpot, renderCues, seekToTime, selectSpotCue, setCueTempo, stopAudition,
 } from "../spotActions";
 import { statusKey, store, useApp, type ViewerState } from "../store";
+import { ScoreDraftDialog } from "./ScoreDraft";
+import { trackPointer } from "./hooks";
 import type { CueResult, CueSummary, Pass } from "../types";
 import { FloatingWindow } from "./FloatingWindow";
 import { ScoringTabs, SPOT_RECT_KEY, defaultSpotRect } from "./ScoringTabs";
@@ -76,6 +78,7 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
   const sel = v.cue ?? null;
   const [help, setHelp] = useState(helpOpen);
   const [menu, setMenu] = useState<SpotMenuAt | null>(null);
+  const [drafting, setDrafting] = useState(false);
   const showHelp = (on: boolean) => {
     try {
       localStorage.setItem(SPOT_HELP_KEY, on ? "1" : "0");
@@ -115,6 +118,8 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
       <b>Scoring</b>
       <ScoringTabs active="spot" cue={tabCue} />
       <span className="h3-muted h3-small">{pass} · {cues.length} cue{cues.length === 1 ? "" : "s"} · {hits.length} hit{hits.length === 1 ? "" : "s"} · {fmtClock(total)}</span>
+      <button className="h3-btn" title="A first-pass score from the script's structure and beat lines (// structure:, // beat:): draft cues to shape, nothing rendered"
+        onClick={() => setDrafting(true)}><i className="pi pi-sparkles" /> Draft…</button>
       <button className={`h3-btn h3-icon${help ? " h3-on" : ""}`} title="How to use the spotting sheet" aria-label="How to use the spotting sheet" aria-pressed={help}
         onClick={() => showHelp(!help)}><i className="pi pi-question" /></button>
       <span className="h3-grow" />
@@ -149,6 +154,7 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
           )}
           <MusicMap rows={rows} blocks={blocks} beds={beds} fx={fx} hits={hits} regions={regions} pos={cp.pos} fps={fps} sel={sel} onMenu={setMenu} />
           {menu && <SpotMenu at={menu} fps={fps} onClose={() => setMenu(null)} />}
+          {drafting && <ScoreDraftDialog ep={ep} pass={pass} onClose={() => setDrafting(false)} />}
           {offCut.length > 0 && (
             <div className="h3-small h3-muted" style={{ padding: "2px 8px" }}>
               Not in this cut: {offCut.map((c) => (
@@ -243,6 +249,29 @@ function MapRowView({ row, blocks, beds, fx, hits, regions, pos, fps, sel, onMen
     if (r.width > 0) seekToTime(row.start + ((e.clientX - r.left) / r.width) * span);
   };
   const rowHits = hits.filter((h) => h.t >= row.start - 1e-6 && h.t < row.end + 1e-6);
+  const items = useApp((s) => currentPlaylist(s));
+  // a hit dragged along its row: where it is while the pointer moves (cut seconds)
+  const [drag, setDrag] = useState<{ id: string; t: number } | null>(null);
+  const onHitDown = (e: React.PointerEvent<HTMLButtonElement>, h: CutHit) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const laneEl = e.currentTarget.parentElement;
+    const r = laneEl?.getBoundingClientRect();
+    if (!r || r.width <= 0) return;
+    const x0 = e.clientX;
+    let t: number | null = null;
+    trackPointer((ev) => {
+      if (t == null && Math.abs(ev.clientX - x0) < 3) return;
+      const f = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+      t = Math.round((row.start + f * span) * fps) / fps;
+      setDrag({ id: h.id, t });
+    }, (cancelled) => {
+      setDrag(null);
+      if (t == null) return seekToTime(h.t);
+      const at = cancelled ? null : timeAnchor(items, Math.min(t, row.end - 1 / fps), fps);
+      if (at) void moveMixHit(h.id, at);
+    });
+  };
   const here = pos >= row.start && pos < row.end;
   // right-click: on a lane, the time under the pointer; on the row's head, the playhead (in the row) or its start
   const menuAt = (e: RMouseEvent<HTMLElement>, cue?: string) => {
@@ -272,12 +301,13 @@ function MapRowView({ row, blocks, beds, fx, hits, regions, pos, fps, sel, onMen
           <span key={s.shot} className="h3-spot-shot" style={{ left: pct(s.start), width: wid(s.start, s.end) }} title={`${s.shot} · ${fmtClock(s.start)}`}>{s.shot}</span>
         )))}
         {lane("Hits", "h3-spot-hits", rowHits.map((h) => (
-          <button key={h.id} className={`h3-spot-hit h3-hit-${h.kind}${h.must ? "" : " h3-hit-may"}`} style={{ left: pct(h.t) }}
-            title={`${h.name} · ${HIT_KIND_TITLE[h.kind]}${h.must ? "" : " (may miss)"} · ${h.at.shot} frame ${h.at.frame} · ${timecode(h.t, fps)}: click to go there`}
-            onClick={(e) => {
-              e.stopPropagation();
-              seekToTime(h.t);
-            }}>{h.name}</button>
+          <button key={h.id} className={`h3-spot-hit h3-hit-${h.kind}${h.must ? "" : " h3-hit-may"}${drag?.id === h.id ? " h3-on" : ""}`}
+            style={{ left: pct(drag?.id === h.id ? drag.t : h.t), touchAction: "none" }}
+            title={`${h.name} · ${HIT_KIND_TITLE[h.kind]}${h.must ? "" : " (may miss)"} · ${h.at.shot} frame ${h.at.frame} · ${timecode(h.t, fps)}: click to go there, drag to move it (along its row; Esc cancels, Ctrl+Z undoes)`}
+            onPointerDown={(e) => onHitDown(e, h)}
+            onClick={(e) => e.stopPropagation()}>
+            {h.name}{drag?.id === h.id && <span className="h3-spot-tag">{timecode(drag.t, fps)}</span>}
+          </button>
         )))}
         {lane("Music", "h3-snd-music", [...inRow(row, regions).map((g) => (
           <span key={g.id} className={`h3-spot-region h3-snd-region-${g.mode}`} style={{ left: pct(g.a), width: wid(g.a, g.b) }} data-region={g.id}
@@ -523,6 +553,7 @@ function CueDetail({ ep, pass, res, block }: { ep: string; pass: Pass; res: CueR
                   {t.take === inMix && <span className="h3-badge" title="the take in the mix">in mix</span>}
                   {t.status !== "ok" && <span className="h3-muted">{t.status}{t.error ? `: ${t.error}` : ""}</span>}
                   {t.measured && <span className="h3-muted">worst {t.measured.worst_must} f · shape {t.measured.shape_error ?? "—"}</span>}
+                  {t.measured?.melody != null && <span className={t.measured.on_theme === false ? "h3-cue-offtext" : "h3-muted"} title="How much of the theme's melody it kept (SheetSage2): under 30 % it lost the theme">{melodyText(t.measured)}</span>}
                   {t.song && <SongLine song={t.song} />}
                   {!!t.stale?.length && <span className="h3-badge h3-b-stale" title={t.stale.join("\n")}>stale</span>}
                 </div>
@@ -534,8 +565,8 @@ function CueDetail({ ep, pass, res, block }: { ep: string; pass: Pass; res: CueR
               setBusy(true);
               void renderCues([spec.id]).finally(() => setBusy(false));
             }}><i className="pi pi-play" /> Render {spec.id}'s takes</button>
-          <div className="h3-cue-h" title="A theme carried from cue to cue (the leitmotif): another cue's take, or a sound file">Theme</div>
-          <ThemeField ep={ep} pass={pass} spec={spec} plan={plan} target={target} targets={targets}
+          <div className="h3-cue-h" title="A theme carried from cue to cue (the leitmotif): a series theme, another cue's take, or a sound file">Theme</div>
+          <ThemeField ep={ep} pass={pass} spec={spec} plan={plan} target={target} targets={targets} themes={res.themes}
             save={(patch) => void saveCueAt({ ep, pass, cue: spec.id, key: cueKey(ep, pass, spec.id) }, withSpec(spec, patch))} />
           {plan.blocked && <div className="h3-err h3-small">{plan.blocked}</div>}
           {(plan.direction || plan.notes?.length) ? <div className="h3-cue-h">Direction</div> : null}

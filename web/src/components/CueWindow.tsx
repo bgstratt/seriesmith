@@ -18,12 +18,12 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import { closeViewer, currentPlaylist } from "../actions";
-import { applyCuePreset, compCueTake, cueKey, deleteCue, loadCue, pickCueTake, renderCue, repaintCueTake, saveCue } from "../cueActions";
+import { applyCuePreset, compCueTake, cueKey, deleteCue, loadCue, loadCues, pickCueTake, pinCueTheme, renderCue, repaintCueTake, saveCue } from "../cueActions";
 import { isTyping } from "../cutActions";
 import { api, host } from "../host";
 import {
   ARC_SHAPES, KEYS, LEVEL_WORDS, METERS, ORCH_LEVELS, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, repaintLabel, repaintWhy, cueStart,
-  cueTitle, drawnPoints, editableSections, familyName, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterBeats,
+  drawnPoints, editableSections, familyName, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, melodyText, mergeStroke, meterBeats,
   meterText, mergeSections, moveEdge,
   movePoint, orchestraRows, sectionChoice, SCORE_SECTIONS, SONG_SECTIONS, paintOrchestra, patchSection, presetPoints, ranks, removeFamily, removePoint, renameFamily, sectionAt, sectionEdges, sectionWords, strokeLevel, ORCH_STEP,
   presetGroups, presetReplaces, sectionsFromArc, smoothPoints, snapToHits, splitPoint, splitSection, tauX, trimOrchestra, withEnergies, withSpec, wordsOffArc, xTau, yLevel,
@@ -33,6 +33,8 @@ import { fmtClock } from "../lib/format";
 import { HIT_KIND_TITLE } from "../lib/mix";
 import { lowerMixItem } from "../mixActions";
 import { clipTake, type PlayItem } from "../lib/playlist";
+import { openCueFromSpot } from "../spotActions";
+import { useSeriesConfig } from "./useSeriesConfig";
 import { useApp, statusKey, type ViewerState } from "../store";
 import type { CuePlan, CuePreset, CueResult, CueSection, CueSpec, CueTake, Pass, Target } from "../types";
 import { SongLine, SongStrip, ThemeField } from "./CueTheme";
@@ -169,6 +171,31 @@ function useCuePresets(): CuePreset[] {
   return list;
 }
 
+/** The cue the window shows, picked from the episode's cues (and ‹ › to the one before or after),
+ * on the same tab; the list is the episode's (loaded when the window first needs it). */
+function CuePicker({ ep, cue, tab }: { ep: string; cue: string; tab: CueTab }) {
+  const cues = useApp((s) => s.cues[ep]);
+  useEffect(() => {
+    if (!cues) void loadCues(ep);
+  }, [ep, !cues]);
+  const list = cues ?? [];
+  const i = list.findIndex((c) => c.spec.id === cue);
+  const go = (to: string | undefined) => to && to !== cue && openCueFromSpot(to, tab);
+  return (
+    <span className="h3-row" style={{ gap: 2 }}>
+      <button className="h3-btn h3-icon" aria-label="The cue before" title="The cue before" disabled={i <= 0}
+        onClick={() => go(list[i - 1]?.spec.id)}><i className="pi pi-angle-left" /></button>
+      <select className="h3-in" aria-label="Cue" title="The cue shown: pick another to see it on this tab" value={cue}
+        style={{ width: "auto", maxWidth: 260, fontWeight: 600 }} onChange={(e) => go(e.target.value)}>
+        {i < 0 && <option value={cue}>{cue}</option>}
+        {list.map((c) => <option key={c.spec.id} value={c.spec.id}>{[c.spec.id, c.spec.label, c.spec.kind === "song" ? "song" : ""].filter(Boolean).join(" · ")}</option>)}
+      </select>
+      <button className="h3-btn h3-icon" aria-label="The cue after" title="The cue after" disabled={i < 0 || i >= list.length - 1}
+        onClick={() => go(list[i + 1]?.spec.id)}><i className="pi pi-angle-right" /></button>
+    </span>
+  );
+}
+
 /** A level as words: "3 moderate", "3.5". */
 const levelText = (v: number) => (Number.isInteger(v) ? `${v} ${LEVEL_WORDS[v]}` : String(v));
 const tn = (n: number) => `t${String(n).padStart(2, "0")}`;
@@ -224,8 +251,8 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
   const head = (
     <>
       <i className="pi pi-volume-up" style={{ color: "var(--h3-arc)" }} />
-      <b>{id}</b>
-      <span className="h3-muted h3-small">{res ? cueTitle(res.spec) : ""} · {v.pass}</span>
+      <CuePicker ep={ep} cue={id} tab={tab} />
+      <span className="h3-muted h3-small">{v.pass}</span>
       <ScoringTabs active={tab} cue={id || null} onCueTab={setTab} />
       <button className={`h3-btn h3-icon${help[tab] ? " h3-on" : ""}`} title="How to use this tab" aria-label="How to use this tab" aria-pressed={help[tab]}
         onClick={() => showHelp(!help[tab])}><i className="pi pi-question" /></button>
@@ -277,6 +304,8 @@ function CueBody({ ep, v, res, sel, setSel, tab, brush, setBrush, help }: {
   const target = targets.find((t) => t.id === (plan?.target ?? spec.model));
   const [scrollRef, size] = useSize<HTMLDivElement>();
   const [zoom, setZoom] = useState<number | null>(null);
+  // each cue opens fitted to the window (null: fit), whatever zoom the last one was left at
+  useEffect(() => setZoom(null), [ep, spec.id, v.pass]);
   const [count, setCount] = useState<number>(spec.takes ?? TAKES_DEFAULT);
   const [mode, setMode] = useState<ArcMode>("draw");
   const rowsKey = `${ep}|${spec.id}`;
@@ -295,7 +324,7 @@ function CueBody({ ep, v, res, sel, setSel, tab, brush, setBrush, help }: {
         <div className="h3-cue-main h3-empty-state">
           {help}
           <div><b>{spec.id} can't be planned.</b><div className="h3-err" style={{ marginTop: 6 }}>{res.plan_error ?? "no plan"}</div>
-            <div className="h3-muted h3-small" style={{ marginTop: 6 }}>Its in and out are anchored to shots of the cut; put them back in the {v.pass} cut, or make the cue again over the shots it plays over.</div></div>
+            <div className="h3-muted h3-small" style={{ marginTop: 6 }}>A cue is timed to the rendered shots it plays over, in this pass's cut: they need takes there (a shot rendered only in the other pass doesn't count). Render and pick them, or switch to the pass that has them.</div></div>
         </div>
         {inspector}
       </div>
@@ -1024,7 +1053,13 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, s
               </span>
             )}
             {t.song && <SongLine song={t.song} />}
-            {t.theme && <span className="h3-small h3-muted" title="the theme it was rendered with, and how its model heard it">theme {t.theme.label}{t.theme.use ? ` (${t.theme.use})` : " (left out)"}</span>}
+            {t.theme && <span className="h3-small h3-muted" title={`the theme it was rendered with, and how its model heard it${t.theme.staged ? `: fitted to the cue, ${t.theme.staged.bars} bars looped${Math.abs(t.theme.staged.stretch - 1) > 0.005 ? `, played ${t.theme.staged.stretch.toFixed(2)}x` : ""}` : ""}`}>theme {t.theme.label}{t.theme.use ? ` (${t.theme.use}${t.theme.strength != null ? ` ${t.theme.strength}` : ""})` : " (left out)"}</span>}
+            {m!.melody != null && (
+              <span className={`h3-small ${m!.on_theme === false ? "h3-cue-offtext" : ""}`}
+                title="How much of the theme's melody it kept (SheetSage2 transcribed both): a take with no theme in it keeps about 20 %; under 30 % it lost the theme, and ranks after those that kept it">
+                <b>{melodyText(m)}</b>
+              </span>
+            )}
             <span className="h3-small h3-muted">hits</span>
             {m!.hit_errors.map((e, i) => {
               const c = hitChip(e);
@@ -1039,6 +1074,7 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, s
             </span>
             {stale.length > 0 && <span className="h3-badge h3-b-stale" title={stale.join("\n")}>stale</span>}
             <span className="h3-grow" />
+            <PinTheme take={t.take} />
             <button className={`h3-btn${placed ? "" : " h3-primary"}`} style={{ width: "auto" }} disabled={placed}
               title={placed ? `${name} is the cue's item on the music track` : `Put ${name} on the music track of the ${pass} mix, its level fitted to the arc (breakpoints you can change on the timeline)`}
               onClick={() => void pickCueTake(t.take)}>
@@ -1050,6 +1086,73 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, s
       </div>
       {ok && select && range && <BarFixes t={t} bars={range} g={g} plan={plan} placed={placed} sel={select} viewW={viewW} />}
     </div>
+  );
+}
+
+/** A finished take made a series theme (POST /seriesmith/cue/theme): its name, its role, and
+ * whether every episode's series config beside this one gets it too (each has its own). */
+function PinTheme({ take }: { take: number }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [words, setWords] = useState("");
+  const [everywhere, setEverywhere] = useState(true);
+  const [who, setWho] = useState("");
+  const [busy, setBusy] = useState(false);
+  const bad = !/^[A-Za-z0-9_-]{1,40}$/.test(name);
+  const cast = who.split(",").map((x) => x.trim()).filter(Boolean);
+  if (!open) {
+    return (
+      <button className="h3-btn" style={{ width: "auto" }}
+        title={`Make ${tn(take)} a series theme: named in the series config (sound.themes), any episode's cue can then carry it (its Theme: a series theme)`}
+        onClick={() => setOpen(true)}>
+        <i className="pi pi-star" /> Series theme
+      </button>
+    );
+  }
+  return (
+    <span className="h3-row h3-small" style={{ gap: 4 }}>
+      <input className="h3-in h3-mono" style={{ width: 110 }} placeholder="name, e.g. porch" aria-label="Theme name" autoFocus
+        value={name} onChange={(e) => setName(e.target.value.trim())} />
+      <select className="h3-in" style={{ width: "auto" }} aria-label="Theme role" value={role} onChange={(e) => setRole(e.target.value)}
+        title="What the first-pass score uses it for: the show's theme, an episode's own, or the thread that runs on">
+        <option value="">no role</option>
+        <option value="show">show</option>
+        <option value="story">story</option>
+        <option value="runner">runner</option>
+      </select>
+      <input className="h3-in" style={{ width: 160 }} placeholder="what it is, in words" aria-label="Theme words"
+        value={words} onChange={(e) => setWords(e.target.value)} />
+      <ThemeFor value={who} onChange={setWho} />
+      <label className="h3-row" style={{ gap: 2 }} title="Each episode has a series config of its own: write it into every one beside this episode too, not only this one">
+        <input type="checkbox" checked={everywhere} onChange={(e) => setEverywhere(e.target.checked)} /> every episode
+      </label>
+      <button className="h3-btn h3-primary" style={{ width: "auto" }} disabled={bad || busy}
+        title={bad ? "A name: letters, digits, _ or -" : `Write sound.themes.${name} into the series config${everywhere ? "s" : ""}`}
+        onClick={() => {
+          setBusy(true);
+          void pinCueTheme(take, name, role || null, words.trim() || null, everywhere, cast).then((ok) => ok && setOpen(false)).finally(() => setBusy(false));
+        }}>Save</button>
+      <button className="h3-btn h3-icon" title="Cancel" onClick={() => setOpen(false)}><i className="pi pi-times" /></button>
+    </span>
+  );
+}
+
+/** Whose theme it is: the cast ids it belongs to (a character's theme), the series config's
+ * characters offered (read when the form opens). */
+function ThemeFor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const ep = useApp((s) => s.ep) ?? "";
+  const sc = useSeriesConfig(ep);
+  const subj = ((sc.base as Record<string, unknown> | null)?.subjects ?? {}) as Record<string, { kind?: string; of?: string }>;
+  const chars = Object.entries(subj).filter(([, e]) => !e?.of && (e?.kind ?? "character") === "character").map(([id]) => id);
+  const list = `theme-for-${ep}`;
+  return (
+    <>
+      <input className="h3-in h3-mono" style={{ width: 130 }} placeholder="whose: cast ids" aria-label="Theme for" list={list}
+        title="Whose theme it is (a character's): their cast ids, commas between. The first-pass score plays it as the episode's theme when they lead an episode, and in a beat they lead where the show's format says so"
+        value={value} onChange={(e) => onChange(e.target.value)} />
+      <datalist id={list}>{chars.map((c) => <option key={c} value={c} />)}</datalist>
+    </>
   );
 }
 
@@ -1342,8 +1445,8 @@ function CueInspector({ ep, pass, res, target, targets, presets, sel, sections, 
       ), target?.capabilities?.structure === "story" ? "It takes the arc as a story told in words, the tempo in the text"
         : target?.capabilities?.structure === "plan" ? "It plans the song itself (sections and bars, as ABC), its tempo set to the cue's; then sings the lyrics to that plan"
         : target ? "It takes sections as tags and a bpm of its own" : undefined)}
-      {field("Theme", <ThemeField ep={ep} pass={pass} spec={spec} plan={plan} target={target} targets={targets} save={edit} />,
-        "A theme carried from cue to cue (the leitmotif): another cue's take, or a sound file. YuE2 sings its melody; ACE-Step hears it as its timbre; Stable Audio 3 takes none")}
+      {field("Theme", <ThemeField ep={ep} pass={pass} spec={spec} plan={plan} target={target} targets={targets} themes={res.themes} save={edit} />,
+        "A theme carried from cue to cue (the leitmotif): a series theme, another cue's take, or a sound file. Stable Audio 3 renders from its sound (at a strength); YuE2 sings its melody; ACE-Step hears it as its timbre")}
       {field("Tempo", (
         <span className="h3-row" style={{ gap: 6 }}>
           <Draft label="Cue bpm" value={spec.bpm != null ? String(spec.bpm) : ""} placeholder="100" onCommit={(b) => edit({ bpm: num(b) })} />

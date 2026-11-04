@@ -1705,6 +1705,80 @@ score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
       menu, the spotting map's cue menu) and `DELETE /seriesmith/cue` (its folder to
       `_history/cue-<id>.<stamp>/`, out of both mixes; "Delete cue…" there and in the cue
       window's head); not yet looked at in a browser
+- [ ] Phase 8: themes across a season and a first-pass score (SOUND.md phase 8; designed
+      2026-11-03 after measuring, SOUND.md "Measured: leitmotifs": SA3 audio-to-audio plays a
+      recording's tune in a cue's instruments, ACE-Step's reference and every paid service
+      tried on paper don't; a theme is a picked take, notes optional). In order:
+  - [x] a theme's take under a cue of another length and tempo (looped or cut at bar
+        lines, stretched): measure how far it holds (2026-11-03, SOUND.md: length free at
+        bar lines, tempo not; 0.86 from a take, not 0.89; a theme must be clear to travel)
+  - [x] by ear: the fit page's 0.86 cues (the user: 0.86 is fine, 2026-11-03)
+  - [x] `sound.themes` in the series config (a pinned take of any episode's cue, or a file
+        with its bpm); a cue's `theme: {"theme": "<name>"}` and `strength`; Stable Audio 3
+        renders from a theme (target capability `theme: "audio"`, prompt.py cue_graph: the
+        theme's sound encoded, SamplerCustom on 8 even steps from t0, 0.86 by default), the
+        theme fitted to the cue first (cue.stage_theme: the cue's tempo, whole bars looped); a
+        cue with a theme and no bpm takes its tempo; the melody score (core/abc.melody_match
+        of SheetSage2's transcriptions of the take and the theme, in the take's job, when
+        SheetSage2 is installed: optional, non-commercial) with takes under 30 % ranked last
+        (a filter on a floor, not a band: from a take there is no synth to show through);
+        a take pinned as a series theme from the editor (POST /seriesmith/cue/theme, written
+        into every episode's series config); the cue window's Theme picker, strength, the
+        takes' melody line and ★ Series theme (2026-11-03). Live on local ComfyUI: the graph
+        runs, both transcriptions come back, the score lands in the sidecar and ranks
+  - [x] the first-pass draft (2026-11-04): `seriesmith score-draft` (`--write`,
+        `--replace`, `--keep-sound`), `POST /seriesmith/cue/draft`, the spotting sheet's
+        **Draft…**, MCP `score_draft`. core/spotting.py the rules (stdlib), scoredraft.py the
+        episode (the cut, the story IR, cue specs d01... and mix hits dh01..., voices only);
+        the Music tables generated from STORY_STRUCTURES.md into core/structures.json
+        (tools/make_structures.py, checked by test_docs)
+  - [x] a show's own shape (2026-11-04): `sound.format` (`like`, `beats`, `other` with
+        `talk_max` and `lead` / `theme_else`, `marks`); `gaps` (music only where no one
+        speaks, runs within 10 s joined, under 10 s none); a cue split past 3 minutes at a
+        sequence. Porch Lights' format in all 40 episodes' series configs
+  - [x] drafting again (2026-11-04): a rendered draft cue kept on replace (`--rendered` /
+        **Rendered ones too** replaces those too; a series theme's cue, and one a kept cue
+        takes its theme from, always kept), a draft cue trimmed around a kept one (taking its
+        take as the story theme where it made it), a trimmed cue's label its remaining beats
+  - [x] character themes (2026-11-04): a series theme's `for` (whose it is: ★ Series theme's
+        **whose**), the episode's story theme whenever its character leads it; a narrator's
+        voice-over doesn't count toward who leads
+  - [x] a script with no beat lines (2026-11-04): said at the top of Draft; a structure laid
+        over the cut (spotting.layout: each beat at its `~%` from STORY_STRUCTURES' beat tables,
+        in structures.json as `at`, on the nearest sequence start) and written into the script
+        on ask (scoredraft.mark_script, the build's parse checked unchanged). Dean's seven built
+        episodes (ep04-06, 15, 17, 19, 30) marked so, corrected by their narration
+  - [x] the editor around it (2026-11-04): the cue window's cue picker (and ‹ ›, on the same
+        tab); each cue fitted to the window on open (useSize watching a grid that appears
+        later); hits dragged on the spotting map; the shot form's **Beat**, **Theme mark**
+        (`// beat:` / `// theme:` lines above the shot) and **Hit** (on its first frame), its
+        help linking the spotting sheet, a show's format's beats offered (GET
+        /seriesmith/structures); a cue that can't be planned says why (a shot under it with no
+        take yet, left out of the cut, gone from the script)
+  - [x] docs (2026-11-04): SOUND_GUIDE.md (the user's guide to the whole sound, in order: voices
+        only, ambience beds, effects, the drafted score, themes, the mix, export), SCORING's
+        first pass, AUTHORING's score lines and `sound.format`, the site's Sound page
+  - [ ] heard: the drafts on Porch Lights ep01 and Dean, themes made from their takes, then
+        Draft again with them (the user's)
+  - [x] the skill: `// structure:` and `// beat:` in STORY_STRUCTURES' From beats to shots
+        and the skill's outline step (converted scripts too); a Music table under each of
+        the 14 structures (treatment, mood and energy, `story`/`show`/`runner` theme, hit),
+        Episodic Drama (teaser and acts) added for procedurals and serial drama, and "Music
+        in every structure" (music in the scene, montage, titles, `// flashback`); prompts/
+        and the site regenerated (2026-11-03)
+  - [x] the draft's timing: a pre-lap (a cue starts a second before its beat's cut, in the
+        shot before) and a button (it ends on the beat's last cut; ending on a line: not
+        yet) (2026-11-04)
+  - [x] mark Dean Stories (Story Spine) and Fair Trade (Sitcom) with beat lines and show
+        their drafted spots as tables, to check the Music tables against real scripts
+        (2026-11-03: Dean ep35, ep38, FRTEST; four fixes from it: beats in a row are one cue,
+        bumpers at each new sequence location merged into stings, the Sitcom's fix held to
+        its last scene, music in the scene flagged rather than silenced; `// theme:` in
+        STORY_STRUCTURES for the moments the beats can't find)
+  - [ ] notes, optionally: ABC or a hummed idea -> a sketch -> a piano take (two passes);
+        deferred (2026-11-04: themes from takes cover it)
+  - [ ] the season view (themes by episode); deferred (the user, 2026-11-04: not needed yet)
+  - [ ] a cue that ends on a line rather than a cut (the draft's button, the rest of it)
 
 ## Fixed: the voice model is two lists (noted 2026-11-01)
 

@@ -94,7 +94,7 @@ PACKS: dict[str, dict] = {
 # The node classes seriesmith's graphs use (the shipped targets' workflows and
 # target.json, and the graphs built in Python: upscale, post, refs, chain) that
 # are ComfyUI's own, each found in ComfyUI's source (nodes.py, comfy_extras/,
-# comfy_api_nodes/; checked 2026-11-02). Nothing to install but a newer ComfyUI:
+# comfy_api_nodes/; checked 2026-11-02; SamplerCustom and SaveText 2026-11-03). Nothing to install but a newer ComfyUI:
 # a missing one says so. tests/test_features.py fails on a class a graph adds
 # that is neither one of these, seriesmith's own, nor a pack's above.
 CORE_CLASSES = frozenset({
@@ -116,7 +116,7 @@ CORE_CLASSES = frozenset({
     "ModelPatchLoader", "ModelSamplingAuraFlow", "ModelSamplingSD3", "OpticalFlowLoader",
     "QwenImage21Cache", "RandomNoise", "RebatchImages", "ReferenceLatent", "ReferenceMultiLatent",
     "ReferenceTimbreAudio", "RegexReplace", "RepeatImageBatch", "ResizeAndPadImage",
-    "ResizeImageMaskNode", "SUPIRApply", "SamplerCustomAdvanced", "SaveAudio", "SaveImage",
+    "ResizeImageMaskNode", "SUPIRApply", "SamplerCustom", "SamplerCustomAdvanced", "SaveAudio", "SaveImage", "SaveText",
     "SaveVideo", "SeedVR2Conditioning", "SeedVR2PostProcessing", "SeedVR2Preprocess",
     "SeedVR2TemporalChunk", "SeedVR2TemporalMerge", "SetLatentNoiseMask", "SheetSage2AudioToABC",
     "SolidMask", "SplitSigmas", "TextEncodeAceStepAudio1.5", "TextEncodeFibo2",
@@ -455,6 +455,10 @@ def catalog() -> list[Feature]:
                 [_pack("ComfyUI-LTXVideo")] + _target_items("ltx2_voice"), restart=True),
         target_feature("sound.score", "sound", "stable_audio3", "Music cues (Stable Audio 3 Medium)",
                        "Score's default: an instrumental cue from its words, on ComfyUI's own nodes."),
+        Feature("sound.score_theme", "sound", "A theme's melody score (SheetSage2)",
+                "Each take rendered from a theme scored by how much of its melody it kept, so the "
+                "ones that lost it rank last. Non-commercial licence (CC BY-NC 4.0).",
+                _optional_items("stable_audio3", "sheetsage")),
         target_feature("sound.songs", "sound", "yue2", "Songs (YuE2)",
                        "A song sung from its style words and lyrics, on ComfyUI's own nodes. "
                        "Non-commercial licence (CC BY-NC 4.0)."),

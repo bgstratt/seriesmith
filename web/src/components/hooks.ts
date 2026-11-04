@@ -59,16 +59,23 @@ export function aspectOf(st: EpisodeStatus | undefined): number {
 export function useSize<T extends HTMLElement>(): [React.RefObject<T>, { width: number; height: number }] {
   const ref = useRef<T>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const watched = useRef<{ el: T; ro: ResizeObserver } | null>(null);
+  // after every render: the element may appear later (a view that first shows a message in its
+  // place) or be another one; watch whichever is there now
   useEffect(() => {
     const el = ref.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
+    if (watched.current?.el === el || typeof ResizeObserver === "undefined") return;
+    watched.current?.ro.disconnect();
+    watched.current = null;
+    if (!el) return;
     const ro = new ResizeObserver(([e]) => {
       const r = e.contentRect;
       setSize((s) => (s.width === r.width && s.height === r.height ? s : { width: r.width, height: r.height }));
     });
     ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+    watched.current = { el, ro };
+  });
+  useEffect(() => () => watched.current?.ro.disconnect(), []);
   return [ref, size];
 }
 

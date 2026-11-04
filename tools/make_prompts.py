@@ -90,8 +90,11 @@ show's: add what the episode needs and change nothing else unasked, but if it ha
 Converting an existing screenplay, keep its story and dialogue and break it into shots
 (`references/script_conversion.md` works a scene through). Writing fresh, outline the story
 before the shots: if the person hasn't given it a shape, offer the menu in
-`references/story_structures.md` (with the questions above, in the same message), then mark
-each beat in the script with a `//` comment. Either way, write the film, not the model. Leave `target:` lines out unless a shot
+`references/story_structures.md` (with the questions above, in the same message). Either
+way, mark the structure and each beat in the script (`// structure:` near the top, `// beat:`
+above each beat's first shot; the structure that fits a converted screenplay best), so the
+score can be drafted from them (that file's **From beats to shots**). Write the film, not
+the model. Leave `target:` lines out unless a shot
 needs something only one model does (see **Choosing a video target**); advice that holds for
 one target only is marked with that target's name. Validate with `seriesmith check
 series.json <script>` and `--pace` before calling a script finished. Rendering, upscaling
@@ -103,9 +106,10 @@ BUNDLE_NOTE = """## Files in this skill
 - `references/script_conversion.md`: a spec-format screenplay scene worked through to shots, with
   where the cuts land and why. Read it when adapting existing script pages rather than
   writing shots directly.
-- `references/story_structures.md`: the story structures (three-act, Story Circle, Fable,
-  Kishōtenketsu, the Hero's Journey and its 27 beats, …), a menu to offer, each one's beats
-  with their share of the runtime, and how beats become shots. Read it when outlining an
+- `references/story_structures.md`: the story structures (three-act, Sitcom, Episodic Drama,
+  Story Circle, Fable, Kishōtenketsu, the Hero's Journey and its 27 beats, …), a menu to
+  offer, each one's beats with their share of the runtime and how each is scored, and how
+  beats become shots. Read it when outlining an
   episode written fresh.
 - `scripts/check.py` (with `scripts/seriesmith/`: the build, its core and the targets): the
   build, bundled so a script can be validated anywhere:

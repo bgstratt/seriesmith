@@ -288,6 +288,11 @@ def _voices(ep, rest):
     return VO.cmd_voices(ep, rest)
 
 
+def _score_draft(ep, rest):
+    from seriesmith import scoredraft as SD
+    return SD.cmd_score_draft(ep, rest)
+
+
 def _new(rest):
     from seriesmith import source as SRC
     return SRC.cmd_new(rest)
@@ -424,6 +429,9 @@ _TABLE = [
     Command("voices", "<episode> [--proxy] [--shots sh010,...] [--redo] [--list]",
             "the cut's takes split into their voice stems, for the mix's voices only",
             episode_first(_voices)),
+    Command("score-draft", "<episode> [--proxy] [--write] [--replace] [--keep-sound]",
+            "a first-pass score from the script's structure and beat lines, as draft cues",
+            episode_first(_score_draft)),
     Command("upscale", "<episode> [--only sh020,...] [--take N] [--redo] [--check]",
             "the final cut's takes upscaled", _module_main("seriesmith.upscale"), own_help=True),
     Command("post", "<episode> [--enhance draft|production|cinematic|...] [--recipe] [--check]",
