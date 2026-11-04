@@ -614,6 +614,19 @@ describe("the cue window", () => {
     });
   };
 
+  it("picks another cue from its head, on the same tab", async () => {
+    await api.putCue(EP, { id: "m02", label: "1M2 The Walk", in: { shot: "sh020", frame: 0 }, out: { shot: "sh030", frame: 40 } });
+    await open();
+    await act(async () => (q("[data-tab=arc]")[0] as HTMLButtonElement).click());
+    const pick = q("select[aria-label=Cue]")[0] as HTMLSelectElement;
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect([...pick.options].map((o) => o.textContent)).toEqual(["m01 · 1M1 The Reveal", "m02 · 1M2 The Walk"]);
+    expect((q("[aria-label='The cue before']")[0] as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => (q("[aria-label='The cue after']")[0] as HTMLButtonElement).click());
+    expect(store.get().viewer?.cue).toBe("m02");
+    expect(store.get().viewer?.cueTab).toBe("arc");
+  });
+
   it("lays the cue's hits, sections, arc and ranked takes on its bar grid", async () => {
     await open();
     expect(store.get().viewer?.kind).toBe("cue");

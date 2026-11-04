@@ -18,12 +18,12 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import { closeViewer, currentPlaylist } from "../actions";
-import { applyCuePreset, compCueTake, cueKey, deleteCue, loadCue, pickCueTake, pinCueTheme, renderCue, repaintCueTake, saveCue } from "../cueActions";
+import { applyCuePreset, compCueTake, cueKey, deleteCue, loadCue, loadCues, pickCueTake, pinCueTheme, renderCue, repaintCueTake, saveCue } from "../cueActions";
 import { isTyping } from "../cutActions";
 import { api, host } from "../host";
 import {
   ARC_SHAPES, KEYS, LEVEL_WORDS, METERS, ORCH_LEVELS, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, repaintLabel, repaintWhy, cueStart,
-  cueTitle, drawnPoints, editableSections, familyName, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, melodyText, mergeStroke, meterBeats,
+  drawnPoints, editableSections, familyName, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, melodyText, mergeStroke, meterBeats,
   meterText, mergeSections, moveEdge,
   movePoint, orchestraRows, sectionChoice, SCORE_SECTIONS, SONG_SECTIONS, paintOrchestra, patchSection, presetPoints, ranks, removeFamily, removePoint, renameFamily, sectionAt, sectionEdges, sectionWords, strokeLevel, ORCH_STEP,
   presetGroups, presetReplaces, sectionsFromArc, smoothPoints, snapToHits, splitPoint, splitSection, tauX, trimOrchestra, withEnergies, withSpec, wordsOffArc, xTau, yLevel,
@@ -33,6 +33,7 @@ import { fmtClock } from "../lib/format";
 import { HIT_KIND_TITLE } from "../lib/mix";
 import { lowerMixItem } from "../mixActions";
 import { clipTake, type PlayItem } from "../lib/playlist";
+import { openCueFromSpot } from "../spotActions";
 import { useApp, statusKey, type ViewerState } from "../store";
 import type { CuePlan, CuePreset, CueResult, CueSection, CueSpec, CueTake, Pass, Target } from "../types";
 import { SongLine, SongStrip, ThemeField } from "./CueTheme";
@@ -169,6 +170,31 @@ function useCuePresets(): CuePreset[] {
   return list;
 }
 
+/** The cue the window shows, picked from the episode's cues (and ‹ › to the one before or after),
+ * on the same tab; the list is the episode's (loaded when the window first needs it). */
+function CuePicker({ ep, cue, tab }: { ep: string; cue: string; tab: CueTab }) {
+  const cues = useApp((s) => s.cues[ep]);
+  useEffect(() => {
+    if (!cues) void loadCues(ep);
+  }, [ep, !cues]);
+  const list = cues ?? [];
+  const i = list.findIndex((c) => c.spec.id === cue);
+  const go = (to: string | undefined) => to && to !== cue && openCueFromSpot(to, tab);
+  return (
+    <span className="h3-row" style={{ gap: 2 }}>
+      <button className="h3-btn h3-icon" aria-label="The cue before" title="The cue before" disabled={i <= 0}
+        onClick={() => go(list[i - 1]?.spec.id)}><i className="pi pi-angle-left" /></button>
+      <select className="h3-in" aria-label="Cue" title="The cue shown: pick another to see it on this tab" value={cue}
+        style={{ width: "auto", maxWidth: 260, fontWeight: 600 }} onChange={(e) => go(e.target.value)}>
+        {i < 0 && <option value={cue}>{cue}</option>}
+        {list.map((c) => <option key={c.spec.id} value={c.spec.id}>{[c.spec.id, c.spec.label, c.spec.kind === "song" ? "song" : ""].filter(Boolean).join(" · ")}</option>)}
+      </select>
+      <button className="h3-btn h3-icon" aria-label="The cue after" title="The cue after" disabled={i < 0 || i >= list.length - 1}
+        onClick={() => go(list[i + 1]?.spec.id)}><i className="pi pi-angle-right" /></button>
+    </span>
+  );
+}
+
 /** A level as words: "3 moderate", "3.5". */
 const levelText = (v: number) => (Number.isInteger(v) ? `${v} ${LEVEL_WORDS[v]}` : String(v));
 const tn = (n: number) => `t${String(n).padStart(2, "0")}`;
@@ -224,8 +250,8 @@ export function CueWindow({ ep, v: opened }: { ep: string; v: ViewerState }) {
   const head = (
     <>
       <i className="pi pi-volume-up" style={{ color: "var(--h3-arc)" }} />
-      <b>{id}</b>
-      <span className="h3-muted h3-small">{res ? cueTitle(res.spec) : ""} · {v.pass}</span>
+      <CuePicker ep={ep} cue={id} tab={tab} />
+      <span className="h3-muted h3-small">{v.pass}</span>
       <ScoringTabs active={tab} cue={id || null} onCueTab={setTab} />
       <button className={`h3-btn h3-icon${help[tab] ? " h3-on" : ""}`} title="How to use this tab" aria-label="How to use this tab" aria-pressed={help[tab]}
         onClick={() => showHelp(!help[tab])}><i className="pi pi-question" /></button>
