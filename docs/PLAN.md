@@ -1956,8 +1956,18 @@ the show, keys to the machine; a voice is heard before any line is paid for. Eac
 is asked for first.
 
 **1. The mapper apart from Router** (the goldens byte-identical)
-- [ ] One check for "this target is hosted" in place of the 31 `get("router")`-style checks in 14 files.
-- [ ] One mapper (`targets/generic/`), from `router_call`, `router_image` and `cue.hosted_call`.
+- [x] One check for "this target is hosted" (`targets.is_hosted`) and one reader of its block
+      (`targets.hosted_block`) in place of the `get("router")`-style checks across the package;
+      only `targets/__init__.py` and `limits.py` (which writes into the block) name it, and the
+      dry run's route, which takes a Router target by name (`tests/test_request_map.py` holds this).
+- [x] The mapping's functions in one place (`targets/generic/request_map.py`), from `router_video`,
+      `router_image` and `cue.hosted_call`, which now takes its prompt and lyrics in any place an
+      input can name. The Router goldens unchanged. What a request contains stays with its
+      caller; there's no one function for all three, as pictures differ too much.
+- Found, left as is: video and image pick a ratio by different rules (`nearest_ratio`,
+  `nearest_ratio_log`), which disagree for shapes between two ratios (1360x1000 between 1:1 and
+  16:9), and video's can't read a ratio like `2.35:1` (`int`). Merging them changes requests:
+  do it on purpose, with the goldens, if at all.
 
 **2. Prompt parts and templates** (the goldens byte-identical)
 - [ ] Writers give parts; each default template reproduces today's prompt exactly.

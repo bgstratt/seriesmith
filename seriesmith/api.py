@@ -2937,7 +2937,7 @@ def post_cue_render(ctx: Context, body):
     count = n or CU.takes_wanted(target, pass_, spec)
     # a hosted model (target.json `router`: Pika Music) is a Router call, whatever backend
     # the body names
-    hosted = bool(target.spec.get("router"))
+    hosted = TG.is_hosted(target.spec)
     backend = "router" if hosted else finish_backend(ctx, body)
     if hosted and ctx.runner.backend(backend) is None:
         raise ApiError(409, f"{target.label} runs on Comfy Router: set a Comfy API key in Settings")
@@ -3671,7 +3671,7 @@ def get_router_models(ctx: Context, query: dict):
     ep = check_ep(ctx, query.get("ep")) if query.get("ep") else None
     added = {}
     for t in TG.list_targets(root=ep):
-        m = (t.spec.get("router") or {}).get("model")
+        m = TG.hosted_block(t.spec).get("model")
         if m:
             added.setdefault(m, t.id)
     out = []
@@ -3728,7 +3728,7 @@ def put_targets_custom(ctx: Context, body):
     except Exception:
         info = None
     name = ((spec.get("binding") or {}).get("workflow_name") or "")
-    if name and spec.get("router") is None:
+    if name and not TG.is_hosted(spec):
         try:
             data = ctx.comfy.userdata(f"workflows/{name}")
         except Exception:
@@ -3739,7 +3739,7 @@ def put_targets_custom(ctx: Context, body):
         else:
             graph = J.graph_from(data, name)
     problems = IN.validate_spec(spec, graph, info)
-    if graph is None and spec.get("router") is None:
+    if graph is None and not TG.is_hosted(spec):
         problems = [p for p in problems] + [
             f"no workflow called {name} is saved in ComfyUI, so the binding can't be checked: "
             f"save the graph there first (its name is binding.workflow_name)"]
@@ -3843,9 +3843,9 @@ def put_targets_limits(ctx: Context, body):
     if limits is not None and not isinstance(limits, dict):
         raise ApiError(400, "limits must be an object (seriesmith.limits sections), or null")
     limits = {k: v for k, v in (limits or {}).items() if k in L.SECTIONS}
-    if t.spec.get("router") is None and t.kind == "image" and limits:
+    if not TG.is_hosted(t.spec) and t.kind == "image" and limits:
         raise ApiError(400, f"{t.id} is a local workflow: its limits are what its graph does")
-    if t.spec.get("router") is None and t.kind == "video":
+    if not TG.is_hosted(t.spec) and t.kind == "video":
         extra = set(limits) - LOCAL_LIMITS
         pics = set((limits.get("pictures") or {})) - {"needs_first"}
         if extra or pics:
@@ -3874,7 +3874,7 @@ def put_targets_limits(ctx: Context, body):
             spec = L.apply(t.spec, limits)
         except ValueError as e:
             raise ApiError(400, str(e))
-        problems = IN.validate_spec(dict(spec)) if spec.get("router") is not None else []
+        problems = IN.validate_spec(dict(spec)) if TG.is_hosted(spec) else []
         problems = [p for p in problems if "built-in target's name" not in p]
         if problems:
             raise ApiError(400, "those limits can't be used: " + problems[0], problems=problems)
@@ -3903,7 +3903,7 @@ def post_targets_router_dryrun(ctx: Context, body):
             spec = TG.load_target(spec, "video", root=ep).spec
         except TG.TargetError as e:
             raise ApiError(404, str(e))
-    if not isinstance(spec, dict) or not isinstance(spec.get("router"), dict):
+    if not isinstance(spec, dict) or not isinstance(spec.get("router"), dict):  # a Router target's, by name
         raise ApiError(400, "target must be a Router target's target.json, or its id")
     spec = _with_limits(spec, body.get("limits"))
     if spec.get("kind") == "image":

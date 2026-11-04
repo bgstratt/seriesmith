@@ -74,7 +74,7 @@ def episode_bound(g: dict) -> list[str]:
 
 def hosted(target: TG.Target) -> bool:
     """A target rendered by a model call, not a workflow (target.json `router`)."""
-    return bool(target.spec.get("router"))
+    return TG.is_hosted(target.spec)
 
 
 def parse_args(argv):

@@ -1945,7 +1945,7 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
         # cut, when that is in this batch.
         try:
             t = J.job_target(job)
-            graph = None if t.spec.get("router") else (
+            graph = None if J.TG.is_hosted(t.spec) else (
                 base(job.target) if callable(base) else base)
             name, _src, note = J.backend_choice(ov, sid, t, backend, root)
             if note:

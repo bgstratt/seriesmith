@@ -362,9 +362,10 @@ class Runner:
         import os
 
         from seriesmith import refs as R
+        from seriesmith import targets as TG
 
         backend = self.backend_for(backend_name)
-        hosted = bool(job.target.spec.get("router"))
+        hosted = TG.is_hosted(job.target.spec)
         if not hosted:
             # what its node pack would fetch by itself (an ambience bed's BigVGAN), not
             # downloaded: refused before anything is reserved

@@ -40,6 +40,8 @@ NEEDS_FIRST = ("{model} starts every shot from its first frame: generate one, im
 
 
 def _router(spec: dict) -> dict | None:
+    """The hosted block this module reads and writes in place (targets.hosted_block's, but
+    None rather than a new {} when there's none: `apply` mustn't write into a throwaway)."""
     return spec.get("router") if isinstance(spec.get("router"), dict) else None
 
 

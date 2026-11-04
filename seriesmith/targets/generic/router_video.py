@@ -64,7 +64,11 @@ import copy
 import os
 import re
 
+from seriesmith.targets import hosted_block
 from seriesmith.targets import moderate as MOD
+from seriesmith.targets.generic.request_map import (  # noqa: F401
+    NAMED, append, field_name, fill, fit, max_chars, nearest_ratio, nearest_resolution, place,
+    put, put_seed, seconds_for, size_of)
 from seriesmith.targets.generic import video_prose as G
 
 compile_episode = G.compile_episode
@@ -98,134 +102,7 @@ def panel_file(sheet: str, panels: int, index: int) -> str:
 
 # -- snapping to what the model takes ------------------------------------------
 
-def nearest_ratio(width: int, height: int, ratios: list[str]) -> str:
-    """The ratio (e.g. "16:9") nearest the picture's shape ("adaptive" and
-    the like are not shapes: left out)."""
-    want = width / height
-    shapes = [r for r in ratios if ":" in r]
-
-    def off(r: str) -> float:
-        a, b = (int(x) for x in r.split(":"))
-        return abs(a / b - want)
-    return min(shapes, key=off)
-
-
-# named sizes, by their height
-NAMED = {"2k": 1440, "4k": 2160, "8k": 4320, "uhd": 2160, "fhd": 1080, "hd": 720, "sd": 480}
-
-
-def size_of(name: str) -> tuple[int | None, int]:
-    """A size's (width or None, height): "1280x720" / "1280*720" -> (1280, 720),
-    "720p" / "768P" -> (None, 720), "2K" -> (None, 1440)."""
-    s = str(name).strip().lower()
-    m = re.fullmatch(r"(\d+)\s*[x*]\s*(\d+)", s)
-    if m:
-        return int(m.group(1)), int(m.group(2))
-    m = re.fullmatch(r"(\d+)p", s)
-    if m:
-        return None, int(m.group(1))
-    return None, NAMED.get(s, 0)
-
-
-def nearest_resolution(width: int, height: int, values) -> str:
-    """The model's name for the size nearest (width, height): `values` is
-    {"480": "480p", ...} by height, or a list of names or WxH sizes (one of
-    the same shape preferred)."""
-    if isinstance(values, dict):
-        best = min(values, key=lambda h: abs(int(h) - height))
-        return values[best]
-    landscape = width >= height
-
-    def off(v):
-        w, h = size_of(v)
-        if w is None:
-            return (0, abs(h - min(width, height) if not landscape else h - height))
-        same = (w >= h) == landscape
-        return (0 if same else 1, abs(w * h - width * height))
-    return min(values, key=off)
-
-
-def seconds_for(frames: int, fps: float, spec: dict):
-    """A length in whole seconds the model takes: the nearest of `values`,
-    else clamped to [min, max]; as a string when `as` says "str"."""
-    s = max(1, round(frames / (fps or 24)))
-    if spec.get("values"):
-        s = min(spec["values"], key=lambda v: abs(float(v) - s))
-        s = int(float(s))
-    else:
-        s = max(int(spec.get("min", s)), min(int(spec.get("max", s)), s))
-    return str(s) if spec.get("as") == "str" else s
-
-
 # -- where values go -------------------------------------------------------------
-
-def _name(spec) -> str | None:
-    """The field an input names: "x", {"name": "x"} or {"field": "x"}."""
-    if isinstance(spec, str):
-        return spec
-    return (spec or {}).get("name") or (spec or {}).get("field")
-
-
-def put(args: dict, path: str, value) -> None:
-    """Set `value` at the dotted `path` ("instances.0.image"), making the
-    dicts and lists on the way."""
-    keys = path.split(".")
-    cur = args
-    for i, k in enumerate(keys):
-        last = i == len(keys) - 1
-        nxt = None if last else ([] if keys[i + 1].isdigit() else {})
-        if isinstance(cur, list):
-            n = int(k)
-            while len(cur) <= n:
-                cur.append({} if nxt is None or isinstance(nxt, dict) else [])
-            if last:
-                cur[n] = value
-            else:
-                if not isinstance(cur[n], type(nxt)):
-                    cur[n] = nxt
-                cur = cur[n]
-        else:
-            if last:
-                cur[k] = value
-            else:
-                if not isinstance(cur.get(k), type(nxt)):
-                    cur[k] = nxt
-                cur = cur[k]
-
-
-def append(args: dict, path: str, item) -> None:
-    """Append `item` to the list at `path`, made when it isn't there."""
-    keys = path.split(".")
-    cur = args
-    for k in keys[:-1]:
-        cur = cur[int(k)] if isinstance(cur, list) else cur.setdefault(k, [] if k.isdigit() else {})
-    lst = cur.setdefault(keys[-1], []) if isinstance(cur, dict) else cur[int(keys[-1])]
-    lst.append(item)
-
-
-def fill(template, **values):
-    """The item `template` with "$prompt", "$url"... filled in."""
-    if isinstance(template, str) and template.startswith("$") and template[1:] in values:
-        return values[template[1:]]
-    if isinstance(template, dict):
-        return {k: fill(v, **values) for k, v in template.items()}
-    if isinstance(template, list):
-        return [fill(v, **values) for v in template]
-    return template
-
-
-def place(args: dict, spec, **values) -> None:
-    """One input set where `spec` says: a field (the value itself, or its
-    `item` filled in) or a list it is appended to (its `item` filled in)."""
-    if isinstance(spec, str):
-        put(args, spec, next(iter(values.values())))
-        return
-    item = fill(spec["item"], **values) if "item" in spec else next(iter(values.values()))
-    if spec.get("list"):
-        append(args, spec["list"], item)
-    else:
-        put(args, _name(spec), item)
-
 
 # -- the shot's pictures -----------------------------------------------------------
 
@@ -260,22 +137,6 @@ def pictures(target, job, shot: dict, inp: dict, frames_ok: bool = True):
             out.append(("references", path, p.get("subject") or p.get("location") or ""))
     total = inp["references"].get("max_total")
     return "references", out[:total] if total else out
-
-
-def fit(text: str, most: int) -> str:
-    """`text` in at most `most` characters, by whole sentences: the style line
-    goes first, then sentences from the start (the place, then the people's
-    looks, which the pictures carry), so what happens -- the action, the
-    dialogue, the sound, at the end -- stays; cut mid-sentence only when the
-    last one alone is longer than that."""
-    if len(text) <= most:
-        return text
-    sents = [s.strip() for s in re.findall(r"[^.!?]*[.!?]+[\"”')]*|[^.!?]+$", text) if s.strip()]
-    sents = [s for s in sents if not s.startswith("Style:")] or sents
-    while len(sents) > 1 and len(" ".join(sents)) > most:
-        sents.pop(0)
-    out = " ".join(sents)
-    return out if len(out) <= most else out[:most].rstrip()
 
 
 def mentions(template: str, pics: list, shot: dict) -> str:
@@ -471,7 +332,7 @@ def check_ratios(target, pics: list) -> None:
     It says which picture and leaves it as it is: a paid call never crops or
     pads a picture by itself, so the cut (the sides, or another plate) is the
     user's to choose."""
-    lo, hi = (target.spec.get("router") or {}).get("picture_ratio") or (None, None)
+    lo, hi = hosted_block(target.spec).get("picture_ratio") or (None, None)
     if lo is None:
         return
     from seriesmith.refs import image_size
@@ -495,10 +356,10 @@ def router_call(target, job) -> tuple[str, dict]:
     from seriesmith import jobs as J
     from seriesmith.backends import File
 
-    spec = target.spec["router"]
+    spec = hosted_block(target.spec)
     inp = spec.get("inputs") or {}
     draft = spec.get("draft") or {}
-    res_name = _name(inp.get("resolution")) or "resolution"
+    res_name = field_name(inp.get("resolution")) or "resolution"
     if getattr(job, "from_draft", None):
         # the final of a draft: its task id alone; the provider reuses the
         # draft's prompt, pictures, length, ratio, seed and sound
@@ -537,7 +398,7 @@ def router_call(target, job) -> tuple[str, dict]:
             if (inp.get("references") or {}).get("define") and mode == "references" and pics else "")
     # the audio named after the pictures ("Use @Audio 1 as the voice of Ada.")
     head = "\n\n".join(x for x in (head, voice_line) if x)
-    limit = pspec.get("max_chars") if isinstance(pspec, dict) else None
+    limit = max_chars(pspec)
     if limit:
         text = fit(text, limit - sum(len(x) + 2 for x in (head, tail) if x))
     if head:
@@ -581,7 +442,7 @@ def router_call(target, job) -> tuple[str, dict]:
     fps = job.fps or target.template.fps
     w, h = int(job.width or 1280), int(job.height or 720)
     if inp.get("duration"):
-        put(args, _name(inp["duration"]), seconds_for(job.frames, fps, inp["duration"]))
+        put(args, field_name(inp["duration"]), seconds_for(job.frames, fps, inp["duration"]))
     if inp.get("resolution"):
         put(args, res_name, nearest_resolution(w, h, inp["resolution"]["values"]))
     ratio = inp.get("ratio")
@@ -589,18 +450,18 @@ def router_call(target, job) -> tuple[str, dict]:
         frames_mode = ratio.get("with_frames", "omit")
         if mode == "frames" and frames_mode != "keep":
             if frames_mode != "omit":
-                put(args, _name(ratio), frames_mode)                 # e.g. "adaptive"
+                put(args, field_name(ratio), frames_mode)                 # e.g. "adaptive"
         else:
-            put(args, _name(ratio), nearest_ratio(w, h, ratio["values"]))
+            put(args, field_name(ratio), nearest_ratio(w, h, ratio["values"]))
     if inp.get("seed"):
-        put(args, _name(inp["seed"]), int(job.seed) % (int(inp["seed"].get("max", 4294967295)) + 1))
+        put_seed(args, inp["seed"], job.seed, 4294967295)
     if inp.get("audio"):
         a = inp["audio"]
         on = shot.get("audio_policy") != "silent"
-        put(args, _name(a), a.get("on", True) if on else a.get("off", False))
+        put(args, field_name(a), a.get("on", True) if on else a.get("off", False))
     if inp.get("mode"):
         m = inp["mode"]
-        put(args, _name(m), m["frames"] if mode == "frames" and pics else
+        put(args, field_name(m), m["frames"] if mode == "frames" and pics else
             m.get("references" if pics else "text", m.get("text")))
 
     # a proxy is a draft (Seedance 2.5): its final can be made from it

@@ -327,12 +327,12 @@ def _edit_models() -> str:
     words runs on any of them), by their short names."""
     from seriesmith import targets as TG
     return ", ".join(t.short for t in TG.list_targets("image")
-                     if TG.can_edit(t) and not t.spec.get("router") and not t.draft)
+                     if TG.can_edit(t) and not TG.is_hosted(t.spec) and not t.draft)
 
 
 def _hosted_models(kind: str) -> list:
     from seriesmith import targets as TG
-    return [t for t in TG.list_targets(kind) if t.spec.get("router")]
+    return [t for t in TG.list_targets(kind) if TG.is_hosted(t.spec)]
 
 
 def _names(targets: list) -> str:
@@ -780,7 +780,7 @@ def missing_core(known) -> dict[str, list[str]]:
         return {}
     users: dict[str, list[str]] = {c: [] for c in gone}
     for t in TG.list_targets():
-        if t.spec.get("router"):
+        if TG.is_hosted(t.spec):
             continue
         try:
             need = E.target_nodes(t)

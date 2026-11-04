@@ -3787,7 +3787,7 @@ def queue_generate(s: Series, req: GenRequest, comfy, base=None,
     graphs: dict = {}
 
     def graph_base(t):
-        if t.spec.get("router"):
+        if TG.is_hosted(t.spec):
             return None                      # a hosted model: one call, no workflow
         if callable(base):
             return base(t.id)

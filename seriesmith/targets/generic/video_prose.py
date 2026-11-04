@@ -195,7 +195,7 @@ def voice_refs(ctx: "Ctx", shot: ir.Shot) -> list[dict]:
     voices the model takes (router.inputs.voices.max)."""
     book = ctx.series_cfg["subjects"]
     who = list(dict.fromkeys(d.speaker for d in shot.dialogue if d.speaker in book))
-    most = int((((ctx.target.spec.get("router") or {}).get("inputs") or {}).get("voices") or {})
+    most = int(((TG.hosted_block(ctx.target.spec).get("inputs") or {}).get("voices") or {})
                .get("max") or 0)
     if most and len(who) > most:
         raise ValueError(f"shot {shot.id}: {len(who)} speakers, and clone mode sends one voice "
@@ -254,8 +254,7 @@ def capped(pics: list[dict], target) -> tuple[list[dict], list[dict]]:
     """(the panels a hosted model is sent, the ones it isn't), by the rule
     router_video.pictures sends them: the subjects up to its `max`, then the
     plate, all of it cut to its `max_total`. Everything for a local target."""
-    refs = (((target.spec.get("router") or {}).get("inputs") or {}).get("references")
-            if isinstance(target.spec.get("router"), dict) else None)
+    refs = (TG.hosted_block(target.spec).get("inputs") or {}).get("references")
     if not refs:
         return list(pics), []
     most = refs.get("max") or target.capabilities().get("max_subjects") or 99

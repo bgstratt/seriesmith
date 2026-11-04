@@ -218,7 +218,7 @@ def _picture_item(doc: dict, v: dict):
 
 def _sizes(values: list[str]) -> dict:
     """final and proxy (width, height) from a model's resolutions."""
-    from seriesmith.targets.generic.router_video import size_of
+    from seriesmith.targets.generic.request_map import size_of
 
     def dims(v):
         w, h = size_of(v)
@@ -416,7 +416,7 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
 
     # nested fixed arguments (sampleCount under parameters) go in by path
     arguments: dict = {}
-    from seriesmith.targets.generic.router_video import put
+    from seriesmith.targets.generic.request_map import put
     for path, value in args.items():
         put(arguments, path, value)
 
@@ -657,7 +657,7 @@ def propose_image(model: str, doc: dict) -> dict:
         warnings.append("no size field was found: the model's own default size")
 
     arguments: dict = {}
-    from seriesmith.targets.generic.router_video import put
+    from seriesmith.targets.generic.request_map import put
     for path, value in args.items():
         put(arguments, path, value)
     placed = {str(m.get("list") or _name(m)) if isinstance(m, dict) else m
@@ -695,5 +695,5 @@ def _max_from(v: dict, default: int) -> int:
 
 
 def put_path(args: dict, path: str, value) -> None:
-    from seriesmith.targets.generic.router_video import put
+    from seriesmith.targets.generic.request_map import put
     put(args, path, value)

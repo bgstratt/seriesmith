@@ -124,6 +124,20 @@ PASSES = ("final", "proxy")
 # Cloud, a Comfy API deployment of the target's workflow, or a hosted model
 # through Comfy Router.
 BACKENDS = ("local", "cloud", "deployment", "router")
+
+
+def is_hosted(spec: dict) -> bool:
+    """Whether a target.json is a hosted model, rendered by a call rather than a workflow.
+    Ask this rather than looking for its block: where a model is hosted can change, and
+    what follows from being hosted (no workflow, no model files) doesn't."""
+    return spec.get("router") is not None
+
+
+def hosted_block(spec: dict) -> dict:
+    """The block of a target.json saying how its hosted model is called (its model id,
+    its fixed arguments, where each value goes): {} when it has none."""
+    block = spec.get("router")
+    return block if isinstance(block, dict) else {}
 # A target that renders a ComfyUI workflow runs where that workflow can: your
 # own ComfyUI, Comfy Cloud (with Cloud's own nodes in place of seriesmith's:
 # seriesmith/cloud.py; what Cloud hasn't, it says when the job starts), or a
@@ -744,7 +758,7 @@ class Target:
         entry. A hosted model (target.json `router`) names none: its preset's
         `model` is the provider's model id, not a file."""
         out: dict[str, str] = {}
-        if self.spec.get("router"):
+        if is_hosted(self.spec):
             return out
 
         def add(name, param):
@@ -1366,7 +1380,7 @@ def default_candidates(kind: str) -> list[Target]:
     order they're preferred (target.json `default_rank`): local ones only,
     never a draft or a paid hosted model."""
     out = [t for t in list_targets(kind)
-           if t.default_rank is not None and not t.draft and not t.spec.get("router")]
+           if t.default_rank is not None and not t.draft and not is_hosted(t.spec)]
     return sorted(out, key=lambda t: (t.default_rank, t.id))
 
 
