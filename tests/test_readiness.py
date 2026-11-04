@@ -674,12 +674,18 @@ class LoraSpecTest(unittest.TestCase):
 
 class DownloadsDataTest(unittest.TestCase):
     def test_every_named_file_has_a_download_entry(self):
+        from seriesmith import jobs as J
+        from seriesmith.backends import partner
         for t in TG.list_targets():
             named = t.named_files()
-            if t.spec.get("router") or t.spec.get("local_render"):   # hosted, or held here: no files
+            # hosted (Router, or a Comfy partner node in its workflow), or held here: no files
+            hosted = bool(t.spec.get("router")) or (t.binding.workflow and partner(
+                J.target_workflow(t, None, None, required=True, prefer_repo=True)[0]))
+            if hosted or t.spec.get("local_render"):
                 self.assertEqual((named, t.downloads), ({}, {}), t.id)
                 continue
-            self.assertTrue(named, t.id)
+            # its files named, or all fetched whole (target.json `fetches`: Magenta RT 2)
+            self.assertTrue(named or t.fetches, t.id)
             self.assertEqual(set(named) - set(t.downloads), set(), t.id)
             for name, d in t.downloads.items():
                 self.assertEqual(set(d), {"folder", "url", "source"}, (t.id, name))

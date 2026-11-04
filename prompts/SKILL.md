@@ -1278,6 +1278,8 @@ What each video model takes (generated from the models by `python tools/make_ref
 | `ltx2_msr` | LTX+MSR | your ComfyUI | 4 subjects + the plate | — | `Image N`, by their order |
 | `minimax_h3_fl2va` | H3 FL2V | your ComfyUI | none | first and last | — |
 | `minimax_h3_ref2va` | H3 | your ComfyUI | 3 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
+| `pika_h3_flex` | Pika Flex | your ComfyUI | 3 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
+| `pika_h3_flex_fl2va` | Pika Flex FL2VA | your ComfyUI | none | first and last | — |
 | `wan22_i2v` | Wan I2V | your ComfyUI | none | first and last | — |
 | `wan22_ti2v` | Wan 5B | your ComfyUI | none | first | — |
 | `wan22_vace` | Wan+refs | your ComfyUI | one picture made from the subjects' sheets | first and last | by their order |

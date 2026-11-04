@@ -48,7 +48,7 @@ class LoadingTest(unittest.TestCase):
     def test_list_and_load(self):
         ids = {(t.kind, t.id) for t in TG.list_targets()}
         self.assertEqual(ids - {(k, r) for r in ROUTER for k in ("video", "image")}, {("video", H3), ("video", "hold"), ("video", "h3_singularity"), ("video", "h3_singularity_fl2va"), ("video", "fasth3_fl2va"), ("video", "ltx2"), ("video", "ltx2_ingredients"), ("video", "ltx2_msr"),
-                               ("video", "minimax_h3_fl2va"), ("video", "wan22_i2v"),
+                               ("video", "minimax_h3_fl2va"), ("video", "pika_h3_flex"), ("video", "pika_h3_flex_fl2va"), ("video", "wan22_i2v"),
                                ("video", "seedance_2_5"),
                                ("video", "wan22_ti2v"), ("video", "wan22_vace"), ("image", "krea2"),
                                ("music", "stable_audio3"), ("music", "ace_step15"), ("music", "yue2"), ("music", "minimax_music3"), ("music", "minimax_music3_cloud"), ("music", "mrt2"), ("music", "pika_music"),
@@ -65,7 +65,7 @@ class LoadingTest(unittest.TestCase):
                                ("image", "fibo2_dev"), ("image", "fibo2_edit_turbo"),
                                ("audio", "ltx2_voice")})
         self.assertEqual([t.id for t in TG.list_targets("video") if t.id not in ROUTER],
-                         ["fasth3_fl2va", "fasth3_omni", "h3_singularity", "h3_singularity_fl2va", "hold", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", H3, "seedance_2_5",
+                         ["fasth3_fl2va", "fasth3_omni", "h3_singularity", "h3_singularity_fl2va", "hold", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", H3, "pika_h3_flex", "pika_h3_flex_fl2va", "seedance_2_5",
                           "wan22_i2v", "wan22_ti2v", "wan22_vace"])
         self.assertIs(TG.load_target(H3), TG.load_target(H3))
         with self.assertRaises(TG.TargetError) as cm:
@@ -200,7 +200,8 @@ class ProfileTest(unittest.TestCase):
         known = str(cm.exception).split("(known: ")[1].split(")")[0].split(", ")
         self.assertEqual(sorted(set(known) - ROUTER),
                          ["fasth3_fl2va", "fasth3_omni", "h3_singularity", "h3_singularity_fl2va", "hold", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va",
-                          "minimax_h3_ref2va", "seedance_2_5", "wan22_i2v", "wan22_ti2v", "wan22_vace"])
+                          "minimax_h3_ref2va", "pika_h3_flex", "pika_h3_flex_fl2va", "seedance_2_5", "wan22_i2v",
+                          "wan22_ti2v", "wan22_vace"])
         # sh320 names the series target itself, which beats its profile's; sh330
         # takes the profile's
         self.assertIn("shot sh330:", str(cm.exception))
@@ -430,7 +431,7 @@ class TargetsRouteTest(ApiTest):
     def test_targets(self):
         data = self.ok(A.get_targets(self.ctx, {}))
         by = {t["id"]: t for t in data["targets"]}
-        self.assertEqual(set(by) - ROUTER, {H3, "hold", "h3_singularity", "h3_singularity_fl2va", "fasth3_fl2va", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", "krea2",
+        self.assertEqual(set(by) - ROUTER, {H3, "hold", "h3_singularity", "h3_singularity_fl2va", "fasth3_fl2va", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", "pika_h3_flex", "pika_h3_flex_fl2va", "krea2",
                                    "wan22_i2v", "wan22_ti2v", "wan22_vace", "z_image_turbo",
                                    "stable_audio3", "ace_step15", "yue2", "minimax_music3", "minimax_music3_cloud", "mrt2", "pika_music", "mmaudio_ambience", "sa3_sfx_ambience",
                                    "h3_foley", "ltx23_foley", "hunyuan_xl_foley",

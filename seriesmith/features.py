@@ -392,6 +392,11 @@ def catalog() -> list[Feature]:
                 "before (FastH3 FL2VA). Shares H3's text encoder and VAEs.",
                 _merge(_target_items("fasth3_omni"), _target_items("fasth3_omni_still"),
                        _target_items("fasth3_fl2va"))),
+        Feature("video.pika_h3_flex", "video", "Pika H3 Flex",
+                "Pika's six-step post-training of H3 (two LoRAs, about 2 GB each, on H3's own files): "
+                "Ref2VA shots, and the ones that carry on from the one before (FL2VA). MiniMax H3 "
+                "Community License.",
+                _merge(_target_items("pika_h3_flex"), _target_items("pika_h3_flex_fl2va"))),
         Feature("video.h3_singularity", "video", "H3 Singularity",
                 "AIGC-Singularity's fine-tune of H3 Ref2VA (clearer HDR, distant faces, motion), and "
                 "its shots that carry on from the one before. H3's text encoder, VAEs and turbo "
