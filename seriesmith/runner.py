@@ -561,8 +561,8 @@ class Runner:
         self._submit(qjob)
         return n, qjob.id
 
-    def enqueue_cue(self, root: str, cid: str, n: int, graph: dict, p: dict,
-                    backend_name: str) -> str:
+    def enqueue_cue(self, root: str, cid: str, n: int, graph: dict | None, p: dict,
+                    backend_name: str, call: tuple | None = None) -> str:
         """A music cue's take (cue.py: its sidecar reserved, its graph, the cue's plan)
         queued: the audio that comes back is kept, stretched to the cue's tempo and
         measured (cue.finish_take). Returns the queue's job id."""
@@ -582,7 +582,8 @@ class Runner:
         def work(qjob: QJob, report) -> str:
             progress = progress_to(report)
             try:
-                run = backend.submit(graph)
+                # a hosted model's take is one call (Router: `call` is (model, arguments))
+                run = backend.call(*call) if call else backend.submit(graph)
                 self.started(qjob, run, backend, report)
                 CU.update(root, cid, n, backend_job=run.id)
                 status = run.watch(on_progress=progress)
@@ -592,7 +593,7 @@ class Runner:
                 if not outs:
                     raise RuntimeError("the job finished but returned no audio")
                 # a song's plan, saved beside it as text (YuE2: as written, and as sung)
-                roles = CU.plan_outputs(graph)
+                roles = CU.plan_outputs(graph) if graph else {}
                 plans = {}
                 for o in run.outputs():
                     if o.node in roles and o.type in ("file", "text"):

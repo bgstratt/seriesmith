@@ -38,6 +38,27 @@ def output_type(url: str) -> str:
     return _TYPES.get(os.path.splitext(urllib.parse.urlparse(url).path)[1].lower(), "file")
 
 
+def typed_urls(value: Any) -> dict[str, str]:
+    """{url: type} for the URLs a result gives beside their MIME type ({"url",
+    "content_type"}: Pika's media; or "mimeType"), where the URL itself may have no
+    extension to tell."""
+    out: dict[str, str] = {}
+
+    def walk(v):
+        if isinstance(v, dict):
+            u, mime = v.get("url"), v.get("content_type") or v.get("mimeType") or v.get("mime_type")
+            kind = str(mime).split("/")[0] if mime else ""
+            if isinstance(u, str) and kind in ("video", "image", "audio"):
+                out.setdefault(u, kind)
+            for x in v.values():
+                walk(x)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x)
+    walk(value)
+    return out
+
+
 def urls_in(value: Any) -> Iterable[str]:
     """Every http(s) URL in a provider's result, in order, once each."""
     seen: set[str] = set()
@@ -162,8 +183,9 @@ class RouterRun(Run):
     def outputs(self) -> list[Output]:
         if self.status != "succeeded":
             return []
+        typed = typed_urls(self.result)
         out = [Output("", os.path.basename(urllib.parse.urlparse(u).path) or "output",
-                      output_type(u), (lambda path, u=u: patiently(lambda: download(u, path))))
+                      typed.get(u) or output_type(u), (lambda path, u=u: patiently(lambda: download(u, path))))
                for u in urls_in(self.result)]
         # a file the result carries itself (Veo: {"bytesBase64Encoded", "mimeType"})
         for i, (data, mime) in enumerate(inline_in(self.result)):
@@ -292,4 +314,4 @@ def mime_of(path: str) -> str:
             ".mp3": "audio/mpeg"}.get(ext, "image/png")
 
 
-__all__ = ["RouterBackend", "RouterRun", "download", "mime_of", "output_type", "urls_in"]
+__all__ = ["RouterBackend", "RouterRun", "download", "mime_of", "output_type", "typed_urls", "urls_in"]

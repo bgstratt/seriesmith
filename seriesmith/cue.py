@@ -70,6 +70,7 @@ back by hand) and its items taken out of every pass's mix. Muting it instead (it
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
@@ -1236,6 +1237,28 @@ def graph(target, p: dict, seed: int, pass_: str) -> dict:
         for k in [k for k in g if k not in need]:
             del g[k]
     return g
+
+
+def hosted_call(target, p: dict, seed: int) -> tuple[str, dict]:
+    """A hosted music model's take as one Router call: (model, arguments) from the
+    target's `router` block -- its fixed `arguments`, then each of the brief's values at
+    the field `inputs` names it: "prompt", "lyrics" (left out when empty), "seconds"
+    ({"name", "min", "max"}: whole seconds, clamped) and "seed" ({"name", "max"})."""
+    from seriesmith.targets.generic.router_video import put
+    r = target.spec["router"]
+    ins = r.get("inputs") or {}
+    args = json.loads(json.dumps(r.get("arguments") or {}))
+    brief = p["prompt"]
+    vals = brief.get("values") or {}
+    put(args, ins["prompt"], brief["prompt"])
+    if ins.get("lyrics") and (vals.get("lyrics") or "").strip():
+        put(args, ins["lyrics"], vals["lyrics"])
+    if ins.get("seconds") and vals.get("seconds") is not None:
+        s = ins["seconds"]
+        put(args, s["name"], max(s.get("min", 1), min(s.get("max", 3600), math.ceil(float(vals["seconds"])))))
+    if ins.get("seed"):
+        put(args, ins["seed"]["name"], int(seed) % (int(ins["seed"].get("max") or 2147483647) + 1))
+    return r["model"], args
 
 
 def plan_outputs(g: dict) -> dict:

@@ -18,7 +18,7 @@ sys.path.insert(0, ROOT)
 from seriesmith import backends as B  # noqa: E402
 from seriesmith.backends import smoke  # noqa: E402
 from seriesmith.backends.fake import FakeBackend  # noqa: E402
-from seriesmith.backends.router import output_type, urls_in  # noqa: E402
+from seriesmith.backends.router import output_type, typed_urls, urls_in  # noqa: E402
 from seriesmith.settings import load_settings  # noqa: E402
 
 try:
@@ -133,6 +133,13 @@ class RouterResultTest(unittest.TestCase):
         urls = list(urls_in(result))
         self.assertEqual(urls, ["https://cdn.example/out/a.mp4", "https://cdn.example/b.png"])
         self.assertEqual([output_type(u) for u in urls], ["video", "image"])
+
+    def test_a_url_without_an_extension_is_typed_by_the_mime_type_beside_it(self):
+        # Pika's media: {"output": {"audio": {"url", "content_type"}}}, the link bare
+        result = {"status": "completed", "output": {"media_type": "audio", "audio": {
+            "url": "https://cdn.example/media/7f3a", "content_type": "audio/mpeg"}}}
+        self.assertEqual(typed_urls(result), {"https://cdn.example/media/7f3a": "audio"})
+        self.assertEqual(output_type("https://cdn.example/media/7f3a"), "file")
 
 
 class SmokeTest(unittest.TestCase):

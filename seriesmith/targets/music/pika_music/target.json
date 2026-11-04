@@ -1,0 +1,42 @@
+{
+  "id": "pika_music",
+  "kind": "music",
+  "label": "Pika Music (hosted, Comfy Router)",
+  "short": "Pika Music",
+  "code": "prompt.py",
+  "draft": true,
+  "_note": "Pika's music model through Comfy Router (pika/pika-music; its schema in tests/fixtures/router_schemas/pika__pika-music.json): a description, lyrics to sing, a length of 10 to 360 s and a seed. Paid per take. A cue's take is one Router call (cue.hosted_call), the audio its output's media. A draft: on 2026-11-04 Router listed it but answered a valid request 'Comfy Router does not run this model yet' (nothing run, nothing billed); switch it on (Enable) once Router serves it.",
+
+  "capabilities": {
+    "_note": "Score or songs from a description (the arc told as a story, as Stable Audio 3) and lyrics; no bpm, key or section input.",
+    "backends": ["router"],
+    "mode": "t2m",
+    "tempo": "text",
+    "structure": "story",
+    "lyrics": true,
+    "max_seconds": 360
+  },
+
+  "template": {
+    "_note": "The request's duration: whole seconds, 10 to 360.",
+    "default_seconds": 30.0,
+    "min_seconds": 10.0,
+    "max_seconds": 360.0
+  },
+
+  "router": {
+    "model": "pika/pika-music",
+    "arguments": {"mode": "text_to_music"},
+    "inputs": {
+      "prompt": "prompt",
+      "lyrics": "lyrics",
+      "seconds": {"name": "duration", "min": 10, "max": 360},
+      "seed": {"name": "seed", "max": 2147483647}
+    }
+  },
+
+  "presets": {
+    "final": {"model": "pika/pika-music", "takes": 2},
+    "proxy": {"model": "pika/pika-music", "takes": 1}
+  }
+}
