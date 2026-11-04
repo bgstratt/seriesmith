@@ -1362,7 +1362,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         hits: ["dh01"],
       };
       const draft: import("../types").ScoreDraft = {
-        structure: "The Pixar Story Spine", pass: req.pass, missing: [], voices_only: false, drafted,
+        structure: "The Pixar Story Spine", pass: req.pass, missing: [], voices_only: false, drafted, kept: [],
         beats: [{ beat: "Once upon a time…", from: "structure", music: "score", t0: 0, t1: 8, shot: shots[0].shot },
                 { beat: "Every day…", from: "structure", music: "under", t0: 8, t1: 20, shot: shots[1].shot }],
         cues: [{ kind: "cue", label: "Once upon a time… → Every day…", id: "d01", t0: 0, t1: 20, theme: null, makes: "story",

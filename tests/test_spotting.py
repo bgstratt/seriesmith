@@ -227,6 +227,19 @@ class EpisodeTest(unittest.TestCase):
         self.assertEqual((r["removed"], r["cues"]), (["d01"], ["d01"]))
         self.assertEqual([h["id"] for h in MX.check(MX.load(self.root)["final"])["hits"]], ["dh01", "dh02"])
 
+    def test_a_rendered_draft_cue_is_kept_on_replace(self):
+        SD.write(self.root, "final", SD.draft(self.root, "final"))
+        n = CU.reserve(self.root, "d01", {"pass": "final"})
+        CU.update(self.root, "d01", n, status="ok")                     # a finished take: the person's now
+        d = SD.draft(self.root, "final")
+        self.assertEqual((d["drafted"], d["kept"]), ([], ["d01"]))
+        self.assertIn("d01 already plays there", d["cues"][0]["skip"])
+        r = SD.write(self.root, "final", d)                             # nothing to replace: no refusal
+        self.assertEqual((r["removed"], r["cues"]), ([], []))
+        self.assertEqual([c["id"] for c in CU.list_cues(self.root)], ["d01"])
+        # its hits stay with it
+        self.assertEqual([h["id"] for h in MX.check(MX.load(self.root)["final"])["hits"]], ["dh01", "dh02"])
+
     def test_a_cue_of_ones_own_is_kept(self):
         CU.save_spec(self.root, {"id": "m01", "in": {"shot": "sh020", "frame": 0}, "out": {"shot": "sh020", "frame": 100}})
         d = SD.draft(self.root, "final")

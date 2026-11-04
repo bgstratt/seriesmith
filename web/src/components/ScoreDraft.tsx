@@ -119,9 +119,10 @@ export function ScoreDraftDialog({ ep, pass, onClose }: { ep: string; pass: Pass
               <ul style={{ margin: "2px 0 0 18px", padding: 0 }}>{d.flags.map((f, i) => <li key={i}><span className="h3-mono">{f.shot}</span>: {f.text}</li>)}</ul>
             </div>
           )}
-          {(d.notes.length > 0 || d.missing.length > 0) && (
+          {(d.notes.length > 0 || d.missing.length > 0 || d.kept.length > 0) && (
             <ul className="h3-small h3-muted" style={{ margin: 0, paddingLeft: 18 }}>
               {d.notes.map((n, i) => <li key={i}>{n}</li>)}
+              {d.kept.length > 0 && <li>Kept, rendered already: {d.kept.join(", ")} (yours now; the draft works around them)</li>}
               {d.missing.length > 0 && <li>{d.missing.length} shot{d.missing.length === 1 ? " has" : "s have"} no take yet: timed at the shotlist's length, and a cue over one plans when it has a take</li>}
             </ul>
           )}

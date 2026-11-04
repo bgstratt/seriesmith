@@ -18,7 +18,9 @@ will most likely be asked: the theme's, else cue.DEFAULT_BPM), its theme (`story
 the cue that makes it; a series theme by name), and its hits in the pass's mix (ids dh01 ...,
 `must: false`: the fit lands them when it can). Nothing is rendered. A cue of the person's own
 (an id not dNN) is never touched: a draft cue that would play over one is left out, and said.
-`replace` first deletes the earlier draft's cues (cue.delete: to _history) and hits.
+`replace` first deletes the earlier draft's cues (cue.delete: to _history) and hits. A draft cue
+with a finished take is the person's now (it may be a series theme): kept, as a cue of their
+own is, its id and hits too; a cue drafted where the kept one made the story theme takes it.
 """
 
 from __future__ import annotations
@@ -51,6 +53,16 @@ def _story(root: str):
             return ir.Episode.loads(fh.read())
     except (OSError, ValueError, KeyError):
         raise DraftError("the episode isn't built (shotlist/shots.json): build it first") from None
+
+
+def _drafts(root: str) -> tuple[list[dict], list[dict]]:
+    """The episode's draft cues (dNN): (untouched, kept: those with a finished take)."""
+    fresh, kept = [], []
+    for c in CU.list_cues(root):
+        if DRAFT_ID.match(c["id"]):
+            done = any(t.get("status") == "ok" for t in CU.list_takes(root, c["id"]))
+            (kept if done else fresh).append(c)
+    return fresh, kept
 
 
 def timeline(root: str, pass_: str, series: dict | None) -> tuple[list[dict], float, list[str]]:
@@ -128,9 +140,12 @@ def draft(root: str, pass_: str = "final") -> dict:
 
     # the episode's own cues: where they play, so a draft cue never lands on one
     origins = {s["id"]: s["t"] * fps - s["trim_in"] for s in shots}
+    fresh, kept = _drafts(root)
+    kept_ids = {c["id"] for c in kept}
+    used_hits = {h for c in kept for h in c.get("hits") or []}
     mine = []
     for c in CU.list_cues(root):
-        if DRAFT_ID.match(c["id"]):
+        if DRAFT_ID.match(c["id"]) and c["id"] not in kept_ids:
             continue
         a, b = origins.get(c["in"]["shot"]), origins.get(c["out"]["shot"])
         if a is not None and b is not None:
@@ -142,8 +157,12 @@ def draft(root: str, pass_: str = "final") -> dict:
         over = [cid for cid, a, b in mine if a < c["t1"] and c["t0"] < b]
         if over:
             c["skip"] = f"{', '.join(over)} already play{'s' if len(over) == 1 else ''} there"
+            if c.get("makes") == "story" and maker is None and over[0] in kept_ids:
+                maker = over[0]                     # the kept cue made the story theme
             continue
         n += 1
+        while f"d{n:02d}" in kept_ids:
+            n += 1
         c["id"] = f"d{n:02d}"
         if c.get("makes") == "story":
             maker = c["id"]
@@ -160,6 +179,8 @@ def draft(root: str, pass_: str = "final") -> dict:
         hits = []
         for x in c["hits"]:
             h += 1
+            while f"dh{h:02d}" in used_hits:
+                h += 1
             s = by_id[x["shot"]]
             at = {"shot": x["shot"], "frame": s["trim_in"] + (s["frames"] if x["end"] else 0)}
             hits.append({"id": f"dh{h:02d}", "name": x["name"][:80], "at": at, "kind": x["kind"], "must": False})
@@ -179,7 +200,7 @@ def draft(root: str, pass_: str = "final") -> dict:
     mix = MX.check(MX.load(root).get(pass_))
     out.update({"pass": pass_, "fps": fps, "missing": missing,
                 "voices_only": bool(((mix.get("tracks") or {}).get("dialogue") or {}).get("voices_only")),
-                "drafted": [c["id"] for c in CU.list_cues(root) if DRAFT_ID.match(c["id"])]})
+                "drafted": [c["id"] for c in fresh], "kept": sorted(kept_ids)})
     return out
 
 
@@ -188,7 +209,9 @@ def write(root: str, pass_: str, d: dict, replace: bool = False, voices: bool = 
     turns the mix's dialogue to voices only, so the takes' own music is gone under the score.
     DraftError when an earlier draft is there and `replace` isn't set. Returns {"cues",
     "hits", "removed", "voices_only"}."""
-    old = [c["id"] for c in CU.list_cues(root) if DRAFT_ID.match(c["id"])]
+    fresh, kept = _drafts(root)
+    old = [c["id"] for c in fresh]
+    keep_hits = {h for c in kept for h in c.get("hits") or []}
     if old and not replace:
         raise DraftError(f"the episode has a draft already ({', '.join(old)}): replace it, "
                          f"or delete those cues first")
@@ -202,7 +225,7 @@ def write(root: str, pass_: str, d: dict, replace: bool = False, voices: bool = 
     cues = [c for c in d["cues"] if c.get("spec")]
     # earlier drafts' hits out; the story maker first, so a cue taking its theme finds it
     raw = MX.check(MX.load(root).get(pass_))
-    hits = [x for x in raw.get("hits") or [] if not DRAFT_HIT.match(x["id"])]
+    hits = [x for x in raw.get("hits") or [] if not DRAFT_HIT.match(x["id"]) or x["id"] in keep_hits]
     for c in sorted(cues, key=lambda c: c.get("makes") != "story"):
         CU.save_spec(root, c["spec"])
         hits += c["mix_hits"]

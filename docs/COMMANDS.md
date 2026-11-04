@@ -423,7 +423,8 @@ seriesmith score-draft Shows\ep05 --write --replace  # the earlier draft replace
   (`--keep-sound` leaves it). Nothing is rendered: shape and render them in the editor
   (docs/SCORING.md "A first pass from the script").
 - A cue of the episode's own is never touched; a draft cue over one is left out. An earlier
-  draft is replaced only with `--replace` (its cues to `_history`).
+  draft is replaced only with `--replace` (its cues to `_history`); a draft cue with a finished
+  take is kept, with its hits.
 
 ### Voice stems: voices
 

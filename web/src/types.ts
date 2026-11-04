@@ -2973,6 +2973,8 @@ export interface ScoreDraft {
   voices_only: boolean;
   /** the earlier draft's cues (dNN) in the episode: writing replaces them only when asked */
   drafted: string[];
+  /** earlier draft cues with a finished take: yours now, kept (a new draft works around them) */
+  kept: string[];
 }
 
 export interface ScoreDraftResult {

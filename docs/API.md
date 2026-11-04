@@ -1005,7 +1005,9 @@ series theme or null), makes ("story": it makes the episode's theme), sections: 
 from, to, seconds}], hits: [{kind, shot, name}], spec (the cue as it would be written), skip
 (why it's left out: a cue of the episode's own plays there)}], "flags": [{kind (in-scene,
 montage, card, flashback, theme), shot, text}], "notes", "pass", "missing" (shots with no take,
-timed at their shotlist length), "voices_only", "drafted" (the earlier draft's cue ids)}`. With
+timed at their shotlist length), "voices_only", "drafted" (the earlier draft's cue ids with no finished take: what `replace`
+replaces), "kept" (those with one: the person's now, kept with their hits, a new draft cue never
+landing on one)}`. With
 `write`: the cues written (ids `d01`..., label `Draft: ...`), their hits in the pass's mix
 (`dh01`..., `must: false`; an earlier draft's taken out), and the Dialogue track to voices only
 unless `keep_sound`; `written` is `{"cues", "hits", "removed" (the earlier draft's cues, moved
