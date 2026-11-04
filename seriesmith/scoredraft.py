@@ -339,6 +339,8 @@ def _trim(c: dict, span: tuple[float, float], shots: list[dict]) -> None:
     ends = {s["id"]: s["t"] + s["d"] for s in shots}
     c["hits"] = [h for h in c["hits"] if a <= (ends if h["end"] else start)[h["shot"]] <= b]
     c["sections"] = secs or c["sections"][:1]
+    # its label the beats it still plays over
+    c["label"] = " → ".join(dict.fromkeys(re.sub(r" \(cont\.\)$", "", x["name"]) for x in c["sections"]))
     c["in"], c["out"] = SP.anchor_at(shots, a), SP.anchor_at(shots, b, end=True)
     c["t0"], c["t1"] = round(a, 3), round(b, 3)
 

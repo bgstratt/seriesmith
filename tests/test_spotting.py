@@ -293,13 +293,14 @@ class EpisodeTest(unittest.TestCase):
         self.assertEqual(SD._free(0.0, 80.0, [(30.0, 40.0)]), (40.0, 80.0))
         self.assertIsNone(SD._free(0.0, 10.0, [(0.0, 12.0)]))
         sh = shots(("sh010", "sq1", 11.0417, 0), ("sh020", "sq2", 20, 0), ("sh030", "sq2", 20, 0))
-        c = {"t0": 0.0, "t1": 51.0417, "hits": [{"kind": "turn", "shot": "sh020", "end": False},
+        c = {"t0": 0.0, "t1": 51.0417, "label": "A → B", "hits": [{"kind": "turn", "shot": "sh020", "end": False},
                                                  {"kind": "arrive", "shot": "sh010", "end": False}],
              "sections": [{"name": "A", "seconds": 11.0417}, {"name": "B", "seconds": 40.0}]}
         # a cut rounded a hair after the kept cue's end still starts the trimmed cue on its shot
         SD._trim(c, (11.04163, 51.0417), sh)
         self.assertEqual((c["in"], c["out"]), ({"shot": "sh020", "at": 0.0}, {"shot": "sh030", "at": 20.0}))
         self.assertEqual([x["name"] for x in c["sections"]], ["B"])
+        self.assertEqual(c["label"], "B")
         self.assertEqual([h["shot"] for h in c["hits"]], ["sh020"])
 
     def test_a_cue_of_ones_own_is_kept(self):
