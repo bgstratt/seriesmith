@@ -179,7 +179,7 @@ import { refreshEpisode } from "../src/actions";
 import { Viewer } from "../src/components/Viewer";
 import { SoundAddDialog } from "../src/components/SoundAdd";
 import { cueKey, cueSettled, loadCue } from "../src/cueActions";
-import { resetCutHistory } from "../src/cutActions";
+import { resetCutHistory, undoCut } from "../src/cutActions";
 import { setApi, setHost, type Host } from "../src/host";
 import { createMockApi } from "../src/mock/mockApi";
 import { loadMix, mixSettled } from "../src/mixActions";
@@ -269,6 +269,35 @@ describe("the spotting sheet", () => {
     expect(side.textContent).toContain("tension rises");
     // a stale take is no stale cue (none in the mix, not every take stale)
     expect(side.textContent).toContain("None: every cue's takes match the cut.");
+  });
+
+  it("a hit dragged along its row on the map moves it (re-anchored to the shot there), Ctrl+Z undoes", async () => {
+    await open();
+    const hit = q(".h3-spot-hit").find((h) => h.textContent === "the reveal")!;
+    const lane = hit.parentElement!;
+    const items = (await import("../src/actions")).currentPlaylist(store.get());
+    const { anchorTime } = await import("../src/lib/mix");
+    const fps = store.get().status[statusKey(EP, "proxy")]!.fps || 24;
+    // the lane 1000 px wide from x 0: a pointer at x maps to the row's start + x/1000 of its span
+    lane.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON() {} }) as DOMRect;
+    const before = (await api.getMix(EP, "proxy")).mix.hits!.find((h) => h.name === "the reveal")!.at;
+    await act(async () => {
+      hit.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, clientX: 500 }));
+      window.dispatchEvent(new PointerEvent("pointermove", { clientX: 100 }));
+    });
+    expect(hit.textContent).toContain(":");                         // its timecode while dragged
+    await act(async () => {
+      window.dispatchEvent(new PointerEvent("pointerup", { clientX: 100 }));
+      await mixSettled();
+    });
+    const after = (await api.getMix(EP, "proxy")).mix.hits!.find((h) => h.name === "the reveal")!.at;
+    expect(after).not.toEqual(before);
+    expect(anchorTime(items, after, fps)!).toBeLessThan(anchorTime(items, before, fps)!);
+    await act(async () => {
+      undoCut();
+      await mixSettled();
+    });
+    expect((await api.getMix(EP, "proxy")).mix.hits!.find((h) => h.name === "the reveal")!.at).toEqual(before);
   });
 
   it("a hit row seeks the viewer to it; the next-hit button goes on to the next", async () => {

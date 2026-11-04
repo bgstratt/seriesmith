@@ -18,7 +18,7 @@ import { locate } from "./lib/playlist";
 import { trackList as trackListOf } from "./lib/mix";
 import { statusKey, store, type AppState, type SoundAddAsk } from "./store";
 import { tn } from "./lib/format";
-import type { Anchor, Mix, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixRegion, MixResult, MixTrack, Pass, TrackKind } from "./types";
+import type { Anchor, HitKind, Mix, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixRegion, MixResult, MixTrack, Pass, TrackKind } from "./types";
 
 const set = store.set;
 const get = store.get;
@@ -512,6 +512,17 @@ export async function addMixHit(at?: Anchor | null, name = ""): Promise<string |
     return r.mix;
   });
   return ok ? id : null;
+}
+
+/** The hit at a shot's first frame (the shot form's Hit): added, its kind changed, or (kind
+ * "") taken out, in one undoable mix edit. `id`: the hit there now, if any. */
+export function setShotHit(at: Anchor, kind: HitKind | "", name: string, id: string | null): Promise<boolean> {
+  return editMix(kind ? `Hit at ${at.shot}: ${kind}` : `Remove the hit at ${at.shot}`, (m) => {
+    if (!kind) return id ? removeHit(m, id) : m;
+    if (id) return patchHit(m, id, { kind }) ?? m;
+    const r = addHit(m, at, name);
+    return patchHit(r.mix, r.id, { kind }) ?? r.mix;
+  });
 }
 
 export function moveMixHit(id: string, at: Anchor): Promise<boolean> {

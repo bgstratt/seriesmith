@@ -1347,6 +1347,13 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       emit("seriesmith.episode", { ep: EP });
       return { spec: clone(spec) };
     },
+    async structures() {
+      await wait();
+      return { structures: [
+        { id: "5.1", name: "The Pixar Story Spine", beats: ["Once upon a time…", "Every day…", "Until one day…", "Because of that…", "Until finally…", "And ever since then…", "(And the moral is…)"] },
+        { id: "2.1", name: "The Sitcom Formula (Circular Structure)", beats: ["Cold Open / Teaser", "Status Quo", "The Problem"] },
+      ] };
+    },
     async scoreDraft(req) {
       await wait();
       need(req.ep);

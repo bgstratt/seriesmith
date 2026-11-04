@@ -361,6 +361,9 @@ class EpisodeTest(unittest.TestCase):
         self.assertEqual(code, 409)
         self.assertIn("has a draft already", r["error"])
         self.assertEqual(A.post_cue_draft(ctx, {"ep": self.root, "write": "yes"})[0], 400)
+        code, r = A.get_structures(ctx, {})
+        spine = next(x for x in r["structures"] if x["id"] == "5.1")
+        self.assertEqual(spine["beats"][3:5], ["Because of that…", "Until finally…"])   # a repeat once
 
 
 if __name__ == "__main__":

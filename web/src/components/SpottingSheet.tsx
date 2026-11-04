@@ -23,12 +23,13 @@ import {
   bedBlocks, cueBlocks, cutHits, fitWords, fxBlocks, hitTable, inRow, sequenceRows, staleCues, takeColumns, timecode,
   type CueBlock, type CutHit, type MapRow,
 } from "../lib/spotting";
-import { addMixHit, currentMix, makeBed, makeEffects, openSoundAdd, setMixItemMute } from "../mixActions";
+import { addMixHit, currentMix, makeBed, makeEffects, moveMixHit, openSoundAdd, setMixItemMute } from "../mixActions";
 import {
   auditionTake, jumpToHit, loadCueStates, openCueFromSpot, renderCues, seekToTime, selectSpotCue, setCueTempo, stopAudition,
 } from "../spotActions";
 import { statusKey, store, useApp, type ViewerState } from "../store";
 import { ScoreDraftDialog } from "./ScoreDraft";
+import { trackPointer } from "./hooks";
 import type { CueResult, CueSummary, Pass } from "../types";
 import { FloatingWindow } from "./FloatingWindow";
 import { ScoringTabs, SPOT_RECT_KEY, defaultSpotRect } from "./ScoringTabs";
@@ -248,6 +249,29 @@ function MapRowView({ row, blocks, beds, fx, hits, regions, pos, fps, sel, onMen
     if (r.width > 0) seekToTime(row.start + ((e.clientX - r.left) / r.width) * span);
   };
   const rowHits = hits.filter((h) => h.t >= row.start - 1e-6 && h.t < row.end + 1e-6);
+  const items = useApp((s) => currentPlaylist(s));
+  // a hit dragged along its row: where it is while the pointer moves (cut seconds)
+  const [drag, setDrag] = useState<{ id: string; t: number } | null>(null);
+  const onHitDown = (e: React.PointerEvent<HTMLButtonElement>, h: CutHit) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const laneEl = e.currentTarget.parentElement;
+    const r = laneEl?.getBoundingClientRect();
+    if (!r || r.width <= 0) return;
+    const x0 = e.clientX;
+    let t: number | null = null;
+    trackPointer((ev) => {
+      if (t == null && Math.abs(ev.clientX - x0) < 3) return;
+      const f = Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width));
+      t = Math.round((row.start + f * span) * fps) / fps;
+      setDrag({ id: h.id, t });
+    }, (cancelled) => {
+      setDrag(null);
+      if (t == null) return seekToTime(h.t);
+      const at = cancelled ? null : timeAnchor(items, Math.min(t, row.end - 1 / fps), fps);
+      if (at) void moveMixHit(h.id, at);
+    });
+  };
   const here = pos >= row.start && pos < row.end;
   // right-click: on a lane, the time under the pointer; on the row's head, the playhead (in the row) or its start
   const menuAt = (e: RMouseEvent<HTMLElement>, cue?: string) => {
@@ -277,12 +301,13 @@ function MapRowView({ row, blocks, beds, fx, hits, regions, pos, fps, sel, onMen
           <span key={s.shot} className="h3-spot-shot" style={{ left: pct(s.start), width: wid(s.start, s.end) }} title={`${s.shot} · ${fmtClock(s.start)}`}>{s.shot}</span>
         )))}
         {lane("Hits", "h3-spot-hits", rowHits.map((h) => (
-          <button key={h.id} className={`h3-spot-hit h3-hit-${h.kind}${h.must ? "" : " h3-hit-may"}`} style={{ left: pct(h.t) }}
-            title={`${h.name} · ${HIT_KIND_TITLE[h.kind]}${h.must ? "" : " (may miss)"} · ${h.at.shot} frame ${h.at.frame} · ${timecode(h.t, fps)}: click to go there`}
-            onClick={(e) => {
-              e.stopPropagation();
-              seekToTime(h.t);
-            }}>{h.name}</button>
+          <button key={h.id} className={`h3-spot-hit h3-hit-${h.kind}${h.must ? "" : " h3-hit-may"}${drag?.id === h.id ? " h3-on" : ""}`}
+            style={{ left: pct(drag?.id === h.id ? drag.t : h.t), touchAction: "none" }}
+            title={`${h.name} · ${HIT_KIND_TITLE[h.kind]}${h.must ? "" : " (may miss)"} · ${h.at.shot} frame ${h.at.frame} · ${timecode(h.t, fps)}: click to go there, drag to move it (along its row; Esc cancels, Ctrl+Z undoes)`}
+            onPointerDown={(e) => onHitDown(e, h)}
+            onClick={(e) => e.stopPropagation()}>
+            {h.name}{drag?.id === h.id && <span className="h3-spot-tag">{timecode(drag.t, fps)}</span>}
+          </button>
         )))}
         {lane("Music", "h3-snd-music", [...inRow(row, regions).map((g) => (
           <span key={g.id} className={`h3-spot-region h3-snd-region-${g.mode}`} style={{ left: pct(g.a), width: wid(g.a, g.b) }} data-region={g.id}

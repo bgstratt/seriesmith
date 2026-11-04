@@ -939,6 +939,11 @@ one; 409 for a take that isn't finished. `GET /seriesmith/cue` answers the serie
 themes as `themes`: `[{name, label ("porch (ep01 m04 t03)"), role, words, for, error}]` (`error`:
 why one can't be used: it doesn't read, or its episode isn't beside this one).
 
+### `GET /seriesmith/structures`
+The story structures with a Music table (docs/STORY_STRUCTURES.md, as
+`seriesmith/core/structures.json`): `{"structures": [{"id": "5.1", "name": "The Pixar Story Spine", "beats": [their names as a `// beat:` line writes them, a repeat once]}]}`. The shot
+form offers the beats of the script's `// structure:`.
+
 ### `POST /seriesmith/cue/draft`
 Body `{"ep", "pass"?, "write"?, "replace"?, "rendered"?, "keep_sound"?, "structure"?, "mark"?}`: the first-pass score drafted from
 the script's `// structure:`, `// beat:`, `// theme:` and `// flashback` lines, that

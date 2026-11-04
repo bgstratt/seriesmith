@@ -2861,6 +2861,18 @@ def post_cue_draft(ctx: Context, body):
 
 
 @handler
+def get_structures(ctx: Context, query: dict):
+    """The story structures with a Music table (docs/STORY_STRUCTURES.md, core/structures.json):
+    `{"structures": [{"id", "name", "beats": [their names, as a script's // beat: line writes
+    them]}]}`: what the shot form offers for a shot's beat."""
+    from seriesmith.core import spotting as SP
+    return 200, {"structures": [
+        {"id": s["id"], "name": s["name"],
+         "beats": list(dict.fromkeys(re.sub(r"\s*\(again\)\s*$", "", b["beat"]) for b in s["beats"]))}
+        for s in SP.structures()]}
+
+
+@handler
 def put_cue(ctx: Context, body):
     """Write a cue's spec (`{ep, cue}`); 400 for one that doesn't check."""
     body = body_dict(body)
@@ -5743,6 +5755,7 @@ ROUTES = [
     ("POST", "/seriesmith/cue/pick", post_cue_pick, "body"),
     ("POST", "/seriesmith/cue/theme", post_cue_theme, "body"),
     ("POST", "/seriesmith/cue/draft", post_cue_draft, "body"),
+    ("GET", "/seriesmith/structures", get_structures, "query"),
     ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
     ("POST", "/seriesmith/cue/repaint", post_cue_repaint, "body"),
     ("GET", "/seriesmith/fx", get_fx, "query"),

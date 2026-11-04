@@ -403,7 +403,12 @@ pictures to pick from, and pointing at a name shows it larger.
   **Camera moves, as clips** shows each move as a short clip of the same street, played while
   you point at it, and picking one starts the line with it), **Sound**,
   **Extras**, **On-screen text**.
-- **More** (the arrow, folded): music; **Video model class** (another model for this shot, with
+- **More** (the arrow, folded): music, and the score's marks: **Beat** (the beat of the
+  episode's structure this shot starts, its beats offered from the script's `// structure:`
+  line: a `// beat:` line above the shot), **Theme mark** (a theme on this moment, `glance,
+  given`: a `// theme:` line) and **Hit** (accent, arrive, drop or turn on the shot's first
+  frame as it plays in the cut, in the pass's mix: one undoable mix edit, saved with the
+  shot); **Video model class** (another model for this shot, with
   the Models button beside it) and right under it what that model loads, its **Model
   file**, **LoRAs** and **Steps**, each picked from what it can load; continuity
   (**Continues**: its own line, or *the sequence's (latent)* when the `#` header sets it,
@@ -1497,7 +1502,8 @@ under the picture as Play all plays it, and every Play all key works in it.
   lane), **Music** (the cues: label, score or song, the take in the mix or *not placed*,
   *stale* when the cut has moved under it), **Ambience** (the places' beds) and **Effects**
   (the shots', stale ones marked). Click a cue to select it, then a tab (or double-click it)
-  to shape it, and the **Spotting** tab to come back; click a hit, or anywhere on a row, to go
+  to shape it, and the **Spotting** tab to come back; drag a hit along its row to move it (it
+  snaps to a frame and is anchored to the shot there; Esc cancels, Ctrl+Z undoes); click a hit, or anywhere on a row, to go
   there. **Right-click a row** (its head, or any lane at the frame under the pointer) for **New
   cue here** (to the end of that shot), **New cue over <sequence>**, **New cue from here to the
   end of <sequence>**, **Mark a hit here**, **Make effects for <sequence>** and, when its shots
