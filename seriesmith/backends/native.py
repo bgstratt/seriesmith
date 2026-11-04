@@ -24,7 +24,7 @@ import uuid
 from typing import Callable
 
 from seriesmith.backends import (TERMINAL, Backend, BackendError, File, Output, Progress, Run,
-                                 files_in, patiently)
+                                 files_in, partner, patiently)
 from seriesmith.core import fileio as F
 
 # ComfyUI's ui output key -> the output's type (comfy-api-proxy's _OUTPUT_KIND)
@@ -334,8 +334,15 @@ class ComfyUIBackend(Backend):
                 except RuntimeError as e:
                     raise BackendError(f"ComfyUI didn't take {os.path.basename(f.path)}: {e}") from None
             container[key] = sent[f.path]
+        body = {"prompt": g, "client_id": self.client_id}
+        if partner(g):
+            # ComfyUI's API nodes bill the key they find in the job's extra_data
+            if not self.api_key:
+                raise BackendError("this job runs a Comfy partner node (paid per run): set a Comfy "
+                                   "API key in Settings")
+            body["extra_data"] = {"api_key_comfy_org": self.api_key}
         try:
-            got = comfy._json("/prompt", {"prompt": g, "client_id": self.client_id})
+            got = comfy._json("/prompt", body)
         except RuntimeError as e:
             raise BackendError(f"ComfyUI refused the job: {node_errors_text(str(e))}") from None
         except OSError as e:

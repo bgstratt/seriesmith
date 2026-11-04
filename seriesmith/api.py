@@ -2935,7 +2935,12 @@ def post_cue_render(ctx: Context, body):
     if n is not None and (isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= CU.TAKES_MAX):
         raise ApiError(400, f"takes is 1 to {CU.TAKES_MAX}")
     count = n or CU.takes_wanted(target, pass_, spec)
-    backend = finish_backend(ctx, body)
+    # a hosted model (target.json `router`: Pika Music) is a Router call, whatever backend
+    # the body names
+    hosted = bool(target.spec.get("router"))
+    backend = "router" if hosted else finish_backend(ctx, body)
+    if hosted and ctx.runner.backend(backend) is None:
+        raise ApiError(409, f"{target.label} runs on Comfy Router: set a Comfy API key in Settings")
     if (p.get("theme") or {}).get("use") == "audio":
         # the theme reshaped to this cue once, for every take; its melody score when this
         # machine's ComfyUI has SheetSage2 (non-commercial: only installed by choice)
@@ -2946,14 +2951,15 @@ def post_cue_render(ctx: Context, body):
         p["melody"] = backend == "local" and _have_sheetsage(ctx)
     queued = []
     for seed in CU.seeds(ep, spec, count, len(CU.list_takes(ep, spec["id"]))):
-        g = CU.graph(target, p, seed, pass_)
+        g = None if hosted else CU.graph(target, p, seed, pass_)
         k = CU.reserve(ep, spec["id"], {"pass": pass_, "target": target.id, "seed": seed,
                                         "prompt": p["prompt"], "rendered_for": CU.fingerprint(p),
                                         "plan": {
                                             k2: p[k2] for k2 in ("fit", "bars", "bar", "preroll",
                                                                  "seconds", "ask_seconds")},
                                         **({"theme": CU.theme_record(p["theme"])} if p.get("theme") else {})})
-        job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend)
+        job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend,
+                                     call=CU.hosted_call(target, p, seed) if hosted else None)
         queued.append({"take": k, "job": job, "seed": seed})
     episode_event(ctx, ep)
     return 200, {"queued": queued, "plan": _plan_summary(p)}

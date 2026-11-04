@@ -290,6 +290,17 @@ class NodePackTest(Caches):
         with open(os.path.join(os.path.dirname(HERE), "comfy_nodes", "audio.py"), encoding="utf-8") as fh:
             self.assertNotIn("HDEMUCS_HIGH_MUSDB_PLUS.get_model", fh.read())
 
+    def test_magenta_rt2_reads_what_features_downloads_and_never_fetches(self):
+        import re
+        with open(os.path.join(os.path.dirname(HERE), "comfy_nodes", "mrt2.py"), encoding="utf-8") as fh:
+            src = fh.read()
+        repos = set(re.findall(r'"(magenta-community/[\w.-]+)"', src))
+        self.assertEqual(repos, set(TG.load_target("mrt2").fetches))
+        # the port downloads only when given no folder: the node always gives one
+        self.assertIn("MusicCoCaProcessor.from_pretrained(repo_folder(MUSICCOCA)", src)
+        self.assertNotIn("load_processor(", src)
+        self.assertNotIn("trust_remote_code", src)
+
     def test_the_vocal_stems_weights_are_the_ones_features_downloads(self):
         from seriesmith import vocals as V
         self.assertEqual(NODES_HUB.TORCHAUDIO_HDEMUCS.rsplit("/", 1)[1], V.WEIGHTS_FILE)

@@ -1,0 +1,43 @@
+{
+  "id": "minimax_music3_cloud",
+  "kind": "music",
+  "label": "MiniMax Music 3 Cloud (songs; paid)",
+  "short": "MiniMax Music 3 Cloud",
+  "code": "prompt.py",
+
+  "capabilities": {
+    "_note": "MiniMax Music 3 hosted on Comfy Cloud through ComfyUI's partner node (ComfyCloudMiniMaxMusic3TextToAudioNode, BETA): a description, lyrics, a seed and a longest length; paid per take, billed to the Comfy API key in Settings (backends.partner sends it with the job). The same model as minimax_music3 (measured there: its words clearest, the tempo not held); empty lyrics set the hosted model's instrumental switch, which the local nodes have no equivalent of. Not run here yet: nothing paid was.",
+    "mode": "t2m",
+    "tempo": "text",
+    "structure": "sections",
+    "lyrics": true,
+    "max_seconds": 360
+  },
+
+  "template": {
+    "_note": "The node's max_duration (the model can end sooner).",
+    "default_seconds": 120.0,
+    "min_seconds": 2.0,
+    "max_seconds": 360.0
+  },
+
+  "binding": {
+    "_note": "The partner node and SaveAudio (an mp3 at V0, converted to wav when it comes back). Its node is marked `_meta.partner`: the local backend sends the Comfy API key as the job's extra_data, and the take is counted against Settings' paid limit (runner.reserve).",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_minimax_music3_cloud.json",
+    "env": "SERIESMITH_MINIMAX_MUSIC3_CLOUD_WORKFLOW",
+    "saver": {"class_type": "SaveAudio"},
+    "prune": true,
+    "params": {
+      "prompt": {"class_type": "ComfyCloudMiniMaxMusic3TextToAudioNode", "field": "prompt"},
+      "lyrics": {"class_type": "ComfyCloudMiniMaxMusic3TextToAudioNode", "field": "lyrics"},
+      "seconds": {"class_type": "ComfyCloudMiniMaxMusic3TextToAudioNode", "field": "max_duration"},
+      "seed": {"class_type": "ComfyCloudMiniMaxMusic3TextToAudioNode", "field": "seed"}
+    }
+  },
+
+  "presets": {
+    "final": {"takes": 2},
+    "proxy": {"takes": 1}
+  }
+}

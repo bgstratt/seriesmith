@@ -9,9 +9,19 @@ from .chain import NODE_CLASS_MAPPINGS as _CHAIN, NODE_DISPLAY_NAME_MAPPINGS as 
 from .shot import NODE_CLASS_MAPPINGS as _SHOT, NODE_DISPLAY_NAME_MAPPINGS as _SHOT_NAMES
 from .upscale import NODE_CLASS_MAPPINGS as _UP, NODE_DISPLAY_NAME_MAPPINGS as _UP_NAMES
 from .audio import NODE_CLASS_MAPPINGS as _AUD, NODE_DISPLAY_NAME_MAPPINGS as _AUD_NAMES
+from .mrt2 import NODE_CLASS_MAPPINGS as _MRT2, NODE_DISPLAY_NAME_MAPPINGS as _MRT2_NAMES
 
-NODE_CLASS_MAPPINGS = {**_SHOT, **_CHAIN, **_UP, **_FIN, **_AUD}
-NODE_DISPLAY_NAME_MAPPINGS = {**_SHOT_NAMES, **_CHAIN_NAMES, **_UP_NAMES, **_FIN_NAMES, **_AUD_NAMES}
+NODE_CLASS_MAPPINGS = {**_SHOT, **_CHAIN, **_UP, **_FIN, **_AUD, **_MRT2}
+NODE_DISPLAY_NAME_MAPPINGS = {**_SHOT_NAMES, **_CHAIN_NAMES, **_UP_NAMES, **_FIN_NAMES, **_AUD_NAMES,
+                              **_MRT2_NAMES}
+
+# the parts of ComfyUI's own Python these nodes call, looked up once: a ComfyUI that
+# renamed or dropped one says so now, naming what it breaks (_compat.py)
+try:
+    from . import _compat
+    _compat.report()
+except Exception:                                         # noqa: BLE001  never stop the nodes loading
+    pass
 
 
 def _find_seriesmith() -> None:

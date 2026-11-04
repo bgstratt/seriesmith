@@ -1,0 +1,77 @@
+{
+  "id": "minimax_music3",
+  "kind": "music",
+  "label": "MiniMax Music 3 (songs)",
+  "short": "MiniMax Music 3",
+  "code": "prompt.py",
+
+  "capabilities": {
+    "_note": "A caption (style, mood, vocals, arrangement) and lyrics whose section tags are its structure; no bpm, key or meter input, so the tempo is in the words. Measured on local ComfyUI 2026-11-03/04 (docs/SOUND.md 'Measured: MiniMax Music 3 and Magenta RealTime 2'): **a song model**. Its words came through clearest (a word error rate of 0.06-0.12 against YuE2's 0.08-0.32), but it doesn't hold a tempo (96 asked: 83-115) and its length is a cap (the take may end sooner). As score it leaks a voice: empty lyrics ended takes at a median 32 s of 52 with a vocal stem 2-13 dB under the mix; section tags alone reached the length and leaked less, and the arc wasn't followed (climax in place 1 of 8). So it is offered for songs, score only by choice. MiniMax's community licence: free for commercial use under $20M yearly revenue, the outputs the user's.",
+    "mode": "t2m",
+    "tempo": "text",
+    "structure": "sections",
+    "lyrics": true,
+    "max_seconds": 360
+  },
+
+  "template": {
+    "_note": "The take's longest; MiniMaxMusic3TextEncode's max_duration (the model can end sooner).",
+    "default_seconds": 120.0,
+    "min_seconds": 2.0,
+    "max_seconds": 360.0
+  },
+
+  "binding": {
+    "_note": "ComfyUI's audio_minimax_music_3 template, flattened: UNETLoader (the DiT), CLIPLoader type minimax (the text encoder, which also writes the take's codes and so decides its length), VAELoader (the DAV), MiniMaxMusic3TextEncode (caption, lyrics, seed, max_duration, cfg_scale 1.7, top_k 50) with its conditioning zeroed for the negative, EmptyMiniMaxMusic3LatentAudio from the encoder's seconds, KSampler 30 steps euler simple cfg 1.7, VAEDecodeAudioTiled (1536 / 64: the template's own choice behind its switch; a long song decoded whole took ComfyUI down on 2026-11-04), SaveAudio. The seed goes to the encoder and the sampler.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_minimax_music3.json",
+    "env": "SERIESMITH_MINIMAX_MUSIC3_WORKFLOW",
+    "saver": {"class_type": "SaveAudio"},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "UNETLoader", "field": "unet_name"},
+      "text_encoder": {"class_type": "CLIPLoader", "field": "clip_name"},
+      "vae": {"class_type": "VAELoader", "field": "vae_name"},
+      "prompt": {"class_type": "MiniMaxMusic3TextEncode", "field": "caption"},
+      "lyrics": {"class_type": "MiniMaxMusic3TextEncode", "field": "lyrics"},
+      "seconds": {"class_type": "MiniMaxMusic3TextEncode", "field": "max_duration"},
+      "seed": [{"class_type": "MiniMaxMusic3TextEncode", "field": "seed"},
+               {"class_type": "KSampler", "field": "seed"}],
+      "steps": {"class_type": "KSampler", "field": "steps"},
+      "cfg": {"class_type": "KSampler", "field": "cfg"}
+    }
+  },
+
+  "models": {
+    "model": {"family": "minimax-music3-dit", "patterns": ["*minimax*music3*dit*"], "tier": "required"},
+    "text_encoder": {"family": "minimax-music3-text-encoder", "patterns": ["*minimax*music3*text*encoder*"], "tier": "required"},
+    "vae": {"family": "minimax-music3-dav", "patterns": ["*minimax*music3*dav*"], "tier": "required"}
+  },
+
+  "presets": {
+    "final": {
+      "_note": "The template's files and settings (30 steps, cfg 1.7).",
+      "model": "minimax_music3_dit_fp16.safetensors",
+      "text_encoder": "minimax_music3_text_encoder_pruned_int8_convrot.safetensors",
+      "vae": "minimax_music3_dav.safetensors",
+      "steps": 30, "cfg": 1.7,
+      "takes": 4
+    },
+    "proxy": {
+      "_note": "The int8 DiT (the template's low-VRAM choice); most of a take's time is the encoder writing its codes, which steps don't change.",
+      "model": "minimax_music3_dit_int8_convrot.safetensors",
+      "text_encoder": "minimax_music3_text_encoder_pruned_int8_convrot.safetensors",
+      "vae": "minimax_music3_dav.safetensors",
+      "steps": 30, "cfg": 1.7,
+      "takes": 2
+    }
+  },
+
+  "downloads": {
+    "_note": "The files ComfyUI's audio_minimax_music_3 template names (its Model Links note), from Comfy-Org/MiniMax-Music-3.",
+    "minimax_music3_dit_fp16.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/Comfy-Org/MiniMax-Music-3/resolve/main/diffusion_models/minimax_music3_dit_fp16.safetensors", "source": "ComfyUI template audio_minimax_music_3.json (its Model Links note)"},
+    "minimax_music3_dit_int8_convrot.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/Comfy-Org/MiniMax-Music-3/resolve/main/diffusion_models/minimax_music3_dit_int8_convrot.safetensors", "source": "ComfyUI template audio_minimax_music_3.json (its Model Links note)"},
+    "minimax_music3_text_encoder_pruned_int8_convrot.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/MiniMax-Music-3/resolve/main/text_encoders/minimax_music3_text_encoder_pruned_int8_convrot.safetensors", "source": "ComfyUI template audio_minimax_music_3.json (its Model Links note)"},
+    "minimax_music3_dav.safetensors": {"folder": "vae", "url": "https://huggingface.co/Comfy-Org/MiniMax-Music-3/resolve/main/vae/minimax_music3_dav.safetensors", "source": "ComfyUI template audio_minimax_music_3.json (its Model Links note)"}
+  }
+}

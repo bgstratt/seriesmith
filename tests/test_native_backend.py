@@ -35,6 +35,7 @@ class FakeComfyUI:
     def __init__(self):
         self.uploads: dict[str, bytes] = {}       # "subfolder/name" -> bytes
         self.prompts: dict[str, dict] = {}        # prompt id -> graph
+        self.extra: dict[str, dict | None] = {}   # prompt id -> the job's extra_data
         self.history: dict[str, dict] = {}        # prompt id -> its history entry
         self.files: dict[tuple, bytes] = {}       # (subfolder, filename) -> bytes
         self.nodes = {"SaveImage", "LoadImage", "UNETLoader", "KSampler"}
@@ -112,6 +113,7 @@ class FakeComfyUI:
                                                 "node_errors": bad})
                     pid = f"p{len(fake.prompts) + 1}"
                     fake.prompts[pid] = g
+                    fake.extra[pid] = got.get("extra_data")
                     if fake.finish:
                         fake.history[pid] = fake.finish(g)
                     return self._send(200, {"prompt_id": pid, "number": 1, "node_errors": {}})
@@ -231,6 +233,19 @@ class NativeBackendTest(unittest.TestCase):
         with self.assertRaises(B.BackendError) as cm:
             self.backend.submit({"7": {"class_type": "NoSuchNode", "inputs": {}}})
         self.assertIn("NoSuchNode (node 7)", str(cm.exception))
+
+    def test_a_partner_node_is_sent_with_the_key_and_refused_without_one(self):
+        self.comfy.nodes.add("PartnerSong")
+        g = {"1": {"class_type": "PartnerSong", "inputs": {}, "_meta": {"partner": True}}}
+        with self.assertRaises(B.BackendError) as cm:
+            self.backend.submit(g)
+        self.assertIn("Comfy API key", str(cm.exception))
+        self.backend.api_key = "comfyui-key"
+        run = self.backend.submit(g)
+        self.assertEqual(self.comfy.extra[run.id], {"api_key_comfy_org": "comfyui-key"})
+        # a graph without one never carries the key
+        run = self.backend.submit({"1": {"class_type": "PartnerSong", "inputs": {}}})
+        self.assertIsNone(self.comfy.extra[run.id])
 
     def test_a_node_it_can_do_without_is_spliced_out_where_it_isnt_installed(self):
         self.comfy.finish = lambda g: ok_entry({})

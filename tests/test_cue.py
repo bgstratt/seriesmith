@@ -6,6 +6,8 @@ mix, and the routes (with a stand-in for the queue).
 """
 from __future__ import annotations
 
+import json
+import math
 import os
 import shutil
 import sys
@@ -275,6 +277,43 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(enc["duration"], by["EmptyAceStep1.5LatentAudio"]["seconds"])
         self.assertEqual(by["UNETLoader"]["unet_name"], "acestep_v1.5_xl_turbo_bf16.safetensors")
         self.assertEqual(by["KSampler"]["steps"], 8)
+        pm = CU.plan(self.root, "final", self.spec(model="minimax_music3"), {})
+        g = CU.graph(TG.load_target("minimax_music3"), pm, 11, "final")
+        by = {v["class_type"]: v["inputs"] for v in g.values()}
+        enc = by["MiniMaxMusic3TextEncode"]
+        self.assertEqual((enc["seed"], by["KSampler"]["seed"]), (11, 11))
+        self.assertEqual(enc["max_duration"], round(pm["ask_seconds"], 3))
+        # score: the sections as its tags only, and no voice in the caption
+        self.assertEqual(enc["lyrics"].splitlines(), [f"[{s['name'].lower()}]" for s in pm["sections"]])
+        self.assertIn("Vocal Details: None.", enc["caption"])
+        self.assertIn(f"{int(pm['fit']['ask_bpm'])} BPM", enc["caption"])
+        # on Comfy Cloud: the partner node, marked so the backend sends the key; a score
+        # cue's lyrics empty (the hosted model's instrumental switch)
+        pc = CU.plan(self.root, "final", self.spec(model="minimax_music3_cloud"), {})
+        g = CU.graph(TG.load_target("minimax_music3_cloud"), pc, 11, "final")
+        node = next(v for v in g.values() if v["class_type"] == "ComfyCloudMiniMaxMusic3TextToAudioNode")
+        self.assertTrue(node["_meta"]["partner"])
+        self.assertEqual((node["inputs"]["seed"], node["inputs"]["lyrics"]), (11, ""))
+        self.assertEqual(node["inputs"]["prompt"], enc["caption"])
+        # Magenta RealTime 2: the arc as a style a bar, the frames the cue's length
+        pr = CU.plan(self.root, "final", self.spec(model="mrt2"), {})
+        g = CU.graph(TG.load_target("mrt2"), pr, 13, "proxy")
+        node = next(v["inputs"] for v in g.values() if v["class_type"] == "SeriesmithMRT2")
+        segs = json.loads(node["schedule"])["segments"]
+        self.assertEqual((node["seed"], node["model"]), (13, "magenta-realtime-2-small"))
+        self.assertEqual(len(segs), pr["bars"])
+        self.assertEqual(sum(s["frames"] for s in segs), round(pr["ask_seconds"] * 25))
+        # quiet bars have drums off; the rest leave them to the model
+        self.assertTrue(all(s.get("drums", 0) == 0 for s in segs))
+        # Pika Music on Router: one call, the brief at the fields its router block names
+        pk = CU.plan(self.root, "final", self.spec(model="pika_music"), {})
+        model, args = CU.hosted_call(TG.load_target("pika_music"), pk, 2 ** 40 + 3)
+        self.assertEqual(model, "pika/pika-music")
+        self.assertEqual(args["mode"], "text_to_music")
+        self.assertEqual(args["prompt"], pk["prompt"]["prompt"])
+        self.assertNotIn("lyrics", args)                  # score: none sent
+        self.assertEqual(args["duration"], max(10, math.ceil(pk["ask_seconds"])))
+        self.assertLessEqual(args["seed"], 2147483647)
 
     def test_seeds_differ_and_follow_on(self):
         spec = self.spec()
@@ -680,9 +719,15 @@ class _Runner:
 
     def __init__(self):
         self.asked = []
+        self.calls = []
+        self.backends = {"local"}
 
-    def enqueue_cue(self, root, cid, n, graph, p, backend):
+    def backend(self, name):
+        return name if name in self.backends else None
+
+    def enqueue_cue(self, root, cid, n, graph, p, backend, call=None):
         self.asked.append((cid, n, graph, backend))
+        self.calls.append(call)
         return f"job{n}"
 
 
@@ -698,8 +743,8 @@ class _QRunner(_Runner):
         super().__init__()
         self.queue = type("Q", (), {"jobs": {}})()
 
-    def enqueue_cue(self, root, cid, n, graph, p, backend):
-        job = super().enqueue_cue(root, cid, n, graph, p, backend)
+    def enqueue_cue(self, root, cid, n, graph, p, backend, call=None):
+        job = super().enqueue_cue(root, cid, n, graph, p, backend, call)
         j = _Job(cid)
         j.info["ep"] = root
         self.queue.jobs[job + cid] = j
@@ -743,6 +788,20 @@ class RouteTest(unittest.TestCase):
         self.call(A.get_cue, {"ep": self.ep, "pass": "final", "cue": "nope"}, 404)
         self.assertIn("no finished take", self.call(
             A.post_cue_pick, {"ep": self.ep, "pass": "final", "cue": "m01", "take": 1}, 409)["error"])
+
+    def test_a_hosted_model_renders_as_router_calls(self):
+        self.call(A.put_cue, {"ep": self.ep, "cue": {"id": "m01", "in": anchor("sh010"),
+                                                     "out": anchor("sh020", 60), "bpm": 92,
+                                                     "model": "pika_music"}})
+        body = {"ep": self.ep, "pass": "final", "cue": "m01", "takes": 2, "backend": "local"}
+        self.assertIn("Comfy API key", self.call(A.post_cue_render, body, 409)["error"])
+        self.assertEqual(self.ctx.runner.asked, [])
+        self.ctx.runner.backends.add("router")
+        self.call(A.post_cue_render, body)
+        # on Router whatever the body asked, each take a call of its own seed, no graph
+        self.assertEqual([(g, b) for _, _, g, b in self.ctx.runner.asked], [(None, "router")] * 2)
+        self.assertEqual([c[0] for c in self.ctx.runner.calls], ["pika/pika-music"] * 2)
+        self.assertNotEqual(self.ctx.runner.calls[0][1]["seed"], self.ctx.runner.calls[1][1]["seed"])
 
     @unittest.skipUnless(HAVE_FF, "ffmpeg isn't installed")
     def test_repaint(self):

@@ -113,6 +113,8 @@ CORE_CLASSES = frozenset({
     "LatentConcat", "LatentCut", "LatentUpscaleModelLoader", "LoadAudio", "LoadImage",
     "LoadVideo", "LoraLoader", "LoraLoaderModelOnly", "ManualSigmas", "MiniMaxH3AddGuide",
     "MiniMaxH3ImageToVideo", "MiniMaxH3ReferenceToVideo", "MiniMaxH3SigmaShift",
+    "MiniMaxMusic3TextEncode", "EmptyMiniMaxMusic3LatentAudio",
+    "ComfyCloudMiniMaxMusic3TextToAudioNode",
     "ModelPatchLoader", "ModelSamplingAuraFlow", "ModelSamplingSD3", "OpticalFlowLoader",
     "QwenImage21Cache", "RandomNoise", "RebatchImages", "ReferenceLatent", "ReferenceMultiLatent",
     "ReferenceTimbreAudio", "RegexReplace", "RepeatImageBatch", "ResizeAndPadImage",
@@ -121,7 +123,8 @@ CORE_CLASSES = frozenset({
     "SeedVR2TemporalChunk", "SeedVR2TemporalMerge", "SetLatentNoiseMask", "SheetSage2AudioToABC",
     "SolidMask", "SplitSigmas", "TextEncodeAceStepAudio1.5", "TextEncodeFibo2",
     "TextEncodeQwenImage21", "TextEncodeQwenImageEditPlus", "TrimAudioDuration", "TrimVideoLatent",
-    "UNETLoader", "UpscaleModelLoader", "VAEDecode", "VAEDecodeAudio", "VAEDecodeTiled",
+    "UNETLoader", "UpscaleModelLoader", "VAEDecode", "VAEDecodeAudio", "VAEDecodeAudioTiled",
+    "VAEDecodeTiled",
     "VAEEncode", "VAEEncodeAudio", "VAEEncodeTiled", "VAELoader", "Wan22ImageToVideoLatent",
     "WanFirstLastFrameToVideo", "WanImageToVideo", "WanVaceToVideo", "YuE2GenerateABC",
     "YuE2GenerateMusic"})
@@ -389,6 +392,11 @@ def catalog() -> list[Feature]:
                 "before (FastH3 FL2VA). Shares H3's text encoder and VAEs.",
                 _merge(_target_items("fasth3_omni"), _target_items("fasth3_omni_still"),
                        _target_items("fasth3_fl2va"))),
+        Feature("video.pika_h3_flex", "video", "Pika H3 Flex",
+                "Pika's six-step post-training of H3 (two LoRAs, about 2 GB each, on H3's own files): "
+                "Ref2VA shots, and the ones that carry on from the one before (FL2VA). MiniMax H3 "
+                "Community License.",
+                _merge(_target_items("pika_h3_flex"), _target_items("pika_h3_flex_fl2va"))),
         Feature("video.h3_singularity", "video", "H3 Singularity",
                 "AIGC-Singularity's fine-tune of H3 Ref2VA (clearer HDR, distant faces, motion), and "
                 "its shots that carry on from the one before. H3's text encoder, VAEs and turbo "
@@ -459,6 +467,11 @@ def catalog() -> list[Feature]:
                 "Each take rendered from a theme scored by how much of its melody it kept, so the "
                 "ones that lost it rank last. Non-commercial licence (CC BY-NC 4.0).",
                 _optional_items("stable_audio3", "sheetsage")),
+        target_feature("sound.score_mrt2", "sound", "mrt2", "Music cues (Magenta RealTime 2)",
+                       "Score that follows a cue's arc bar by bar: Google's Magenta RealTime 2 on "
+                       "seriesmith's own node (its node pack), the base model for the final pass and "
+                       "the small one for the proxy, and its style encoder, about 11 GB. Weights CC BY "
+                       "4.0: credit Magenta RealTime 2 by Google.", [OWN_PACK]),
         target_feature("sound.songs", "sound", "yue2", "Songs (YuE2)",
                        "A song sung from its style words and lyrics, on ComfyUI's own nodes. "
                        "Non-commercial licence (CC BY-NC 4.0)."),
@@ -467,6 +480,15 @@ def catalog() -> list[Feature]:
                 "licence (CC BY-NC 4.0).", _optional_items("yue2", "sheetsage")),
         target_feature("sound.music_ace", "sound", "ace_step15", "Music and songs (ACE-Step 1.5 XL)",
                        "Cues and songs from words and lyrics, on ComfyUI's own nodes (MIT)."),
+        target_feature("sound.songs_minimax", "sound", "minimax_music3", "Songs (MiniMax Music 3)",
+                       "Songs whose words come through clearest, on ComfyUI's own nodes; the tempo "
+                       "follows the song, not the cut. MiniMax's community licence (free under $20M "
+                       "yearly revenue)."),
+        target_feature("sound.songs_minimax_cloud", "sound", "minimax_music3_cloud",
+                       "Songs (MiniMax Music 3 on Comfy Cloud; paid)",
+                       "The same model hosted on Comfy Cloud through ComfyUI's partner node: paid "
+                       "per take, nothing to download; a Comfy API key in Settings.",
+                       [Item("key", "api_key")]),
         Feature("sound.ambience", "sound", "Ambience beds (MMAudio)",
                 "A place's room tone or air, made once from its `ambience` words and looped under "
                 "its shots: kijai's ComfyUI-MMAudio and its four files (MIT). The default.",
@@ -743,6 +765,31 @@ def known_files(features: list[Feature] | None = None) -> dict[str, Item]:
                 base = name.replace("\\", "/").rsplit("/", 1)[-1]
                 out.setdefault(base, Item("model", base, folder=d["folder"], url=d["url"], target=t.id))
     return out
+
+
+def missing_core(known) -> dict[str, list[str]]:
+    """Of ComfyUI's own node classes seriesmith's graphs use (CORE_CLASSES), those this
+    ComfyUI doesn't have (`known`: its /object_info, or any collection of class names),
+    each with the shipped targets whose renders need it ([] for one only seriesmith's own
+    graphs use: upscale, post, refs). Run at startup: a ComfyUI that renamed or dropped a
+    node, or one older than a model, says which models it stops."""
+    from seriesmith import edit as E
+    from seriesmith import targets as TG
+    gone = sorted(c for c in CORE_CLASSES if c not in known)
+    if not gone:
+        return {}
+    users: dict[str, list[str]] = {c: [] for c in gone}
+    for t in TG.list_targets():
+        if t.spec.get("router"):
+            continue
+        try:
+            need = E.target_nodes(t)
+        except Exception:                                 # noqa: BLE001  a target that can't say
+            continue
+        for c in gone:
+            if c in need and need[c].get("tier") != "optional":
+                users[c].append(t.id)
+    return users
 
 
 def pack_for_class(cls: str) -> Item | None:

@@ -295,6 +295,13 @@ def files_in(value: Any) -> Iterable[tuple[Any, Any, File]]:
             yield from files_in(v)
 
 
+def partner(graph: dict) -> bool:
+    """Whether the graph runs a Comfy partner node (a target's workflow marks it
+    `"_meta": {"partner": true}`): paid per run, billed to the Comfy API key even on
+    your own ComfyUI, which reads the key from the job's extra_data."""
+    return any(isinstance(v, dict) and (v.get("_meta") or {}).get("partner") for v in graph.values())
+
+
 def available(settings=None) -> dict[str, Backend]:
     """Every backend the settings configure, by name. Building one checks
     nothing over the network; `ping` does."""
@@ -307,6 +314,7 @@ def available(settings=None) -> dict[str, Backend]:
     else:
         from seriesmith.backends.native import ComfyUIBackend
         out["local"] = ComfyUIBackend("local", s.local_comfyui)
+        out["local"].api_key = s.api_key          # for a partner node's job (partner)
     if s.api_key:
         out["cloud"] = ComfyBackend("cloud", "cloud", s.cloud_url, s.api_key)
         from seriesmith.backends.router import RouterBackend
@@ -318,4 +326,4 @@ def available(settings=None) -> dict[str, Backend]:
 
 
 __all__ = ["BACKENDS", "TERMINAL", "Backend", "BackendError", "File", "Output", "Progress",
-           "Run", "available", "files_in"]
+           "Run", "available", "files_in", "partner"]

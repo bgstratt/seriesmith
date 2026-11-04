@@ -1913,6 +1913,29 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
   linked audio's slip, a second sequence chosen (`--sequence`), FCPXML (Final Cut Pro X's
   own format), EDL.
 
+## More music models, Pika H3 Flex, and a way to ComfyUI (2026-11-04)
+
+- [x] **`minimax_music3`**: MiniMax Music 3 on ComfyUI's core nodes, for songs (its words the
+      clearest measured; as score it leaks a voice). Decoded tiled: a two-minute song decoded
+      whole aborted ComfyUI. Live: a 52 s score cue and a 125 s song (95.7 of 96 bpm, WER 0.12).
+- [x] **`minimax_music3_cloud`** and **partner nodes on your own ComfyUI**: a workflow marks
+      the node `_meta.partner`; the local backend sends the Comfy API key as the job's
+      `extra_data.api_key_comfy_org` and the take counts against the paid limit. Not run live.
+- [x] **`mrt2`**: Magenta RealTime 2 on seriesmith's own node (`comfy_nodes/mrt2.py`, the
+      magenta-community PyTorch port carried in `comfy_nodes/_mrt2`), the arc a style a bar,
+      a theme blended in by MusicCoCa. Live: shape error 0.28 over four seeds through the
+      target (SA3: 0.34), the proxy on the small model, a theme, the Features download.
+- [ ] Magenta RT 2 **theme as notes**: its MIDI conditioning played a theme's notes (measured);
+      a cue's theme as notes (a YuE2 plan's ABC, or SheetSage2's) into the node's segments.
+- [x] **`pika_music`** on Comfy Router, and **hosted music models** generally (a cue take as one
+      Router call, `cue.hosted_call`). A draft: Router lists `pika/pika-music` but answered a
+      valid request "does not run this model yet". Switch it on once it's served.
+- [x] **`pika_h3_flex`** / **`pika_h3_flex_fl2va`**: Pika's six-step H3 (a LoRA per H3 model,
+      its templates' LCM on six manual sigmas, no sigma shift). Live: last-light sh050 at
+      1344x768 in 47 s.
+- [x] **No ComfyUI yet**: the Features window shows ComfyUI's own installs for this system and
+      finds one that's running (`seriesmith/comfysetup.py`, `POST /seriesmith/comfyui/find`).
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

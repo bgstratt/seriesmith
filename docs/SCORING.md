@@ -158,8 +158,14 @@ take lyrics). Set it top right in the inspector, with:
 
 - **Label**: how it's listed ("1M3 The Proposal": reel 1, music cue 3, a name).
 - **Model**: empty uses the kind's default: **Stable Audio 3** for score (it follows a rise and
-  fall best), **YuE2** for a song (it plans the song, then sings it); **ACE-Step** sings too, and
-  is the one when a cue must sit exactly on a bpm.
+  fall well), **YuE2** for a song (it plans the song, then sings it); **ACE-Step** sings too, and
+  is the one when a cue must sit exactly on a bpm. Also on offer:
+  - **Magenta RealTime 2** for score: it plays the arc a bar at a time, each bar's style changed
+    as it goes, and followed a rise and fall best of all; it doesn't hold a tempo (the fit
+    stretches its takes, as any model's).
+  - **MiniMax Music 3** for a song: its words come through clearest, and it's free for
+    commercial use under $20M yearly revenue; its tempo follows the song, not your bpm. Also on
+    Comfy Cloud (**MiniMax Music 3 Cloud**, paid per take, a Comfy API key in Settings).
 - **Theme**: a melody carried from cue to cue (below: *Carrying a theme*).
 - **Tempo** in bpm (the fit may move it up to 8 % to land the hits; tick **fixed** to stop that),
   **Meter** (4/4, 3/4, 6/8, 7/8, or your own), **Key** (pick one, or leave it to the model),
@@ -188,7 +194,7 @@ of it, from the in point. Each take keeps its plan beside it (`tNN.abc`), and th
 what it planned: **Plan: 44 bars of 2/4, intro, verse, chorus · 0.6 s short of it**, with its
 sections drawn along the bottom of its waveform on the bar grid, so you see where the verse and
 chorus land against your hits. YuE2's weights are for **non-commercial** use (CC BY-NC 4.0);
-ACE-Step (MIT) is the one for a commercial song.
+ACE-Step (MIT) and MiniMax Music 3 (its community licence) are the ones for a commercial song.
 
 **Carrying a theme.** A cue can carry another's melody, the way a film's love theme comes back
 in a later scene: the inspector's **Theme** is *none*, *a series theme* (one of the show's,
@@ -206,6 +212,8 @@ whatever is picked. Each model hears it its own way:
   `sheetsage2_bf16.safetensors` in `models/audio_encoders`).
 - **ACE-Step** hears its sound as the **timbre** reference: the instruments and voice, not the
   tune.
+- **Magenta RealTime 2** blends its sound into every bar's style: the instruments and feel, not
+  the tune.
 - **Stable Audio 3** renders **from** its sound: the theme is fitted to this cue (played at
   this cue's tempo, its whole bars looped to the cue's length) and each take starts from it,
   so the tune comes back in this cue's own instruments and words. **Strength** (beside the

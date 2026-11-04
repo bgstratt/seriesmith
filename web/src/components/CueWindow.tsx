@@ -1444,9 +1444,11 @@ function CueInspector({ ep, pass, res, target, targets, presets, sel, sections, 
         </select>
       ), target?.capabilities?.structure === "story" ? "It takes the arc as a story told in words, the tempo in the text"
         : target?.capabilities?.structure === "plan" ? "It plans the song itself (sections and bars, as ABC), its tempo set to the cue's; then sings the lyrics to that plan"
+        : target?.capabilities?.structure === "schedule" ? "It plays the arc a bar at a time, each bar's style changed as it goes; the tempo in the text, which it doesn't hold"
+        : target?.capabilities?.tempo === "text" ? "It takes sections as tags, the tempo in the text"
         : target ? "It takes sections as tags and a bpm of its own" : undefined)}
       {field("Theme", <ThemeField ep={ep} pass={pass} spec={spec} plan={plan} target={target} targets={targets} themes={res.themes} save={edit} />,
-        "A theme carried from cue to cue (the leitmotif): a series theme, another cue's take, or a sound file. Stable Audio 3 renders from its sound (at a strength); YuE2 sings its melody; ACE-Step hears it as its timbre")}
+        "A theme carried from cue to cue (the leitmotif): a series theme, another cue's take, or a sound file. Stable Audio 3 renders from its sound (at a strength); YuE2 sings its melody; ACE-Step hears it as its timbre; Magenta RT 2 blends its sound into every bar's style")}
       {field("Tempo", (
         <span className="h3-row" style={{ gap: 6 }}>
           <Draft label="Cue bpm" value={spec.bpm != null ? String(spec.bpm) : ""} placeholder="100" onCommit={(b) => edit({ bpm: num(b) })} />

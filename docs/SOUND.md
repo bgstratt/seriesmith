@@ -285,11 +285,12 @@ Music:
 | Model | Status here | Use |
 |---|---|---|
 | **ACE-Step 1.5 XL** (core nodes: `TextEncodeAceStepAudio1.5` takes tags, lyrics, `bpm`, `duration`, time signature, key; `ReferenceTimbreAudio` a timbre reference) | **downloaded 2026-11-01**: XL Turbo (proxy pass, 8 steps) and XL SFT (final), `qwen_0.6b_ace15` + `qwen_4b_ace15`, `ace_1.5_vae` (Comfy-Org/ace_step_1.5_ComfyUI_files; templates `audio_ace_step1_5_xl_turbo` / `_sft`) | **default score model**; MIT |
-| **MiniMax Music 3** (core nodes) | **downloaded 2026-11-01**: the template's files (`minimax_music3_dit_fp16`, the pruned int8 text encoder, `minimax_music3_dav`); its licence still to read | songs and score, a second opinion to ACE-Step |
+| **MiniMax Music 3** (core nodes) | the target `minimax_music3` (2026-11-04): the template's files (`minimax_music3_dit_fp16`, the pruned int8 text encoder, `minimax_music3_dav`), decoded tiled; `minimax_music3_cloud` the same model on Comfy Cloud (a partner node, paid) | **songs** (its words the clearest measured; the tempo not held); as score it leaks a voice |
+| **Magenta RealTime 2** (Google; no ComfyUI node: the magenta-community PyTorch port in seriesmith's node pack, `SeriesmithMRT2`) | the target `mrt2` (2026-11-04): base (final) and small (proxy) and MusicCoCa, in `models/magenta_rt` (Features) | **score that follows an arc** bar by bar (the best shape measured); a theme blended into its style; the tempo not held; CC BY 4.0 weights |
 | **YuE2** (core nodes: `YuE2GenerateMusic` style, lyrics, ABC, up to 900 s; `YuE2GenerateABC`) | installed: `yue2_3b_int8_convrot`; templates `audio_yue2_text2music`, `audio_yue2_music_cover` | **default song model** (`yue2`, 2026-11-01); a melody carried from cue to cue; CC BY-NC 4.0 (non-commercial) |
 | **SheetSage2** (`SheetSage2AudioToABC`) | installed | a recording's melody as ABC, for YuE2 (a theme that isn't a YuE2 take); CC BY-NC 4.0 |
 | **Stable Audio 3 Medium** (core template `audio_stable_audio_3_medium`) | **downloaded 2026-11-01**: `stable_audio_3_medium`, `t5gemma_b_b_ul2` (and `qwen3.5_2b_bf16` for the template's optional reprompt) | **the score default candidate** (measured below: follows an arc told as a story); also stingers and an ambience candidate |
-| HeartMuLa, DiffRhythm 2, SongBloom | no ComfyUI core nodes | not now |
+| DiffRhythm 2, SongBloom | no ComfyUI core nodes | not now |
 
 Ambience: Stable Audio 3 Medium; LTX-2.5 audio-only (the `ltx2_voice` graph prompted for a
 room, not a voice; up to 20 s, so a bed loops with a crossfade); ACE-Step for musical drones.
@@ -331,8 +332,11 @@ Heard (the user): **H3 at 256x160 is about as good as LTX-2.3** ("I couldn't say
 better"), so with H3 the default video model elsewhere, **H3 FL2VA at 256x160 is the effects
 default**, LTX-2.3 Foley and Hunyuan XL the choices beside it (phase 4).
 
-Paid music models (MiniMax Music 3 on Comfy Cloud, Sonilo video-to-music, ByteDance Seed
-Audio) are left out for now; they fit as targets of the same kinds.
+Paid music models: MiniMax Music 3 on Comfy Cloud is a target (`minimax_music3_cloud`, a
+partner node on your own ComfyUI: the backend sends the Comfy API key with the job and the
+take counts against the paid limit), and Pika Music on Comfy Router (`pika_music`, a draft:
+Router lists it but doesn't serve it yet). Sonilo video-to-music and ByteDance Seed Audio are
+left out; they fit as targets of the same kinds.
 
 Licences (read 2026-11-01): **MiniMax Music 3**'s community licence is free for commercial use
 under $20M yearly revenue, the outputs the user's; it lists the US, EU, UK and South Korea as
@@ -1357,8 +1361,10 @@ are the render's. Median of eight / how many of eight keep 40 % or more:
   won't carry into the next cue.
 - **Eight takes are enough** for a clear theme: five on theme at 0.86, to pick from by ear.
 
-Paid and other models (2026-11-03, a survey; nothing paid was run): Comfy Router's catalog has
-no music model (255 models: speech, sound effects, cleanup). Comfy's partner nodes here have
+Paid and other models (2026-11-03, a survey; nothing paid was run): Comfy Router's catalog had
+no music model (255 models: speech, sound effects, cleanup; on 2026-11-04, 261 with
+`pika/pika-music`, which takes a description, lyrics, 10-360 s and a `music_cover` mode, and
+which Router answered "does not run this model yet"). Comfy's partner nodes here have
 Sonilo and MiniMax Music 3 Cloud, neither taking a melody. Of hosted services only Stability's
 Stable Audio 2.5 API takes audio and a strength (`StabilityAudioToAudio`, documented by Comfy
 but not in this ComfyUI 0.43); Suno has no official API, Udio no downloads, MiniMax's
@@ -1366,6 +1372,56 @@ but not in this ComfyUI 0.43); Suno has no official API, Udio no downloads, Mini
 conditions on a clip of at most 30 s with no stated fidelity. Open models that follow a melody
 well (MusicGen-Melody, JASCO, MelodyFlow, MuLaCover) are non-commercial; MuseControlLite (on
 Stable Audio Open 1.0) has no ComfyUI node. SA3 locally is the one to build on.
+
+## Measured: MiniMax Music 3 and Magenta RealTime 2 (2026-11-03/04, local, RTX 5090)
+
+The same 20-bar arc at 92 bpm as Stable Audio 3's and ACE-Step's (intro 4 bars, build 8,
+climax 4, drop 2, ending 2: 52.17 s), measured by `seriesmith/beats.py` with the bars counted
+from where the sound starts; a vocal stem (`SeriesmithVocals`) against the whole as a check for
+singing. First outside the repo (a bench script), then through the targets.
+
+| Model, how asked | Climax in bars 13-16 | Drop of 4 dB or more | Shape error median (best) | Length reached | Vocal stem vs mix |
+|---|---|---|---|---|---|
+| **Magenta RT 2, a style a bar** (8 seeds) | 5 / 8 | **6 / 8** | **0.23 (0.18)** | 8 / 8 | -35 dB |
+| Magenta RT 2 through the `mrt2` target (4 seeds) | 2 / 4 | 2 / 4 | 0.28 (0.26) | 4 / 4 | — |
+| Magenta RT 2, one prompt for the cue (4) | 0 / 4 | 1 / 4 | 0.37 | 4 / 4 | -44 dB |
+| MiniMax Music 3, section tags as lyrics (8) | 1 / 8 | 2 / 8 | 0.36 (0.30) | 7 / 8 | -28 dB |
+| MiniMax Music 3, empty lyrics (8) | 0 / 8 | 1 / 8 | 0.49 (0.25) | 3 / 8 (median 32 s) | **-13 dB** |
+| *Stable Audio 3, the arc as a story (8, the same script)* | *5 / 8* | *4 / 8* | *0.34 (0.19)* | *8 / 8* | *-45 dB* |
+
+- **Magenta RealTime 2 follows an arc given as a style a bar** better than any model follows
+  one told in words, and one prompt for the whole cue not at all. Its style changes at any
+  40 ms frame (MusicCoCa's tokens), so the `mrt2` target sends a style per bar, a rising
+  section blended from its first bar's words to its last's. "Very quiet" came out all but
+  silent (-55 to -95 dB): its quietest words are "soft, sparse", and through the target the
+  intro sat about 9 dB under the climax. Its response lags about a bar; asking a bar early
+  made the drop land early, so it isn't done.
+- **It doesn't hold a tempo**: 72 asked in the text played 60-67, 120 played 119-124; a low
+  note's onset on every beat (MIDI conditioning) didn't hold it either (75-83, 112-138). Its
+  takes are measured and fitted as every model's are.
+- **It plays notes**: a theme's notes as MIDI conditioning (onset and sustain per pitch, the
+  others off) put the note's pitch class first in 33-67 % of notes and in the top three in
+  78-100 %, against 0-11 % and 22-50 % with no notes. Not wired to a cue yet; a theme now
+  goes in as a recording, MusicCoCa's audio embedding blended into every bar's style (a take
+  moved toward the recording's spectrum: correlation 0.76 -> 0.84).
+- **Speed**: about 30 s for 52 s once loaded on the port's CUDA-graph path (its eager path
+  was ten times slower); the small model 18 s.
+- **MiniMax Music 3 is a song model.** As score, empty lyrics end a take early and leak a
+  voice (the vocal stem 2-4 dB under the mix in three takes of eight, heard); section tags as
+  its lyrics reach the length and leak less, and still don't follow the arc. It doesn't hold
+  a tempo in the text (72 asked: 81, 86; 120: 141, 102).
+- **Songs** (one set of original lyrics, 96 bpm, three seeds each; faster-whisper large-v3
+  turbo on the vocal stem against the lyrics):
+
+  | Model | Tempo heard (96 asked) | Length | Word error rate |
+  |---|---|---|---|
+  | YuE2 (the `yue2` target, its plan's `Q:` set) | 96.2, 96.0, 77.0 | 111-123 s | 0.08-0.32 |
+  | MiniMax Music 3 | 83-115 | 104-125 s | **0.06-0.12** |
+
+  YuE2 stays the song that sits on the cut's tempo; MiniMax Music 3 sings its words clearest
+  and is free for commercial use under $20M yearly revenue, where YuE2 is non-commercial.
+- **Decoding a long take whole aborted ComfyUI** (MiniMax Music 3, a two-minute song, in
+  `vae_decode_audio`): its target decodes tiled (1536 / 64, its template's own choice).
 
 ## Open questions
 
