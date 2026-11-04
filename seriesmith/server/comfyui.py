@@ -85,7 +85,8 @@ def start(server, settings=None, wait: float = 120.0):
     import threading
     import time
 
-    from seriesmith.server.standalone import _answers, detect_models, ensure_proxy, start_queue
+    from seriesmith.server.standalone import (_answers, core_nodes_line, detect_models, ensure_proxy,
+                                              start_queue)
     from seriesmith.settings import load_settings
     url = base_url(server)
 
@@ -130,6 +131,12 @@ def start(server, settings=None, wait: float = 120.0):
             log.info("seriesmith: %s", detect_models(make_context))
         except Exception as e:                            # noqa: BLE001  log, go on
             log.warning("seriesmith: finding the installed models failed: %s", e)
+        try:
+            line = core_nodes_line(make_context)
+            if line:
+                log.warning("seriesmith: %s", line)
+        except Exception:                                 # noqa: BLE001  a check, never in the way
+            pass
         try:
             recover_all()
         except Exception:                                 # noqa: BLE001  log, go on

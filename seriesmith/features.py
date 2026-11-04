@@ -767,6 +767,31 @@ def known_files(features: list[Feature] | None = None) -> dict[str, Item]:
     return out
 
 
+def missing_core(known) -> dict[str, list[str]]:
+    """Of ComfyUI's own node classes seriesmith's graphs use (CORE_CLASSES), those this
+    ComfyUI doesn't have (`known`: its /object_info, or any collection of class names),
+    each with the shipped targets whose renders need it ([] for one only seriesmith's own
+    graphs use: upscale, post, refs). Run at startup: a ComfyUI that renamed or dropped a
+    node, or one older than a model, says which models it stops."""
+    from seriesmith import edit as E
+    from seriesmith import targets as TG
+    gone = sorted(c for c in CORE_CLASSES if c not in known)
+    if not gone:
+        return {}
+    users: dict[str, list[str]] = {c: [] for c in gone}
+    for t in TG.list_targets():
+        if t.spec.get("router"):
+            continue
+        try:
+            need = E.target_nodes(t)
+        except Exception:                                 # noqa: BLE001  a target that can't say
+            continue
+        for c in gone:
+            if c in need and need[c].get("tier") != "optional":
+                users[c].append(t.id)
+    return users
+
+
 def pack_for_class(cls: str) -> Item | None:
     if cls in OWN_PACK.classes or cls.startswith("Seriesmith"):
         return OWN_PACK

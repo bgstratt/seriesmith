@@ -409,6 +409,25 @@ def detect_models(make_context) -> str:
     return "default models: " + ", ".join(f"{k} {TG.machine_default(k)}" for k in ("video", "image"))
 
 
+def core_nodes_line(make_context) -> str | None:
+    """A line for the log when this ComfyUI lacks node classes of its own that seriesmith's
+    models use (features.missing_core: renamed or dropped by an update, or added by one
+    it hasn't had), else None. A class no model needs, only seriesmith's own graphs,
+    still counts."""
+    from seriesmith import features as FT
+    gone = FT.missing_core(A.comfy_object_info(make_context()))
+    if not gone:
+        return None
+
+    def users(u: list[str]) -> str:
+        return (", ".join(u[:3]) + (" ..." if len(u) > 3 else "")) if u else "seriesmith's own graphs"
+    shown = [f"{c} ({users(u)})" for c, u in list(gone.items())[:8]]
+    more = f" and {len(gone) - 8} more" if len(gone) > 8 else ""
+    return (f"this ComfyUI lacks {len(gone)} of its own node class(es) seriesmith uses: "
+            f"{'; '.join(shown)}{more}. Update ComfyUI, or update seriesmith if ComfyUI is newer "
+            f"(seriesmith targets lists what each model can't render)")
+
+
 def detect_when_up(make_context, url: str, wait: float = 600.0) -> None:
     """detect_models in the background, once ComfyUI at `url` answers."""
     import threading
@@ -424,6 +443,12 @@ def detect_when_up(make_context, url: str, wait: float = 600.0) -> None:
             log.info("seriesmith: %s", detect_models(make_context))
         except Exception as e:                            # noqa: BLE001  log, go on
             log.warning("seriesmith: finding the installed models failed: %s", e)
+        try:
+            line = core_nodes_line(make_context)
+            if line:
+                log.warning("seriesmith: %s", line)
+        except Exception:                                 # noqa: BLE001  a check, never in the way
+            pass
     threading.Thread(target=run, daemon=True, name="seriesmith-models").start()
 
 

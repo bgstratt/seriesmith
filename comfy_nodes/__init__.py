@@ -15,6 +15,14 @@ NODE_CLASS_MAPPINGS = {**_SHOT, **_CHAIN, **_UP, **_FIN, **_AUD, **_MRT2}
 NODE_DISPLAY_NAME_MAPPINGS = {**_SHOT_NAMES, **_CHAIN_NAMES, **_UP_NAMES, **_FIN_NAMES, **_AUD_NAMES,
                               **_MRT2_NAMES}
 
+# the parts of ComfyUI's own Python these nodes call, looked up once: a ComfyUI that
+# renamed or dropped one says so now, naming what it breaks (_compat.py)
+try:
+    from . import _compat
+    _compat.report()
+except Exception:                                         # noqa: BLE001  never stop the nodes loading
+    pass
+
 
 def _find_seriesmith() -> None:
     """The seriesmith package importable: the one beside this folder (the repo

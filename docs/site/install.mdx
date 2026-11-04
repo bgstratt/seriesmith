@@ -1133,6 +1133,14 @@ linked or updated. Link `comfy_nodes\` into `custom_nodes\` (section 2) and rest
 ComfyUI. A deployment needs the pack too; Comfy Cloud doesn't (seriesmith sends it Cloud's
 own nodes).
 
+**After updating ComfyUI: `seriesmith: this ComfyUI lacks ...` in its log.**
+seriesmith checks two things each time ComfyUI starts it. `this ComfyUI has no comfy.<something>, which <seriesmith's nodes> use`: a part of ComfyUI's own Python that
+seriesmith's node pack calls was renamed or dropped (update seriesmith: the line names the
+nodes it breaks). `this ComfyUI lacks N of its own node class(es) seriesmith uses: <class> (<models>)`: a node the named models' workflows are built from isn't in this ComfyUI: one
+older than those models (update ComfyUI), or newer and renamed (update seriesmith).
+`seriesmith targets` lists, per model, what it can't render. Neither line: nothing changed
+that seriesmith uses.
+
 **You changed `web/` and nothing changed in the browser.**
 The editor is served from the committed pages, not from `web/`: `seriesmith serve` from
 `seriesmith\server\static\`, the editor inside ComfyUI from
