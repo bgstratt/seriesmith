@@ -114,6 +114,7 @@ CORE_CLASSES = frozenset({
     "LoadVideo", "LoraLoader", "LoraLoaderModelOnly", "ManualSigmas", "MiniMaxH3AddGuide",
     "MiniMaxH3ImageToVideo", "MiniMaxH3ReferenceToVideo", "MiniMaxH3SigmaShift",
     "MiniMaxMusic3TextEncode", "EmptyMiniMaxMusic3LatentAudio",
+    "ComfyCloudMiniMaxMusic3TextToAudioNode",
     "ModelPatchLoader", "ModelSamplingAuraFlow", "ModelSamplingSD3", "OpticalFlowLoader",
     "QwenImage21Cache", "RandomNoise", "RebatchImages", "ReferenceLatent", "ReferenceMultiLatent",
     "ReferenceTimbreAudio", "RegexReplace", "RepeatImageBatch", "ResizeAndPadImage",
@@ -473,6 +474,11 @@ def catalog() -> list[Feature]:
                        "Songs whose words come through clearest, on ComfyUI's own nodes; the tempo "
                        "follows the song, not the cut. MiniMax's community licence (free under $20M "
                        "yearly revenue)."),
+        target_feature("sound.songs_minimax_cloud", "sound", "minimax_music3_cloud",
+                       "Songs (MiniMax Music 3 on Comfy Cloud; paid)",
+                       "The same model hosted on Comfy Cloud through ComfyUI's partner node: paid "
+                       "per take, nothing to download; a Comfy API key in Settings.",
+                       [Item("key", "api_key")]),
         Feature("sound.ambience", "sound", "Ambience beds (MMAudio)",
                 "A place's room tone or air, made once from its `ambience` words and looped under "
                 "its shots: kijai's ComfyUI-MMAudio and its four files (MIT). The default.",

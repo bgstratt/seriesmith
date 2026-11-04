@@ -110,13 +110,17 @@ class Runner:
             raise ValueError(f"{name} isn't set up on this machine (seriesmith backends)")
         return backend
 
-    def reserve(self, backend, root: str, kind: str) -> None:
+    def reserve(self, backend, root: str, kind: str, graph: dict | None = None) -> None:
         """Before a job's take or record is reserved: room on the disk for what
         it makes, and a paid run counted (PaidLimit past Settings' limit), so a
-        refusal leaves nothing behind."""
+        refusal leaves nothing behind. A graph with a Comfy partner node is paid
+        on any backend (backends.partner)."""
+        from seriesmith.backends import partner
         room(root, kind)
         if backend.paid:
             self.queue.charge(backend.name)
+        elif graph is not None and partner(graph):
+            self.queue.charge(f"{backend.name} (a partner node)")
 
     def started(self, qjob: QJob, run, backend, report) -> None:
         """A job's run started on its backend: Cancel stops it from now on, and
@@ -568,7 +572,7 @@ class Runner:
         from seriesmith import cue as CU
 
         backend = self.backend_for(backend_name)
-        self.reserve(backend, root, "cue")
+        self.reserve(backend, root, "cue", graph)
         sidecar = CU.take_paths(root, cid, n)["sidecar"]
 
         def event(status: str) -> None:

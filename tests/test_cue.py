@@ -285,6 +285,14 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(enc["lyrics"].splitlines(), [f"[{s['name'].lower()}]" for s in pm["sections"]])
         self.assertIn("Vocal Details: None.", enc["caption"])
         self.assertIn(f"{int(pm['fit']['ask_bpm'])} BPM", enc["caption"])
+        # on Comfy Cloud: the partner node, marked so the backend sends the key; a score
+        # cue's lyrics empty (the hosted model's instrumental switch)
+        pc = CU.plan(self.root, "final", self.spec(model="minimax_music3_cloud"), {})
+        g = CU.graph(TG.load_target("minimax_music3_cloud"), pc, 11, "final")
+        node = next(v for v in g.values() if v["class_type"] == "ComfyCloudMiniMaxMusic3TextToAudioNode")
+        self.assertTrue(node["_meta"]["partner"])
+        self.assertEqual((node["inputs"]["seed"], node["inputs"]["lyrics"]), (11, ""))
+        self.assertEqual(node["inputs"]["prompt"], enc["caption"])
 
     def test_seeds_differ_and_follow_on(self):
         spec = self.spec()

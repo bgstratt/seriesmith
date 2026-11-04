@@ -1,0 +1,4 @@
+{
+ "1": {"class_type": "ComfyCloudMiniMaxMusic3TextToAudioNode", "inputs": {"prompt": "", "lyrics": "", "seed": 0, "max_duration": 120.0, "audio_quality": "V0"}, "_meta": {"title": "MiniMax Music 3 (Comfy Cloud)", "partner": true}},
+ "2": {"class_type": "SaveAudio", "inputs": {"audio": ["1", 0], "filename_prefix": "seriesmith/cue"}, "_meta": {"title": "Save"}}
+}

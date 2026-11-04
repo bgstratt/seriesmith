@@ -256,7 +256,7 @@ class CoverageTest(unittest.TestCase):
 
     def test_the_hosted_models_are_a_feature_of_a_key(self):
         from seriesmith import targets as TG
-        hosted = next(f for f in self.cat if any(i.kind == "key" for i in f.items))
+        hosted = next(f for f in self.cat if f.id == "hosted.comfy_api")
         self.assertTrue(any(t.spec.get("router") for t in TG.list_targets()))
         self.assertIn("pip", {i.kind for i in hosted.items})   # comfy-sdk
         key = next(i for i in hosted.items if i.kind == "key")
