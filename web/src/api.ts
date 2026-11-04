@@ -209,11 +209,11 @@ export interface Api {
   pickCue(req: { ep: string; pass: Pass; cue: string; take: number; gain?: boolean }): Promise<{ mix: Mix }>;
   /** POST /seriesmith/cue/theme: a finished take made a series theme (`sound.themes.<name>`), written
    * into the series config of this episode and (everywhere, the default) every episode beside it. */
-  pinCueTheme(req: { ep: string; cue: string; take: number; name: string; role?: string | null; words?: string | null; everywhere?: boolean }):
+  pinCueTheme(req: { ep: string; cue: string; take: number; name: string; role?: string | null; words?: string | null; for?: string[] | null; everywhere?: boolean }):
     Promise<{ theme: { name: string; ep: string; cue: string; take: number; role?: string; words?: string }; written: string[]; same: string[] }>;
   /** POST /seriesmith/cue/draft: the first-pass score from the script's structure; written (its cues, hits and
    * the dialogue to voices only unless keep_sound) only with `write`. */
-  scoreDraft(req: { ep: string; pass: Pass; write?: boolean; replace?: boolean; keep_sound?: boolean }): Promise<ScoreDraftResult>;
+  scoreDraft(req: { ep: string; pass: Pass; write?: boolean; replace?: boolean; rendered?: boolean; keep_sound?: boolean }): Promise<ScoreDraftResult>;
   /** POST /seriesmith/cue/comp: a new take, take `take` with the cue's bars [a, b) from take `from`, spliced on bar lines, measured and ranked. */
   compCue(req: { ep: string; pass: Pass; cue: string; take: number; from: number; bars: [number, number] }): Promise<{ take: CueTake }>;
   /** POST /seriesmith/cue/repaint: a new take queued, take `take` with the cue's bars [a, b) made again on its own model (`fresh`: new music there), the rest kept. */

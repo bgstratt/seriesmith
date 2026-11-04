@@ -55,7 +55,7 @@ describe("drafting the score", () => {
 
   it("shows the draft, then writes it", async () => {
     await open();
-    expect(asked).toEqual([{ ep: EP, pass: "proxy" }]);                // shown, nothing written
+    expect(asked).toEqual([{ ep: EP, pass: "proxy", rendered: false }]); // shown, nothing written
     expect(el.textContent).toContain("The Pixar Story Spine");
     expect(el.textContent).toContain("Every day…: light, a simple repeating figure");
     expect(el.textContent).toContain("makes the episode's theme");

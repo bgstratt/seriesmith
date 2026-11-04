@@ -415,6 +415,7 @@ seriesmith fx Shows\ep05 --proxy --list                       # each shot's take
 seriesmith score-draft Shows\ep05                    # what it would draft, nothing written
 seriesmith score-draft Shows\ep05 --write            # its cues (d01...), hits, voices only
 seriesmith score-draft Shows\ep05 --write --replace  # the earlier draft replaced
+seriesmith score-draft Shows\ep05 --write --replace --rendered  # its rendered cues too
 ```
 
 - Reads the script's `// structure:`, `// beat:`, `// theme:` and `// flashback` lines, that
@@ -426,7 +427,8 @@ seriesmith score-draft Shows\ep05 --write --replace  # the earlier draft replace
   (docs/SCORING.md "A first pass from the script").
 - A cue of the episode's own is never touched; a draft cue over one is left out. An earlier
   draft is replaced only with `--replace` (its cues to `_history`); a draft cue with a finished
-  take is kept, with its hits.
+  take is kept, with its hits, and a new one over it trimmed around it, unless `--rendered`
+  (a series theme's cue is kept either way).
 
 ### Voice stems: voices
 

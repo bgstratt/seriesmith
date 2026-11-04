@@ -1525,7 +1525,8 @@ under the picture as Play all plays it, and every Play all key works in it.
   *Draft:* labels, nothing rendered) with their hits, and turns the Dialogue track to voices
   only unless **Keep the takes' own sound** is ticked; a cue of yours under one leaves it out.
   With a draft there already, **Replace the earlier draft** must be ticked first; a draft cue
-  with a finished take is kept (listed as *Kept*), never replaced.
+  with a finished take is kept (listed as *Kept*) and the new draft trimmed around it, unless
+  **Rendered ones too** is ticked (a series theme's cue is kept either way).
 - The **?** in its head shows how to use it.
 
 ### The cue window: a piece of score
@@ -1596,7 +1597,8 @@ words); YuE2 sings its melody (a YuE2 take's own plan, or a transcription of any
 ACE-Step takes its sound as its timbre. A model that hears no theme says so and offers one that
 does. A changed theme or strength makes the takes stale.
 
-Each finished take's row has **★ Series theme**: a name, a role (show, story, runner), a line
+Each finished take's row has **★ Series theme**: a name, a role (show, story, runner), whose
+it is (cast ids, the series' characters offered: a character's theme), a line
 on what it is and **every episode** (on: written into every episode's series config beside
 this one, as each has its own), and **Save** makes the take a series theme any cue can carry.
 A take rendered from a theme with SheetSage2 installed says how much of the theme's melody it

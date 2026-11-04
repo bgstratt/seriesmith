@@ -538,7 +538,8 @@ optional; leave the block out for the defaults:
 - `themes` are the show's recurring music, by name, for any episode's cue to carry: each a
   picked take of a cue (`{"ep": "ep01", "cue": "m04", "take": 3}`, the episode's folder beside
   this one) or a file (`{"file": "themes/glance.wav", "bpm": 80}`, relative to the series
-  config), with `role` (`show`, `story` or `runner`) and `words` (what it is). They're made
+  config), with `role` (`show`, `story` or `runner`), `words` (what it is) and `for` (whose it
+  is: cast ids; a character's theme is the episode's own whenever they lead it). They're made
   in the editor from a take you pick (its **★ Series theme**), not written by hand; leave the
   key out when writing a new series.
 - `format` is a show's own first-pass score, for a show whose episodes share a shape of their

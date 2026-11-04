@@ -115,6 +115,17 @@ class DraftTest(unittest.TestCase):
                          [("turn", "sh020"), ("turn", "sh030"), ("arrive", "sh040")])
         self.assertEqual((c["in"], c["out"]), ({"shot": "sh010", "at": 0.0}, {"shot": "sh040", "at": 8.0}))
 
+    def test_the_leads_character_theme_is_the_story_theme(self):
+        sh = shots(("sh010", "sq1", 8, 0, ["dean"]), ("sh020", "sq1", 10, 0, ["dean", "wallace"]))
+        themes = [{"name": "dean_theme", "for": ["dean"]}]
+        d = SP.draft(sh, marks("Pixar Story Spine", {"sh010": "Once upon a time…", "sh020": "Every day…"}), themes=themes)
+        (c,) = d["cues"]
+        self.assertEqual((c["theme"], c["makes"]), ("dean_theme", None))   # carried, not made
+        self.assertIn("dean's", d["notes"][0])
+        # someone else leads: the episode makes its own
+        d = SP.draft(sh, marks("Pixar Story Spine", {"sh010": "Once upon a time…"}), themes=[{"name": "x", "for": ["ann"]}])
+        self.assertEqual(d["cues"][0]["makes"], "story")
+
     def test_a_dry_beat_splits_and_the_story_theme_is_taken(self):
         sh = shots(("sh010", "sq1", 10, 0), ("sh020", "sq1", 10, 0), ("sh030", "sq2", 10, 0))
         fmt = {"beats": {"A": {"music": "score", "theme": "story"}, "B": {"music": "dry"},
@@ -240,12 +251,56 @@ class EpisodeTest(unittest.TestCase):
         # its hits stay with it
         self.assertEqual([h["id"] for h in MX.check(MX.load(self.root)["final"])["hits"]], ["dh01", "dh02"])
 
+    def test_rendered_ones_replaced_too_but_a_series_theme_kept(self):
+        SD.write(self.root, "final", SD.draft(self.root, "final"))
+        n = CU.reserve(self.root, "d01", {"pass": "final"})
+        CU.update(self.root, "d01", n, status="ok")
+        d = SD.draft(self.root, "final", rendered=True)
+        self.assertEqual((d["drafted"], d["kept"]), (["d01"], []))
+        r = SD.write(self.root, "final", d, replace=True)
+        self.assertEqual((r["removed"], r["cues"]), (["d01"], ["d01"]))
+        self.assertEqual(CU.list_takes(self.root, "d01"), [])          # the new one, no takes
+        # a series theme's cue is kept, rendered or not
+        n = CU.reserve(self.root, "d01", {"pass": "final"})
+        CU.update(self.root, "d01", n, status="ok")
+        F.write_json(os.path.join(self._tmp.name, "Show", "series.json"),
+                     {"sound": {"themes": {"intro": {"ep": "ep01", "cue": "d01", "take": n}}}})
+        d = SD.draft(self.root, "final", rendered=True)
+        self.assertEqual((d["drafted"], d["kept"]), ([], ["d01"]))
+
+    def test_trimmed_around_a_kept_cue(self):
+        self.assertEqual(SD._free(0.0, 80.0, [(0.0, 11.0)]), (11.0, 80.0))
+        self.assertEqual(SD._free(0.0, 80.0, [(30.0, 40.0)]), (40.0, 80.0))
+        self.assertIsNone(SD._free(0.0, 10.0, [(0.0, 12.0)]))
+        sh = shots(("sh010", "sq1", 11.0417, 0), ("sh020", "sq2", 20, 0), ("sh030", "sq2", 20, 0))
+        c = {"t0": 0.0, "t1": 51.0417, "hits": [{"kind": "turn", "shot": "sh020", "end": False},
+                                                 {"kind": "arrive", "shot": "sh010", "end": False}],
+             "sections": [{"name": "A", "seconds": 11.0417}, {"name": "B", "seconds": 40.0}]}
+        # a cut rounded a hair after the kept cue's end still starts the trimmed cue on its shot
+        SD._trim(c, (11.04163, 51.0417), sh)
+        self.assertEqual((c["in"], c["out"]), ({"shot": "sh020", "at": 0.0}, {"shot": "sh030", "at": 20.0}))
+        self.assertEqual([x["name"] for x in c["sections"]], ["B"])
+        self.assertEqual([h["shot"] for h in c["hits"]], ["sh020"])
+
     def test_a_cue_of_ones_own_is_kept(self):
         CU.save_spec(self.root, {"id": "m01", "in": {"shot": "sh020", "frame": 0}, "out": {"shot": "sh020", "frame": 100}})
         d = SD.draft(self.root, "final")
         self.assertIn("m01 already plays there", d["cues"][0]["skip"])
         self.assertFalse(SD.write(self.root, "final", d)["cues"])
         self.assertEqual([c["id"] for c in CU.list_cues(self.root)], ["m01"])
+
+    def test_pinned_for_a_character(self):
+        SD.write(self.root, "final", SD.draft(self.root, "final"))
+        n = CU.reserve(self.root, "d01", {"pass": "final"})
+        CU.update(self.root, "d01", n, status="ok")
+        ctx = A.Context(os.path.join(self._tmp.name, "user"), "http://127.0.0.1:0", env={}, runner=_Runner())
+        A.put_config(ctx, {"roots": [os.path.join(self._tmp.name, "Show")]})
+        code, r = A.post_cue_theme(ctx, {"ep": self.root, "cue": "d01", "take": n, "name": "ann", "for": ["ann"]})
+        self.assertEqual((code, r["theme"]["for"]), (200, ["ann"]))
+        self.assertEqual(A.post_cue_theme(ctx, {"ep": self.root, "cue": "d01", "take": n, "name": "x", "for": "ann"})[0], 400)
+        # drafted again: ann leads the episode, so her theme is its theme
+        d = SD.draft(self.root, "final", rendered=True)
+        self.assertIn("ann's", " ".join(d["notes"]))
 
     def test_route(self):
         ctx = A.Context(os.path.join(self._tmp.name, "user"), "http://127.0.0.1:0", env={}, runner=_Runner())

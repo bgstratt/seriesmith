@@ -36,7 +36,9 @@ where the theme changes or the cue would run past CUE_MAX); a cue starts PRELAP 
 into its beat and ends on a cut; a sting is STING seconds at its beat's start or end; `story`
 is the episode's own melody, made by its first scored cue (no theme) and taken by the later
 ones (that cue's take); `show` and `runner` are the series themes of that role; `lead` the theme
-`for` the beat's lead (the most shots in `who:` and lines). A sitcom's bumpers (a structure
+`for` the beat's lead (the most shots in `who:` and lines on screen). A character's theme (a
+series theme `for` the episode's lead) is its `story` theme, carried from episode to episode,
+in place of one each episode makes. A sitcom's bumpers (a structure
 whose `bumpers` is set) go at each new sequence location, unless a sting or a cue is there. A
 `// theme: <theme>, <words>` mark holds that theme low from its shot to its scene's end, or is
 a sting on the shot (`sting` in its words, or the format's `marks`). Flagged, not drafted:
@@ -320,6 +322,18 @@ def table_of(st: dict) -> dict[str, dict]:
 # the draft
 # ---------------------------------------------------------------------------
 
+def anchor_at(shots: list[dict], t: float, end: bool = False) -> dict:
+    """Cue seconds as a shot and seconds into it: the shot playing then (an end on a cut: the
+    shot before's end). Within a millisecond of a cut counts as on it (shot times are rounded)."""
+    eps = 1e-3
+    if end:
+        cands = [s for s in shots if s["t"] < t - eps] or shots[:1]
+    else:
+        cands = [s for s in shots if s["t"] <= t + eps] or shots[:1]
+    s = cands[-1]
+    return {"shot": s["id"], "at": round(min(s["d"], max(0.0, t - s["t"])), 3)}
+
+
 def _lead(shots: list[dict]) -> str | None:
     """Who leads these shots: the most shots in `who:` and lines."""
     count: dict[str, int] = {}
@@ -435,12 +449,7 @@ def draft(shots: list[dict], marks: dict, fmt: dict | None = None, themes: list[
     total = shots[-1]["t"] + shots[-1]["d"]
 
     def anchor(t: float, end: bool = False) -> dict:
-        """Cue seconds as a shot and seconds into it (an end on a cut: the shot before's end)."""
-        for s in shots:
-            if s["t"] <= t < s["t"] + s["d"] or (end and s["t"] < t <= s["t"] + s["d"] + 1e-6):
-                return {"shot": s["id"], "at": round(t - s["t"], 3)}
-        last = shots[-1]
-        return {"shot": last["id"], "at": round(last["d"], 3)}
+        return anchor_at(shots, t, end)
 
     beats = []
     for b in _beats(shots, marks, by_seq):
@@ -468,6 +477,14 @@ def draft(shots: list[dict], marks: dict, fmt: dict | None = None, themes: list[
 
     cues: list[dict] = []
     story_made = None
+    # the episode's lead's theme, when the series has one: the story theme, already made
+    lead = _lead(shots)
+    own = next((t["name"] for t in themes if lead and lead in (t.get("for") or [])), None)
+    if own:
+        notes.append(f"the episode's theme is {lead}'s, {own} (sound.themes.{own}, for {lead})")
+
+    def story(theme):
+        return own if theme == "story" and own else theme
 
     def section(b: dict, tr: dict, t0: float, t1: float) -> dict:
         words = tr.get("words") or ""
@@ -518,8 +535,8 @@ def draft(shots: list[dict], marks: dict, fmt: dict | None = None, themes: list[
         tr = b["tr"]
         if tr["music"] not in ("score", "under", "gaps"):
             continue
-        lead = _lead(b["shots"])
-        theme, why = _theme_of(tr.get("theme"), lead, themes, tr.get("theme_else"))
+        theme, why = _theme_of(tr.get("theme"), _lead(b["shots"]), themes, tr.get("theme_else"))
+        theme = story(theme)
         if why and why not in notes:
             notes.append(why)
         hits = []
@@ -565,6 +582,7 @@ def draft(shots: list[dict], marks: dict, fmt: dict | None = None, themes: list[
         t0 = max(0.0, min(t0, total - 0.5))
         t1 = min(total, t0 + STING)
         theme, why = _theme_of(theme_name, None, themes)
+        theme = story(theme)
         if why and why not in notes:
             notes.append(why)
         if theme == "story":
@@ -606,6 +624,7 @@ def draft(shots: list[dict], marks: dict, fmt: dict | None = None, themes: list[
                           "text": f"// theme: {words}: a cue already plays there; give it this theme by hand"})
             continue
         theme, why = _theme_of(theme_name, None, themes)
+        theme = story(theme)
         if why and why not in notes:
             notes.append(why)
         if theme == "story" and story_made is None:

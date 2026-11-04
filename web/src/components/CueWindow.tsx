@@ -34,6 +34,7 @@ import { HIT_KIND_TITLE } from "../lib/mix";
 import { lowerMixItem } from "../mixActions";
 import { clipTake, type PlayItem } from "../lib/playlist";
 import { openCueFromSpot } from "../spotActions";
+import { useSeriesConfig } from "./useSeriesConfig";
 import { useApp, statusKey, type ViewerState } from "../store";
 import type { CuePlan, CuePreset, CueResult, CueSection, CueSpec, CueTake, Pass, Target } from "../types";
 import { SongLine, SongStrip, ThemeField } from "./CueTheme";
@@ -1096,8 +1097,10 @@ function PinTheme({ take }: { take: number }) {
   const [role, setRole] = useState("");
   const [words, setWords] = useState("");
   const [everywhere, setEverywhere] = useState(true);
+  const [who, setWho] = useState("");
   const [busy, setBusy] = useState(false);
   const bad = !/^[A-Za-z0-9_-]{1,40}$/.test(name);
+  const cast = who.split(",").map((x) => x.trim()).filter(Boolean);
   if (!open) {
     return (
       <button className="h3-btn" style={{ width: "auto" }}
@@ -1120,6 +1123,7 @@ function PinTheme({ take }: { take: number }) {
       </select>
       <input className="h3-in" style={{ width: 160 }} placeholder="what it is, in words" aria-label="Theme words"
         value={words} onChange={(e) => setWords(e.target.value)} />
+      <ThemeFor value={who} onChange={setWho} />
       <label className="h3-row" style={{ gap: 2 }} title="Each episode has a series config of its own: write it into every one beside this episode too, not only this one">
         <input type="checkbox" checked={everywhere} onChange={(e) => setEverywhere(e.target.checked)} /> every episode
       </label>
@@ -1127,10 +1131,28 @@ function PinTheme({ take }: { take: number }) {
         title={bad ? "A name: letters, digits, _ or -" : `Write sound.themes.${name} into the series config${everywhere ? "s" : ""}`}
         onClick={() => {
           setBusy(true);
-          void pinCueTheme(take, name, role || null, words.trim() || null, everywhere).then((ok) => ok && setOpen(false)).finally(() => setBusy(false));
+          void pinCueTheme(take, name, role || null, words.trim() || null, everywhere, cast).then((ok) => ok && setOpen(false)).finally(() => setBusy(false));
         }}>Save</button>
       <button className="h3-btn h3-icon" title="Cancel" onClick={() => setOpen(false)}><i className="pi pi-times" /></button>
     </span>
+  );
+}
+
+/** Whose theme it is: the cast ids it belongs to (a character's theme), the series config's
+ * characters offered (read when the form opens). */
+function ThemeFor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const ep = useApp((s) => s.ep) ?? "";
+  const sc = useSeriesConfig(ep);
+  const subj = ((sc.base as Record<string, unknown> | null)?.subjects ?? {}) as Record<string, { kind?: string; of?: string }>;
+  const chars = Object.entries(subj).filter(([, e]) => !e?.of && (e?.kind ?? "character") === "character").map(([id]) => id);
+  const list = `theme-for-${ep}`;
+  return (
+    <>
+      <input className="h3-in h3-mono" style={{ width: 130 }} placeholder="whose: cast ids" aria-label="Theme for" list={list}
+        title="Whose theme it is (a character's): their cast ids, commas between. The first-pass score plays it as the episode's theme when they lead an episode, and in a beat they lead where the show's format says so"
+        value={value} onChange={(e) => onChange(e.target.value)} />
+      <datalist id={list}>{chars.map((c) => <option key={c} value={c} />)}</datalist>
+    </>
   );
 }
 

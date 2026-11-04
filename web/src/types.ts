@@ -2957,6 +2957,8 @@ export interface DraftCue {
   hits: { kind: "turn" | "arrive" | "drop"; shot: string; name: string }[];
   spec?: CueSpec;
   skip?: string;
+  /** "trimmed around d01": cut to the stretch a kept cue leaves free */
+  trim?: string;
 }
 
 export interface ScoreDraft {
@@ -2973,8 +2975,10 @@ export interface ScoreDraft {
   voices_only: boolean;
   /** the earlier draft's cues (dNN) in the episode: writing replaces them only when asked */
   drafted: string[];
-  /** earlier draft cues with a finished take: yours now, kept (a new draft works around them) */
+  /** earlier draft cues kept: a series theme's, and (unless `rendered`) those with a finished take */
   kept: string[];
+  /** whether the earlier draft's rendered cues are replaced too */
+  rendered: boolean;
 }
 
 export interface ScoreDraftResult {

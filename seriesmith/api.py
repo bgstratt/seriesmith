@@ -2790,8 +2790,8 @@ def get_cue(ctx: Context, query: dict):
 
 @handler
 def post_cue_theme(ctx: Context, body):
-    """A cue's finished take made a series theme: `{ep, cue, take, name, role?, words?,
-    everywhere?}` (everywhere, default true: written into every episode's series config
+    """A cue's finished take made a series theme: `{ep, cue, take, name, role?, words?, for?,
+    everywhere?}` (`for`: the cast ids it belongs to, a character's theme; everywhere, default true: written into every episode's series config
     beside this one, as each has its own). Returns cue.pin_series_theme's {"theme",
     "written", "same"}. 400 for a name or role that isn't one, 409 for a take that isn't
     finished."""
@@ -2807,10 +2807,14 @@ def post_cue_theme(ctx: Context, body):
     for k in ("role", "words"):
         if body.get(k) is not None and not isinstance(body[k], str):
             raise ApiError(400, f"{k} is text")
+    who = body.get("for")
+    if who is not None and (not isinstance(who, list) or not all(isinstance(x, str) and x.strip() for x in who)):
+        raise ApiError(400, "for is a list of cast ids")
     try:
         CU.check_series_theme(body.get("name"), {"file": "x.wav", **({"role": body["role"]} if body.get("role") else {})})
         out = CU.pin_series_theme(ep, spec["id"], n, body["name"], body.get("role") or None,
-                                  (body.get("words") or "").strip() or None, everywhere)
+                                  (body.get("words") or "").strip() or None, everywhere,
+                                  [x.strip() for x in who or []] or None)
     except CU.CueError as e:
         raise ApiError(409 if "finished take" in str(e) else 400, str(e))
     for name in out["written"]:
@@ -2821,8 +2825,9 @@ def post_cue_theme(ctx: Context, body):
 @handler
 def post_cue_draft(ctx: Context, body):
     """The first-pass score drafted from the script's structure (scoredraft.py, docs/SOUND.md
-    phase 8): `{ep, pass?, write?, replace?, keep_sound?}`. Without `write` nothing is written:
-    what it would draft. With it, the draft's cues and hits written, the dialogue turned to
+    phase 8): `{ep, pass?, write?, replace?, rendered?, keep_sound?}`. Without `write` nothing is written:
+    what it would draft (`rendered`: drafted again over the earlier draft's rendered cues too,
+    a series theme's kept). With it, the draft's cues and hits written, the dialogue turned to
     voices only unless `keep_sound`. Returns {"draft" (scoredraft.draft's), "text" (it in
     words), "written" (scoredraft.write's, or null)}. 400 for a series config's sound.format
     that doesn't check; 409 when the episode isn't built, or has a draft already and
@@ -2831,11 +2836,11 @@ def post_cue_draft(ctx: Context, body):
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     pass_ = check_pass(body.get("pass"))
-    for k in ("write", "replace", "keep_sound"):
+    for k in ("write", "replace", "rendered", "keep_sound"):
         if not isinstance(body.get(k, False), bool):
             raise ApiError(400, f"{k} is true or false")
     try:
-        d = SD.draft(ep, pass_)
+        d = SD.draft(ep, pass_, rendered=body.get("rendered", False))
         written = None
         if body.get("write"):
             written = SD.write(ep, pass_, d, replace=body.get("replace", False),

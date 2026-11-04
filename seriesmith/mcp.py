@@ -446,11 +446,12 @@ TOOLS: list[Tool] = [
          "draft cues (ids d01...) with a section per beat, their themes and hits, nothing "
          "rendered. write false (the default) only says what it would draft; write true writes "
          "the cues, their hits in the pass's mix and turns the dialogue to voices only "
-         "(keep_sound: leave it); replace: true replaces an earlier draft. A cue of the "
-         "episode's own is never touched. Then adjust the cues and render them in the editor.",
+         "(keep_sound: leave it); replace: true replaces an earlier draft's untouched cues, "
+         "rendered: true its rendered ones too (a series theme's kept). A cue of the "
+         "episode's own is never touched; a draft cue over one is trimmed around it. Then adjust the cues and render them in the editor.",
          {"ep": EP, "pass": PASS, "write": {"type": "boolean"}, "replace": {"type": "boolean"},
-          "keep_sound": {"type": "boolean"}},
-         ("ep",), route("POST", "/seriesmith/cue/draft", "ep", "pass", "write", "replace", "keep_sound",
+          "rendered": {"type": "boolean"}, "keep_sound": {"type": "boolean"}},
+         ("ep",), route("POST", "/seriesmith/cue/draft", "ep", "pass", "write", "replace", "rendered", "keep_sound",
                           shape=lambda r: {"text": r.get("text"), "written": r.get("written")}),
          writes=True),
     Tool("assemble", "Cut the pass's picked takes together into one video (can take "

@@ -1362,7 +1362,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         hits: ["dh01"],
       };
       const draft: import("../types").ScoreDraft = {
-        structure: "The Pixar Story Spine", pass: req.pass, missing: [], voices_only: false, drafted, kept: [],
+        structure: "The Pixar Story Spine", pass: req.pass, missing: [], voices_only: false, drafted, kept: [], rendered: !!req.rendered,
         beats: [{ beat: "Once upon a time…", from: "structure", music: "score", t0: 0, t1: 8, shot: shots[0].shot },
                 { beat: "Every day…", from: "structure", music: "under", t0: 8, t1: 20, shot: shots[1].shot }],
         cues: [{ kind: "cue", label: "Once upon a time… → Every day…", id: "d01", t0: 0, t1: 20, theme: null, makes: "story",
@@ -1451,9 +1451,9 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       if (!cueSpecs.get(req.cue)) throw new MockError(`no cue ${req.cue}`, 404);
       if (!t || t.status !== "ok") throw new MockError(`cue ${req.cue} has no finished take ${req.take} to make a theme of`, 409);
       if (!/^[A-Za-z0-9_-]{1,40}$/.test(req.name)) throw new MockError(`a series theme's name is 1-40 letters, digits, _ or -, not ${JSON.stringify(req.name)}`, 400);
-      const theme = { name: req.name, ep: "ep01", cue: req.cue, take: req.take, ...(req.role ? { role: req.role } : {}), ...(req.words ? { words: req.words } : {}) };
+      const theme = { name: req.name, ep: "ep01", cue: req.cue, take: req.take, ...(req.role ? { role: req.role } : {}), ...(req.words ? { words: req.words } : {}), ...(req.for?.length ? { for: req.for } : {}) };
       const row = { name: req.name, label: `${req.name} (ep01 ${req.cue} t${String(req.take).padStart(2, "0")})`, role: (req.role ?? null) as SeriesTheme["role"],
-                    words: req.words ?? null, for: null, error: null };
+                    words: req.words ?? null, for: req.for ?? null, error: null };
       const i = SERIES_THEMES.findIndex((x) => x.name === req.name);
       if (i >= 0) SERIES_THEMES[i] = row; else SERIES_THEMES.push(row);
       return { theme, written: req.everywhere === false ? ["ep01"] : ["ep01", "ep02"], same: [] };

@@ -682,9 +682,10 @@ def theme_list(root: str, series: dict | None = None) -> list[dict]:
 
 
 def pin_series_theme(root: str, cid: str, n: int, name: str, role: str | None = None,
-                     words: str | None = None, everywhere: bool = True) -> dict:
+                     words: str | None = None, everywhere: bool = True, for_: list[str] | None = None) -> dict:
     """A finished take of cue `cid` made a series theme: `sound.themes.<name>` = {"ep" (this
-    episode's folder), "cue", "take"} (and `role`, `words`) written into the series config,
+    episode's folder), "cue", "take"} (and `role`, `words`, `for`: the cast ids it belongs to,
+    a character's theme) written into the series config,
     this episode's and, with `everywhere`, every episode's beside it (each episode has its
     own: source.episodes_under), each saved as the editor saves it (a history copy, the
     file's format). Returns {"theme" (the entry), "written" (the episodes whose config was
@@ -700,6 +701,8 @@ def pin_series_theme(root: str, cid: str, n: int, name: str, role: str | None = 
         entry["role"] = role
     if words:
         entry["words"] = words
+    if for_:
+        entry["for"] = list(for_)
     entry = check_series_theme(name, entry)
     eps = [root]
     if everywhere:

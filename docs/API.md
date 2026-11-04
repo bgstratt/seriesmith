@@ -982,7 +982,8 @@ fitting its level to the arc, at most 6 dB either way. Answers `{"mix"}`; 409 fo
 isn't finished.
 
 ### `POST /seriesmith/cue/theme`
-Body `{"ep", "cue", "take", "name", "role"?, "words"?, "everywhere"?}`: a finished take made a
+Body `{"ep", "cue", "take", "name", "role"?, "words"?, "for"?, "everywhere"?}` (`for`: the cast
+ids it belongs to, a character's theme): a finished take made a
 series theme: `sound.themes.<name>` = `{"ep" (this episode's folder), "cue", "take", "role"?,
 "words"?}` written into this episode's series config and, with `everywhere` (default true),
 every episode's beside it (each has its own), each as the editor saves the series config (a
@@ -994,11 +995,14 @@ themes as `themes`: `[{name, label ("porch (ep01 m04 t03)"), role, words, for, e
 why one can't be used: it doesn't read, or its episode isn't beside this one).
 
 ### `POST /seriesmith/cue/draft`
-Body `{"ep", "pass"?, "write"?, "replace"?, "keep_sound"?}`: the first-pass score drafted from
+Body `{"ep", "pass"?, "write"?, "replace"?, "rendered"?, "keep_sound"?}`: the first-pass score drafted from
 the script's `// structure:`, `// beat:`, `// theme:` and `// flashback` lines, that
 structure's Music table (docs/STORY_STRUCTURES.md, as `seriesmith/core/structures.json`) or
 the series config's `sound.format`, and the pass's cut (scoredraft.py). Without `write`
-nothing is written. Answers `{"draft", "text" (it in words), "written"}`: `draft` is
+nothing is written; `rendered` drafts again over the earlier draft's rendered cues too (a
+series theme's cue, and one a kept cue takes its theme from, are always kept; a draft cue over a
+kept one is trimmed to the longest stretch it leaves free, 8 s or more, else left out: its
+`trim`). Answers `{"draft", "text" (it in words), "written"}`: `draft` is
 `{"structure", "beats": [{beat, from (format, structure, other, unknown, unmarked), music, t0,
 t1, shot}], "cues": [{kind (cue, sting, bumper, mark), label, id, t0, t1, theme ("story", a
 series theme or null), makes ("story": it makes the episode's theme), sections: [{name, words,

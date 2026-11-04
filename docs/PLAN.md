@@ -1738,7 +1738,11 @@ score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
         bumpers, the two marks held under the talk, the fix to its last scene; Porch Lights
         ep01 19 cues, the Squeeze 8 cues in its gaps, written (its format in all 40 episodes'
         series configs; every cue plans against the cut). Not yet: a cue drafted over the location beds (the beds are laid from
-        the cut already); heard
+        the cut already); heard. Then (2026-11-04): a rendered draft cue kept on replace
+        (`--rendered` replaces those too, a series theme's always kept), a draft cue trimmed
+        around a kept one, a character's theme (`for`, set in ★ Series theme) as the
+        episode's story theme when they lead it; Dean ep16 marked (Story Spine) and drafted
+        again around its `intro` theme; Fair Trade's proxy draft written (6 bumpers)
   - [x] the skill: `// structure:` and `// beat:` in STORY_STRUCTURES' From beats to shots
         and the skill's outline step (converted scripts too); a Music table under each of
         the 14 structures (treatment, mood and energy, `story`/`show`/`runner` theme, hit),

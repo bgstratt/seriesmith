@@ -266,12 +266,13 @@ export async function pickCueTake(take: number): Promise<boolean> {
 
 /** A take of the open cue made a series theme (sound.themes.<name>), in this episode's series config
  * and (everywhere) every one beside it; the cue fetched again, so its theme list has it. */
-export async function pinCueTheme(take: number, name: string, role: string | null, words: string | null, everywhere: boolean): Promise<boolean> {
+export async function pinCueTheme(take: number, name: string, role: string | null, words: string | null, everywhere: boolean,
+  who: string[] | null = null): Promise<boolean> {
   const o = openCueRef();
   if (!o) return false;
   let r;
   try {
-    r = await api().pinCueTheme({ ep: o.ep, cue: o.cue, take, name, role, words, everywhere });
+    r = await api().pinCueTheme({ ep: o.ep, cue: o.cue, take, name, role, words, everywhere, ...(who?.length ? { for: who } : {}) });
   } catch (e) {
     report(`Couldn't make ${o.cue} t${String(take).padStart(2, "0")} a series theme`, e);
     return false;
