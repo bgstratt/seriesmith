@@ -6,7 +6,7 @@
   "code": "prompt.py",
 
   "capabilities": {
-    "_note": "MiniMax Music 3 hosted on Comfy Cloud through ComfyUI's partner node (ComfyCloudMiniMaxMusic3TextToAudioNode, BETA): a description, lyrics, a seed and a longest length; paid per take, billed to the Comfy API key in Settings (backends.partner sends it with the job). The same model as minimax_music3 (measured there: its words clearest of three, the tempo not held); empty lyrics set the hosted model's instrumental switch, which the local nodes have no equivalent of. Not run here yet: nothing paid was.",
+    "_note": "MiniMax Music 3 hosted on Comfy Cloud through ComfyUI's partner node (ComfyCloudMiniMaxMusic3TextToAudioNode, BETA): a description, lyrics, a seed and a longest length; paid per take, billed to the Comfy API key in Settings (backends.partner sends it with the job). The same model as minimax_music3 (measured there: its words clearest, the tempo not held); empty lyrics set the hosted model's instrumental switch, which the local nodes have no equivalent of. Not run here yet: nothing paid was.",
     "mode": "t2m",
     "tempo": "text",
     "structure": "sections",

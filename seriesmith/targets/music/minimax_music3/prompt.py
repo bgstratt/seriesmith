@@ -5,7 +5,7 @@ the tempo in words, and the script's music: notes as its mood), Vocal Details, a
 Arrangement (the sections told as a story). Its lyrics are the sections as its own tags (the
 only thing it follows as structure, its template says), a song's sections with their lines.
 A score cue's lyrics are the tags alone: empty lyrics end a take early and leak a voice, the
-tags alone reach the length asked (docs/SOUND.md "Measured: MiniMax Music 3, HeartMuLa and
+tags alone reach the length asked (docs/SOUND.md "Measured: MiniMax Music 3 and
 Magenta RealTime 2").
 
 Stdlib only.

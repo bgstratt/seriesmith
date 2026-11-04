@@ -4,7 +4,7 @@ mrt2: Magenta RealTime 2 (target.json beside this file), through seriesmith's ow
 is a style a bar: the cue's head and the section's words with the bar's energy in words, a
 section that rises or falls blended from its first bar's words to its last's. It followed an
 arc so given better than any model followed one told in words, and a single prompt not at
-all (docs/SOUND.md "Measured: MiniMax Music 3, HeartMuLa and Magenta RealTime 2").
+all (docs/SOUND.md "Measured: MiniMax Music 3 and Magenta RealTime 2").
 
 Its quietest words are "soft, sparse", not "very quiet": a bar asked for very quiet came out
 all but silent. A quiet bar has drums off; louder ones leave them to the model. A cue's theme

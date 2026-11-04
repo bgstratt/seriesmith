@@ -8,7 +8,7 @@ SeriesmithMRT2   a cue rendered from a style schedule: segments of frames (40 ms
                  as one stream through the port's CUDA-graph streamer, which takes each
                  segment's conditioning as it comes (set_source). A cue's arc is a style a
                  bar (seriesmith/targets/music/mrt2/prompt.py), which it followed better than
-                 any prompt did (docs/SOUND.md "Measured: MiniMax Music 3, HeartMuLa and
+                 any prompt did (docs/SOUND.md "Measured: MiniMax Music 3 and
                  Magenta RealTime 2"). An optional recording (a cue's theme) is blended into
                  every segment's style by MusicCoCa's audio embedding.
 
