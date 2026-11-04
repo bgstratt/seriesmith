@@ -7,11 +7,13 @@
   "code": "prompt.py",
 
   "capabilities": {
-    "_note": "Text and a length only: no bpm, section or lyrics input, so a cue's arc is told as a story (prompt.py) and its tempo is written in the text. Measured on local ComfyUI 2026-11-01 (docs/SOUND.md 'Measured: Stable Audio 3 Medium'): an arc told as a story put the climax in place 6 of 8 seeds, the climax 18 dB over the intro, shape error median 0.36; a tempo in the text held within 0.5 % at 72 and 120 bpm, 4-7 % off at 92 (with a pulse). About 2 s a 52 s cue on an RTX 5090. Instrumental only.",
+    "_note": "Text and a length only: no bpm, section or lyrics input, so a cue's arc is told as a story (prompt.py) and its tempo is written in the text. Measured on local ComfyUI 2026-11-01 (docs/SOUND.md 'Measured: Stable Audio 3 Medium'): an arc told as a story put the climax in place 6 of 8 seeds, the climax 18 dB over the intro, shape error median 0.36; a tempo in the text held within 0.5 % at 72 and 120 bpm, 4-7 % off at 92 (with a pulse). About 2 s a 52 s cue on an RTX 5090. Instrumental only. A theme (a cue's leitmotif) is rendered from: its sound, reshaped to the cue's tempo and bars, is the latent the sampler starts from at a strength (where the schedule starts, t0; 0.86 by default: docs/SOUND.md 'Measured: leitmotifs', 'A theme take under another length and tempo'), so the tune recurs in the cue's own instruments.",
     "mode": "t2m",
     "tempo": "text",
     "structure": "story",
     "lyrics": false,
+    "theme": "audio",
+    "theme_strength": 0.86,
     "max_seconds": 380
   },
 
@@ -44,7 +46,21 @@
 
   "models": {
     "model": {"family": "stable-audio-3", "patterns": ["*stable*audio*3*"], "tier": "required", "exclude": ["*small*"]},
-    "text_encoder": {"family": "t5gemma", "patterns": ["*t5gemma*"], "tier": "required"}
+    "text_encoder": {"family": "t5gemma", "patterns": ["*t5gemma*"], "tier": "required"},
+    "sheetsage": {"family": "sheetsage2", "patterns": ["*sheetsage*"], "tier": "optional", "folder": "audio_encoders",
+                  "feature": "a theme's melody score (SheetSage2; non-commercial licence)"}
+  },
+
+  "nodes": {
+    "_note": "Beyond the workflow's own classes: a theme rendered from (prompt.py cue_graph: LoadAudio, VAEEncodeAudio, ManualSigmas, KSamplerSelect, SamplerCustom), and its melody score when SheetSage2 is installed (AudioEncoderLoader, SheetSage2AudioToABC, SaveText), all ComfyUI core.",
+    "LoadAudio": {"tier": "optional", "feature": "a theme rendered from"},
+    "VAEEncodeAudio": {"tier": "optional", "feature": "a theme rendered from"},
+    "ManualSigmas": {"tier": "optional", "feature": "a theme rendered from"},
+    "KSamplerSelect": {"tier": "optional", "feature": "a theme rendered from"},
+    "SamplerCustom": {"tier": "optional", "feature": "a theme rendered from"},
+    "AudioEncoderLoader": {"tier": "optional", "feature": "a theme's melody score (SheetSage2; non-commercial licence)"},
+    "SheetSage2AudioToABC": {"tier": "optional", "feature": "a theme's melody score (SheetSage2; non-commercial licence)"},
+    "SaveText": {"tier": "optional", "feature": "a theme's melody score (SheetSage2; non-commercial licence)"}
   },
 
   "presets": {
@@ -53,6 +69,7 @@
       "text_encoder": "t5gemma_b_b_ul2.safetensors",
       "steps": 8, "cfg": 1.0, "sampler": "lcm",
       "negative": "vocals, singing, speech, dialogue, low quality, distorted, clipping, noise",
+      "sheetsage": "sheetsage2_bf16.safetensors",
       "takes": 8
     },
     "proxy": {
@@ -60,6 +77,7 @@
       "text_encoder": "t5gemma_b_b_ul2.safetensors",
       "steps": 8, "cfg": 1.0, "sampler": "lcm",
       "negative": "vocals, singing, speech, dialogue, low quality, distorted, clipping, noise",
+      "sheetsage": "sheetsage2_bf16.safetensors",
       "takes": 4
     }
   },
@@ -67,6 +85,7 @@
   "downloads": {
     "_note": "The files ComfyUI's audio_stable_audio_3_medium template names (properties.models).",
     "stable_audio_3_medium.safetensors": {"folder": "checkpoints", "url": "https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/checkpoints/stable_audio_3_medium.safetensors", "source": "ComfyUI template audio_stable_audio_3_medium.json (properties.models)"},
-    "t5gemma_b_b_ul2.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/text_encoders/t5gemma_b_b_ul2.safetensors", "source": "ComfyUI template audio_stable_audio_3_medium.json (properties.models)"}
+    "t5gemma_b_b_ul2.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/stable-audio-3/resolve/main/text_encoders/t5gemma_b_b_ul2.safetensors", "source": "ComfyUI template audio_stable_audio_3_medium.json (properties.models)"},
+    "sheetsage2_bf16.safetensors": {"folder": "audio_encoders", "url": "https://huggingface.co/Comfy-Org/YuE2/resolve/main/audio_encoders/sheetsage2_bf16.safetensors", "source": "ComfyUI template audio_yue2_music_cover.json (its note's model links); the Hugging Face repo Comfy-Org/YuE2 (1386868122 bytes). CC BY-NC 4.0: optional, only a theme's melody score uses it"}
   }
 }

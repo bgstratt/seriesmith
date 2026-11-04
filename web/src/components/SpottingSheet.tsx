@@ -17,7 +17,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent 
 import { closeViewer, currentPlaylist, setCutPlaying } from "../actions";
 import { cueKey, deleteCue, newCue, saveCueAt } from "../cueActions";
 import { fmtClock, tn } from "../lib/format";
-import { hitChip, cueTitle, withSpec } from "../lib/cue";
+import { hitChip, cueTitle, melodyText, withSpec } from "../lib/cue";
 import { HIT_KIND_TITLE, anchorTime, regionLabel, regionMode, timeAnchor, type RegionMode } from "../lib/mix";
 import {
   bedBlocks, cueBlocks, cutHits, fitWords, fxBlocks, hitTable, inRow, sequenceRows, staleCues, takeColumns, timecode,
@@ -28,6 +28,7 @@ import {
   auditionTake, jumpToHit, loadCueStates, openCueFromSpot, renderCues, seekToTime, selectSpotCue, setCueTempo, stopAudition,
 } from "../spotActions";
 import { statusKey, store, useApp, type ViewerState } from "../store";
+import { ScoreDraftDialog } from "./ScoreDraft";
 import type { CueResult, CueSummary, Pass } from "../types";
 import { FloatingWindow } from "./FloatingWindow";
 import { ScoringTabs, SPOT_RECT_KEY, defaultSpotRect } from "./ScoringTabs";
@@ -76,6 +77,7 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
   const sel = v.cue ?? null;
   const [help, setHelp] = useState(helpOpen);
   const [menu, setMenu] = useState<SpotMenuAt | null>(null);
+  const [drafting, setDrafting] = useState(false);
   const showHelp = (on: boolean) => {
     try {
       localStorage.setItem(SPOT_HELP_KEY, on ? "1" : "0");
@@ -115,6 +117,8 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
       <b>Scoring</b>
       <ScoringTabs active="spot" cue={tabCue} />
       <span className="h3-muted h3-small">{pass} · {cues.length} cue{cues.length === 1 ? "" : "s"} · {hits.length} hit{hits.length === 1 ? "" : "s"} · {fmtClock(total)}</span>
+      <button className="h3-btn" title="A first-pass score from the script's structure and beat lines (// structure:, // beat:): draft cues to shape, nothing rendered"
+        onClick={() => setDrafting(true)}><i className="pi pi-sparkles" /> Draft…</button>
       <button className={`h3-btn h3-icon${help ? " h3-on" : ""}`} title="How to use the spotting sheet" aria-label="How to use the spotting sheet" aria-pressed={help}
         onClick={() => showHelp(!help)}><i className="pi pi-question" /></button>
       <span className="h3-grow" />
@@ -149,6 +153,7 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
           )}
           <MusicMap rows={rows} blocks={blocks} beds={beds} fx={fx} hits={hits} regions={regions} pos={cp.pos} fps={fps} sel={sel} onMenu={setMenu} />
           {menu && <SpotMenu at={menu} fps={fps} onClose={() => setMenu(null)} />}
+          {drafting && <ScoreDraftDialog ep={ep} pass={pass} onClose={() => setDrafting(false)} />}
           {offCut.length > 0 && (
             <div className="h3-small h3-muted" style={{ padding: "2px 8px" }}>
               Not in this cut: {offCut.map((c) => (
@@ -523,6 +528,7 @@ function CueDetail({ ep, pass, res, block }: { ep: string; pass: Pass; res: CueR
                   {t.take === inMix && <span className="h3-badge" title="the take in the mix">in mix</span>}
                   {t.status !== "ok" && <span className="h3-muted">{t.status}{t.error ? `: ${t.error}` : ""}</span>}
                   {t.measured && <span className="h3-muted">worst {t.measured.worst_must} f · shape {t.measured.shape_error ?? "—"}</span>}
+                  {t.measured?.melody != null && <span className={t.measured.on_theme === false ? "h3-cue-offtext" : "h3-muted"} title="How much of the theme's melody it kept (SheetSage2): under 30 % it lost the theme">{melodyText(t.measured)}</span>}
                   {t.song && <SongLine song={t.song} />}
                   {!!t.stale?.length && <span className="h3-badge h3-b-stale" title={t.stale.join("\n")}>stale</span>}
                 </div>
@@ -534,8 +540,8 @@ function CueDetail({ ep, pass, res, block }: { ep: string; pass: Pass; res: CueR
               setBusy(true);
               void renderCues([spec.id]).finally(() => setBusy(false));
             }}><i className="pi pi-play" /> Render {spec.id}'s takes</button>
-          <div className="h3-cue-h" title="A theme carried from cue to cue (the leitmotif): another cue's take, or a sound file">Theme</div>
-          <ThemeField ep={ep} pass={pass} spec={spec} plan={plan} target={target} targets={targets}
+          <div className="h3-cue-h" title="A theme carried from cue to cue (the leitmotif): a series theme, another cue's take, or a sound file">Theme</div>
+          <ThemeField ep={ep} pass={pass} spec={spec} plan={plan} target={target} targets={targets} themes={res.themes}
             save={(patch) => void saveCueAt({ ep, pass, cue: spec.id, key: cueKey(ep, pass, spec.id) }, withSpec(spec, patch))} />
           {plan.blocked && <div className="h3-err h3-small">{plan.blocked}</div>}
           {(plan.direction || plan.notes?.length) ? <div className="h3-cue-h">Direction</div> : null}

@@ -94,7 +94,8 @@ turn them into shots. Going from one to the other:
   Spine's "Because of that…", the Fichtean Curve's crises) is marked each time. A converted
   screenplay is marked the same way, with the structure that fits it best.
 - **Each structure's Music table** is a first pass at the score: how each beat is scored
-  before anyone adjusts it.
+  before anyone adjusts it. seriesmith drafts it from the beat lines (the spotting sheet's
+  **Draft…**), so the beat names must be the table's.
   - **Music**: `score` (a cue), `under` (a cue held low under the lines or a narrator),
     `sting` (a few seconds at the beat's start or end, otherwise dry) or `dry` (no music:
     the scene and its room tone carry it).

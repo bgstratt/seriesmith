@@ -826,9 +826,15 @@ default: instrumental, under the picture) or `song` (sung: its sections' lyrics)
 can't sing is 400. A cue's `theme` (the leitmotif) is `{"cue"}` (whichever take of another cue
 in the episode is in the pass's mix, muted or not, else that cue's best finished take: the best
 measured, else the first finished; resolved each time the cue is planned), `{"cue", "take"}`
-(another cue's given take, not its own) or `{"file"}` (a sound file relative to the episode: .wav, .flac, .mp3,
-.ogg, .m4a, .aac, .opus or a video); a cue that isn't in the episode is 400 when the spec is
-written, a take or file that isn't there is the plan's warning. A cue is planned against the
+(another cue's given take, not its own), `{"file"}` (a sound file relative to the episode: .wav, .flac, .mp3,
+.ogg, .m4a, .aac, .opus or a video) or `{"theme"}` (one of the series config's `sound.themes`
+by name: `{"ep", "cue", "take"}`, a pinned take of a cue in the episode folder of that name
+beside this one, or `{"file", "bpm"?, "beats"?}` relative to the series config's folder; and
+`role`, `words`, `for`), any of them with `"strength"` (0.5 to 0.99: where a model that renders
+from the theme's sound starts; absent, the model's own, 0.86 for Stable Audio 3); a cue that
+isn't in the episode is 400 when the spec is written, a take, file or series theme that isn't
+there is the plan's warning. A cue with a theme and no `bpm` of its own is asked at the
+theme's tempo. A cue is planned against the
 pass's cut each time it's asked: its anchors become seconds, the mix's hits in its span are
 fitted (the tempo within 8 % of the asked one and the pre-roll that put the must-hits on bar
 lines, an accent on a beat), it runs in whole bars from the pre-roll through its out point and
@@ -862,17 +868,25 @@ put before the cue's style in the prompt; `""` when none), `bars`,
 ("m01 t03": for `{"cue"}` the take it resolved to, the cue alone when it has none finished),
 `from` "mix" or "best" for a `{"cue"}` theme (how its take was found), else null; `use` "plan" (YuE2 sings a YuE2
 take's own plan), "transcribe" (YuE2 sings SheetSage2's transcription of it, in the same job),
-"timbre" (ACE-Step's timbre reference) or null with `warning`: it isn't there, or the model
-takes none (Stable Audio 3), and it renders without it), `warnings` (in words), `blocked` (why
+"timbre" (ACE-Step's timbre reference), "audio" (Stable Audio 3 renders from its sound, fitted
+to the cue when the takes are queued: played at the cue's tempo from the theme's, its whole bars
+looped to the cue's length; `strength` where the sampler starts, `grid` the theme take's
+`{bpm, downbeat, beats}`, null for a file that doesn't say its tempo) or null with `warning`:
+it isn't there, or the model takes none, and it renders without it), `warnings` (in words), `blocked` (why
 it can't render: a YuE2 song with no lyrics) and `song` (`{source, bars, meter, sections}`: a
 theme's plan, known before it renders, its sections as a take's `song` has them); null with
 `plan_error` when its anchors aren't in the cut. `takes` are the sidecars, best first: `status`, `seed`,
-`target`, `prompt`, `plan`, and once back `measured`: `{bpm_heard, tempo_heard, stretch, downbeat, offset, hit_errors (frames, null: nothing in the music there), worst_must, levels (dB per bar), shape_error, score}`, and `stale`: what has moved in the cut since it was
+`target`, `prompt`, `plan`, and once back `measured`: `{bpm_heard, tempo_heard, stretch, downbeat, offset, hit_errors (frames, null: nothing in the music there), worst_must, levels (dB per bar), shape_error, score}`, and for a take rendered from a theme on Stable Audio 3
+with SheetSage2 on this machine's ComfyUI, `melody` (0 to 1: how much of the theme's melody it
+kept, core/abc.melody_match of SheetSage2's transcriptions of the take and the theme as
+fitted, both in the take's job; the take's as `tNN.melody.abc`) and `on_theme` (`melody` at
+least 0.3; a take that lost it is ranked after those that kept it), and `stale`: what has moved in the cut since it was
 rendered (its sidecar's `rendered_for`: the span, each hit, the tempo, the theme), in words,
 `[]` when nothing has (a `{"cue"}` theme now resolving to another take than the one it was
 rendered with is stale: "the theme is m01 t03, not m01 t02"). A take rendered with a theme has
 `theme` (`{label, use, from?}`: the take or file it heard, and for a `{"cue"}` theme how that
-take was found; a repaint of it hears the same take, whatever is picked since); a YuE2 take
+take was found, `strength` and `staged` (`{stretch, bars, seconds}`: how it was fitted) when it
+was rendered from; a repaint of it hears the same take, whatever is picked since); a YuE2 take
 has `song`: `{file (its plan as sung, tNN.abc), source ("planned", "theme plan", "theme transcribed"), tempo_written (the plan's own Q: tempo, before the cue's was set), tempo, meter, key, bars (the plan's, in its meter), plan_seconds (its beats at the tempo asked), raw_seconds (the take as it came), short (plan_seconds - raw_seconds), first_note (the plan's first sung note, seconds into the take), sections: [{name, start, seconds (in the take, at the cue's tempo), at (seconds from the cue's in point), bars, beats, cue_bars}]}`. 404 for no such cue.
 
 ### `PUT /seriesmith/cue`
@@ -886,7 +900,8 @@ its items (id the cue's, or a file of its folder) come out of every pass's mix, 
 with the old `mix.json` copied to `_history/`. Answers `{"cue", "moved_to"` (relative to the
 episode)`, "takes", "mixes"` (the passes it was taken out of)`}`. 404 for no such cue; 409 while a
 take of it is queued or rendering on seriesmith's queue (cancel it in Jobs), when another cue
-takes it as its theme, or when a pass's `mix.json` doesn't read (nothing is changed). To silence
+takes it as its theme or one of its takes is a series theme in this episode's series config,
+or when a pass's `mix.json` doesn't read (nothing is changed). To silence
 a cue but keep it, set its item's `mute` with `PUT /seriesmith/mix` instead.
 
 ### `POST /seriesmith/cue/render`
@@ -898,8 +913,13 @@ measured tempo says when that is within 3 % of the asked, else by the plan's str
 is one job of two stages: the plan (YuE2GenerateABC, or the theme's plan, or SheetSage2's
 transcription of the theme), its `Q:` line set to the plan's whole `ask_bpm` (of the meter's
 note), then the song sung to it; both plans come back as text files and the sung one is kept as
-`tNN.abc`. Answers `{"queued": [{take, job, seed}], "plan"}`. 400 when its anchors aren't in the
-cut, or when the plan is `blocked`; 409 without the queue.
+`tNN.abc`. A Stable Audio 3 take with a theme renders from it: the theme is fitted to the cue
+once for the render (`sound/<cue>/theme_<hash>.wav`), encoded, and sampled from at its strength
+(8 even steps of the schedule from it); with SheetSage2 in this machine's ComfyUI
+(`models/audio_encoders`) and the `local` backend, the take and the fitted theme are transcribed
+in the same job for its melody score. Answers `{"queued": [{take, job, seed}], "plan"}`. 400
+when its anchors aren't in the cut, when the plan is `blocked`, or when the theme can't be
+fitted; 409 without the queue.
 
 ### `POST /seriesmith/cue/pick`
 Body `{"ep", "pass", "cue", "take", "gain"?}`: the take becomes the cue's item (id: the cue's)
@@ -907,6 +927,28 @@ on the music track of the pass's mix, from its in point (played from where its p
 to its out point with a one-bar fade, and with `gain` (default true) a breakpoint at each bar
 fitting its level to the arc, at most 6 dB either way. Answers `{"mix"}`; 409 for a take that
 isn't finished.
+
+### `POST /seriesmith/cue/theme`
+Body `{"ep", "cue", "take", "name", "role"?, "words"?, "everywhere"?}`: a finished take made a
+series theme: `sound.themes.<name>` = `{"ep" (this episode's folder), "cue", "take", "role"?, "words"?}` written into this episode's series config and, with `everywhere` (default true),
+every episode's beside it (each has its own), each as the editor saves the series config (a
+history copy in its `_history/`, the file's format kept). Answers `{"theme", "written" (the episodes whose config was written, by folder), "same" (those that had it already)}`. 400
+for a name (1-40 letters, digits, `_` or `-`) or role (`show`, `story`, `runner`) that isn't
+one; 409 for a take that isn't finished. `GET /seriesmith/cue` answers the series config's
+themes as `themes`: `[{name, label ("porch (ep01 m04 t03)"), role, words, for, error}]` (`error`:
+why one can't be used: it doesn't read, or its episode isn't beside this one).
+
+### `POST /seriesmith/cue/draft`
+Body `{"ep", "pass"?, "write"?, "replace"?, "keep_sound"?}`: the first-pass score drafted from
+the script's `// structure:`, `// beat:`, `// theme:` and `// flashback` lines, that
+structure's Music table (docs/STORY_STRUCTURES.md, as `seriesmith/core/structures.json`) or
+the series config's `sound.format`, and the pass's cut (scoredraft.py). Without `write`
+nothing is written. Answers `{"draft", "text" (it in words), "written"}`: `draft` is
+`{"structure", "beats": [{beat, from (format, structure, other, unknown, unmarked), music, t0, t1, shot}], "cues": [{kind (cue, sting, bumper, mark), label, id, t0, t1, theme ("story", a series theme or null), makes ("story": it makes the episode's theme), sections: [{name, words, from, to, seconds}], hits: [{kind, shot, name}], spec (the cue as it would be written), skip (why it's left out: a cue of the episode's own plays there)}], "flags": [{kind (in-scene, montage, card, flashback, theme), shot, text}], "notes", "pass", "missing" (shots with no take, timed at their shotlist length), "voices_only", "drafted" (the earlier draft's cue ids)}`. With
+`write`: the cues written (ids `d01`..., label `Draft: ...`), their hits in the pass's mix
+(`dh01`..., `must: false`; an earlier draft's taken out), and the Dialogue track to voices only
+unless `keep_sound`; `written` is `{"cues", "hits", "removed" (the earlier draft's cues, moved to `_history` as `DELETE /seriesmith/cue` does), "voices_only"}`. 400 for a `sound.format` that
+doesn't check; 409 when the episode isn't built, or has a draft already and `replace` isn't set.
 
 ### `POST /seriesmith/cue/comp`
 Body `{"ep", "pass", "cue", "take", "from", "bars": [a, b]}`: a new take, take `take` with the

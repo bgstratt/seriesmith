@@ -1,0 +1,276 @@
+"""
+scoredraft.py — an episode's first-pass score, drafted from its script's structure and written
+as cues for a person to adjust and render (docs/SOUND.md phase 8, "The simple first pass";
+core/spotting.py the rules).
+
+    draft(root, pass_)                     -> what the draft would write, nothing written
+    write(root, pass_, d, replace=False)   -> the draft's cues and hits written
+
+What it reads: the script's `// structure:`, `// beat:`, `// theme:` and `// flashback` lines
+(comments: the build ignores them), the story IR (shotlist/shots.json: who is in each shot,
+their lines, its `sound:`, `music:` and target), the pass's cut (each shot's length and
+trim as assemble lays it; a shot with no take yet at its shotlist length), and the series
+config (`sound.format`, `sound.themes`, the speech pace).
+
+What it writes: each draft cue a cue like any other (`sound/<id>/spec.json`, ids d01, d02 ...,
+labelled "Draft: ..."): its in and out anchors, a section per beat (its bars at the tempo it
+will most likely be asked: the theme's, else cue.DEFAULT_BPM), its theme (`story`: the take of
+the cue that makes it; a series theme by name), and its hits in the pass's mix (ids dh01 ...,
+`must: false`: the fit lands them when it can). Nothing is rendered. A cue of the person's own
+(an id not dNN) is never touched: a draft cue that would play over one is left out, and said.
+`replace` first deletes the earlier draft's cues (cue.delete: to _history) and hits.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+
+from seriesmith import cue as CU
+from seriesmith import edit as E
+from seriesmith import jobs as J
+from seriesmith import mix as MX
+from seriesmith.core import paths as P
+from seriesmith.core import spotting as SP
+from seriesmith.core.speech import speech_seconds
+
+DRAFT_ID = re.compile(r"^d\d{2,3}$")
+DRAFT_HIT = re.compile(r"^dh\d{2,3}$")
+LABEL = "Draft: "
+STING_TAIL = 1.0       # seconds a sting rings past its out point
+
+
+class DraftError(ValueError):
+    pass
+
+
+def _story(root: str):
+    from seriesmith.core import ir
+    try:
+        with open(os.path.join(root, "shotlist", "shots.json"), encoding="utf-8") as fh:
+            return ir.Episode.loads(fh.read())
+    except (OSError, ValueError, KeyError):
+        raise DraftError("the episode isn't built (shotlist/shots.json): build it first") from None
+
+
+def timeline(root: str, pass_: str, series: dict | None) -> tuple[list[dict], float, list[str]]:
+    """The cut's shots for the draft, in cut order (spotting.draft's `shots`, plus "trim_in"
+    and "frames"), its frame rate, and the shots with no take (at their shotlist length)."""
+    story = _story(root)
+    meta = {}
+    pace = ((series or {}).get("speech") or {}).get("pace", "normal")
+    for sq in story.sequences:
+        for s in sq.shots:
+            lines = [{"who": x.speaker, "line": x.line} for x in s.dialogue if x.line]
+            meta[s.id] = {"seq": sq.id, "loc": sq.location, "who": list(s.cast),
+                          "speakers": [x.speaker for x in s.dialogue],
+                          "talk": speech_seconds(lines, pace) if lines else 0.0,
+                          "sound": s.sound or "", "music": s.music or "", "target": s.target or ""}
+    layout, fps = CU.cut_layout(root, pass_)
+    laid = {x["id"]: x for x in layout}
+    try:
+        lengths = {d["shots"][i]["id"]: int(d["shots"][i].get("length") or 0)
+                   for d, i in J.episode_shots(root, pass_)}
+    except FileNotFoundError:
+        lengths = {}
+    shots, t, missing = [], 0.0, []
+    for e in E.cut_entries(root, pass_):
+        if e.orphan or e.out or e.shot not in meta:
+            continue
+        x = laid.get(e.shot)
+        if x is None:
+            frames = lengths.get(e.shot, 0)
+            if frames < 1:
+                continue
+            missing.append(e.shot)
+            trim, used, dis = 0, frames, 0
+        else:
+            trim, used, dis = x["trim_in"], x["used"], x["dissolve_in"]
+        t -= dis / fps
+        shots.append({"id": e.shot, **meta[e.shot], "t": round(t, 4), "d": round(used / fps, 4),
+                      "trim_in": trim, "frames": used})
+        t += used / fps
+    return shots, fps, missing
+
+
+def _script(root: str) -> str:
+    path = P.episode_script(root)
+    if not path:
+        raise DraftError("no script in the episode folder")
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def draft(root: str, pass_: str = "final") -> dict:
+    """The draft for the pass's cut, nothing written: spotting.draft's, each cue with its
+    `id`, its spec (`spec`), its hits as the mix's (`mix_hits`) and `skip` (why it is left
+    out, when it is); plus "missing" (shots with no take yet), "fps", "voices_only" (whether
+    the mix plays voices only already). DraftError when the episode can't be read."""
+    series = J.series_config(root) or {}
+    sound = series.get("sound") or {}
+    fmt = {}
+    if sound.get("format"):
+        try:
+            fmt = SP.check_format(sound["format"])
+        except SP.SpotError as e:
+            raise DraftError(str(e)) from None
+    named = CU.series_themes(series)
+    themes = [{"name": n, "role": t.get("role"), "for": t.get("for") or [], "bpm": t.get("bpm")}
+              for n, t in named.items() if n != "_errors"]
+    shots, fps, missing = timeline(root, pass_, series)
+    marks = SP.read_marks(_script(root))
+    out = SP.draft(shots, marks, fmt, themes)
+    by_id = {s["id"]: s for s in shots}
+
+    def frame(a: dict) -> dict:
+        s = by_id[a["shot"]]
+        return {"shot": a["shot"], "frame": int(s["trim_in"] + min(s["frames"], round(a["at"] * fps)))}
+
+    # the episode's own cues: where they play, so a draft cue never lands on one
+    origins = {s["id"]: s["t"] * fps - s["trim_in"] for s in shots}
+    mine = []
+    for c in CU.list_cues(root):
+        if DRAFT_ID.match(c["id"]):
+            continue
+        a, b = origins.get(c["in"]["shot"]), origins.get(c["out"]["shot"])
+        if a is not None and b is not None:
+            mine.append((c["id"], (a + c["in"]["frame"]) / fps, (b + c["out"]["frame"]) / fps))
+    bpm_of = {t["name"]: t.get("bpm") for t in themes}
+    n = h = 0
+    maker = None
+    for c in out["cues"]:
+        over = [cid for cid, a, b in mine if a < c["t1"] and c["t0"] < b]
+        if over:
+            c["skip"] = f"{', '.join(over)} already play{'s' if len(over) == 1 else ''} there"
+            continue
+        n += 1
+        c["id"] = f"d{n:02d}"
+        if c.get("makes") == "story":
+            maker = c["id"]
+        bpm = bpm_of.get(c["theme"]) or CU.DEFAULT_BPM
+        bar = 60.0 / bpm * 4
+        sections = []
+        for s in c["sections"]:
+            sec = {"name": s["name"] or "section", "from": s["from"], "to": s["to"]}
+            if len(c["sections"]) > 1:
+                sec["bars"] = max(1, round(s["seconds"] / bar))
+            if s["words"]:
+                sec["words"] = s["words"]
+            sections.append(sec)
+        hits = []
+        for x in c["hits"]:
+            h += 1
+            s = by_id[x["shot"]]
+            at = {"shot": x["shot"], "frame": s["trim_in"] + (s["frames"] if x["end"] else 0)}
+            hits.append({"id": f"dh{h:02d}", "name": x["name"][:80], "at": at, "kind": x["kind"], "must": False})
+        spec = {"id": c["id"], "label": (LABEL + c["label"])[:500], "in": frame(c["in"]), "out": frame(c["out"]),
+                "sections": sections, "hits": [x["id"] for x in hits]}
+        if c["kind"] != "cue":
+            spec["tail"] = STING_TAIL
+        if c["theme"] == "story":
+            if maker:
+                spec["theme"] = {"cue": maker}
+        elif c["theme"]:
+            spec["theme"] = {"theme": c["theme"]}
+        if spec.get("theme") and c.get("strength") is not None:
+            spec["theme"]["strength"] = c["strength"]
+        c["spec"] = CU.check_spec(spec)
+        c["mix_hits"] = hits
+    mix = MX.check(MX.load(root).get(pass_))
+    out.update({"pass": pass_, "fps": fps, "missing": missing,
+                "voices_only": bool(((mix.get("tracks") or {}).get("dialogue") or {}).get("voices_only")),
+                "drafted": [c["id"] for c in CU.list_cues(root) if DRAFT_ID.match(c["id"])]})
+    return out
+
+
+def write(root: str, pass_: str, d: dict, replace: bool = False, voices: bool = True) -> dict:
+    """The draft's cues written (their specs) and its hits put in the pass's mix; `voices`
+    turns the mix's dialogue to voices only, so the takes' own music is gone under the score.
+    DraftError when an earlier draft is there and `replace` isn't set. Returns {"cues",
+    "hits", "removed", "voices_only"}."""
+    old = [c["id"] for c in CU.list_cues(root) if DRAFT_ID.match(c["id"])]
+    if old and not replace:
+        raise DraftError(f"the episode has a draft already ({', '.join(old)}): replace it, "
+                         f"or delete those cues first")
+    removed = []
+    for cid in old:
+        try:
+            CU.delete(root, cid)
+            removed.append(cid)
+        except CU.CueError as e:
+            raise DraftError(f"{cid} can't be replaced: {e}") from None
+    cues = [c for c in d["cues"] if c.get("spec")]
+    # earlier drafts' hits out; the story maker first, so a cue taking its theme finds it
+    raw = MX.check(MX.load(root).get(pass_))
+    hits = [x for x in raw.get("hits") or [] if not DRAFT_HIT.match(x["id"])]
+    for c in sorted(cues, key=lambda c: c.get("makes") != "story"):
+        CU.save_spec(root, c["spec"])
+        hits += c["mix_hits"]
+    mix = dict(raw)
+    if hits:
+        mix["hits"] = hits
+    else:
+        mix.pop("hits", None)
+    if voices:
+        tracks = dict(mix.get("tracks") or {})
+        tracks["dialogue"] = {**(tracks.get("dialogue") or {}), "voices_only": True}
+        mix["tracks"] = tracks
+    MX.write(root, pass_, mix)
+    return {"cues": [c["id"] for c in cues], "hits": sum(len(c["mix_hits"]) for c in cues),
+            "removed": removed, "voices_only": voices or d.get("voices_only", False)}
+
+
+def _mmss(t: float) -> str:
+    return f"{int(t // 60)}:{t % 60:04.1f}"
+
+
+def summary(d: dict) -> str:
+    """The draft as text: its cues, what the rules flag, and the notes."""
+    lines = [f"{d['structure'] or 'no structure'}: {len(d['beats'])} beat(s), "
+             f"{sum(1 for c in d['cues'] if c.get('spec'))} cue(s)"]
+    for c in d["cues"]:
+        theme = (f"from {c['spec']['theme'].get('cue') or c['spec']['theme'].get('theme')}"
+                 if c.get("spec", {}).get("theme") else "makes the story theme" if c.get("makes") else "")
+        secs = " | ".join(f"{s['name']}: {s['words'] or '—'} ({s['from']:g}→{s['to']:g})" for s in c["sections"])
+        head = f"  {c.get('id', '--'):4} {c['kind']:6} {_mmss(c['t0'])}–{_mmss(c['t1'])} {c['t1'] - c['t0']:5.1f} s"
+        lines.append(f"{head}  {secs}" + (f"  [{theme}]" if theme else "")
+                     + (f"  ({len(c['hits'])} hit(s))" if c["hits"] else "")
+                     + (f"  -- left out: {c['skip']}" if c.get("skip") else ""))
+    for f in d["flags"]:
+        lines.append(f"  ! {f['shot']}: {f['text']}")
+    for n in d["notes"]:
+        lines.append(f"  - {n}")
+    if d.get("missing"):
+        lines.append(f"  - {len(d['missing'])} shot(s) have no take yet, timed at their shotlist length "
+                     f"({', '.join(d['missing'][:6])}{'...' if len(d['missing']) > 6 else ''})")
+    return "\n".join(lines)
+
+
+def cmd_score_draft(root: str, argv: list[str]) -> int:
+    """`seriesmith score-draft <episode> [--pass proxy|final] [--write] [--replace]
+    [--keep-sound]`: the first-pass score from the script's structure; shown, and written
+    with --write (its cues, its hits, the dialogue to voices only unless --keep-sound)."""
+    import argparse
+
+    from seriesmith import takes as T
+    ap = argparse.ArgumentParser(prog="seriesmith score-draft")
+    ap.add_argument("--pass", dest="pass_", choices=list(T.PASSES), default="final")
+    ap.add_argument("--proxy", action="store_const", const="proxy", dest="pass_")
+    ap.add_argument("--write", action="store_true", help="write the cues and hits (shown only, without it)")
+    ap.add_argument("--replace", action="store_true", help="the earlier draft's cues (dNN) and hits replaced")
+    ap.add_argument("--keep-sound", action="store_true", help="leave the dialogue track as it plays")
+    a = ap.parse_args(argv)
+    try:
+        d = draft(root, a.pass_)
+        print(summary(d))
+        if not a.write:
+            print("  (nothing written: --write writes it)")
+            return 0
+        r = write(root, a.pass_, d, replace=a.replace, voices=not a.keep_sound)
+    except (DraftError, CU.CueError, ValueError) as e:
+        print(f"  ! {e}")
+        return 1
+    print(f"  wrote {len(r['cues'])} cue(s) and {r['hits']} hit(s)"
+          + (f", replacing {', '.join(r['removed'])}" if r["removed"] else "")
+          + ("; the dialogue plays voices only" if not a.keep_sound else ""))
+    return 0

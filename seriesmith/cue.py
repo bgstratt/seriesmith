@@ -50,8 +50,13 @@ whichever that cue has in the pass's mix (else its best finished take: theme_tak
 when a take is planned and named in its sidecar, so a new pick there makes this cue's takes
 stale (`theme_for`): YuE2 sings its melody (the take's own plan when
 it is a YuE2 take, else SheetSage2's transcription of its sound, in the same job), ACE-Step
-takes its sound as its timbre reference, Stable Audio 3 takes none (the plan warns, and it
-renders without it).
+takes its sound as its timbre reference, Stable Audio 3 renders from its sound (stage_theme
+reshapes it to the cue's tempo and bars; the sampler starts from it at the theme's strength,
+0.86 by default). A theme can also be the series config's (`sound.themes`: a picked take of
+any episode's cue, or a file), named by the cue (`{"theme": "porch"}`: series_theme). With
+SheetSage2 installed, a take rendered from a theme gets a melody score (core/abc.melody_match:
+the take's transcription against the theme's, in the same job); under THEME_FLOOR it lost the
+theme, and ranks after those that kept it.
 
 Picking (`place`): the take becomes the cue's item on the music track of the pass's mix
 (mix.py): anchored at the cue's in point, played from where its pre-roll ends, to its out
@@ -99,6 +104,15 @@ KINDS = ("score", "song")
 KIND_MODEL = {"score": ("music_model", None), "song": ("song_model", "yue2")}
 # what a theme may be: a file of these (a recording, a gallery item, a take's video)
 THEME_EXTS = (".wav", ".flac", ".mp3", ".ogg", ".m4a", ".aac", ".opus", ".mp4", ".mov", ".webm", ".mkv")
+THEME_STRENGTH = (0.5, 0.99)           # where a theme's sound starts the schedule (t0), either end
+THEME_ROLES = ("show", "story", "runner")
+# a theme's melody kept by a take (core/abc.melody_match): under this it is lost (a take with no
+# theme in it keeps about 0.2: docs/SOUND.md "Measured: leitmotifs")
+THEME_FLOOR = 0.3
+# a theme stretched further than this to a cue's tempo holds it less ("A theme take under
+# another length and tempo": 0.8x lost some, 1.25x lost it): said, not refused
+THEME_STRETCH_WARN = 0.08
+THEME_XFADE = 0.03                     # seconds of equal-power crossfade where a theme loops
 TAKES_MAX = 16
 STRETCH_MAX = 0.08                     # how far a take is stretched to its tempo, either way
 FIT_SPREAD = 0.08                      # how far the fit moves the asked tempo, either way
@@ -247,9 +261,21 @@ def check_spec(raw) -> dict:
 
 def check_theme(th, cid: str) -> dict:
     """A cue's theme in its stored form: {"cue": id} (whichever take of another cue in the
-    episode is in the pass's mix: theme_take), {"cue": id, "take": n} (that take) or {"file":
-    a path relative to the episode}. Whether it is there is the plan's to say (save_spec
-    checks the cue)."""
+    episode is in the pass's mix: theme_take), {"cue": id, "take": n} (that take), {"file":
+    a path relative to the episode} or {"theme": name} (one of the series config's
+    `sound.themes`: series_theme); any of them with a "strength" (where a model that renders
+    from the theme's sound starts, 0.5 to 0.99; the model's own when none). Whether it is
+    there is the plan's to say (save_spec checks the cue)."""
+    if isinstance(th, dict) and "strength" in th:
+        s = th["strength"]
+        if isinstance(s, bool) or not isinstance(s, (int, float)) or not THEME_STRENGTH[0] <= s <= THEME_STRENGTH[1]:
+            raise CueError(f"cue {cid}'s theme strength is {THEME_STRENGTH[0]} to {THEME_STRENGTH[1]}, not {s!r}")
+        rest = check_theme({k: v for k, v in th.items() if k != "strength"}, cid)
+        return {**rest, "strength": round(float(s), 3)}
+    if isinstance(th, dict) and set(th) == {"theme"}:
+        if not isinstance(th["theme"], str) or not MX._ID.match(th["theme"]):
+            raise CueError(f"cue {cid}'s theme names a series theme by its name, not {th['theme']!r}")
+        return {"theme": th["theme"]}
     if isinstance(th, dict) and set(th) in ({"cue"}, {"cue", "take"}):
         if not isinstance(th["cue"], str) or not MX._ID.match(th["cue"]):
             raise CueError(f"cue {cid}'s theme names a cue by its id, not {th['cue']!r}")
@@ -272,14 +298,83 @@ def check_theme(th, cid: str) -> dict:
             raise CueError(f"cue {cid}'s theme is a sound file ({', '.join(THEME_EXTS)}), not {f!r}")
         return {"file": f}
     raise CueError("cue " + cid + "'s theme is {\"cue\"} (another cue's take in the mix), {\"cue\", "
-                   "\"take\"} (another cue's take) or {\"file\"}")
+                   "\"take\"} (another cue's take), {\"file\"} or {\"theme\"} (a series theme)")
+
+
+def check_series_theme(name: str, raw) -> dict:
+    """One of the series config's `sound.themes` in its stored form: {"ep", "cue", "take"} (a
+    take of a cue in an episode of the series: its folder beside this one's, pinned, so a
+    pick there never makes another episode's cues stale) or {"file"} (relative to the series
+    config's folder; its "bpm", and "beats" to the bar, when it has a steady tempo: it's played
+    at the cue's, its first beat the bar line), with "words" (what it is, in words), "for" (the cast ids it belongs to)
+    and "role" ("show", "story", "runner") as notes the draft reads. CueError says what's
+    wrong."""
+    if not isinstance(name, str) or not MX._ID.match(name):
+        raise CueError(f"a series theme's name is 1-40 letters, digits, _ or -, not {name!r}")
+    if not isinstance(raw, dict):
+        raise CueError(f"series theme {name} is an object")
+    out: dict = {}
+    src = set(raw) & {"ep", "cue", "take", "file"}
+    if src == {"ep", "cue", "take"}:
+        if not isinstance(raw["ep"], str) or not _ID_RX.match(raw["ep"]):
+            raise CueError(f"series theme {name}'s ep is an episode's folder name, not {raw['ep']!r}")
+        if not isinstance(raw["cue"], str) or not MX._ID.match(raw["cue"]):
+            raise CueError(f"series theme {name}'s cue is a cue's id, not {raw['cue']!r}")
+        n = raw["take"]
+        if isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= 999:
+            raise CueError(f"series theme {name}'s take is a take number, not {n!r}")
+        out.update(ep=raw["ep"], cue=raw["cue"], take=n)
+    elif src == {"file"}:
+        out["file"] = check_theme({"file": raw["file"]}, name)["file"]
+        for k, lo, hi in (("bpm", 30, 240), ("beats", 1, 16)):
+            v = raw.get(k)
+            if v is not None:
+                if isinstance(v, bool) or not isinstance(v, (int, float)) or not lo <= v <= hi:
+                    raise CueError(f"series theme {name}'s {k} is {lo} to {hi}, not {v!r}")
+                out[k] = float(v) if k == "bpm" else int(v)
+    else:
+        raise CueError(f"series theme {name} is {{\"ep\", \"cue\", \"take\"}} (a picked take) or {{\"file\"}}")
+    if raw.get("words") is not None:
+        if not isinstance(raw["words"], str):
+            raise CueError(f"series theme {name}'s words are text")
+        out["words"] = " ".join(raw["words"].split())[:500]
+    if raw.get("for") is not None:
+        if not isinstance(raw["for"], list) or not all(isinstance(x, str) for x in raw["for"]):
+            raise CueError(f"series theme {name}'s for is a list of cast ids")
+        out["for"] = list(raw["for"])
+    if raw.get("role") is not None:
+        if raw["role"] not in THEME_ROLES:
+            raise CueError(f"series theme {name}'s role is {', '.join(THEME_ROLES)}, not {raw['role']!r}")
+        out["role"] = raw["role"]
+    unknown = set(raw) - {"ep", "cue", "take", "file", "bpm", "beats", "words", "for", "role"}
+    if unknown:
+        raise CueError(f"series theme {name}: unknown field(s) {', '.join(sorted(unknown))}")
+    return out
+
+
+def series_themes(series: dict | None) -> dict:
+    """The series config's `sound.themes`, each checked (check_series_theme); one that doesn't
+    read is left out, its error under "_errors" ({name: why})."""
+    raw = ((series or {}).get("sound") or {}).get("themes") or {}
+    out, errors = {}, {}
+    for name, v in raw.items() if isinstance(raw, dict) else ():
+        try:
+            out[name] = check_series_theme(name, v)
+        except CueError as e:
+            errors[name] = str(e)
+    if errors:
+        out["_errors"] = errors
+    return out
 
 
 def theme_text(th: dict | None) -> str | None:
-    """A theme in words, for a take's fingerprint and the window: "m01 t02", "audio/x.wav";
-    a theme that follows the mix's pick is its cue alone ("m01") until it is resolved."""
+    """A theme in words, for a take's fingerprint and the window: "m01 t02", "audio/x.wav",
+    "porch" (a series theme); a theme that follows the mix's pick is its cue alone ("m01")
+    until it is resolved."""
     if not th:
         return None
+    if th.get("theme"):
+        return th["theme"]
     if th.get("cue"):
         return f"{th['cue']} t{th['take']:02d}" if th.get("take") else th["cue"]
     return th.get("file")
@@ -347,6 +442,12 @@ def delete(root: str, cid: str) -> dict:
     if users:
         raise CueError(f"{cid} is the theme of {', '.join(users)}: give "
                        f"{'it' if len(users) == 1 else 'them'} another theme first")
+    ep = os.path.basename(os.path.normpath(root))
+    named = [n for n, t in series_themes(J.series_config(root)).items()
+             if n != "_errors" and t.get("ep") == ep and t.get("cue") == cid]
+    if named:
+        raise CueError(f"{cid} is the series theme {', '.join(named)} (the series config's sound.themes): "
+                       f"pick {'it' if len(named) == 1 else 'them'} from another cue first")
     mixes = {}
     for pass_, raw in MX.load(root).items():
         try:
@@ -543,22 +644,125 @@ def theme_take(root: str, pass_: str | None, cid: str) -> tuple[int | None, str 
     return (done[0]["take"], "best") if done else (None, None)
 
 
+def series_theme(root: str, series: dict | None, name: str) -> tuple[dict | None, str | None]:
+    """A series theme as a cue's theme resolves it: ({"root" (the episode it's in, or None for
+    a file), "cue", "take" | "file" (an absolute path), "label"}, None), or (None, why not)."""
+    themes = series_themes(series)
+    if name in (themes.get("_errors") or {}):
+        return None, themes["_errors"][name]
+    t = themes.get(name)
+    if t is None:
+        return None, f"there's no theme {name} in the series config's sound.themes"
+    if t.get("ep"):
+        ep_root = os.path.join(os.path.dirname(os.path.normpath(root)), t["ep"])
+        if os.path.normcase(os.path.normpath(ep_root)) == os.path.normcase(os.path.normpath(root)):
+            ep_root = root
+        if not os.path.isdir(ep_root):
+            return None, f"the theme {name} is in {t['ep']}, which isn't beside this episode"
+        return {"root": ep_root, "cue": t["cue"], "take": t["take"],
+                "label": f"{name} ({t['ep']} {t['cue']} t{t['take']:02d})"}, None
+    from seriesmith.core import paths as P
+    home = P.series_home(root) or root
+    return {"root": None, "file": os.path.normpath(os.path.join(home, *t["file"].split("/"))),
+            "label": f"{name} ({t['file']})", "bpm": t.get("bpm"), "beats": t.get("beats")}, None
+
+
+def theme_list(root: str, series: dict | None = None) -> list[dict]:
+    """The series config's themes for the window to offer: [{"name", "label", "role", "words",
+    "for", "error"}], by name (`error`: why one doesn't read, or isn't there to render from)."""
+    series = series if series is not None else J.series_config(root)
+    themes = series_themes(series)
+    out = []
+    for name in sorted(set(themes) - {"_errors"} | set(themes.get("_errors") or {})):
+        t = themes.get(name) or {}
+        found, why = series_theme(root, series, name)
+        out.append({"name": name, "label": found["label"] if found else name, "role": t.get("role"),
+                    "words": t.get("words"), "for": t.get("for"), "error": why})
+    return out
+
+
+def pin_series_theme(root: str, cid: str, n: int, name: str, role: str | None = None,
+                     words: str | None = None, everywhere: bool = True) -> dict:
+    """A finished take of cue `cid` made a series theme: `sound.themes.<name>` = {"ep" (this
+    episode's folder), "cue", "take"} (and `role`, `words`) written into the series config,
+    this episode's and, with `everywhere`, every episode's beside it (each episode has its
+    own: source.episodes_under), each saved as the editor saves it (a history copy, the
+    file's format). Returns {"theme" (the entry), "written" (the episodes whose config was
+    written, by folder name), "same" (those that had it already)}. CueError for a take that
+    isn't finished or a name or role that isn't one."""
+    import json
+    from seriesmith import source as SRC                 # it imports edit: not at the top
+    sc = next((t for t in list_takes(root, cid) if t["take"] == n), None)
+    if sc is None or sc.get("status") != "ok":
+        raise CueError(f"cue {cid} has no finished take {n} to make a theme of")
+    entry = {"ep": os.path.basename(os.path.normpath(root)), "cue": cid, "take": n}
+    if role:
+        entry["role"] = role
+    if words:
+        entry["words"] = words
+    entry = check_series_theme(name, entry)
+    eps = [root]
+    if everywhere:
+        eps += [e for e in SRC.episodes_under(os.path.dirname(os.path.normpath(root)))
+                if os.path.normcase(os.path.normpath(e)) != os.path.normcase(os.path.normpath(root))]
+    written, same, seen = [], [], set()
+    for ep in eps:
+        try:
+            src = SRC.read_source(ep, "series")
+        except SRC.SourceError:
+            continue
+        if os.path.normcase(src.path) in seen:
+            continue                                     # a shared series config: once
+        seen.add(os.path.normcase(src.path))
+        try:
+            raw = json.loads(src.text)
+        except ValueError:
+            continue
+        sound = raw.setdefault("sound", {})
+        themes = sound.setdefault("themes", {})
+        if themes.get(name) == entry:
+            same.append(os.path.basename(ep))
+            continue
+        themes[name] = entry
+        SRC.write_source(src, SRC.dump_series(raw, src.text))
+        written.append(os.path.basename(ep))
+    return {"theme": {"name": name, **entry}, "written": written, "same": same}
+
+
 def theme_for(root: str, spec: dict, target, pass_: str | None = None,
-              pin: tuple[int, str] | None = None) -> dict | None:
+              pin: tuple[int, str] | None = None, series: dict | None = None) -> dict | None:
     """How the cue's theme reaches its model (None without one): {"spec", "label", "use",
-    "audio", "abc", "warning", "from"}. `use`: "plan" (YuE2 sings the theme take's own plan,
-    `abc`: its melody), "transcribe" (YuE2 sings SheetSage2's transcription of `audio`),
-    "timbre" (ACE-Step's timbre reference, `audio`), or None with `warning` saying why it is
-    left out (the take or file isn't there, or the model takes no theme). A theme that follows
-    another cue's pick ({"cue"} alone) is resolved here (theme_take, in `pass_`'s mix; `pin`
-    (take, from) to use instead: a repaint's, the take its source was made with), `label` naming the take ("m01 t03") and `from` how it
-    was found ("mix", "best"; None for a theme that names its take or file)."""
+    "audio", "abc", "warning", "from", "strength", "grid"}. `use`: "plan" (YuE2 sings the
+    theme take's own plan, `abc`: its melody), "transcribe" (YuE2 sings SheetSage2's
+    transcription of `audio`), "timbre" (ACE-Step's timbre reference, `audio`), "audio" (Stable
+    Audio 3 renders from `audio`, reshaped to the cue first: stage_theme, at `strength`), or
+    None with `warning` saying why it is left out (the take or file isn't there, or the model
+    takes no theme). A theme that follows another cue's pick ({"cue"} alone) is resolved here
+    (theme_take, in `pass_`'s mix; `pin` (take, from) to use instead: a repaint's, the take its
+    source was made with), `label` naming the take ("m01 t03") and `from` how it was found
+    ("mix", "best"; None for a theme that names its take or file). A series theme ({"theme"})
+    is found in the series config (`series`, else the episode's: series_theme), its take in its
+    own episode. `grid` is a theme take's tempo ({"bpm", "downbeat", "beats"}: its cue's, as it
+    was measured), None for a file."""
     th = spec.get("theme")
     if not th:
         return None
     out = {"spec": th, "label": theme_text(th), "use": None, "audio": None, "abc": None, "warning": None,
-           "from": None}
+           "from": None, "strength": None, "grid": None}
     plan_file = None
+    src_root = root
+    if th.get("theme"):
+        found, why = series_theme(root, series if series is not None else J.series_config(root), th["theme"])
+        if found is None:
+            out["warning"] = f"{why}: rendered without it"
+            return out
+        out["label"] = found["label"]
+        if found["root"] is None:
+            th = {"file": found["file"]}
+            if found.get("bpm"):
+                out["grid"] = {"bpm": float(found["bpm"]), "downbeat": 0.0, "beats": found.get("beats") or 4}
+        else:
+            src_root, th = found["root"], {"cue": found["cue"], "take": found["take"]}
     if th.get("cue") and not th.get("take"):
         n, how = pin if pin is not None else theme_take(root, pass_, th["cue"])
         if n is None:
@@ -567,22 +771,30 @@ def theme_for(root: str, spec: dict, target, pass_: str | None = None,
         th = {"cue": th["cue"], "take": n}
         out["label"], out["from"] = theme_text(th), how
     if th.get("cue"):
-        sc = next((t for t in list_takes(root, th["cue"]) if t["take"] == th["take"]), None)
-        wav = take_paths(root, th["cue"], th["take"])["wav"]
+        sc = next((t for t in list_takes(src_root, th["cue"]) if t["take"] == th["take"]), None)
+        wav = take_paths(src_root, th["cue"], th["take"])["wav"]
         if sc is None:
             out["warning"] = f"the theme {out['label']} isn't there (no such take): rendered without it"
         elif sc.get("status") != "ok" or not os.path.isfile(wav):
             out["warning"] = f"the theme {out['label']} isn't finished: rendered without it"
         else:
             out["audio"] = wav
-            f = os.path.join(cue_dir(root, th["cue"]), f"t{th['take']:02d}.abc")
+            f = os.path.join(cue_dir(src_root, th["cue"]), f"t{th['take']:02d}.abc")
             plan_file = f if os.path.isfile(f) else None
+            m, fit = sc.get("measured") or {}, (sc.get("plan") or {}).get("fit") or {}
+            bpm = (sc.get("rendered_for") or {}).get("bpm") or fit.get("bpm")
+            if bpm and m.get("downbeat") is not None:
+                try:
+                    beats = meter_beats(load_spec(src_root, th["cue"]))
+                except (OSError, ValueError):
+                    beats = 4
+                out["grid"] = {"bpm": float(bpm), "downbeat": float(m["downbeat"]), "beats": beats}
     else:
-        f = os.path.normpath(os.path.join(root, *th["file"].split("/")))
+        f = th["file"] if os.path.isabs(th["file"]) else os.path.normpath(os.path.join(root, *th["file"].split("/")))
         if os.path.isfile(f):
             out["audio"] = f
         else:
-            out["warning"] = f"the theme file {th['file']} isn't there: rendered without it"
+            out["warning"] = f"the theme file {th.get('file')} isn't there: rendered without it"
     if out["warning"]:
         return out
     how = target.capabilities().get("theme")
@@ -593,16 +805,99 @@ def theme_for(root: str, spec: dict, target, pass_: str | None = None,
         out["use"] = "transcribe"
     elif how == "timbre":
         out["use"] = "timbre"
+    elif how == "audio":
+        out.update(use="audio", strength=float((spec.get("theme") or {}).get("strength")
+                                               or target.capabilities().get("theme_strength") or 0.86))
     else:
-        out["warning"] = (f"{target.label} takes no theme: rendered without it (ACE-Step hears a "
-                          f"theme as its timbre, YuE2 sings its melody)")
+        out["warning"] = (f"{target.label} takes no theme: rendered without it (Stable Audio 3 renders "
+                          f"from a theme's sound, ACE-Step hears it as its timbre, YuE2 sings its melody)")
     return out
+
+
+def stage_theme(root: str, cid: str, p: dict) -> dict:
+    """A plan's theme sound reshaped to the cue (Stable Audio 3 renders from it: the take
+    keeps its timing): stretched from the theme's tempo to the tempo the cue is asked at, cut
+    at its first bar line, its whole bars looped (an equal-power crossfade at each join) to
+    the length asked, the last second faded. A file with no grid is looped as it is, its tempo
+    heard when it can be. Written once per sound and shape as `sound/<cue>/theme_<hash>.wav`;
+    the plan's theme gets `audio` (that file), `staged` ({"stretch", "bars", "seconds"}), and a
+    warning when it was stretched more than THEME_STRETCH_WARN. Returns the plan."""
+    import hashlib
+    th = p.get("theme") or {}
+    if th.get("use") != "audio" or not th.get("audio"):
+        return p
+    np = MX._np()
+    src = th["audio"]
+    ask_bpm, seconds = float(p["fit"]["ask_bpm"]), float(p["ask_seconds"])
+    grid = th.get("grid")
+    st = os.stat(src)
+    key = f"{os.path.abspath(src)}|{st.st_mtime_ns}|{st.st_size}|{grid}|{ask_bpm}|{seconds}"
+    dst = os.path.join(cue_dir(root, cid), f"theme_{hashlib.sha1(key.encode()).hexdigest()[:10]}.wav")
+    buf = MX.decode(src)
+    if grid is None and len(buf):
+        # a file that doesn't say its tempo: what's heard (its octaves folded toward the cue's)
+        # is trusted only near the cue's own; else it plays at its own tempo, looped whole
+        env = B.onsets(buf)
+        heard = B.tempo(env, asked=ask_bpm)
+        if heard and abs(heard - ask_bpm) / ask_bpm <= STRETCH_MAX:
+            _, down = B.grid(env, heard, buf, 4)
+            grid = {"bpm": heard, "downbeat": down, "beats": 4}
+        else:
+            p.setdefault("warnings", []).append(
+                "the theme file's tempo couldn't be told" + (f" (heard {heard:.0f} bpm)" if heard else "")
+                + ": it plays at its own, looped whole; give it a bpm in the series config to fit it to the cue")
+    factor = ask_bpm / grid["bpm"] if grid else 1.0
+    if abs(factor - 1.0) > 1e-4:
+        tmp = F.temp_beside(dst, ".wav")
+        try:
+            stretch_file(src, tmp, factor)
+            buf = MX.decode(tmp)
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+    n_out = int(round(seconds * MX.RATE))
+    if grid:
+        bar = grid["beats"] * 60.0 / ask_bpm
+        start = int(round(grid["downbeat"] / factor * MX.RATE))
+        bars = max(1, int((len(buf) - start) / (bar * MX.RATE) + 1e-6))
+        body = buf[start:start + int(round(bars * bar * MX.RATE))]
+    else:
+        bars, body = 0, buf
+    if not len(body):
+        th["warning"] = "the theme's sound is empty: rendered without it"
+        th["use"] = None
+        return p
+    xf = int(THEME_XFADE * MX.RATE)
+    out = body.copy()
+    while len(out) < n_out + xf:
+        if xf and len(out) > xf and len(body) > xf:
+            a = np.cos(np.linspace(0, np.pi / 2, xf, dtype=np.float32))[:, None]
+            b = np.sin(np.linspace(0, np.pi / 2, xf, dtype=np.float32))[:, None]
+            out = np.concatenate([out[:-xf], out[-xf:] * a + body[:xf] * b, body[xf:]])
+        else:
+            out = np.concatenate([out, body])
+    out = out[:n_out]
+    fade = min(len(out), MX.RATE)
+    out[len(out) - fade:] *= np.linspace(1.0, 0.0, fade, dtype=np.float32)[:, None]
+    if not os.path.isfile(dst):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        MX.write_wav(dst, out)
+    th["audio"] = dst
+    th["staged"] = {"stretch": round(factor, 4), "bars": bars, "seconds": round(len(out) / MX.RATE, 3)}
+    if abs(factor - 1.0) > THEME_STRETCH_WARN:
+        msg = (f"the theme is played {abs(factor - 1) * 100:.0f} % {'faster' if factor > 1 else 'slower'} "
+               f"than it was made ({grid['bpm']:.0f} to {ask_bpm:.0f} bpm): it holds less the further it goes")
+        p.setdefault("warnings", []).append(msg)
+    return p
 
 
 def theme_record(th: dict) -> dict:
     """A plan's theme as a take's sidecar keeps it: {"label" (the take or file it was: "m01
-    t03"), "use"}, and "from" ("mix", "best") when it followed another cue's pick."""
-    return {"label": th["label"], "use": th["use"], **({"from": th["from"]} if th.get("from") else {})}
+    t03"), "use"}, "from" ("mix", "best") when it followed another cue's pick, "strength" when
+    the model rendered from its sound, and "staged" (stage_theme: how it was reshaped)."""
+    return {"label": th["label"], "use": th["use"], **({"from": th["from"]} if th.get("from") else {}),
+            **({"strength": th["strength"]} if th.get("strength") is not None else {}),
+            **({"staged": th["staged"]} if th.get("staged") else {})}
 
 
 def song_sections(info: dict, bpm: float, offset: float, bar: float) -> list[dict]:
@@ -671,7 +966,11 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
             hit["ends"] = True
         hits.append(hit)
     meter = meter_beats(spec)
-    asked = spec.get("bpm") or DEFAULT_BPM
+    target = TG.load_target(model_for(spec, series))
+    theme = theme_for(root, spec, target, pass_, series=series)
+    # a cue with a theme and no tempo of its own takes the theme's: a theme stretched to
+    # another tempo holds it less ("A theme take under another length and tempo")
+    asked = spec.get("bpm") or ((theme or {}).get("grid") or {}).get("bpm") or DEFAULT_BPM
     fitted = [h for h in hits if not h.get("ends")]
     to_fit = [(h["t"], h["must"], h["kind"] == "accent") for h in fitted]
     fit = SC.fit_tempo(to_fit, asked, fps, meter, spread=0.0 if spec.get("fixed_tempo") else FIT_SPREAD)
@@ -708,7 +1007,6 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
         for sec in sections:
             sec["from"], sec["to"] = round(arc[b0] * 2) / 2, round(arc[b0 + sec["bars"] - 1] * 2) / 2
             b0 += sec["bars"]
-    target = TG.load_target(model_for(spec, series))
     direction = ((series.get("sound") or {}).get("score") or "").strip()
     style = ", ".join(x for x in (direction.rstrip("."), spec.get("style", "")) if x)
     # the script's music: notes of the shots the cue plays over (each shot whose clip
@@ -717,7 +1015,6 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
             if origins[x["id"]]["origin"] + x["trim_in"] < b
             and origins[x["id"]]["origin"] + x["trim_in"] + x["used"] > a]
     notes = script_notes(root, over)
-    theme = theme_for(root, spec, target, pass_)
     kind = spec.get("kind", "score")
     cue = {"kind": kind, "style": style or ("cinematic orchestral film score" if kind == "score" else "song"),
            "bpm": fit.ask_bpm,
@@ -772,6 +1069,8 @@ def fingerprint(p: dict) -> dict:
            "bars": p["bars"]}
     if p.get("theme"):
         out["theme"] = p["theme"]["label"]
+        if p["theme"].get("strength") is not None:
+            out["theme_strength"] = p["theme"]["strength"]
     return out
 
 
@@ -801,6 +1100,9 @@ def stale(sc: dict, p: dict) -> list[str]:
             out.append(f"hit {hid} is gone")
     if abs(float(was.get("bpm") or 0) - now["bpm"]) > 0.05:
         out.append(f"the tempo is {now['bpm']:g}, not {float(was.get('bpm') or 0):g}")
+    if (was.get("theme") == now.get("theme") and now.get("theme")
+            and was.get("theme_strength") != now.get("theme_strength")):
+        out.append(f"the theme's strength is {now.get('theme_strength')}, not {was.get('theme_strength')}")
     if was.get("theme") != now.get("theme"):
         if now.get("theme"):
             out.append(f"the theme is {now['theme']}" + (f", not {was['theme']}" if was.get("theme") else ""))
@@ -829,10 +1131,12 @@ def list_takes(root: str, cid: str) -> list[dict]:
 
 
 def ranked(takes: list[dict]) -> list[dict]:
-    """The finished takes best first (their measured score), then the rest."""
+    """The finished takes best first (their measured score), then the rest. A take whose
+    melody score says it lost its theme (`on_theme` false) goes after those that kept it:
+    the score filters, the hits rank (docs/SOUND.md phase 8)."""
     done = [t for t in takes if t.get("status") == "ok" and (t.get("measured") or {}).get("score") is not None]
     rest = [t for t in takes if t not in done]
-    return sorted(done, key=lambda t: t["measured"]["score"]) + rest
+    return sorted(done, key=lambda t: ((t["measured"].get("on_theme") is False), t["measured"]["score"])) + rest
 
 
 def reserve(root: str, cid: str, record: dict) -> int:
@@ -879,7 +1183,7 @@ def graph(target, p: dict, seed: int, pass_: str) -> dict:
         # a theme's graph surgery (YuE2: the planner replaced; ACE-Step: the timbre reference)
         th = p.get("theme") or {}
         audio = None
-        if th.get("audio") and th.get("use") in ("transcribe", "timbre"):
+        if th.get("audio") and th.get("use") in ("transcribe", "timbre", "audio"):
             from seriesmith.backends import File
             audio = File(th["audio"])
         target.module.cue_graph(target, g, p, vals, audio)
@@ -897,13 +1201,16 @@ def graph(target, p: dict, seed: int, pass_: str) -> dict:
 
 
 def plan_outputs(g: dict) -> dict:
-    """{node id: "written" | "sung"} for the graph's SaveText nodes: a song's plan as its
-    model wrote it, and as it was sung (its tempo set). The queue's job reads them when the
-    take comes back."""
+    """{node id: "written" | "sung" | "melody" | "theme_melody"} for the graph's SaveText
+    nodes: a song's plan as its model wrote it, and as it was sung (its tempo set); the take's
+    melody and its theme's, as SheetSage2 transcribed them (the melody score). The queue's
+    job reads them when the take comes back."""
     out = {}
     for k, v in g.items():
         if v["class_type"] == "SaveText":
-            out[k] = "sung" if str(v["inputs"].get("filename_prefix", "")).endswith("cue_plan") else "written"
+            prefix = str(v["inputs"].get("filename_prefix", ""))
+            out[k] = next((role for end, role in (("cue_plan", "sung"), ("theme_melody", "theme_melody"),
+                                                  ("cue_melody", "melody")) if prefix.endswith(end)), "written")
     return out
 
 
@@ -1269,6 +1576,13 @@ def finish_take(root: str, cid: str, n: int, raw_path: str, p: dict, plans: dict
         F.replace(raw_path, keep)
     m = measure(keep, paths["wav"], p)
     plans = plans or {}
+    if plans.get("melody") and plans.get("theme_melody"):
+        # the theme kept: SheetSage2's transcriptions of the take and of the theme as staged
+        score = ABC.melody_match(plans["theme_melody"], plans["melody"])
+        if score is not None:
+            m["melody"] = score
+            m["on_theme"] = score >= THEME_FLOOR
+        F.write_text(os.path.join(cue_dir(root, cid), f"t{n:02d}.melody.abc"), plans["melody"])
     if plans.get("sung"):
         abc_path = os.path.join(cue_dir(root, cid), f"t{n:02d}.abc")
         F.write_text(abc_path, plans["sung"])

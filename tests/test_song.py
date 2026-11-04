@@ -218,12 +218,12 @@ class ThemeTest(_Base):
         plain = CU.graph(TG.load_target("ace_step15"), CU.plan(self.root, "final", self.spec(model="ace_step15"), {}), 3, "final")
         self.assertNotIn("ReferenceTimbreAudio", [v["class_type"] for v in plain.values()])
 
-    def test_stable_audio_takes_none(self):
+    def test_stable_audio_renders_from_it(self):
+        # Stable Audio 3 renders from a theme's sound (docs/SOUND.md phase 8), at its strength
         self.theme_take()
         p = CU.plan(self.root, "final", self.spec(kind="score", sections=[], theme={"cue": "m01", "take": 1}), {})
         self.assertEqual(p["target"], "stable_audio3")
-        self.assertIsNone(p["theme"]["use"])
-        self.assertIn("takes no theme", p["warnings"][0])
+        self.assertEqual((p["theme"]["use"], p["theme"]["strength"]), ("audio", 0.86))
         self.assertNotIn("blocked", p)
 
     def test_a_theme_follows_the_pick(self):
@@ -315,7 +315,7 @@ class RouteTest(unittest.TestCase):
         self.call(A.put_cue, {"ep": self.ep, "cue": {**spec, "id": "m02", "theme": {"cue": "m01", "take": 1}}})
         got = self.call(A.get_cue, {"ep": self.ep, "pass": "final", "cue": "m02"})
         self.assertEqual(got["spec"]["theme"], {"cue": "m01", "take": 1})
-        self.assertEqual(set(got["plan"]["theme"]), {"spec", "label", "use", "warning", "from"})
+        self.assertEqual(set(got["plan"]["theme"]), {"spec", "label", "use", "warning", "from", "strength", "grid"})
         self.assertIn("isn't finished", got["plan"]["warnings"][0])
 
 

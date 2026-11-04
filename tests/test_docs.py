@@ -16,6 +16,9 @@ The generated documentation stays in step with the code.
     tools/make_site_docs.py emits from INSTALL.md and the user docs today, and
     names no internal document (`python tools/make_site_docs.py`); every page,
     the hand-written tutorials too, is in its navigation.
+  - seriesmith/core/structures.json (the first-pass score's Music tables) is
+    what tools/make_structures.py reads from docs/STORY_STRUCTURES.md today
+    (`python tools/make_structures.py`).
 """
 from __future__ import annotations
 
@@ -143,6 +146,18 @@ class TestPicturesBlock(unittest.TestCase):
                                           "`python tools/make_refs_md.py` and commit the result")
         self.assertIn("| `seedance_2_5` |", got)
         self.assertIn("| `minimax_h3_ref2va` |", got)
+
+
+class TestStructures(unittest.TestCase):
+    """seriesmith/core/structures.json is docs/STORY_STRUCTURES.md's Music tables."""
+
+    def test_up_to_date(self):
+        import make_structures as MS
+        with open(MS.DOC, encoding="utf-8") as fh:
+            want = MS.render(MS.build(fh.read()))
+        with open(MS.OUT, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), want, "structures.json is out of date: run "
+                                              "`python tools/make_structures.py` and commit the result")
 
 
 class TestModelsBlock(unittest.TestCase):

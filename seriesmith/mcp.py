@@ -441,6 +441,18 @@ TOOLS: list[Tool] = [
          {"ep": EP, "shot": SHOT, "take": {"type": ["integer", "null"]}, "pass": PASS},
          ("ep", "shot", "take"),
          route("PUT", "/seriesmith/pick", "ep", "pass", "shot", "take"), writes=True),
+    Tool("score_draft", "A first-pass score drafted from the script's `// structure:` and "
+         "`// beat:` lines (each structure's Music table, or the series config's sound.format): "
+         "draft cues (ids d01...) with a section per beat, their themes and hits, nothing "
+         "rendered. write false (the default) only says what it would draft; write true writes "
+         "the cues, their hits in the pass's mix and turns the dialogue to voices only "
+         "(keep_sound: leave it); replace: true replaces an earlier draft. A cue of the "
+         "episode's own is never touched. Then adjust the cues and render them in the editor.",
+         {"ep": EP, "pass": PASS, "write": {"type": "boolean"}, "replace": {"type": "boolean"},
+          "keep_sound": {"type": "boolean"}},
+         ("ep",), route("POST", "/seriesmith/cue/draft", "ep", "pass", "write", "replace", "keep_sound",
+                          shape=lambda r: {"text": r.get("text"), "written": r.get("written")}),
+         writes=True),
     Tool("assemble", "Cut the pass's picked takes together into one video (can take "
          "minutes). partial: true leaves shots without a usable take out instead of failing. "
          "xml: true writes the cut as an FCP7 XML timeline instead (for Premiere, Resolve: "

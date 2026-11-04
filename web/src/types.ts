@@ -2104,8 +2104,11 @@ export interface Target {
     repaint?: boolean;
     /** music targets: a song on it must have lyrics (YuE2 sings words) */
     needs_lyrics?: boolean;
-    /** music targets: how it hears a cue's theme: sung as its melody (YuE2), as its timbre (ACE-Step), or not at all */
-    theme?: "melody" | "timbre" | null;
+    /** music targets: how it hears a cue's theme: sung as its melody (YuE2), as its timbre (ACE-Step),
+     * rendered from its sound (Stable Audio 3: at `theme_strength`), or not at all */
+    theme?: "melody" | "timbre" | "audio" | null;
+    /** a target that renders from a theme's sound: where its schedule starts by default (0.86) */
+    theme_strength?: number;
     [key: string]: unknown;
   };
   template?: TargetTemplate;
@@ -2921,16 +2924,75 @@ export interface CueArcPoint {
 export type CueKind = "score" | "song";
 
 /** A cue's theme: another cue's take in the episode (`take`; without one, whichever take that cue
- * has in the pass's mix, else its best finished one), or a file relative to it (a gallery item, a recording). */
-export type CueTheme = { cue: string; take?: number } | { file: string };
+ * has in the pass's mix, else its best finished one), a file relative to it (a gallery item, a
+ * recording), or one of the series config's `sound.themes` by name; `strength`: where a model that
+ * renders from its sound starts (0.5 to 0.99; absent: the model's own, 0.86 for Stable Audio 3). */
+export type CueTheme = ({ cue: string; take?: number } | { file: string } | { theme: string }) & { strength?: number };
+
+/** One of the series config's themes, as GET /seriesmith/cue offers them (cue.theme_list). */
+export interface SeriesTheme {
+  name: string;
+  /** "porch (ep01 m03 t02)": the take or file it is */
+  label: string;
+  role?: "show" | "story" | "runner" | null;
+  words?: string | null;
+  for?: string[] | null;
+  /** why it doesn't read, or isn't there to render from (null: fine) */
+  error?: string | null;
+}
+
+/** A first-pass score's cue (POST /seriesmith/cue/draft: scoredraft.draft): a cue, a sting, a sitcom's
+ * bumper or a theme marked by hand (`// theme:`), its sections (a beat each) and hits; `spec` is what
+ * would be written (absent with `skip`: a cue of the episode's own plays there). */
+export interface DraftCue {
+  kind: "cue" | "sting" | "bumper" | "mark";
+  label: string;
+  id?: string;
+  t0: number;
+  t1: number;
+  /** "story" (the episode's own melody, the take of the cue that makes it), a series theme's name, or none */
+  theme: string | null;
+  makes?: "story" | null;
+  sections: { name: string; words: string; from: number; to: number; seconds: number }[];
+  hits: { kind: "turn" | "arrive" | "drop"; shot: string; name: string }[];
+  spec?: CueSpec;
+  skip?: string;
+}
+
+export interface ScoreDraft {
+  /** the structure whose Music table it read (null: none) */
+  structure: string | null;
+  beats: { beat: string | null; from: string; music: string; t0: number; t1: number; shot: string }[];
+  cues: DraftCue[];
+  /** what the rules found and left to a person: music in the scene, a montage, a card, a flashback */
+  flags: { kind: string; shot: string; text: string }[];
+  notes: string[];
+  pass: Pass;
+  /** shots with no take yet, timed at their shotlist length */
+  missing: string[];
+  voices_only: boolean;
+  /** the earlier draft's cues (dNN) in the episode: writing replaces them only when asked */
+  drafted: string[];
+}
+
+export interface ScoreDraftResult {
+  draft: ScoreDraft;
+  text: string;
+  written: { cues: string[]; hits: number; removed: string[]; voices_only: boolean } | null;
+}
 
 /** How the plan's model hears the cue's theme (cue.theme_for): "plan" (YuE2 sings a YuE2 take's own
- * plan), "transcribe" (YuE2 sings SheetSage2's transcription), "timbre" (ACE-Step), or null and a
- * warning (it isn't there, or the model takes none: rendered without it). */
+ * plan), "transcribe" (YuE2 sings SheetSage2's transcription), "timbre" (ACE-Step), "audio" (Stable
+ * Audio 3 renders from its sound, fitted to the cue, at `strength`), or null and a warning (it isn't
+ * there, or the model takes none: rendered without it). */
 export interface CuePlanTheme {
   spec: CueTheme;
   label: string;
-  use: "plan" | "transcribe" | "timbre" | null;
+  use: "plan" | "transcribe" | "timbre" | "audio" | null;
+  /** "audio": where the schedule starts */
+  strength?: number | null;
+  /** a theme take's tempo, as it was measured (null: a file that doesn't say its own) */
+  grid?: { bpm: number; downbeat: number; beats: number } | null;
   warning: string | null;
   /** a theme that follows another cue's pick: how its take was found ("mix": the one in the pass's
    * mix; "best": none there, its best finished take); `label` names that take. null otherwise */
@@ -3122,6 +3184,10 @@ export interface CueMeasured {
   shape_error: number | null;
   /** lower is better */
   score: number;
+  /** a take rendered from a theme, with SheetSage2: how much of the theme's melody it kept, 0..1 */
+  melody?: number;
+  /** `melody` at least 0.3 (under it the theme is lost; a take with none keeps ~0.2) */
+  on_theme?: boolean;
 }
 
 /** A take's sidecar (tNN.json) with its number. */
@@ -3150,7 +3216,8 @@ export interface CueTake {
   /** a song's plan (YuE2): its sections against the cue, its length against the take's */
   song?: CueSong;
   /** the theme it was rendered with, and how its model heard it */
-  theme?: { label: string; use: CuePlanTheme["use"]; from?: "mix" | "best" };
+  theme?: { label: string; use: CuePlanTheme["use"]; from?: "mix" | "best"; strength?: number;
+             staged?: { stretch: number; bars: number; seconds: number } };
   finished?: string;
   created?: string;
 }
@@ -3162,4 +3229,6 @@ export interface CueResult {
   plan_error: string | null;
   /** best first */
   takes: CueTake[];
+  /** the series config's themes, to pick from (absent from older servers) */
+  themes?: SeriesTheme[];
 }

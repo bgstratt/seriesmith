@@ -558,6 +558,23 @@ optional; leave the block out for the defaults:
   editor's mix wins over these.
 - `loudness` is the export's target: `target_lufs` (default -16) and `true_peak_db` (the
   limiter's ceiling, default -1). The episode's mix can set its own.
+- `themes` are the show's recurring music, by name, for any episode's cue to carry: each a
+  picked take of a cue (`{"ep": "ep01", "cue": "m04", "take": 3}`, the episode's folder beside
+  this one) or a file (`{"file": "themes/glance.wav", "bpm": 80}`, relative to the series
+  config), with `role` (`show`, `story` or `runner`) and `words` (what it is). They're made
+  in the editor from a take you pick (its **★ Series theme**), not written by hand; leave the
+  key out when writing a new series.
+- `format` is a show's own first-pass score, for a show whose episodes share a shape of their
+  own (Porch Lights' Cold Open, The Read, The Cost...): what the draft (**Draft…** on the
+  spotting sheet, `seriesmith score-draft`) does with each of its `// beat:` names, in place
+  of a structure's Music table (STORY_STRUCTURES.md). `{"like": "episodic drama", "beats":
+  {"Cold Open": {"music": "score", "words": "felt piano, a low pulse", "energy": [2, 3],
+  "theme": "mark", "hits": ["turn"]}}, "other": {...}, "marks": {"glance": "sting"}}`:
+  `music` is `score`, `under`, `gaps` (only where no one speaks), `sting` or `dry`; `theme`
+  a role (`story`, `show`, `runner`), `lead` (the theme `for` the beat's lead, else
+  `theme_else`) or a theme's name; `like` the structure for the beats it doesn't name;
+  `other` any beat neither names (`talk_max`: dry above that share of lines); `marks` how a
+  `// theme:` mark of that theme plays. A show that follows one of the structures needs none.
 
 The place's ambience bed is the location's `ambience` (below) and its model
 `refs.ambience_target` (above). How to score an episode is in `docs/SCORING.md`; a

@@ -29,6 +29,11 @@ it: put after the voices, before `K:`, it was sung at 88 of 96 bpm, twice, 2026-
 drops the chord symbols, the form YuE2's `melody` mode and SheetSage2's melody transcription
 use.
 
+`notes(text)` reads each voice's pitches (a pitch class per note, the key's and the bar's
+accidentals applied) and `melody_match(theme, take)` says how much of a theme's melody a
+take keeps: a theme in a cue's take, both transcribed by SheetSage2 (docs/SOUND.md
+"Measured: leitmotifs").
+
 Stdlib only.
 """
 from __future__ import annotations
@@ -312,6 +317,175 @@ def melody(text: str) -> str:
             body = True
         out.append(line)
     return "\n".join(out)
+
+
+# ---------------------------------------------------------------------------
+# a melody's pitches, and how much of one another keeps (a theme in a cue's take)
+# ---------------------------------------------------------------------------
+
+_NATURAL = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+_SHARPS, _FLATS = "FCGDAEB", "BEADGCF"
+# a mode's sharps against its major (the key's place on the circle of fifths)
+_MODES = {"": 0, "maj": 0, "major": 0, "ion": 0, "m": -3, "min": -3, "minor": -3, "aeo": -3,
+          "dor": -2, "phr": -4, "lyd": 1, "mix": -1, "loc": -5}
+_FIFTHS = {"C": 0, "G": 1, "D": 2, "A": 3, "E": 4, "B": 5, "F#": 6, "C#": 7, "F": -1, "Bb": -2,
+           "Eb": -3, "Ab": -4, "Db": -5, "Gb": -6, "Cb": -7}
+
+
+def key_signature(k: str) -> dict[str, int]:
+    """The accidentals a `K:` field puts on each letter ({"F": 1, "C": 1} for D major or B
+    minor); {} for C, none or one it can't read."""
+    m = re.match(r"\s*([A-Ga-g])([#b]?)\s*([A-Za-z]*)", k or "")
+    if not m:
+        return {}
+    tonic = m.group(1).upper() + m.group(2)
+    mode = m.group(3).lower()
+    mode = next((v for name, v in _MODES.items() if name and mode.startswith(name)), 0) if mode else 0
+    n = _FIFTHS.get(tonic)
+    if n is None:
+        return {}
+    n += mode
+    return {c: 1 for c in _SHARPS[:n]} if n > 0 else {c: -1 for c in _FLATS[:-n]}
+
+
+def notes(text: str) -> dict[str, list[tuple[int, int, int | None]]]:
+    """Each voice's notes as (start, length, pitch class or None for a rest), in sixteenth
+    notes from its start: what a melody is, without its octave. Accidentals hold to the bar
+    line, as ABC has it; a chord is its first note; grace notes, chord symbols and
+    decorations are left out."""
+    header: dict[str, str] = {}
+    voices: dict[str, list] = {}
+    state: dict[str, dict] = {}
+    cur, in_body, unit, keysig = None, False, None, {}
+
+    def voice(name: str) -> tuple[list, dict]:
+        return voices.setdefault(name, []), state.setdefault(name, {"t": Fraction(0), "acc": {}, "tuplet": (0, 1)})
+
+    for raw in (text or "").replace("\r\n", "\n").split("\n"):
+        line = raw.strip()
+        if not line or line.startswith("%"):
+            continue
+        m = _FIELD.match(line)
+        if m and (not in_body or m.group(1) in _BODY_FIELDS):
+            key, val = m.group(1), m.group(2).strip()
+            if key == "V":
+                cur = val.split()[0] if val.split() else "1"
+                voice(cur)
+            elif key == "K":
+                keysig, in_body = key_signature(val), True
+            elif key == "L":
+                unit = _frac(val, Fraction(1, 8))
+            elif not in_body:
+                header.setdefault(key, val)
+            continue
+        in_body = True
+        if unit is None:
+            unit = _frac(header.get("L", ""), Fraction(1, 8))
+        out, st = voice(cur or "1")
+        _pitches(re.sub(r'"[^"]*"', "", line), out, st, unit, keysig)
+    return {v: [(int(s * 16), max(1, int(d * 16)), p) for s, d, p in ns] for v, ns in voices.items() if ns}
+
+
+def _pitches(line: str, out: list, st: dict, unit: Fraction, keysig: dict) -> None:
+    i, n = 0, len(line)
+
+    def add(d: Fraction, pc) -> None:
+        left, k = st["tuplet"]
+        if left:
+            d *= k
+            st["tuplet"] = (left - 1, k)
+        out.append((st["t"], d, pc))
+        st["t"] += d
+
+    while i < n:
+        c = line[i]
+        if c in "!+{":
+            j = line.find("}" if c == "{" else c, i + 1)
+            i = n if j < 0 else j + 1
+        elif c == "[" and i + 2 < n and line[i + 1].isalpha() and line[i + 2] == ":":
+            j = line.find("]", i)
+            i = n if j < 0 else j + 1
+        elif c == "[" and i + 1 < n and line[i + 1] in "|0123456789":
+            i += 2
+        elif c == "|":
+            st["acc"] = {}
+            i += 1
+        elif c in "^_=[ABCDEFGabcdefg":
+            chord = c == "["
+            j = i + 1 if chord else i
+            acc = 0
+            explicit = False
+            while j < n and line[j] in "^_=":
+                acc += {"^": 1, "_": -1, "=": 0}[line[j]]
+                explicit = True
+                j += 1
+            if j >= n or line[j] not in "ABCDEFGabcdefg":
+                i = j + 1
+                continue
+            letter = line[j].upper()
+            j += 1
+            while j < n and line[j] in "',":
+                j += 1
+            if explicit:
+                st["acc"][letter] = acc
+            a = st["acc"].get(letter, keysig.get(letter, 0))
+            if chord:
+                k = line.find("]", j)
+                mult, i = _length(line, (k + 1) if k >= 0 else n)
+                first, _ = _length(line, j)
+                d = unit * first * mult
+            else:
+                mult, i = _length(line, j)
+                d = unit * mult
+            add(d, (_NATURAL[letter] + a) % 12)
+        elif c in "zx":
+            mult, i = _length(line, i + 1)
+            add(unit * mult, None)
+        elif c == "(":
+            m = re.match(r"\((\d)(?::(\d)?)?(?::(\d))?", line[i:])
+            if m:
+                p = int(m.group(1))
+                q = int(m.group(2)) if m.group(2) else {2: 3, 3: 2, 4: 3, 6: 2, 8: 3}.get(p, 2)
+                st["tuplet"] = (int(m.group(3)) if m.group(3) else p, Fraction(q, p))
+                i += len(m.group(0))
+            else:
+                i += 1
+        else:
+            i += 1
+
+
+def grid(ns: list[tuple[int, int, int | None]], length: int) -> list[int | None]:
+    """A voice's notes as one pitch class (or None) per sixteenth, `length` of them."""
+    g: list[int | None] = [None] * length
+    for s, d, pc in ns:
+        for k in range(max(0, s), min(length, s + d)):
+            g[k] = pc
+    return g
+
+
+def melody_match(theme: str, take: str, shift: int = 8) -> float | None:
+    """How much of a theme's melody a take keeps, 0 to 1: of the sixteenths the theme's
+    melody sounds (its voice that sounds most), the share where one of the take's voices has
+    the same pitch class, at the best shift of up to `shift` sixteenths either way (two beats
+    of 4/4) and no transposition. Both are SheetSage2's transcriptions (`mode` melody) of
+    sounds of one length. None when the theme has no notes. A take with no theme in it scores
+    about 0.2 (docs/SOUND.md "Measured: leitmotifs")."""
+    tv = notes(theme)
+    if not tv:
+        return None
+    ref_notes = max(tv.values(), key=lambda ns: sum(d for _, d, p in ns if p is not None))
+    length = max(s + d for s, d, _ in ref_notes)
+    ref = grid(ref_notes, length)
+    sounding = [k for k, p in enumerate(ref) if p is not None]
+    if not sounding:
+        return None
+    best = 0
+    for ns in notes(take).values():
+        g = grid(ns, length + shift + 1)
+        for sh in range(-shift, shift + 1):
+            hit = sum(1 for k in sounding if 0 <= k + sh < len(g) and g[k + sh] == ref[k])
+            best = max(best, hit)
+    return round(best / len(sounding), 4)
 
 
 def times(info: dict, bpm: float) -> list[dict]:

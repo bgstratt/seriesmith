@@ -471,6 +471,194 @@ def by_class(g: dict, ctype: str) -> dict:
     return next(v["inputs"] for v in g.values() if v["class_type"] == ctype)
 
 
+class ThemeSpecTest(unittest.TestCase):
+    def test_theme_forms(self):
+        self.assertEqual(CU.check_theme({"theme": "porch"}, "m02"), {"theme": "porch"})
+        self.assertEqual(CU.check_theme({"theme": "porch", "strength": 0.9}, "m02"),
+                         {"theme": "porch", "strength": 0.9})
+        self.assertEqual(CU.check_theme({"cue": "m01", "take": 2, "strength": 0.86}, "m02"),
+                         {"cue": "m01", "take": 2, "strength": 0.86})
+        for bad in ({"theme": "a b"}, {"theme": "porch", "strength": 1.2}, {"cue": "m01", "strength": "hi"},
+                    {"theme": "porch", "cue": "m01"}):
+            with self.subTest(bad=bad), self.assertRaises(CU.CueError):
+                CU.check_theme(bad, "m02")
+        self.assertEqual(CU.theme_text({"theme": "porch"}), "porch")
+
+    def test_series_themes(self):
+        got = CU.series_themes({"sound": {"themes": {
+            "porch": {"ep": "ep01", "cue": "m01", "take": 3, "role": "show", "words": " warm,  hopeful "},
+            "glance": {"file": "themes/glance.wav", "for": ["hank"]},
+            "kell": {"ep": "ep01", "cue": "m02"},                        # a take is pinned
+            "bad": {"file": "x.txt"}, "residence": {"ep": "ep07", "cue": "m01", "take": 1, "role": "villain"}}}})
+        self.assertEqual(got["porch"], {"ep": "ep01", "cue": "m01", "take": 3, "role": "show", "words": "warm, hopeful"})
+        self.assertEqual(got["glance"], {"file": "themes/glance.wav", "for": ["hank"]})
+        self.assertEqual(sorted(got["_errors"]), ["bad", "kell", "residence"])
+        self.assertEqual(CU.series_themes({}), {})
+
+
+@unittest.skipUnless(HAVE_FF, "ffmpeg/ffprobe not on PATH")
+class SeriesThemeTest(unittest.TestCase):
+    """A theme from another episode (the series config's `sound.themes`): Stable Audio 3
+    renders from its take, reshaped to the cue; its melody score and the ranking."""
+
+    def setUp(self):
+        from test_beats import clicks
+        self._tmp = tempfile.TemporaryDirectory()
+        self.shows = os.path.join(self._tmp.name, "Shows")
+        self.ep1, self.ep2 = (os.path.join(self.shows, e) for e in ("ep01", "ep02"))
+        for ep in (self.ep1, self.ep2):
+            os.makedirs(ep)
+            episode(ep)
+        self.series = {"sound": {"themes": {"porch": {"ep": "ep01", "cue": "m01", "take": 1, "role": "show"}}}}
+        F.write_json(os.path.join(self.shows, "series.json"), self.series)
+        # ep01's m01, one finished take: the theme
+        spec = CU.save_spec(self.ep1, {"id": "m01", "in": anchor("sh010"), "out": anchor("sh020", 60), "bpm": 92})
+        p = CU.plan(self.ep1, "final", spec, self.series)
+        n = CU.reserve(self.ep1, "m01", {"pass": "final", "rendered_for": CU.fingerprint(p), "plan": {"fit": p["fit"]}})
+        raw = os.path.join(self.ep1, "raw.wav")
+        MX.write_wav(raw, clicks(p["fit"]["ask_bpm"], p["bars"], offset=0.25))
+        CU.finish_take(self.ep1, "m01", n, raw, p)
+        self.theme_bpm = p["fit"]["bpm"]
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def plan2(self, **kw):
+        spec = CU.save_spec(self.ep2, {"id": "m02", "in": anchor("sh010"), "out": anchor("sh030", 100),
+                                       "bpm": 92, "theme": {"theme": "porch"}, **kw})
+        return CU.plan(self.ep2, "final", spec, self.series)
+
+    def test_resolved_staged_and_rendered_from(self):
+        p = self.plan2()
+        th = p["theme"]
+        self.assertEqual((th["use"], th["label"], th["strength"]), ("audio", "porch (ep01 m01 t01)", 0.86))
+        self.assertAlmostEqual(th["grid"]["bpm"], self.theme_bpm, places=2)
+        self.assertEqual(CU.fingerprint(p)["theme"], "porch (ep01 m01 t01)")
+        CU.stage_theme(self.ep2, "m02", p)
+        staged = p["theme"]["audio"]
+        self.assertTrue(staged.startswith(os.path.join(self.ep2, "sound", "m02", "theme_")))
+        self.assertAlmostEqual(len(MX.decode(staged)) / MX.RATE, p["ask_seconds"], delta=0.05)
+        self.assertGreater(p["theme"]["staged"]["bars"], 0)
+        self.assertNotIn("warnings", p)                                # the same tempo near enough
+        g = CU.graph(TG.load_target("stable_audio3"), p, 5, "final")
+        kinds = {v["class_type"] for v in g.values()}
+        self.assertFalse(kinds & {"KSampler", "EmptyLatentAudio", "SheetSage2AudioToABC"})
+        sig = [float(x) for x in by_class(g, "ManualSigmas")["sigmas"].split(",")]
+        self.assertEqual((len(sig), sig[-1]), (9, 0.0))
+        self.assertAlmostEqual(sig[0], 2 * 0.86 / 1.86, places=5)      # SA3's shift 2 at t0
+        self.assertEqual(by_class(g, "SamplerCustom")["noise_seed"], 5)
+        dec = by_class(g, "VAEDecodeAudio")["samples"]
+        self.assertEqual(g[dec[0]]["class_type"], "SamplerCustom")
+        # with the melody score: both transcribed, each saved as its role
+        g = CU.graph(TG.load_target("stable_audio3"), dict(p, melody=True), 5, "final")
+        self.assertEqual(sum(v["class_type"] == "SheetSage2AudioToABC" for v in g.values()), 2)
+        self.assertEqual(sorted(CU.plan_outputs(g).values()), ["melody", "theme_melody"])
+        # a stronger theme starts the schedule later
+        g = CU.graph(TG.load_target("stable_audio3"), self.plan2(theme={"theme": "porch", "strength": 0.7}), 5, "final")
+        self.assertAlmostEqual(float(by_class(g, "ManualSigmas")["sigmas"].split(",")[0]), 2 * 0.7 / 1.7, places=5)
+
+    def test_a_cue_takes_its_themes_tempo(self):
+        spec = CU.save_spec(self.ep2, {"id": "m02", "in": anchor("sh010"), "out": anchor("sh030", 100),
+                                       "theme": {"theme": "porch"}})
+        p = CU.plan(self.ep2, "final", spec, self.series)
+        self.assertAlmostEqual(p["fit"]["bpm"], self.theme_bpm, delta=self.theme_bpm * CU.FIT_SPREAD)
+        self.assertNotIn("warnings", CU.stage_theme(self.ep2, "m02", p))
+
+    def test_a_file_theme_says_its_tempo(self):
+        from test_beats import clicks
+        MX.write_wav(os.path.join(self.shows, "glance.wav"), clicks(80, 4, offset=0.0))
+        series = {"sound": {"themes": {"glance": {"file": "glance.wav", "bpm": 80}}}}
+        self.assertEqual(CU.series_themes(series)["glance"], {"file": "glance.wav", "bpm": 80.0})
+        spec = CU.save_spec(self.ep2, {"id": "m02", "in": anchor("sh010"), "out": anchor("sh030", 100),
+                                       "theme": {"theme": "glance"}})
+        p = CU.stage_theme(self.ep2, "m02", CU.plan(self.ep2, "final", spec, series))
+        self.assertEqual((p["theme"]["label"], p["theme"]["grid"]["bpm"]), ("glance (glance.wav)", 80.0))
+        self.assertAlmostEqual(p["theme"]["staged"]["stretch"], p["fit"]["ask_bpm"] / 80, places=3)
+        # without its bpm, and a tempo far from the cue's: played at its own, and said
+        far = CU.save_spec(self.ep2, {**spec, "bpm": 140, "fixed_tempo": True})
+        p = CU.stage_theme(self.ep2, "m02", CU.plan(self.ep2, "final", far, {"sound": {"themes": {
+            "glance": {"file": "glance.wav"}}}}))
+        self.assertEqual(p["theme"]["staged"]["stretch"], 1.0)
+        self.assertTrue(any("tempo couldn't be told" in w for w in p["warnings"]), p.get("warnings"))
+
+    def test_a_far_tempo_is_said(self):
+        p = CU.stage_theme(self.ep2, "m02", self.plan2(bpm=120, fixed_tempo=True))
+        self.assertAlmostEqual(p["theme"]["staged"]["stretch"], 120 / self.theme_bpm, places=2)
+        self.assertTrue(any("faster than it was made" in w for w in p["warnings"]), p.get("warnings"))
+
+    def test_missing_theme_is_a_warning(self):
+        p = CU.plan(self.ep2, "final", CU.save_spec(self.ep2, {"id": "m02", "in": anchor("sh010"),
+                                                              "out": anchor("sh030"), "theme": {"theme": "kell"}}),
+                    self.series)
+        self.assertIsNone(p["theme"]["use"])
+        self.assertIn("no theme kell", p["warnings"][0])
+
+    def test_melody_score_and_ranking(self):
+        from test_beats import clicks
+        p = CU.stage_theme(self.ep2, "m02", self.plan2())
+        theme = "X:1\nM:4/4\nL:1/8\nK:D\nV:1\nD2 E2 F2 G2 | A4 F4 | G3 F E4 | D8\n"
+        lost = "X:1\nM:4/4\nL:1/8\nK:D\nV:1\nB,2 B,2 B,2 B,2 | B,8 | B,8 | B,8\n"
+        for melody in (lost, theme):
+            n = CU.reserve(self.ep2, "m02", {"pass": "final"})
+            raw = os.path.join(self.ep2, f"raw{n}.wav")
+            MX.write_wav(raw, clicks(p["fit"]["ask_bpm"], p["bars"], offset=0.25))
+            CU.finish_take(self.ep2, "m02", n, raw, p, {"melody": melody, "theme_melody": theme})
+        takes = CU.list_takes(self.ep2, "m02")
+        self.assertEqual([(t["measured"]["melody"], t["measured"]["on_theme"]) for t in takes],
+                         [(0.0, False), (1.0, True)])
+        self.assertTrue(os.path.isfile(os.path.join(self.ep2, "sound", "m02", "t02.melody.abc")))
+        self.assertEqual([t["take"] for t in CU.ranked(takes)], [2, 1])   # the one that kept it first
+
+    def test_pin_a_take_as_a_series_theme(self):
+        # each episode with a series config of its own (as new episodes get), and a script
+        for ep in (self.ep1, self.ep2):
+            F.write_json(os.path.join(ep, "series.json"), {"title": "Shows", "sound": {"score": "dark"}})
+            F.write_text(os.path.join(ep, os.path.basename(ep) + ".md"), "= x\n")
+        with self.assertRaisesRegex(CU.CueError, "no finished take 9"):
+            CU.pin_series_theme(self.ep1, "m01", 9, "mark")
+        r = CU.pin_series_theme(self.ep1, "m01", 1, "mark", role="story", words="the week's mark")
+        self.assertEqual((r["written"], r["same"]), (["ep01", "ep02"], []))
+        self.assertEqual(r["theme"], {"name": "mark", "ep": "ep01", "cue": "m01", "take": 1, "role": "story",
+                                      "words": "the week's mark"})
+        for ep in (self.ep1, self.ep2):
+            cfg = F.read_json_or(os.path.join(ep, "series.json"), {})
+            self.assertEqual(cfg["sound"], {"score": "dark", "themes": {"mark": {
+                "ep": "ep01", "cue": "m01", "take": 1, "role": "story", "words": "the week's mark"}}})
+        self.assertTrue(os.listdir(os.path.join(self.ep2, "_history")))     # the old config kept
+        # again: nothing to write
+        self.assertEqual(CU.pin_series_theme(self.ep1, "m01", 1, "mark", role="story",
+                                             words="the week's mark")["same"], ["ep01", "ep02"])
+        # ep02 sees it, as the window offers it, and plans a cue on it
+        names = [(t["name"], t["label"], t["error"]) for t in CU.theme_list(self.ep2)]
+        self.assertEqual(names, [("mark", "mark (ep01 m01 t01)", None)])
+        spec = CU.save_spec(self.ep2, {"id": "m02", "in": anchor("sh010"), "out": anchor("sh030"),
+                                       "theme": {"theme": "mark"}})
+        self.assertEqual(CU.plan(self.ep2, "final", spec)["theme"]["use"], "audio")
+
+    def test_a_series_theme_cant_be_deleted(self):
+        with self.assertRaisesRegex(CU.CueError, "series theme porch"):
+            CU.delete(self.ep1, "m01")
+
+    def test_render_route(self):
+        ctx = A.Context(os.path.join(self._tmp.name, "user"), "http://127.0.0.1:0", env={}, runner=_Runner())
+        code, _ = A.put_config(ctx, {"roots": [self.shows]})
+        self.assertEqual(code, 200)
+        code, _ = A.put_cue(ctx, {"ep": self.ep2, "cue": {"id": "m02", "in": anchor("sh010"),
+                                                          "out": anchor("sh030", 100), "bpm": 92,
+                                                          "theme": {"theme": "porch"}}})
+        self.assertEqual(code, 200)
+        code, r = A.post_cue_render(ctx, {"ep": self.ep2, "pass": "final", "cue": "m02", "takes": 2})
+        self.assertEqual(code, 200, r)
+        _, _, g, _ = ctx.runner.asked[0]
+        self.assertIn("SamplerCustom", {v["class_type"] for v in g.values()})
+        # ComfyUI can't be asked here: no SheetSage2, no melody score
+        self.assertNotIn("SheetSage2AudioToABC", {v["class_type"] for v in g.values()})
+        sc = CU.list_takes(self.ep2, "m02")[0]
+        self.assertEqual((sc["theme"]["label"], sc["theme"]["use"], sc["theme"]["strength"]),
+                         ("porch (ep01 m01 t01)", "audio", 0.86))
+        self.assertIn("bars", sc["theme"]["staged"])
+
+
 class _Runner:
     """seriesmith's queue, stood in for: it remembers what it was asked."""
 

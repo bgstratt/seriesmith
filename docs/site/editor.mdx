@@ -1519,6 +1519,14 @@ under the picture as Play all plays it, and every Play all key works in it.
   window. **Direction**: the series' score direction and the script's `music:` notes.
 - **Stale cues** at the foot: every cue whose take in the mix the cut has moved under (or, with
   none picked, all of whose takes it has), with **Render** each, or **Render all stale**.
+- **Draft…** in its head drafts a first-pass score from the script's `// structure:` and
+  `// beat:` lines ([SCORING.md](/scoring), "A first pass from the script"): it asks first and
+  writes nothing, showing each draft cue (its time, a section per beat with its mood and energy,
+  its theme, its hits), what it leaves to you (music in the scene, a montage, a card) and its
+  notes (a theme the series doesn't have yet). **Write N cues** writes them (`d01`...,
+  *Draft:* labels, nothing rendered) with their hits, and turns the Dialogue track to voices
+  only unless **Keep the takes' own sound** is ticked; a cue of yours under one leaves it out.
+  With a draft there already, **Replace the earlier draft** must be ticked first.
 - The **?** in its head shows how to use it.
 
 ### The cue window: a piece of score
@@ -1577,13 +1585,21 @@ model is told**, and the script's `music:` notes it took in. Each change is save
 cue planned again (typing saves when you pause). A YuE2 song with no lyrics says so under the
 fit: it can't render until a section has some.
 
-**Theme** carries another cue's melody into this one (the leitmotif): **none**, **another cue's
-take** (the cue, then one of its finished takes, fetched when you pick the cue) or **a sound
-file** (a path inside the episode or the show's folder, typed or **Browse…**). Under it, how the
-cue's model hears it: YuE2 sings its melody (a YuE2 take's own plan, or a transcription of
-anything else), ACE-Step takes its sound as its timbre; Stable Audio 3 takes none, says so, and
-offers **Use ACE-Step for the theme** (score) or **Use YuE2 for the theme** (song). A changed
-theme makes the takes stale.
+**Theme** carries another cue's melody into this one (the leitmotif): **none**, **a series
+theme** (one of the series config's `sound.themes`, by name), **another cue's take** (the cue,
+then one of its finished takes, fetched when you pick the cue) or **a sound file** (a path
+inside the episode or the show's folder, typed or **Browse…**). Under it, how the cue's model
+hears it: Stable Audio 3 renders from its sound, fitted to the cue's tempo and bars, at a
+**strength** (0.86 unless set: lower keeps more of the theme, higher moves toward the cue's
+words); YuE2 sings its melody (a YuE2 take's own plan, or a transcription of anything else);
+ACE-Step takes its sound as its timbre. A model that hears no theme says so and offers one that
+does. A changed theme or strength makes the takes stale.
+
+Each finished take's row has **★ Series theme**: a name, a role (show, story, runner), a line
+on what it is and **every episode** (on: written into every episode's series config beside
+this one, as each has its own), and **Save** makes the take a series theme any cue can carry.
+A take rendered from a theme with SheetSage2 installed says how much of the theme's melody it
+kept (**theme kept 52 %**, or **lost the theme** under 30 %, ranked after the rest).
 
 **Meter** is a choice of 2/4, 3/4, 4/4, 5/4, 6/8, 7/8, 9/8 and 12/8, or **Other…** for your own
 (beats/unit, 1 to 16 beats of a 2, 4, 8 or 16); the grid's beats to the bar are its top number.

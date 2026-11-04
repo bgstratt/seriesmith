@@ -8,7 +8,7 @@
 import { meterBeats, meterText } from "../lib/cue";
 import { anchorTime } from "../lib/mix";
 import type { PlayItem } from "../lib/playlist";
-import type { CueHit, CueMeasured, CuePlan, CuePreset, CueSection, CueSpec, Mix, Target } from "../types";
+import type { CueHit, CueMeasured, CuePlan, CuePreset, CueSection, CueSpec, Mix, SeriesTheme, Target } from "../types";
 
 export class CueError extends Error {
   constructor(message: string, public status = 400) {
@@ -19,7 +19,7 @@ export class CueError extends Error {
 export const MUSIC_TARGETS: Target[] = [
   {
     id: "stable_audio3", kind: "music", label: "Stable Audio 3 Medium", short: "Stable Audio 3", default: true,
-    capabilities: { mode: "t2m", tempo: "text", structure: "story", lyrics: false, max_seconds: 380 },
+    capabilities: { mode: "t2m", tempo: "text", structure: "story", lyrics: false, theme: "audio", theme_strength: 0.86, max_seconds: 380 },
     presets: { final: { takes: 8 }, proxy: { takes: 8 } },
   },
   {
@@ -140,13 +140,19 @@ export function checkCue(raw: CueSpec): CueSpec {
   }
   if (raw.hits != null) out.hits = [...raw.hits];
   if (raw.theme) {
-    const th = raw.theme as Record<string, unknown>;
-    if (typeof th.cue === "string" && (th.take == null || Number.isInteger(th.take))) {
+    const { strength, ...th } = raw.theme as Record<string, unknown>;
+    if (strength != null && (typeof strength !== "number" || strength < 0.5 || strength > 0.99)) {
+      throw new CueError(`cue ${raw.id}'s theme strength is 0.5 to 0.99, not ${JSON.stringify(strength)}`);
+    }
+    if (typeof th.theme === "string" && Object.keys(th).length === 1) {
+      out.theme = { theme: th.theme };
+    } else if (typeof th.cue === "string" && (th.take == null || Number.isInteger(th.take))) {
       if (th.cue === raw.id) throw new CueError(`cue ${raw.id}'s theme can't be one of its own takes`);
       out.theme = th.take == null ? { cue: th.cue } : { cue: th.cue, take: th.take as number };
     } else if (typeof th.file === "string" && th.file.trim() && !/^([A-Za-z]:|\/)/.test(th.file.trim())) {
       out.theme = { file: th.file.trim().replace(/\\/g, "/") };
-    } else throw new CueError(`cue ${raw.id}'s theme is {"cue"} (another cue's take in the mix), {"cue", "take"} (another cue's take) or {"file"}`);
+    } else throw new CueError(`cue ${raw.id}'s theme is {"cue"} (another cue's take in the mix), {"cue", "take"} (another cue's take), {"file"} or {"theme"} (a series theme)`);
+    if (strength != null && out.theme) out.theme = { ...out.theme, strength: Math.round((strength as number) * 1000) / 1000 };
   }
   if (raw.takes != null) {
     if (!Number.isInteger(raw.takes) || raw.takes < 1 || raw.takes > 16) throw new CueError(`cue ${raw.id}'s takes is a whole number up to 16`);
@@ -232,12 +238,22 @@ export function orchestrate<S extends CueSection & { bars: number }>(sections: S
 /** What a cue is asked against the cut (cue.plan, simplified). Throws a CueError when its anchors aren't in it. */
 /** How a model hears a theme, as cue.theme_for says it (the mock has no files: a take theme is there, a file isn't
  * checked; one that follows a cue's pick is its t01, as if it were its best). */
-function themeMock(spec: NonNullable<CueSpec["theme"]>, how: "melody" | "timbre" | null, label: string): NonNullable<CuePlan["theme"]> {
-  const name = "cue" in spec ? `${spec.cue} t${String(spec.take ?? 1).padStart(2, "0")}` : spec.file;
-  const use = how === "melody" ? "transcribe" as const : how === "timbre" ? "timbre" as const : null;
+function themeMock(spec: NonNullable<CueSpec["theme"]>, how: "melody" | "timbre" | "audio" | null, label: string): NonNullable<CuePlan["theme"]> {
+  const name = "cue" in spec ? `${spec.cue} t${String(spec.take ?? 1).padStart(2, "0")}`
+    : "theme" in spec ? (SERIES_THEMES.find((t) => t.name === spec.theme)?.label ?? spec.theme) : spec.file;
+  if ("theme" in spec && !SERIES_THEMES.some((t) => t.name === spec.theme)) {
+    return { spec, label: name, use: null, from: null, warning: `there's no theme ${spec.theme} in the series config's sound.themes: rendered without it` };
+  }
+  const use = how === "melody" ? "transcribe" as const : how === "timbre" ? "timbre" as const : how === "audio" ? "audio" as const : null;
   return { spec, label: name, use, from: "cue" in spec && spec.take == null ? "best" : null,
-    warning: use ? null : `${label} takes no theme: rendered without it (ACE-Step hears a theme as its timbre, YuE2 sings its melody)` };
+    strength: use === "audio" ? (spec.strength ?? 0.86) : null,
+    warning: use ? null : `${label} takes no theme: rendered without it (Stable Audio 3 renders from a theme's sound, ACE-Step hears it as its timbre, YuE2 sings its melody)` };
 }
+
+/** The series config's themes in the mock (cue.theme_list): one to pick from, and the ones pinned. */
+export const SERIES_THEMES: SeriesTheme[] = [
+  { name: "porch", label: "porch (ep01 m01 t02)", role: "show", words: "the neighbours, the light left on", for: null, error: null },
+];
 
 export function planCue(spec: CueSpec, items: PlayItem[], fps: number, mix: Mix, notes: Record<string, string> = {}, direction = ""): CuePlan {
   const a = anchorTime(items, spec.in, fps);

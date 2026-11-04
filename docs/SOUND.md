@@ -773,7 +773,9 @@ Each phase is tested live on local ComfyUI before the next starts.
    The user's verdict: both spot on and hard to tell apart at proxy size (unlikely to differ
    much in full HD), so both ways are offered; the stem is the cleaner input. A shot with no lines renders in `generate`
    mode, its own sound, so the song must come from the master or the mix, never the clips.
-8. **Themes across a season, and a first-pass score** (design, 2026-11-03; not built). Two
+8. **Themes across a season, and a first-pass score** (design, 2026-11-03; themes built
+   2026-11-03, the draft 2026-11-04: `seriesmith score-draft`, the spotting sheet's Draft…;
+   the season view not yet). Two
    things a cue can't do alone today: carry a recognisable tune from episode to episode, and
    exist before someone spots it by hand. Measured first (*Measured: leitmotifs*, below): the
    score models can't follow a melody from words or a timbre reference, but Stable Audio 3,
@@ -787,22 +789,27 @@ Each phase is tested live on local ComfyUI before the next starts.
      already real instruments, so nothing synthetic carries into the cues made from it (a
      synth sketch did, wherever it kept the tune), and nobody writes music to have one.
    - **A cue renders from its theme's take**: audio-to-audio at a **strength** (where the
-     schedule starts, `t0`: 0.89 by default, a beat type's own when the format sets one;
-     about 0.86 states the theme, 0.91 alludes to it), in the cue's style words. The tune
-     recurs and the sound is made for each scene, as a film's theme comes back as a solo
-     piano, then full strings. A take carries its own timing: a theme under a longer cue is
-     looped or cut at bar lines, at another tempo stretched (the cue's refit stretches ±3 %;
-     how far a theme can be stretched before it suffers is to measure). Where the same sound
+     schedule starts, `t0`, a beat type's own when the format sets one), in the cue's style
+     words. From a take, 0.86 (*Measured: a theme take under another length and tempo*: 0.89,
+     right for a synth sketch, loses a take's tune in most seeds; 0.86 confirmed by the
+     user the same day). The tune recurs and the sound
+     is made for each scene, as a film's theme comes back as a solo piano, then full strings.
+     A take carries its own timing: a theme under a longer or shorter cue is looped or cut at
+     bar lines (that costs nothing measurable), and its tempo kept: slowed to 0.8x it loses
+     some, sped to 1.25x it is lost; the cue's refit stretches ±3 %. Where the same sound
      must recur (a main title, a sting such as Porch Lights' Glance) the theme is **fixed**:
      the picked take placed as a file, the same in every episode.
    - **A take gets a melody score**: SheetSage2 (already installed, for YuE2) transcribes the
      theme's take and each new take, and the new one's pitch class per sixteenth is matched
-     against the theme's (best shift of up to two beats). It is a band, not a maximum: from a
-     piano take at 0.89 about 30-55 % (below ~25 % the theme is lost, as takes with no theme
-     score ~20 %; above ~65 % the source shows through), to be tuned on real cues. The score
-     can't hear whether a take sounds right, so it filters rather than picks: eight takes,
-     those outside the band dropped, the rest ranked by their hits, and the person picks by
-     ear from takes that are all on theme (a minute or so a cue, local, on the 5090).
+     against the theme's (best shift of up to two beats). Below 30 % the theme is lost (takes
+     with no theme score ~20 %). From a synth sketch a ceiling mattered too (above ~65 % the
+     sketch showed through); from a take there is no synth to show through, so it is a floor
+     (built 2026-11-03: `on_theme`, core/abc.melody_match, the take and the theme as fitted
+     both transcribed in the take's own job). The score can't hear whether a take sounds
+     right, so it filters rather than picks: eight takes, those that lost the theme ranked
+     last, the rest by their hits, and the person picks by ear from takes that are on theme
+     (a minute or so a cue, local, on the 5090). SheetSage2's weights are non-commercial (CC
+     BY-NC 4.0), so the score is optional: on only when SheetSage2 is installed.
    - **Notes, optionally.** A theme can also start as notes: ABC by hand or from an LLM over
      MCP, or a recording or a hummed idea through SheetSage2. The notes become a plain sketch
      (the melody over a chord and a bass per bar, numpy), then two passes: the sketch to a grand
@@ -869,6 +876,18 @@ Each phase is tested live on local ComfyUI before the next starts.
      (Porch Lights: Episodic Drama; Kell is its `runner`). Character themes (`sound.themes`, `"for": [ids]`:
      the beat's lead's theme echoed) and `// theme:` markers are the next layer, not the
      first pass.
+   - **Built** (2026-11-04): core/spotting.py (the rules, stdlib) and scoredraft.py (the
+     episode). The Music tables are read from STORY_STRUCTURES.md into core/structures.json by
+     tools/make_structures.py (the doc ships nowhere the code runs). What the build added to
+     the design: `gaps`, a treatment for a long talky beat (Porch Lights' Squeeze is 9 minutes
+     in ep01): cues only over the runs of shots with no lines, two runs with under 10 s of
+     lines between them one cue, a run under 10 s none (6 s / 8 s gave twelve cues in the
+     Squeeze, 10 / 15 one continuous one, 10 / 10 eight of 25-67 s). A cue past 3 minutes
+     splits where a sequence starts. Without beat lines, a cue per sequence, not joined. The
+     story theme is the first scored cue's take (`{"cue": "d01"}`); a draft cue never lands
+     on a cue of the episode's own. `sound.format` adds `other` (`talk_max`, and `lead` with
+     `theme_else`: Porch Lights' rule for its twenty one-off beats) and `marks` (`{"glance":
+     "sting"}`).
    - **The whole sound, drafted together**: a cue alone doesn't end the chops at cuts. The
      draft also turns the Dialogue track to voices only and lays each location's bed, so the
      room tone and the score run across the cuts and the takes' own music is gone.
@@ -1285,6 +1304,35 @@ the Glance (a rising fifth, a sting)) and rendered three ways:
   recording, is what sounded right, and a picked take is already one. A theme is made by
   seed-hunting a cue in its beat's style and picking; later cues render from that take.
   Notes stay an option, through the piano pass.
+
+### A theme take under another length and tempo (2026-11-03)
+
+The themes: Porch (the two-pass take at 0.89, seed 1, 48 % of its notes) and the Mark (seed 2,
+38 %). Each reshaped with ffmpeg: as is; looped to 12 bars (eight, then bars 5-8 again with
+the cadence, a 30 ms crossfade at the bar line); slowed to 0.8x and sped to 1.25x (`atempo`,
+the pitch kept). Each rendered into another beat's words (Porch into the Handoff's felt piano
+and strings, the Mark into the Squeeze's staccato low strings and ticking), at t0 0.86 and
+0.89, eight seeds, and scored against the take's own melody (SheetSage2, the take aligned to
+its notes; chance ~20 %). The reshaped sources still read as the take (89-100 %): the losses
+are the render's. Median of eight / how many of eight keep 40 % or more:
+
+| | as is | 12 bars | 0.8x | 1.25x |
+|---|---|---|---|---|
+| Porch, 0.86 | 50 / 5 | 46 / 5 | 34 / 3 | 14 / 0 |
+| Porch, 0.89 | 34 / 3 | 25 / 0 | 22 / 0 | 14 / 0 |
+| Mark, 0.86 | 26 / 1 | 17 / 0 | 19 / 2 | 14 / 0 |
+| Mark, 0.89 | 20 / 0 | 19 / 0 | 14 / 0 | 14 / 0 |
+
+- **0.86 from a take, not 0.89.** The 0.89 default came from the synth sketch, where lower let
+  the synth through; a take is already real instruments, and at 0.89 most seeds lose it.
+- **Length is free**: cut or looped at bar lines, the tune holds as well as unchanged.
+- **Tempo is not**: slower costs some, faster loses it. A cue keeps its theme's tempo and fits
+  by bars; the refit's ±3 % is the stretch.
+- **A theme has to be clear to travel.** Porch's take (a melody on top) carries into five of
+  eight; the Mark's (38 % of its notes, the tune already half gone) into one at best. Picking a
+  theme's take, its melody score is the first test: a take that barely keeps its own notes
+  won't carry into the next cue.
+- **Eight takes are enough** for a clear theme: five on theme at 0.86, to pick from by ear.
 
 Paid and other models (2026-11-03, a survey; nothing paid was run): Comfy Router's catalog has
 no music model (255 models: speech, sound effects, cleanup). Comfy's partner nodes here have

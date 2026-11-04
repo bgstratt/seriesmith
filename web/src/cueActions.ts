@@ -264,6 +264,24 @@ export async function pickCueTake(take: number): Promise<boolean> {
   return true;
 }
 
+/** A take of the open cue made a series theme (sound.themes.<name>), in this episode's series config
+ * and (everywhere) every one beside it; the cue fetched again, so its theme list has it. */
+export async function pinCueTheme(take: number, name: string, role: string | null, words: string | null, everywhere: boolean): Promise<boolean> {
+  const o = openCueRef();
+  if (!o) return false;
+  let r;
+  try {
+    r = await api().pinCueTheme({ ep: o.ep, cue: o.cue, take, name, role, words, everywhere });
+  } catch (e) {
+    report(`Couldn't make ${o.cue} t${String(take).padStart(2, "0")} a series theme`, e);
+    return false;
+  }
+  const where = r.written.length ? `Written into the series config of ${r.written.join(", ")}` : "Every series config had it already";
+  host().toast("success", `${name}: ${o.cue} t${String(take).padStart(2, "0")}`, `${where}. A cue's Theme can now be this series theme.`);
+  await loadCue(o.ep, o.pass, o.cue);
+  return true;
+}
+
 /**
  * A comp: take `take` with the cue's bars [a, b) from take `from`, spliced on
  * bar lines into a new take, measured and ranked (POST /seriesmith/cue/comp).
