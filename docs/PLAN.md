@@ -1117,6 +1117,15 @@ collide with the package.
       prompts (a character with a sheet named by its picture), `check` on eyelines and
       letterboxed plates, the plate as the camera in AUTHORING. Published by the merge's
       version bump.
+- [x] **0.1.15** (2026-11-04, `release-0.1.15`): more music models, Pika H3 Flex, a way to
+      ComfyUI (#94): MiniMax Music 3 for songs (local, and on Comfy Cloud through a partner node
+      on your own ComfyUI: the Comfy API key sent with the job, the take counted as paid);
+      Magenta RealTime 2 for score on seriesmith's own node (the PyTorch port carried in the
+      node pack, the arc a style a bar, a theme blended into its style); Pika Music on Comfy
+      Router (a draft until Router serves it) and hosted music models generally; Pika H3 Flex
+      (Ref2VA and FL2VA, six steps); without a ComfyUI, the Features window's guide to ComfyUI's
+      own installs and Find my ComfyUI; startup checks naming what a ComfyUI update renamed or
+      dropped. Published by the merge's version bump.
 - [x] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render. Done by the user.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
