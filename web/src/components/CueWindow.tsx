@@ -303,6 +303,8 @@ function CueBody({ ep, v, res, sel, setSel, tab, brush, setBrush, help }: {
   const target = targets.find((t) => t.id === (plan?.target ?? spec.model));
   const [scrollRef, size] = useSize<HTMLDivElement>();
   const [zoom, setZoom] = useState<number | null>(null);
+  // each cue opens fitted to the window (null: fit), whatever zoom the last one was left at
+  useEffect(() => setZoom(null), [ep, spec.id, v.pass]);
   const [count, setCount] = useState<number>(spec.takes ?? TAKES_DEFAULT);
   const [mode, setMode] = useState<ArcMode>("draw");
   const rowsKey = `${ep}|${spec.id}`;
