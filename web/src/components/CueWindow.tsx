@@ -324,7 +324,7 @@ function CueBody({ ep, v, res, sel, setSel, tab, brush, setBrush, help }: {
         <div className="h3-cue-main h3-empty-state">
           {help}
           <div><b>{spec.id} can't be planned.</b><div className="h3-err" style={{ marginTop: 6 }}>{res.plan_error ?? "no plan"}</div>
-            <div className="h3-muted h3-small" style={{ marginTop: 6 }}>Its in and out are anchored to shots of the cut; put them back in the {v.pass} cut, or make the cue again over the shots it plays over.</div></div>
+            <div className="h3-muted h3-small" style={{ marginTop: 6 }}>A cue is timed to the rendered shots it plays over, in this pass's cut: they need takes there (a shot rendered only in the other pass doesn't count). Render and pick them, or switch to the pass that has them.</div></div>
         </div>
         {inspector}
       </div>

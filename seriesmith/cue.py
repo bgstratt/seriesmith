@@ -934,6 +934,41 @@ def orchestrate(sections: list[dict], orchestra: dict) -> list[dict]:
     return out
 
 
+def off_cut(root: str, pass_: str, spec: dict, shots: list[str]) -> str:
+    """Why a cue's anchors aren't in the pass's cut, in words: a shot with no take yet (the
+    cue's length is the rendered shots' under it: render them), one left out of the cut, or
+    one the script no longer has."""
+    entries = {e.shot: e for e in E.cut_entries(root, pass_)}
+    untaken, out, gone = [], [], []
+    for sid in dict.fromkeys(shots):
+        e = entries.get(sid)
+        if e is None or e.orphan:
+            gone.append(sid)
+        elif e.out:
+            out.append(sid)
+        else:
+            untaken.append(sid)
+    said = []
+    if untaken:
+        # every shot it plays over without a take, not only its ends
+        order = list(entries)
+        laid = {x["id"] for x in cut_layout(root, pass_)[0]}
+        i, j = (order.index(spec[k]["shot"]) if spec[k]["shot"] in order else None for k in ("in", "out"))
+        over = [x for x in order[i:j + 1] if not entries[x].out and x not in laid] if i is not None and j is not None else untaken
+        over = over or untaken
+        what = (", ".join(over) if len(over) <= 4
+                else f"{len(over)} of the shots it plays over ({over[0]} to {over[-1]})")
+        said.append(f"{what} {'has' if len(over) == 1 else 'have'} no {pass_} take yet: a cue is timed to the "
+                    f"rendered shots it plays over, so render and pick {'it' if len(over) == 1 else 'them'} first")
+    if out:
+        said.append(f"{', '.join(out)} {'is' if len(out) == 1 else 'are'} left out of the {pass_} cut: put "
+                    f"{'it' if len(out) == 1 else 'them'} back, or move the cue's {'in' if spec['in']['shot'] in out else 'out'}")
+    if gone:
+        said.append(f"{', '.join(gone)} {'is' if len(gone) == 1 else 'are'} no longer in the script: move the cue's "
+                    f"{'in' if spec['in']['shot'] in gone else 'out'} to a shot that is")
+    return f"cue {spec['id']}: " + "; ".join(said)
+
+
 def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
     """What a cue is asked, from its spec, the pass's cut and mix: {"spec", "target",
     "fps", "start_frame", "end_frame", "span", "hits": [{"id", "name", "kind", "must",
@@ -947,8 +982,8 @@ def plan(root: str, pass_: str, spec: dict, series: dict | None = None) -> dict:
     origins = MX.shot_origins(layout)
     a, b = MX.place(spec["in"], origins), MX.place(spec["out"], origins)
     if a is None or b is None:
-        raise CueError(f"cue {spec['id']}: {spec['in']['shot'] if a is None else spec['out']['shot']} "
-                       f"isn't in the {pass_} cut")
+        raise CueError(off_cut(root, pass_, spec, [x for x, f in ((spec["in"]["shot"], a), (spec["out"]["shot"], b))
+                                                   if f is None]))
     if b <= a:
         raise CueError(f"cue {spec['id']}: its out is at or before its in")
     span = (b - a) / fps

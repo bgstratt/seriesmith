@@ -113,6 +113,22 @@ class PlanTest(unittest.TestCase):
         self.assertEqual([(x["id"], x["trim_in"], x["used"]) for x in layout],
                          [("sh020", 24, 96), ("sh010", 0, 120)])
 
+    def test_why_a_cue_cant_be_planned(self):
+        # a fourth shot in the script with no take yet
+        doc = T.read_json(os.path.join(self.root, "shotlist", "shotlist.json"))
+        doc["shots"].append({"id": "sh040", "length": 120, "audio_policy": "generate"})
+        T.write_json(os.path.join(self.root, "shotlist", "shotlist.json"), doc)
+        spec = CU.check_spec({"id": "m09", "in": anchor("sh020"), "out": anchor("sh040", 60)})
+        with self.assertRaises(CU.CueError) as e:
+            CU.plan(self.root, "final", spec, {})
+        self.assertIn("sh040 has no final take yet: a cue is timed to the rendered shots it plays over", str(e.exception))
+        # one left out of the cut
+        T.save_cut(self.root, {"final": [{"shot": "sh010"}, {"shot": "sh020", "out": True}, {"shot": "sh030"}], "proxy": []})
+        spec = CU.check_spec({"id": "m09", "in": anchor("sh020"), "out": anchor("sh030", 60)})
+        with self.assertRaises(CU.CueError) as e:
+            CU.plan(self.root, "final", spec, {})
+        self.assertIn("sh020 is left out of the final cut: put it back, or move the cue's in", str(e.exception))
+
     def test_plan_lands_the_hits(self):
         p = CU.plan(self.root, "final", self.spec(), {})
         self.assertEqual(p["target"], "stable_audio3")
