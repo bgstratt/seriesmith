@@ -1,0 +1,70 @@
+{
+  "id": "heartmula",
+  "kind": "music",
+  "label": "HeartMuLa 3B (songs)",
+  "short": "HeartMuLa",
+  "code": "prompt.py",
+
+  "capabilities": {
+    "_note": "Tags and lyrics under its own section tags; no tempo, key or length input (tags; its length a cap). Measured outside the repo 2026-11-03/04 with heartlib, the same model and codec (docs/SOUND.md 'Measured: MiniMax Music 3, HeartMuLa and Magenta RealTime 2'): **a song model only**. It sings whatever its tags say (instrumental asked: a vocal stem 2-7 dB under the mix), the tempo isn't held (96 asked: 80-114), the words came through in two takes of three (a word error rate of 0.12 and 0.31; the third sang the song, then kept going with lines of its own). MiniMax Music 3 and YuE2 both did better; it is offered as a third song option. Apache-2.0 weights (HeartMuLa/heartlib).",
+    "mode": "t2m",
+    "tempo": "text",
+    "structure": "sections",
+    "lyrics": true,
+    "needs_lyrics": true,
+    "max_seconds": 600
+  },
+
+  "template": {
+    "_note": "HeartMuLaGenerator's duration_seconds: whole seconds, 10 to 600; the song may end sooner.",
+    "default_seconds": 120.0,
+    "min_seconds": 10.0,
+    "max_seconds": 600.0
+  },
+
+  "binding": {
+    "_note": "monnky's ComfyUI-RT-HeartMuLa (it carries heartlib): HeartMuLaLoader (the happy-new-year 3B in the folder its dropdown calls HeartMuLa-oss-3B, the 2026-01-23 codec, no quantization: its default 4-bit needs bitsandbytes; bf16, the codec fp32 as heartlib advises), the tags through a core PrimitiveStringMultiline (the sampler's tags take only a link), HeartMuLaGenerator (cfg 1.5 and top-k 50 as heartlib's pipeline, the seed), SaveAudio. The sampler fades the take's last 2.5 s and peak-normalises it.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_heartmula.json",
+    "env": "SERIESMITH_HEARTMULA_WORKFLOW",
+    "saver": {"class_type": "SaveAudio"},
+    "prune": true,
+    "params": {
+      "prompt": {"class_type": "PrimitiveStringMultiline", "field": "value", "title": "Tags"},
+      "lyrics": {"class_type": "HeartMuLaGenerator", "field": "lyrics"},
+      "seconds": {"class_type": "HeartMuLaGenerator", "field": "duration_seconds"},
+      "seed": {"class_type": "HeartMuLaGenerator", "field": "seed"},
+      "cfg": {"class_type": "HeartMuLaGenerator", "field": "cfg_scale"}
+    }
+  },
+
+  "nodes": {
+    "_note": "monnky/ComfyUI-RT-HeartMuLa (features.PACKS); its requirements add torchtune, torchao and vector-quantize-pytorch to ComfyUI's Python (a dry run 2026-11-04 left torch, transformers and numpy as they were). Its repo names a LICENSE file it doesn't have; the heartlib it carries is Apache-2.0.",
+    "HeartMuLaLoader": {"tier": "required"},
+    "HeartMuLaGenerator": {"tier": "required"}
+  },
+
+  "fetches": {
+    "_note": "HeartMuLaLoader reads Hugging Face folders from models/HeartMuLa: <model_name>/, <codec_name>/, and gen_config.json and tokenizer.json beside them. Not fetched by the pack (its README says to clone them): the Features window downloads them, each where the loader looks (`path`), and the target isn't ready without them. The happy-new-year 3B (heartlib's recommendation, what was measured) goes in the folder the dropdown calls HeartMuLa-oss-3B.",
+    "HeartMuLa/HeartMuLa-oss-3B-happy-new-year": {
+      "into": "HeartMuLa", "path": "HeartMuLa-oss-3B",
+      "files": ["config.json", "model.safetensors.index.json", "model-0000*-of-00004.safetensors"],
+      "label": "HeartMuLa 3B (happy-new-year)"
+    },
+    "HeartMuLa/HeartCodec-oss-20260123": {
+      "into": "HeartMuLa", "path": "HeartCodec-oss-20260123",
+      "files": ["config.json", "model.safetensors.index.json", "model-0000*-of-00002.safetensors"],
+      "label": "HeartCodec (2026-01-23)"
+    },
+    "HeartMuLa/HeartMuLaGen": {
+      "into": "HeartMuLa", "path": ".",
+      "files": ["tokenizer.json", "gen_config.json"],
+      "label": "HeartMuLa's tokenizer and generation config"
+    }
+  },
+
+  "presets": {
+    "final": {"cfg": 1.5, "takes": 3},
+    "proxy": {"cfg": 1.5, "takes": 2}
+  }
+}

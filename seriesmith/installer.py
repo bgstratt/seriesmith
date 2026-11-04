@@ -415,7 +415,7 @@ class Installer:
             d = place.models_dir(item.folder) if place.root() else None
             if not d:
                 raise InstallError(place.why_not or "ComfyUI's models folders aren't known here")
-            into = os.path.join(d, *item.name.split("/"))
+            into = os.path.join(d, *HC.inside(item))
         try:
             got = HC.fetch_repo(item, into, self._download, self._token(), progress, cancelled,
                                 **({"listing": self._listing} if self._listing else {}))

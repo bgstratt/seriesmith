@@ -84,6 +84,16 @@ class PresentTest(Caches):
         for f in big.files:
             write(os.path.join(models, "nvidia", "bigvgan_v2_44khz_128band_512x", f))
         self.assertTrue(HC.present(big, lambda f: models))
+        # a repo's `path` puts it where its pack looks: HeartMuLa's model in the folder its
+        # loader's dropdown names, its tokenizer loose in models/HeartMuLa
+        mula, _, gen = FT.fetch_items(TG.load_target("heartmula"))
+        hm = os.path.join(self.tmp, "models", "HeartMuLa")
+        self.assertEqual(HC.path_of(mula, lambda f: hm), os.path.join(hm, "HeartMuLa-oss-3B"))
+        self.assertEqual(HC.path_of(gen, lambda f: hm), hm)
+        self.assertEqual(HC.where_text(gen), "models/HeartMuLa")
+        for f in gen.files:
+            write(os.path.join(hm, f))
+        self.assertTrue(HC.present(gen, lambda f: hm))
 
     def test_status_and_the_window(self):
         item = FT.whisper_item("tiny.en")
