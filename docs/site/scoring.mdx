@@ -83,6 +83,12 @@ for you to adjust: **Draft…** in the spotting sheet's head (or `seriesmith sco
   STORY_STRUCTURES.md has a **Music** table: each beat scored, held under, a sting, or dry,
   with its mood, energy, theme and hits. A show with a shape of its own says it in the
   series config's `sound.format` instead (AUTHORING.md).
+- **No beat lines yet?** The dialog says so at the top: on its own the draft is flat, a quiet
+  cue for each sequence. Pick the story's structure there and its beats are laid over the cut
+  by where each falls in a story (the `~%` of its beat table), each starting on the nearest
+  sequence (or shot): a start, not a reading of the story, so check them. **Write these beat
+  lines into the script** keeps them as `// structure:` and `// beat:` lines (comments: nothing
+  re-renders), to move by hand where a beat really starts (`seriesmith score-draft --structure   "Pixar Story Spine" --write --mark` does the same).
 - **What you get.** Draft cues, `d01`, `d02`..., labelled *Draft:*, nothing rendered. Beats in
   a row with music are **one cue**, a section each with its mood and energy, and a `turn`
   hit where each beat starts. A cue starts about a second before the cut into its beat and

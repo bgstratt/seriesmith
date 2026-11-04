@@ -2979,12 +2979,18 @@ export interface ScoreDraft {
   kept: string[];
   /** whether the earlier draft's rendered cues are replaced too */
   rendered: boolean;
+  /** whether the script has its own beat lines (none: drafted flat, unless a structure is laid out) */
+  marked: boolean;
+  /** the structure laid over the cut (asked for, the script having no beat lines): `beats` are where it put them */
+  laid: string | null;
+  /** every structure with a Music table, to lay one out */
+  structures: { id: string; name: string }[];
 }
 
 export interface ScoreDraftResult {
   draft: ScoreDraft;
   text: string;
-  written: { cues: string[]; hits: number; removed: string[]; voices_only: boolean } | null;
+  written: { cues: string[]; hits: number; removed: string[]; voices_only: boolean; marked?: boolean } | null;
 }
 
 /** How the plan's model hears the cue's theme (cue.theme_for): "plan" (YuE2 sings a YuE2 take's own

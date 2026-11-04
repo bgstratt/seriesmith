@@ -2825,9 +2825,10 @@ def post_cue_theme(ctx: Context, body):
 @handler
 def post_cue_draft(ctx: Context, body):
     """The first-pass score drafted from the script's structure (scoredraft.py, docs/SOUND.md
-    phase 8): `{ep, pass?, write?, replace?, rendered?, keep_sound?}`. Without `write` nothing is written:
+    phase 8): `{ep, pass?, write?, replace?, rendered?, keep_sound?, structure?, mark?}`. Without `write` nothing is written:
     what it would draft (`rendered`: drafted again over the earlier draft's rendered cues too,
-    a series theme's kept). With it, the draft's cues and hits written, the dialogue turned to
+    a series theme's kept; `structure`: for a script with no beat lines, that structure's beats
+    laid over the cut, and with `mark` written into the script). With it, the draft's cues and hits written, the dialogue turned to
     voices only unless `keep_sound`. Returns {"draft" (scoredraft.draft's), "text" (it in
     words), "written" (scoredraft.write's, or null)}. 400 for a series config's sound.format
     that doesn't check; 409 when the episode isn't built, or has a draft already and
@@ -2836,15 +2837,21 @@ def post_cue_draft(ctx: Context, body):
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     pass_ = check_pass(body.get("pass"))
-    for k in ("write", "replace", "rendered", "keep_sound"):
+    for k in ("write", "replace", "rendered", "keep_sound", "mark"):
         if not isinstance(body.get(k, False), bool):
             raise ApiError(400, f"{k} is true or false")
+    structure = body.get("structure")
+    if structure is not None and not isinstance(structure, str):
+        raise ApiError(400, "structure is a structure's name or number")
     try:
-        d = SD.draft(ep, pass_, rendered=body.get("rendered", False))
+        d = SD.draft(ep, pass_, rendered=body.get("rendered", False), structure=structure or None)
         written = None
         if body.get("write"):
+            # the beat lines first: a script that would read differently stops it all
+            marked = bool(body.get("mark")) and SD.mark_script(ep, d)
             written = SD.write(ep, pass_, d, replace=body.get("replace", False),
                                voices=not body.get("keep_sound", False))
+            written["marked"] = marked
             episode_event(ctx, ep)
     except SD.DraftError as e:
         raise ApiError(409, str(e))

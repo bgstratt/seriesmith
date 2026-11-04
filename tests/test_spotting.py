@@ -169,6 +169,23 @@ class DraftTest(unittest.TestCase):
                          [("The Bureau", "kell"), ("Holding", "mark")])     # Court talks: dry
         self.assertEqual([b["from"] for b in d["beats"]], ["other", "other", "other"])
 
+    def test_a_structure_laid_over_a_cut_with_no_beat_lines(self):
+        # ten 10 s shots, a sequence every two: the Spine's beats at 0, 10, 20, 30, 50, 70, 90 %
+        sh = shots(*[(f"sh{i:03d}", f"sq{i // 2}", 10, 0) for i in range(10)])
+        laid = SP.layout(sh, SP.structure("Pixar Story Spine"))
+        self.assertEqual(laid, {"sh000": "Once upon a time…", "sh001": "Every day…", "sh002": "Until one day…",
+                                "sh003": "Because of that…", "sh005": "Because of that… (again)",
+                                "sh007": "Until finally…", "sh009": "And ever since then…"})
+        # a sequence's first shot is taken over a nearer one that isn't, when it's near: 30 % is
+        # 30 s; sh003 starts at 28 s, sh004 (opening sq1) at 32 s: sh004 by the sequence
+        uneven = shots(("sh000", "sq0", 28, 0), ("sh003", "sq0", 4, 0), ("sh004", "sq1", 68, 0))
+        self.assertEqual(SP.layout(uneven, SP.structure("Pixar Story Spine")).get("sh004"), "Until one day…")
+        # fewer shots than beats: a beat each while they last
+        few = SP.layout(sh[:3], SP.structure("Pixar Story Spine"))
+        self.assertEqual(list(few.values()), ["Once upon a time…", "Every day…", "Until one day…"])
+        d = SP.draft(sh, {"structure": "Pixar Story Spine", "beats": laid, "themes": {}, "flashback": []})
+        self.assertEqual(len(d["cues"][0]["sections"]), 7)
+
     def test_a_long_beat_splits_at_a_sequence(self):
         sh = shots(*[(f"sh{i:03d}", f"sq{i // 4}", 30, 0) for i in range(10)])
         d = SP.draft(sh, marks("Mine", {"sh000": "Long"}), SP.check_format({"beats": {"Long": {"music": "score"}}}))
@@ -196,8 +213,11 @@ class EpisodeTest(unittest.TestCase):
         self.root = os.path.join(self._tmp.name, "Show", "ep01")
         os.makedirs(self.root)
         episode(self.root)
-        F.write_json(os.path.join(self._tmp.name, "Show", "series.json"),
-                     {"sound": {"themes": {"porch": {"file": "theme.wav", "role": "show"}}}})
+        # a real series config (the starter's), the series theme added
+        with open(os.path.join(os.path.dirname(HERE), "examples", "starter", "series.json"), encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        cfg["sound"] = {"themes": {"porch": {"file": "theme.wav", "role": "show"}}}
+        F.write_json(os.path.join(self._tmp.name, "Show", "series.json"), cfg)
         story = ir.Episode(id="ep01", sequences=[
             ir.Sequence(id="sq01", location="kitchen", shots=[
                 ir.Shot(id="sh010", cast=["ann"]), ir.Shot(id="sh020", cast=["ann"])]),
@@ -301,6 +321,29 @@ class EpisodeTest(unittest.TestCase):
         # drafted again: ann leads the episode, so her theme is its theme
         d = SD.draft(self.root, "final", rendered=True)
         self.assertIn("ann's", " ".join(d["notes"]))
+
+    def test_laid_out_then_written_into_the_script(self):
+        script = os.path.join(self.root, "ep01.md")
+        F.write_text(script, "\n".join(["= ep01  A Test", "# sq01 kitchen", "## sh010", "She waits.", "## sh020", "She sits.",
+                                         "# sq02 porch", "## sh030", "She leaves."]))
+        d = SD.draft(self.root, "final")
+        self.assertFalse(d["marked"])
+        self.assertIn("no beat lines", SD.summary(d))
+        with self.assertRaises(SD.DraftError):
+            SD.draft(self.root, "final", structure="Porch Lights")
+        d = SD.draft(self.root, "final", structure="Fable")
+        self.assertEqual(d["laid"], "The Fable (Aesop's Formula)")
+        self.assertEqual([b["beat"] for b in d["beats"]], ["Character & Trait", "Situation / Temptation", "The Choice"])
+        self.assertTrue(SD.mark_script(self.root, d))
+        text = open(script, encoding="utf-8").read()
+        self.assertEqual(text.split("\n")[:3], ["= ep01  A Test", "// structure: The Fable (Aesop's Formula)", ""])
+        self.assertIn("// beat: Character & Trait\n# sq01 kitchen", text)        # above the sequence it opens
+        self.assertIn("// beat: Situation / Temptation\n## sh020", text)
+        self.assertIn("// beat: The Choice\n# sq02 porch", text)
+        marks = SP.read_marks(text)
+        self.assertEqual(marks["beats"], {"sh010": "Character & Trait", "sh020": "Situation / Temptation", "sh030": "The Choice"})
+        self.assertFalse(SD.mark_script(self.root, SD.draft(self.root, "final", structure="Fable")))   # marked already
+        self.assertTrue(SD.draft(self.root, "final")["marked"])
 
     def test_route(self):
         ctx = A.Context(os.path.join(self._tmp.name, "user"), "http://127.0.0.1:0", env={}, runner=_Runner())

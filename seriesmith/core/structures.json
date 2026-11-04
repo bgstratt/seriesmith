@@ -17,7 +17,11 @@
      ],
      "words": "at home, settled",
      "theme": "story",
-     "theme_words": "statement"
+     "theme_words": "statement",
+     "at": [
+      0,
+      10
+     ]
     },
     {
      "beat": "Call to Adventure",
@@ -51,7 +55,11 @@
      ],
      "words": "hesitant, held back",
      "theme": "story",
-     "theme_words": "echo, minor"
+     "theme_words": "echo, minor",
+     "at": [
+      10,
+      15
+     ]
     },
     {
      "beat": "Meeting the Mentor",
@@ -65,7 +73,11 @@
      ],
      "words": "warm, steady",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      15,
+      20
+     ]
     },
     {
      "beat": "Crossing the Threshold",
@@ -85,6 +97,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      20,
+      25
      ]
     },
     {
@@ -99,7 +115,11 @@
      ],
      "words": "lively, varied",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      25,
+      45
+     ]
     },
     {
      "beat": "Approach to the Inmost Cave",
@@ -113,7 +133,11 @@
      ],
      "words": "tense, gathering",
      "theme": "story",
-     "theme_words": "echo, low"
+     "theme_words": "echo, low",
+     "at": [
+      45,
+      50
+     ]
     },
     {
      "beat": "The Ordeal",
@@ -133,6 +157,10 @@
        "kind": "drop",
        "at": "end"
       }
+     ],
+     "at": [
+      50,
+      60
      ]
     },
     {
@@ -153,6 +181,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      60,
+      70
      ]
     },
     {
@@ -173,6 +205,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      70,
+      80
      ]
     },
     {
@@ -193,6 +229,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      80,
+      95
      ]
     },
     {
@@ -207,7 +247,11 @@
      ],
      "words": "home again, warm, changed",
      "theme": "story",
-     "theme_words": "statement, soft"
+     "theme_words": "statement, soft",
+     "at": [
+      95,
+      100
+     ]
     }
    ]
   },
@@ -227,7 +271,11 @@
      ],
      "words": "safe, contained, a little small",
      "theme": "story",
-     "theme_words": "statement, held back"
+     "theme_words": "statement, held back",
+     "at": [
+      0,
+      8
+     ]
     },
     {
      "beat": "Price of Conformity",
@@ -241,7 +289,11 @@
      ],
      "words": "muted, constrained",
      "theme": "story",
-     "theme_words": "echo, muted"
+     "theme_words": "echo, muted",
+     "at": [
+      8,
+      15
+     ]
     },
     {
      "beat": "Opportunity to Shine",
@@ -261,6 +313,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      15,
+      20
      ]
     },
     {
@@ -275,7 +331,11 @@
      ],
      "words": "playful, daring",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      20,
+      25
+     ]
     },
     {
      "beat": "Secret World",
@@ -289,7 +349,11 @@
      ],
      "words": "free, joyful",
      "theme": "story",
-     "theme_words": "echo, full"
+     "theme_words": "echo, full",
+     "at": [
+      25,
+      40
+     ]
     },
     {
      "beat": "No Longer Fits Her World",
@@ -303,7 +367,11 @@
      ],
      "words": "uneasy, two sounds at odds",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      40,
+      50
+     ]
     },
     {
      "beat": "Caught Shining",
@@ -324,6 +392,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      50,
+      58
      ]
     },
     {
@@ -338,7 +410,11 @@
      ],
      "words": "letting go, quiet",
      "theme": "story",
-     "theme_words": "echo, soft"
+     "theme_words": "echo, soft",
+     "at": [
+      58,
+      65
+     ]
     },
     {
      "beat": "Kingdom in Chaos",
@@ -352,7 +428,11 @@
      ],
      "words": "turmoil, clashing",
      "theme": "story",
-     "theme_words": "echo, broken"
+     "theme_words": "echo, broken",
+     "at": [
+      65,
+      72
+     ]
     },
     {
      "beat": "Wanders in the Wilderness",
@@ -366,7 +446,11 @@
      ],
      "words": "lonely, sparse",
      "theme": "story",
-     "theme_words": "echo, a fragment"
+     "theme_words": "echo, a fragment",
+     "at": [
+      72,
+      80
+     ]
     },
     {
      "beat": "Chooses Her Light",
@@ -386,6 +470,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      80,
+      88
      ]
     },
     {
@@ -400,7 +488,11 @@
      ],
      "words": "others joining in, fuller",
      "theme": "story",
-     "theme_words": "echo, full"
+     "theme_words": "echo, full",
+     "at": [
+      88,
+      95
+     ]
     },
     {
      "beat": "The Kingdom Is Brighter",
@@ -414,7 +506,11 @@
      ],
      "words": "bright, open, warm",
      "theme": "story",
-     "theme_words": "statement"
+     "theme_words": "statement",
+     "at": [
+      95,
+      100
+     ]
     }
    ]
   },
@@ -436,7 +532,11 @@
      ],
      "words": "the world as it is",
      "theme": "story",
-     "theme_words": "statement"
+     "theme_words": "statement",
+     "at": [
+      0,
+      10
+     ]
     },
     {
      "beat": "Inciting Incident",
@@ -456,6 +556,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      10,
+      12
      ]
     },
     {
@@ -470,7 +574,11 @@
      ],
      "words": "uncertain",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      12,
+      20
+     ]
     },
     {
      "beat": "Plot Point 1",
@@ -490,6 +598,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      20,
+      25
      ]
     },
     {
@@ -504,7 +616,11 @@
      ],
      "words": "pressure building",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      25,
+      50
+     ]
     },
     {
      "beat": "Midpoint",
@@ -538,7 +654,11 @@
      ],
      "words": "tightening, darker",
      "theme": "story",
-     "theme_words": "echo, low"
+     "theme_words": "echo, low",
+     "at": [
+      50,
+      75
+     ]
     },
     {
      "beat": "Low Point",
@@ -578,6 +698,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      75,
+      80
      ]
     },
     {
@@ -598,6 +722,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      80,
+      95
      ]
     },
     {
@@ -614,7 +742,11 @@
      ],
      "words": "settled, the opening's music again",
      "theme": "story",
-     "theme_words": "statement, soft"
+     "theme_words": "statement, soft",
+     "at": [
+      95,
+      100
+     ]
     }
    ]
   },
@@ -637,21 +769,33 @@
      ],
      "words": "the main title",
      "theme": "show",
-     "theme_words": "statement"
+     "theme_words": "statement",
+     "at": [
+      0,
+      8
+     ]
     },
     {
      "beat": "Status Quo",
      "names": [
       "Status Quo"
      ],
-     "music": "dry"
+     "music": "dry",
+     "at": [
+      8,
+      15
+     ]
     },
     {
      "beat": "The Problem",
      "names": [
       "The Problem"
      ],
-     "music": "dry"
+     "music": "dry",
+     "at": [
+      15,
+      25
+     ]
     },
     {
      "beat": "The Bad Decision / Scheme",
@@ -668,14 +812,22 @@
      ],
      "words": "sneaky, playful",
      "theme": "show",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      25,
+      35
+     ]
     },
     {
      "beat": "Complications",
      "names": [
       "Complications"
      ],
-     "music": "dry"
+     "music": "dry",
+     "at": [
+      35,
+      65
+     ]
     },
     {
      "beat": "Peak Chaos / Misunderstanding",
@@ -692,7 +844,11 @@
      ],
      "words": "the act out",
      "theme": "show",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      65,
+      80
+     ]
     },
     {
      "beat": "Confession / Fix",
@@ -709,14 +865,22 @@
      ],
      "words": "warm, soft: the small emotional beat",
      "theme": "show",
-     "theme_words": "echo, slowed"
+     "theme_words": "echo, slowed",
+     "at": [
+      80,
+      92
+     ]
     },
     {
      "beat": "Reset",
      "names": [
       "Reset"
      ],
-     "music": "dry"
+     "music": "dry",
+     "at": [
+      92,
+      97
+     ]
     },
     {
      "beat": "Tag",
@@ -731,7 +895,11 @@
      ],
      "words": "the end titles: a button",
      "theme": "show",
-     "theme_words": "statement"
+     "theme_words": "statement",
+     "at": [
+      97,
+      100
+     ]
     }
    ],
    "bumpers": true
@@ -761,7 +929,11 @@
        "at": "start"
       }
      ],
-     "sting_end": true
+     "sting_end": true,
+     "at": [
+      0,
+      8
+     ]
     },
     {
      "beat": "Act One",
@@ -776,7 +948,11 @@
      "words": "building",
      "theme": "story",
      "theme_words": "echo",
-     "sting_end": true
+     "sting_end": true,
+     "at": [
+      8,
+      28
+     ]
     },
     {
      "beat": "Act Two",
@@ -791,7 +967,11 @@
      "words": "pursuit, tightening",
      "theme": "story",
      "theme_words": "echo",
-     "sting_end": true
+     "sting_end": true,
+     "at": [
+      28,
+      50
+     ]
     },
     {
      "beat": "Act Three",
@@ -811,6 +991,10 @@
        "kind": "drop",
        "at": "end"
       }
+     ],
+     "at": [
+      50,
+      72
      ]
     },
     {
@@ -831,6 +1015,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      72,
+      92
      ]
     },
     {
@@ -849,7 +1037,11 @@
      "theme": "show",
      "theme_words": "echo",
      "then": "runner",
-     "sting_end": true
+     "sting_end": true,
+     "at": [
+      92,
+      100
+     ]
     }
    ]
   },
@@ -869,7 +1061,11 @@
      ],
      "words": "at home",
      "theme": "story",
-     "theme_words": "statement"
+     "theme_words": "statement",
+     "at": [
+      0,
+      10
+     ]
     },
     {
      "beat": "Need",
@@ -889,6 +1085,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      10,
+      20
      ]
     },
     {
@@ -909,6 +1109,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      20,
+      30
      ]
     },
     {
@@ -923,7 +1127,11 @@
      ],
      "words": "adapting, busy",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      30,
+      50
+     ]
     },
     {
      "beat": "Find",
@@ -943,6 +1151,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      50,
+      60
      ]
     },
     {
@@ -963,6 +1175,10 @@
        "kind": "drop",
        "at": "end"
       }
+     ],
+     "at": [
+      60,
+      75
      ]
     },
     {
@@ -977,7 +1193,11 @@
      ],
      "words": "home again, quieter",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      75,
+      90
+     ]
     },
     {
      "beat": "Change",
@@ -991,7 +1211,11 @@
      ],
      "words": "the opening's music, changed",
      "theme": "story",
-     "theme_words": "statement, changed"
+     "theme_words": "statement, changed",
+     "at": [
+      90,
+      100
+     ]
     }
    ]
   },
@@ -1011,7 +1235,11 @@
      ],
      "words": "calm, observational",
      "theme": "story",
-     "theme_words": "statement"
+     "theme_words": "statement",
+     "at": [
+      0,
+      25
+     ]
     },
     {
      "beat": "Shō (承): Development",
@@ -1025,7 +1253,11 @@
      ],
      "words": "texture, routine, gently moving",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      25,
+      50
+     ]
     },
     {
      "beat": "Ten (転): Twist",
@@ -1043,6 +1275,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      50,
+      75
      ]
     },
     {
@@ -1057,7 +1293,11 @@
      ],
      "words": "the two together, understanding",
      "theme": "story",
-     "theme_words": "statement, in the twist's colour"
+     "theme_words": "statement, in the twist's colour",
+     "at": [
+      75,
+      100
+     ]
     }
    ]
   },
@@ -1077,7 +1317,11 @@
      ],
      "words": "light, characterful: the trait in one instrument",
      "theme": "story",
-     "theme_words": "statement"
+     "theme_words": "statement",
+     "at": [
+      0,
+      15
+     ]
     },
     {
      "beat": "Situation / Temptation",
@@ -1099,6 +1343,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      15,
+      35
      ]
     },
     {
@@ -1113,7 +1361,11 @@
      ],
      "words": "a wrong note, uneasy",
      "theme": "story",
-     "theme_words": "echo, bent"
+     "theme_words": "echo, bent",
+     "at": [
+      35,
+      60
+     ]
     },
     {
      "beat": "Consequence",
@@ -1133,6 +1385,10 @@
        "kind": "drop",
        "at": "end"
       }
+     ],
+     "at": [
+      60,
+      85
      ]
     },
     {
@@ -1147,7 +1403,11 @@
      ],
      "words": "warm, simple, under the narrator",
      "theme": "story",
-     "theme_words": "statement, soft"
+     "theme_words": "statement, soft",
+     "at": [
+      85,
+      100
+     ]
     }
    ]
   },
@@ -1167,7 +1427,11 @@
      ],
      "words": "plain, everyday",
      "theme": "story",
-     "theme_words": "statement, simple"
+     "theme_words": "statement, simple",
+     "at": [
+      0,
+      20
+     ]
     },
     {
      "beat": "Expected Pattern",
@@ -1181,7 +1445,11 @@
      ],
      "words": "assured, conventional",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      20,
+      40
+     ]
     },
     {
      "beat": "The Test",
@@ -1201,6 +1469,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      40,
+      60
      ]
     },
     {
@@ -1221,6 +1493,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      60,
+      85
      ]
     },
     {
@@ -1235,7 +1511,11 @@
      ],
      "words": "quiet, open, unresolved",
      "theme": "story",
-     "theme_words": "echo, left hanging"
+     "theme_words": "echo, left hanging",
+     "at": [
+      85,
+      100
+     ]
     }
    ]
   },
@@ -1257,7 +1537,11 @@
      ],
      "words": "ominous, a low hint",
      "theme": "story",
-     "theme_words": "statement, low"
+     "theme_words": "statement, low",
+     "at": [
+      0,
+      15
+     ]
     },
     {
      "beat": "The Temptation",
@@ -1271,7 +1555,11 @@
      ],
      "words": "alluring, sweet",
      "theme": "story",
-     "theme_words": "echo, bright"
+     "theme_words": "echo, bright",
+     "at": [
+      15,
+      25
+     ]
     },
     {
      "beat": "The Transgression",
@@ -1292,6 +1580,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      25,
+      35
      ]
     },
     {
@@ -1306,7 +1598,11 @@
      ],
      "words": "fun, carefree, too bright",
      "theme": "story",
-     "theme_words": "echo, bright"
+     "theme_words": "echo, bright",
+     "at": [
+      35,
+      60
+     ]
     },
     {
      "beat": "Warning Signs",
@@ -1320,7 +1616,11 @@
      ],
      "words": "something off: a sour note under the fun",
      "theme": "story",
-     "theme_words": "echo, a note wrong"
+     "theme_words": "echo, a note wrong",
+     "at": [
+      60,
+      75
+     ]
     },
     {
      "beat": "The Punishment",
@@ -1344,6 +1644,10 @@
        "kind": "drop",
        "at": "end"
       }
+     ],
+     "at": [
+      75,
+      95
      ]
     },
     {
@@ -1358,7 +1662,11 @@
      ],
      "words": "cold, still",
      "theme": "story",
-     "theme_words": "echo, a fragment"
+     "theme_words": "echo, a fragment",
+     "at": [
+      95,
+      100
+     ]
     }
    ]
   },
@@ -1384,6 +1692,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      0,
+      20
      ]
     },
     {
@@ -1398,7 +1710,11 @@
      ],
      "words": "climbing",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      20,
+      45
+     ]
     },
     {
      "beat": "Climax (Turning Point)",
@@ -1418,6 +1734,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      45,
+      55
      ]
     },
     {
@@ -1432,7 +1752,11 @@
      ],
      "words": "slower, heavier, a hush at the final suspense",
      "theme": "story",
-     "theme_words": "echo, minor"
+     "theme_words": "echo, minor",
+     "at": [
+      55,
+      85
+     ]
     },
     {
      "beat": "Denouement",
@@ -1446,7 +1770,11 @@
      ],
      "words": "catastrophe: dark and spare; resolution: calm",
      "theme": "story",
-     "theme_words": "statement, changed"
+     "theme_words": "statement, changed",
+     "at": [
+      85,
+      100
+     ]
     }
    ]
   },
@@ -1472,6 +1800,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      0,
+      10
      ]
     },
     {
@@ -1486,7 +1818,11 @@
      ],
      "words": "driving",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      10,
+      25
+     ]
     },
     {
      "beat": "Breather",
@@ -1500,7 +1836,11 @@
      ],
      "words": "a breath, quiet",
      "theme": "story",
-     "theme_words": "echo, soft"
+     "theme_words": "echo, soft",
+     "at": [
+      25,
+      30
+     ]
     },
     {
      "beat": "Crisis 2",
@@ -1520,6 +1860,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      30,
+      45
      ]
     },
     {
@@ -1527,7 +1871,11 @@
      "names": [
       "Breather"
      ],
-     "music": "dry"
+     "music": "dry",
+     "at": [
+      45,
+      50
+     ]
     },
     {
      "beat": "Crisis 3+",
@@ -1547,6 +1895,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      50,
+      80
      ]
     },
     {
@@ -1567,6 +1919,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      80,
+      95
      ]
     },
     {
@@ -1581,7 +1937,11 @@
      ],
      "words": "out fast, a short release",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      95,
+      100
+     ]
     }
    ]
   },
@@ -1607,6 +1967,10 @@
        "kind": "drop",
        "at": "end"
       }
+     ],
+     "at": [
+      0,
+      5
      ]
     },
     {
@@ -1626,6 +1990,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      5,
+      7
      ]
     },
     {
@@ -1635,7 +2003,11 @@
      ],
      "music": "score",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      7,
+      65
+     ]
     },
     {
      "beat": "Convergence",
@@ -1655,6 +2027,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      65,
+      75
      ]
     },
     {
@@ -1675,6 +2051,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      75,
+      95
      ]
     },
     {
@@ -1689,7 +2069,11 @@
      ],
      "words": "the aftermath",
      "theme": "story",
-     "theme_words": "echo, soft"
+     "theme_words": "echo, soft",
+     "at": [
+      95,
+      100
+     ]
     }
    ]
   },
@@ -1709,7 +2093,11 @@
      ],
      "words": "gentle, wondering",
      "theme": "story",
-     "theme_words": "statement"
+     "theme_words": "statement",
+     "at": [
+      0,
+      10
+     ]
     },
     {
      "beat": "Every day…",
@@ -1723,7 +2111,11 @@
      ],
      "words": "light, a simple repeating figure: the routine",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "at": [
+      10,
+      20
+     ]
     },
     {
      "beat": "Until one day…",
@@ -1743,6 +2135,10 @@
        "kind": "turn",
        "at": "start"
       }
+     ],
+     "at": [
+      20,
+      30
      ]
     },
     {
@@ -1757,7 +2153,11 @@
      ],
      "words": "unsettled",
      "theme": "story",
-     "theme_words": "echo, darker"
+     "theme_words": "echo, darker",
+     "at": [
+      30,
+      50
+     ]
     },
     {
      "beat": "Because of that… (again)",
@@ -1771,7 +2171,11 @@
      ],
      "words": "rising, each one darker",
      "theme": "story",
-     "theme_words": "echo, low"
+     "theme_words": "echo, low",
+     "at": [
+      50,
+      70
+     ]
     },
     {
      "beat": "Until finally…",
@@ -1791,6 +2195,10 @@
        "kind": "arrive",
        "at": "last"
       }
+     ],
+     "at": [
+      70,
+      90
      ]
     },
     {
@@ -1805,7 +2213,11 @@
      ],
      "words": "warm, slowing to a close",
      "theme": "story",
-     "theme_words": "statement, soft"
+     "theme_words": "statement, soft",
+     "at": [
+      90,
+      100
+     ]
     },
     {
      "beat": "(And the moral is…)",

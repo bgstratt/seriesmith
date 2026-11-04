@@ -213,7 +213,8 @@ export interface Api {
     Promise<{ theme: { name: string; ep: string; cue: string; take: number; role?: string; words?: string }; written: string[]; same: string[] }>;
   /** POST /seriesmith/cue/draft: the first-pass score from the script's structure; written (its cues, hits and
    * the dialogue to voices only unless keep_sound) only with `write`. */
-  scoreDraft(req: { ep: string; pass: Pass; write?: boolean; replace?: boolean; rendered?: boolean; keep_sound?: boolean }): Promise<ScoreDraftResult>;
+  scoreDraft(req: { ep: string; pass: Pass; write?: boolean; replace?: boolean; rendered?: boolean; keep_sound?: boolean;
+    structure?: string | null; mark?: boolean }): Promise<ScoreDraftResult>;
   /** POST /seriesmith/cue/comp: a new take, take `take` with the cue's bars [a, b) from take `from`, spliced on bar lines, measured and ranked. */
   compCue(req: { ep: string; pass: Pass; cue: string; take: number; from: number; bars: [number, number] }): Promise<{ take: CueTake }>;
   /** POST /seriesmith/cue/repaint: a new take queued, take `take` with the cue's bars [a, b) made again on its own model (`fresh`: new music there), the rest kept. */

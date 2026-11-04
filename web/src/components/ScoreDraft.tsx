@@ -29,16 +29,18 @@ export function ScoreDraftDialog({ ep, pass, onClose }: { ep: string; pass: Pass
   const [err, setErr] = useState<string | null>(null);
   const [replace, setReplace] = useState(false);
   const [rendered, setRendered] = useState(false);
+  const [structure, setStructure] = useState("");
+  const [mark, setMark] = useState(true);
   const [keep, setKeep] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     let live = true;
     setRes(null);
-    api().scoreDraft({ ep, pass, rendered }).then((r) => live && setRes(r), (e) => live && setErr(String((e as Error)?.message ?? e)));
+    api().scoreDraft({ ep, pass, rendered, ...(structure ? { structure } : {}) }).then((r) => live && setRes(r), (e) => live && setErr(String((e as Error)?.message ?? e)));
     return () => {
       live = false;
     };
-  }, [ep, pass, rendered]);
+  }, [ep, pass, rendered, structure]);
   const d = res?.draft;
   const cues = d?.cues ?? [];
   const writes = cues.filter((c) => c.spec);
@@ -47,11 +49,12 @@ export function ScoreDraftDialog({ ep, pass, onClose }: { ep: string; pass: Pass
   const write = async () => {
     setBusy(true);
     try {
-      const r = await api().scoreDraft({ ep, pass, write: true, replace, rendered, keep_sound: keep });
+      const r = await api().scoreDraft({ ep, pass, write: true, replace, rendered, keep_sound: keep,
+        ...(structure ? { structure, mark } : {}) });
       const w = r.written!;
       host().toast("success", `Drafted ${w.cues.length} cue${w.cues.length === 1 ? "" : "s"}`,
         `${w.hits} hit${w.hits === 1 ? "" : "s"} in the ${pass} mix${w.removed.length ? `; the earlier draft (${w.removed.join(", ")}) went to _history` : ""}`
-        + `${keep ? "" : "; the dialogue plays voices only"}. Nothing is rendered yet: shape each cue, then render it.`);
+        + `${keep ? "" : "; the dialogue plays voices only"}${w.marked ? "; its beat lines are in the script now (move one to correct it)" : ""}. Nothing is rendered yet: shape each cue, then render it.`);
       await Promise.all([loadCues(ep), loadMix(ep, pass), loadCueStates(ep, pass)]);
       onClose();
     } catch (e) {
@@ -63,6 +66,12 @@ export function ScoreDraftDialog({ ep, pass, onClose }: { ep: string; pass: Pass
 
   const footer = (
     <>
+      {d?.laid && (
+        <label className="h3-row h3-small" title="Write // structure: and these // beat: lines into the script (comments: nothing re-renders), so the next draft reads them and you can move one by hand">
+          <input type="checkbox" checked={mark} onChange={(e) => setMark(e.target.checked)} />
+          Write these beat lines into the script
+        </label>
+      )}
       {d && d.drafted.length > 0 && (
         <label className="h3-row h3-small" title="Its cues go to the episode's _history folder with their takes; its hits come out of the mix">
           <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
@@ -97,6 +106,25 @@ export function ScoreDraftDialog({ ep, pass, onClose }: { ep: string; pass: Pass
       sub={d ? `${d.structure ?? "No structure"} · ${d.beats.length} beat${d.beats.length === 1 ? "" : "s"} · ${pass}` : "From the script's structure and beat lines"}>
       {err && <div className="h3-small h3-cue-offtext">{err}</div>}
       {!d && !err && <div className="h3-small h3-muted">Reading the script…</div>}
+      {d && !d.marked && (
+        <div className="h3-small" style={{ padding: "6px 8px", border: "1px solid var(--h3-stale)", borderRadius: 4 }}>
+          <b>This script has no beat lines</b> (<code>// structure:</code>, <code>// beat:</code>), so on its own the draft is flat: a quiet cue
+          for each sequence. Pick the story's structure to lay its beats over the cut by where each falls in a story, starting on
+          the nearest sequence: a start to correct, then keep in the script.
+          <div className="h3-row" style={{ gap: 6, marginTop: 4 }}>
+            <select className="h3-in" aria-label="Structure" value={structure} style={{ width: "auto" }}
+              onChange={(e) => setStructure(e.target.value)}>
+              <option value="">none: a cue a sequence</option>
+              {d.structures.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
+          </div>
+          {d.laid && (
+            <div className="h3-muted" style={{ marginTop: 4 }}>
+              {d.beats.map((b) => `${b.beat} at ${b.shot} (${fmtClock(b.t0)})`).join(" · ")}
+            </div>
+          )}
+        </div>
+      )}
       {d && (
         <>
           <div className="h3-small h3-muted">

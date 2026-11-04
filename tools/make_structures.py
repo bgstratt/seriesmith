@@ -7,7 +7,12 @@ score-draft`), from docs/STORY_STRUCTURES.md: the doc is the source.
 Each `### N.N <name>` with a `**Music:**` table under it (| Beat | Music | Mood (energy) |
 Theme | Hit |) becomes a structure: its beats, each row read by spotting.parse_row, a beat's
 names split at " / " ("Cold Open / Teaser" is either). A structure whose text after its
-table speaks of a bumper (the Sitcom) gets `"bumpers": true`.
+table speaks of a bumper (the Sitcom) gets `"bumpers": true`. Each beat's place in the story
+(`"at": [from, to]`, percent) is its row's `~%` in the structure's first table that has one
+(its beats in order, named in a column the Music table's names match, a name's parenthetical
+dropped: "Plot Point 1 (Break into Two)" is "Plot Point 1"; a name seen again is its
+"(again)"; a beat at one point, "50", or with none, "—", gets none: spotting.layout leaves it
+to the beats around it).
 
     python tools/make_structures.py            # rewrite it
     python tools/make_structures.py --check    # exit 1 if it is out of date
@@ -29,6 +34,43 @@ from seriesmith.core import spotting as SP                        # noqa: E402
 
 DOC = os.path.join(ROOT, "docs", "STORY_STRUCTURES.md")
 OUT = SP.DATA
+
+
+def _plain(name: str) -> str:
+    return SP.norm(re.sub(r"\s*\([^)]*\)\s*$", "", name.replace("**", "")))
+
+
+def _places(lines: list[str], start: int, beats: list[dict]) -> dict[int, list[int]]:
+    """Each Music-table beat's [from, to] percent (by its index), from the first `~%` table
+    after `start`; a name that appears twice is the next beat of that name each time."""
+    for i in range(start, len(lines)):
+        if lines[i].startswith(("### ", "## ")) and i > start:
+            return {}
+        if not (lines[i].startswith("|") and lines[i].rstrip().endswith("~% |")):
+            continue
+        hdr = [c.strip() for c in lines[i].strip().strip("|").split("|")]
+        rows, j = [], i + 2
+        while j < len(lines) and lines[j].startswith("|"):
+            rows.append([c.strip() for c in lines[j].strip().strip("|").split("|")])
+            j += 1
+        want: dict[str, list[int]] = {}
+        for k, b in enumerate(beats):
+            for n in dict.fromkeys(_plain(x) for x in b["names"]):
+                want.setdefault(n, []).append(k)
+        # the column whose names are the Music table's
+        col = max(range(len(hdr) - 1), key=lambda k: sum(_plain(r[k]) in want for r in rows))
+        out, seen = {}, {}
+        for r in rows:
+            name = _plain(r[col])
+            if name not in want:
+                continue
+            n = seen.get(name, 0)
+            seen[name] = n + 1
+            m = re.match(r"^(\d+)\s*[–-]\s*(\d+)$", r[-1])
+            if n < len(want[name]) and m and int(m.group(2)) > int(m.group(1)):
+                out[want[name][n]] = [int(m.group(1)), int(m.group(2))]
+        return out
+    return {}
 
 
 def build(text: str) -> dict:
@@ -62,6 +104,10 @@ def build(text: str) -> dict:
         while k < len(lines) and not lines[k].startswith(("**Example", "**Pitfalls", "### ", "## ", "---")):
             after.append(lines[k])
             k += 1
+        places = _places(lines, i, beats)
+        for k, b in enumerate(beats):
+            if k in places:
+                b["at"] = places[k]
         st = {"id": m.group(1), "name": m.group(2), "beats": beats}
         if "bumper" in " ".join(after).lower():
             st["bumpers"] = True

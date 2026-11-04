@@ -1742,7 +1742,11 @@ score model, ACE-Step 1.5 XL beside it; YuE2 the song default (2026-11-01).
         (`--rendered` replaces those too, a series theme's always kept), a draft cue trimmed
         around a kept one, a character's theme (`for`, set in ★ Series theme) as the
         episode's story theme when they lead it; Dean ep16 marked (Story Spine) and drafted
-        again around its `intro` theme; Fair Trade's proxy draft written (6 bumpers)
+        again around its `intro` theme; Fair Trade's proxy draft written (6 bumpers). A script
+        with no beat lines: said at the top of Draft, and a structure laid over the cut
+        (spotting.layout: each beat at its `~%`, from STORY_STRUCTURES' beat tables into
+        structures.json, on the nearest sequence start) and written into the script on ask
+        (scoredraft.mark_script, the parse checked unchanged)
   - [x] the skill: `// structure:` and `// beat:` in STORY_STRUCTURES' From beats to shots
         and the skill's outline step (converted scripts too); a Music table under each of
         the 14 structures (treatment, mood and energy, `story`/`show`/`runner` theme, hit),

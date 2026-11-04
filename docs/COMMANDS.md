@@ -414,6 +414,7 @@ seriesmith score-draft Shows\ep05                    # what it would draft, noth
 seriesmith score-draft Shows\ep05 --write            # its cues (d01...), hits, voices only
 seriesmith score-draft Shows\ep05 --write --replace  # the earlier draft replaced
 seriesmith score-draft Shows\ep05 --write --replace --rendered  # its rendered cues too
+seriesmith score-draft Shows\ep05 --structure "Pixar Story Spine" --write --mark  # no beat lines: laid out, kept
 ```
 
 - Reads the script's `// structure:`, `// beat:`, `// theme:` and `// flashback` lines, that

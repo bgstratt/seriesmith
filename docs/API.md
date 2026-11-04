@@ -995,21 +995,25 @@ themes as `themes`: `[{name, label ("porch (ep01 m04 t03)"), role, words, for, e
 why one can't be used: it doesn't read, or its episode isn't beside this one).
 
 ### `POST /seriesmith/cue/draft`
-Body `{"ep", "pass"?, "write"?, "replace"?, "rendered"?, "keep_sound"?}`: the first-pass score drafted from
+Body `{"ep", "pass"?, "write"?, "replace"?, "rendered"?, "keep_sound"?, "structure"?, "mark"?}`: the first-pass score drafted from
 the script's `// structure:`, `// beat:`, `// theme:` and `// flashback` lines, that
 structure's Music table (docs/STORY_STRUCTURES.md, as `seriesmith/core/structures.json`) or
 the series config's `sound.format`, and the pass's cut (scoredraft.py). Without `write`
 nothing is written; `rendered` drafts again over the earlier draft's rendered cues too (a
 series theme's cue, and one a kept cue takes its theme from, are always kept; a draft cue over a
 kept one is trimmed to the longest stretch it leaves free, 8 s or more, else left out: its
-`trim`). Answers `{"draft", "text" (it in words), "written"}`: `draft` is
+`trim`); `structure` (a name or number), for a script with no beat lines: that structure's beats
+laid over the cut by each one's place in a story, on the nearest sequence (`laid`), and with
+`write` and `mark` written into the script as `// structure:` and `// beat:` lines (the build's
+parse unchanged, else 409 and nothing written; the old script to `_history`). Answers `{"draft", "text" (it in words), "written"}`: `draft` is
 `{"structure", "beats": [{beat, from (format, structure, other, unknown, unmarked), music, t0,
 t1, shot}], "cues": [{kind (cue, sting, bumper, mark), label, id, t0, t1, theme ("story", a
 series theme or null), makes ("story": it makes the episode's theme), sections: [{name, words,
 from, to, seconds}], hits: [{kind, shot, name}], spec (the cue as it would be written), skip
 (why it's left out: a cue of the episode's own plays there)}], "flags": [{kind (in-scene,
 montage, card, flashback, theme), shot, text}], "notes", "pass", "missing" (shots with no take,
-timed at their shotlist length), "voices_only", "drafted" (the earlier draft's cue ids with no finished take: what `replace`
+timed at their shotlist length), "voices_only", "marked" (the script has beat lines), "laid", "structures" ([{id,
+name}]: to pick from), "drafted" (the earlier draft's cue ids with no finished take: what `replace`
 replaces), "kept" (those with one: the person's now, kept with their hits, a new draft cue never
 landing on one)}`. With
 `write`: the cues written (ids `d01`..., label `Draft: ...`), their hits in the pass's mix

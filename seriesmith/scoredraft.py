@@ -5,6 +5,8 @@ core/spotting.py the rules).
 
     draft(root, pass_)                     -> what the draft would write, nothing written
     write(root, pass_, d, replace=False)   -> the draft's cues and hits written
+    mark_script(root, d)                   -> a laid-out draft's structure and beat lines
+                                              written into the script
 
 What it reads: the script's `// structure:`, `// beat:`, `// theme:` and `// flashback` lines
 (comments: the build ignores them), the story IR (shotlist/shots.json: who is in each shot,
@@ -18,6 +20,11 @@ will most likely be asked: the theme's, else cue.DEFAULT_BPM), its theme (`story
 the cue that makes it; a series theme by name), and its hits in the pass's mix (ids dh01 ...,
 `must: false`: the fit lands them when it can). Nothing is rendered. A cue of the person's own
 (an id not dNN) is never touched: a draft cue that would play over one is left out, and said.
+A script with no beat lines drafts flat (a cue a sequence), or, given a `structure`, with that
+structure's beats laid over the cut by where each falls in a story (spotting.layout): a start
+the person can then keep in the script (mark_script: `// structure:` and `// beat:` lines, the
+build's parse unchanged, the old script to _history) and correct by hand.
+
 `replace` first deletes the earlier draft's cues (cue.delete: to _history) and hits. A draft cue
 with a finished take is the person's now: kept, as a cue of their own is, its id and hits too,
 unless `rendered` (the draft drafted again over them: their takes to _history as well). A
@@ -126,13 +133,16 @@ def _script(root: str) -> str:
         return fh.read()
 
 
-def draft(root: str, pass_: str = "final", rendered: bool = False) -> dict:
+def draft(root: str, pass_: str = "final", rendered: bool = False, structure: str | None = None) -> dict:
     """The draft for the pass's cut, nothing written: spotting.draft's, each cue with its
     `id`, its spec (`spec`), its hits as the mix's (`mix_hits`), `skip` (why it is left out,
     when it is) and `trim` (what it was trimmed around); plus "missing" (shots with no take
     yet), "fps", "voices_only" (whether the mix plays voices only already), "drafted" (the
-    earlier draft cues a write replaces), "kept" (those it keeps), "rendered". DraftError
-    when the episode can't be read."""
+    earlier draft cues a write replaces), "kept" (those it keeps), "rendered", "marked"
+    (whether the script has beat lines), "laid" (the structure laid over the cut, given
+    `structure` and no beat lines: its beats are where it put them), "structures" (every
+    structure's id and name, to pick from). DraftError when the episode can't be read, or
+    `structure` names none."""
     series = J.series_config(root) or {}
     sound = series.get("sound") or {}
     fmt = {}
@@ -146,7 +156,18 @@ def draft(root: str, pass_: str = "final", rendered: bool = False) -> dict:
               for n, t in named.items() if n != "_errors"]
     shots, fps, missing = timeline(root, pass_, series)
     marks = SP.read_marks(_script(root))
+    marked = bool(marks["beats"])
+    laid = None
+    if structure and not marked:
+        try:
+            st = SP.structure(structure)
+        except SP.SpotError as e:
+            raise DraftError(str(e)) from None
+        marks = {**marks, "structure": st["name"], "beats": SP.layout(shots, st)}
+        laid = st["name"]
     out = SP.draft(shots, marks, fmt, themes)
+    if laid:
+        out["notes"] = [n for n in out["notes"] if "no // beat: lines" not in n]
     by_id = {s["id"]: s for s in shots}
 
     def frame(a: dict) -> dict:
@@ -224,8 +245,71 @@ def draft(root: str, pass_: str = "final", rendered: bool = False) -> dict:
     mix = MX.check(MX.load(root).get(pass_))
     out.update({"pass": pass_, "fps": fps, "missing": missing,
                 "voices_only": bool(((mix.get("tracks") or {}).get("dialogue") or {}).get("voices_only")),
-                "drafted": [c["id"] for c in fresh], "kept": sorted(kept_ids), "rendered": rendered})
+                "drafted": [c["id"] for c in fresh], "kept": sorted(kept_ids), "rendered": rendered,
+                "marked": marked, "laid": laid,
+                "structures": [{"id": s["id"], "name": s["name"]} for s in SP.structures()]})
     return out
+
+
+def mark_script(root: str, d: dict) -> bool:
+    """A laid-out draft's structure and beat lines written into the script: `// structure:`
+    at its top (after its `=` title line), `// beat:` above each beat's first shot (above its
+    sequence's header when it starts one). The old script to _history (source.write_source);
+    DraftError, nothing written, when the build would read the script differently. False when
+    there's nothing to write (not laid out, or marked already)."""
+    from seriesmith import build as BLD
+    from seriesmith import source as SRC
+    if not d.get("laid"):
+        return False
+    try:
+        src = SRC.read_source(root, "script")
+    except SRC.SourceError as e:
+        raise DraftError(str(e)) from None
+    if SP.read_marks(src.text)["beats"]:
+        return False
+    starts = {b["shot"]: re.sub(r"\s*\(again\)\s*$", "", b["beat"]) for b in d["beats"] if b.get("beat")}
+    first_of = {}
+    seq = None
+    for line in src.text.splitlines():
+        m = re.match(r"^#\s+(\S+)", line)
+        if m and not line.startswith("##"):
+            seq = line
+        m = re.match(r"^##\s+(\S+)", line)
+        if m and seq is not None:
+            first_of[m.group(1)] = seq
+            seq = None
+    lines = src.text.split("\n")
+    out, top = [], False
+    for i, line in enumerate(lines):
+        if not top and not line.startswith(("=", "//")) and line.strip():
+            out += [f"// structure: {d['laid']}", ""]
+            top = True
+        m = re.match(r"^##\s+(\S+)", line)
+        if m and m.group(1) in starts and first_of.get(m.group(1)) is None:
+            out.append(f"// beat: {starts[m.group(1)]}")
+        m = re.match(r"^#\s+\S+", line)
+        if m and not line.startswith("##"):
+            # the beat whose first shot opens this sequence goes above its header
+            nxt = next((re.match(r"^##\s+(\S+)", x).group(1) for x in lines[i + 1:]
+                        if re.match(r"^##\s+\S+", x)), None)
+            if nxt in starts and first_of.get(nxt) == line:
+                out.append(f"// beat: {starts[nxt]}")
+        out.append(line)
+    text = "\n".join(out)
+    from seriesmith.core.series_config import load_series_config
+    try:
+        cfg = load_series_config(P.series_config_path(root))
+    except (OSError, ValueError) as e:
+        raise DraftError(f"the series config doesn't load ({e}): its beat lines not written") from None
+    args = (BLD.subject_ids(cfg), BLD.character_ids(cfg), BLD.variant_of(cfg))
+    try:
+        same = repr(BLD.parse_script(src.text, *args)) == repr(BLD.parse_script(text, *args))
+    except Exception as e:                       # the script doesn't parse now: leave it alone
+        raise DraftError(f"the script doesn't build as it is ({e}): its beat lines not written") from None
+    if not same:
+        raise DraftError("the beat lines would change how the script is read: not written")
+    SRC.write_source(src, text)
+    return True
 
 
 def _free(t0: float, t1: float, busy: list[tuple[float, float]]) -> tuple[float, float] | None:
@@ -310,7 +394,9 @@ def _mmss(t: float) -> str:
 
 def summary(d: dict) -> str:
     """The draft as text: its cues, what the rules flag, and the notes."""
-    lines = [f"{d['structure'] or 'no structure'}: {len(d['beats'])} beat(s), "
+    lines = [] if d.get("marked", True) or d.get("laid") else [
+        "  ! the script has no beat lines: drafted flat, a cue a sequence (--structure lays one out)"]
+    lines += [f"{d['structure'] or 'no structure'}{' (laid out)' if d.get('laid') else ''}: {len(d['beats'])} beat(s), "
              f"{sum(1 for c in d['cues'] if c.get('spec'))} cue(s)"]
     for c in d["cues"]:
         theme = (f"from {c['spec']['theme'].get('cue') or c['spec']['theme'].get('theme')}"
@@ -346,18 +432,23 @@ def cmd_score_draft(root: str, argv: list[str]) -> int:
     ap.add_argument("--rendered", action="store_true",
                     help="its cues with finished takes replaced too (their takes to _history; a series theme's kept)")
     ap.add_argument("--keep-sound", action="store_true", help="leave the dialogue track as it plays")
+    ap.add_argument("--structure", default=None,
+                    help="a script with no beat lines: this structure's beats laid over the cut (its name or number)")
+    ap.add_argument("--mark", action="store_true", help="with --structure and --write: its beat lines written into the script")
     a = ap.parse_args(argv)
     try:
-        d = draft(root, a.pass_, rendered=a.rendered)
+        d = draft(root, a.pass_, rendered=a.rendered, structure=a.structure)
         print(summary(d))
         if not a.write:
             print("  (nothing written: --write writes it)")
             return 0
+        marked = a.mark and mark_script(root, d)
         r = write(root, a.pass_, d, replace=a.replace, voices=not a.keep_sound)
     except (DraftError, CU.CueError, ValueError) as e:
         print(f"  ! {e}")
         return 1
     print(f"  wrote {len(r['cues'])} cue(s) and {r['hits']} hit(s)"
           + (f", replacing {', '.join(r['removed'])}" if r["removed"] else "")
-          + ("; the dialogue plays voices only" if not a.keep_sound else ""))
+          + ("; the dialogue plays voices only" if not a.keep_sound else "")
+          + ("; its beat lines written into the script" if marked else ""))
     return 0

@@ -7,6 +7,8 @@ phase 8, "The simple first pass"). Model-free and standard library only, like th
     parse_row(music, mood, theme, hit)    -> a Music table row as a beat's treatment
     structure(name)                       -> a structure's Music table (structures.json)
     check_format(raw)                     -> the series config's `sound.format`, checked
+    layout(shots, st)                     -> a structure's beats laid over a cut with no beat
+                                             lines (each beat's `at`, snapped to a sequence)
     draft(shots, marks, ...)              -> the draft: cues and stings, their sections and
                                              hits, and what the rules flag for a person
 
@@ -305,6 +307,45 @@ def structure(name: str) -> dict:
         raise SpotError(f"{name!r} is {'more than one structure' if hits else 'no structure'} "
                         f"of docs/STORY_STRUCTURES.md with a Music table ({names})")
     return hits[0]
+
+
+LAYOUT_SHOT = 0.04    # of the episode: what a beat starting on a shot, not a sequence, costs
+
+
+def layout(shots: list[dict], st: dict) -> dict[str, str]:
+    """A structure's beats laid over a cut whose script has no beat lines: {shot: beat}, each
+    beat (one with an `at`, its place in the story in percent: a beat at a point, or with
+    none, is left to the beats around it) starting on the shot nearest its place, a sequence's
+    first shot rather than another when one is near (LAYOUT_SHOT), each after the one before;
+    a beat with no shot left after it is left out. A beat named again is its "(again)", as
+    read_marks reads a repeat (a script writes the plain name: scoredraft.mark_script)."""
+    if not shots:
+        return {}
+    total = shots[-1]["t"] + shots[-1]["d"]
+    beats = [b for b in st["beats"] if b.get("at")]
+    out: dict[str, str] = {}
+    prev = -1
+    for n, b in enumerate(beats):
+        name = b["beat"]
+        if name in out.values() and not name.endswith("(again)"):
+            name += " (again)"
+        if n == 0:
+            out[shots[0]["id"]] = name
+            prev = 0
+            continue
+        want = b["at"][0] / 100 * total
+        # room for the beats still to come, a shot each, while there are shots for them
+        last = min(len(shots) - 1, max(prev + 1, len(shots) - (len(beats) - n)))
+        cands = range(prev + 1, last + 1)
+        if not cands:
+            break
+
+        def cost(i: int) -> float:
+            seq_start = shots[i]["seq"] != shots[i - 1]["seq"]
+            return abs(shots[i]["t"] - want) + (0 if seq_start else LAYOUT_SHOT * total)
+        prev = min(cands, key=cost)
+        out[shots[prev]["id"]] = name
+    return out
 
 
 def table_of(st: dict) -> dict[str, dict]:

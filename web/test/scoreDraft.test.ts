@@ -69,6 +69,29 @@ describe("drafting the score", () => {
     expect(store.get().cues[EP]?.some((c) => c.spec.id === "d01")).toBe(true);
   });
 
+  it("a script with no beat lines: says so, and lays a structure out when one is picked", async () => {
+    setApi({ ...api, scoreDraft: async (req) => {
+      asked.push(req);
+      const r = await api.scoreDraft(req);
+      return { ...r, draft: { ...r.draft, marked: false, laid: req.structure ?? null } };
+    } });
+    await open();
+    expect(el.textContent).toContain("This script has no beat lines");
+    const pick = el.querySelector("select[aria-label=Structure]") as HTMLSelectElement;
+    expect([...pick.options].map((o) => o.value)).toEqual(["", "The Pixar Story Spine", "The Sitcom Formula (Circular Structure)"]);
+    await act(async () => {
+      pick.value = "The Pixar Story Spine";
+      pick.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await flush();
+    expect(asked.at(-1)).toMatchObject({ structure: "The Pixar Story Spine" });
+    expect(el.textContent).toContain("Once upon a time… at");
+    expect(el.textContent).toContain("Write these beat lines into the script");
+    await act(async () => button("Write 1 cue").click());
+    await flush();
+    expect(asked.at(-1)).toMatchObject({ write: true, structure: "The Pixar Story Spine", mark: true });
+  });
+
   it("a second draft waits for Replace", async () => {
     await api.scoreDraft({ ep: EP, pass: "proxy", write: true, keep_sound: true });
     await open();
