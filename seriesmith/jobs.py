@@ -1096,6 +1096,36 @@ def bare_hash(shot: dict) -> str:
     return story_hash({k: v for k, v in shot.items() if k != "prompt"})
 
 
+def place_free_hash(shot: dict) -> str:
+    """story_hash without where its window sits in the recording: whether a shot changed other than
+    by moving along it."""
+    return story_hash({k: v for k, v in shot.items() if k not in ("audio_in", "audio_out")})
+
+
+def laid_fields(root: str, shot: dict) -> dict:
+    """What a take remembers of a shot whose sound is lines laid into the recording (lines.py): which
+    takes of its lines it spoke, and the shot apart from where it sits. {} for any other shot."""
+    if "audio_in" not in shot:
+        return {}
+    from seriesmith import lines as LN
+    sound = LN.laid_sound(root, shot.get("id"))
+    return {"lines_sound": sound, "place_free_hash": place_free_hash(shot)} if sound else {}
+
+
+def only_moved(root: str, doc: dict, shot: dict, sidecar: dict) -> bool:
+    """Whether a take's shot has the same lines at the same length as when it was made, and has only
+    moved along the recording, because a line before it was redone. Its take still fits: the cut plays
+    the shot's window of the recording wherever that is now."""
+    said = sidecar.get("lines_sound")
+    if not said or sidecar.get("place_free_hash") != place_free_hash(shot):
+        return False
+    from seriesmith import lines as LN
+    if said != LN.laid_sound(root, shot.get("id")):
+        return False
+    # and it's still that recording the shot would hear (a silent shot hears none of it)
+    return said == LN.SILENT or any(LN.is_recording(r.get("path")) for r in ref_slots(doc, shot))
+
+
 def mapping_changed(root: str, doc: dict, sidecar: dict) -> bool:
     """Whether the model's prompt is written otherwise than when the take was made."""
     tid = sidecar.get("target") or doc.get("target")
@@ -1119,7 +1149,8 @@ def stale_reasons(root: str, doc: dict, shot: dict, sidecar: dict | None) -> lis
         return ["unknown"]
     out = []
     mapping = mapping_changed(root, doc, sidecar)
-    if sidecar.get("shot_hash") and sidecar["shot_hash"] != story_hash(shot):
+    moved = only_moved(root, doc, shot, sidecar)
+    if sidecar.get("shot_hash") and sidecar["shot_hash"] != story_hash(shot) and not moved:
         bare = sidecar.get("shot_bare_hash")
         if not mapping or (bare and bare != bare_hash(shot)):
             out.append("script")
@@ -1127,6 +1158,8 @@ def stale_reasons(root: str, doc: dict, shot: dict, sidecar: dict | None) -> lis
         p = r.get("path")
         if not p or not (r.get("sha1") or r.get("optional")):
             continue
+        if moved and r.get("kind") == "audio":
+            continue                                # the recording changed elsewhere, not in this shot
         now = T.file_sha1(p if os.path.isabs(p) else os.path.join(root, p))
         # a file that changed; or an optional one (an LTX keyframe) the take
         # rendered without that exists now: a render would use it
@@ -2071,6 +2104,7 @@ def sidecar_for(job: Job) -> dict:
         "length_source": job.length_source,
         "shot_hash": job.shot_hash,
         "preset_hash": preset_hash(job.doc, job.shot),
+        **laid_fields(job.root, job.shot),
         "overrides": job.overridden, "override_stale": job.override_stale,
         "parent_take": job.parent_take, "note": job.note,
         "refs": ref_files(job),

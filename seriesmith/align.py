@@ -540,7 +540,9 @@ def main(argv: list[str] | None = None) -> int:
     shots, lines = [], []
     for seq in epi["sequences"]:
         for sh in seq["shots"]:
-            entry = {"id": sh["id"], "lines": [], "dur": sh.get("duration"),
+            # aligned before: its `dur:` is a comment now, and its window is how long it is
+            held = sh["audio_out"] - sh["audio_in"] if "audio_in" in sh else None
+            entry = {"id": sh["id"], "lines": [], "dur": sh.get("duration") or held,
                      "snap": snap_of(sh["id"])}
             for d in sh["dialogue"]:
                 ln = {"shot": sh["id"], "who": d["who"], "text": d["line"]}

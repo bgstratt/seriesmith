@@ -728,6 +728,7 @@ function RefTargetOverride({ r }: { r: Ref }) {
           <option value="">{`(${refDefaultSourceLabel(src)}: ${targetLabel(list, fallback)})`}</option>
           <ModelOptions targets={choices} text={(x) => `${targetOptionText(x)}${kind !== "voices" && isEditTarget(x) ? " · edit" : ""}`} />
         </select>
+        <ModelsButton />
       </div>
       {t && <span className="h3-small h3-muted">{targetLabel(list, cur.target)}{mode(t) ? `: ${mode(t)}` : ""}{cur.source === "override" ? " (this ref's own)" : ""}</span>}
     </div>

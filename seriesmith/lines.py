@@ -17,6 +17,7 @@ is kept in lines.json for the next time the recording is laid.
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
@@ -27,6 +28,7 @@ import wave
 
 from seriesmith import build as BLD
 from seriesmith import ff as FF
+from seriesmith import takes as T
 from seriesmith.core import fileio as F
 from seriesmith.core import paths as P
 from seriesmith.core.ir import stable_seed
@@ -39,6 +41,7 @@ BETWEEN_SHOTS = 0.60     # and between two shots that speak, one after the other
 AROUND_SILENT = 0.55     # what a pause holds besides its silent shots' own length (align's LEAD + TAIL)
 ENDS = 0.50              # silence before the first line, and after the last
 SILENT_DEFAULT = 3.04    # a silent shot with no `dur:`, as align reads one
+SILENT = "silent"        # what a silent shot's window of the recording holds (laid_sound)
 _WRITING = threading.Lock()   # takes end together on a provider's parallel lane: one edit of lines.json at a time
 
 
@@ -268,6 +271,23 @@ def pick(ep: str, line_id: str, n: int) -> None:
         save(ep, record)
 
 
+def is_recording(path: str | None) -> bool:
+    """Whether a path is the recording lines are laid into."""
+    return bool(path) and os.path.normpath(path).endswith(os.path.join(DIR, RECORDING))
+
+
+def laid_sound(ep: str, shot: str | None) -> str | None:
+    """What a shot's window of the laid recording holds: its lines' takes, as last laid. Two the same
+    means the same sound, wherever it now sits. None when no lines were laid for it."""
+    path = record_path(ep)
+    if not shot or not os.path.isfile(path):
+        return None
+    got = T.read_json_kept(path) if hasattr(T, "read_json_kept") else None
+    if not isinstance(got, dict):
+        got = F.read_json_or(path, {}, want=dict)
+    return (got.get("laid") or {}).get(shot)
+
+
 def _silence(seconds: float) -> bytes:
     return b"\0\0" * int(round(seconds * RATE))
 
@@ -284,6 +304,7 @@ def lay(ep: str) -> dict:
     if not any(s["lines"] for s in shots):
         raise LinesError("this script has no lines")
     pauses = record["pauses"]
+    laid = {}
     audio, words, notes = bytearray(), [], []
     untimed = 0
     at = 0.0
@@ -301,6 +322,7 @@ def lay(ep: str) -> dict:
             # what this shot's `dur:` said when it still had one (align comments it out)
             secs = shot["dur"] if shot["dur"] else pauses.get(shot["id"], SILENT_DEFAULT)
             pauses[shot["id"]] = float(secs)
+            laid[shot["id"]] = SILENT
             silent += float(secs)
             continue
         if silent:
@@ -308,8 +330,10 @@ def lay(ep: str) -> dict:
         elif spoke_last:
             add(_silence(BETWEEN_SHOTS))
         silent = 0.0
+        said = []
         for i, ln in enumerate(shot["lines"]):
             take = _picked(record["lines"][ln["id"]])
+            said.append([ln["id"], take["take"], take.get("voice")])
             if take.get("text") != ln["text"]:
                 notes.append(f"{ln['id']}: its take says something else now: generate it again")
             if i:
@@ -322,6 +346,7 @@ def lay(ep: str) -> dict:
             else:
                 untimed += 1
             add(data)
+        laid[shot["id"]] = hashlib.sha1(json.dumps(said).encode("utf-8")).hexdigest()
         spoke_last = True
     add(_silence(silent + (AROUND_SILENT if silent else 0) + ENDS))
 
@@ -342,6 +367,7 @@ def lay(ep: str) -> dict:
         notes.append(f"{untimed} line(s) came back with no timings, so align will transcribe the recording")
     else:
         F.write_json(cache, words)                     # after the recording: align wants it the newer
+    record["laid"] = laid
     save(ep, record)
     from seriesmith import track as K
     K.set_track(ep, os.path.join(DIR, RECORDING).replace("\\", "/"))

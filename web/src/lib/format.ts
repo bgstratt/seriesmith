@@ -3,6 +3,7 @@ import { continuityBadge } from "./continuity";
 import { missingOf, missingRefsTitle } from "./missingRefs";
 
 export type BadgeKind =
+  | "paid"
   | "moved"
   | "locked"
   | "trimmed"

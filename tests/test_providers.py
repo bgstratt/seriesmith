@@ -1983,6 +1983,62 @@ class Lines(ScratchSettings):
         again2 = align("--dry-run")
         self.assertEqual(again2["duration"], real["duration"])
 
+    def staleness_after_a_redo(self):
+        """Every shot's take as a real render would record it, a line redone longer, the recording laid
+        and aligned again: {shot: why it's stale}, and the redone shot."""
+        import subprocess
+        from seriesmith import jobs as J
+        from test_render import ENV
+        self.make_them()
+        self.ok(self.A.post_lines_lay(self.ctx, {"ep": self.ep}))
+
+        def align_and_build():
+            got = subprocess.run([sys.executable, "-m", "seriesmith.align", self.ep], capture_output=True, text=True, env=ENV)
+            self.assertEqual(got.returncode, 0, got.stderr[-600:] + got.stdout[-600:])
+            built = subprocess.run([sys.executable, "-m", "seriesmith", "build", self.ep], capture_output=True, text=True, env=ENV)
+            self.assertEqual(built.returncode, 0, built.stderr[-600:] + built.stdout[-600:])
+            return J.load_shotlist(self.ep, "final")
+
+        def sidecar(doc, shot):
+            refs = [dict(r, sha1=T.file_sha1(os.path.join(self.ep, r["path"])) if r["path"] else None)
+                    for r in J.ref_slots(doc, shot)]
+            return {"target": doc.get("target"), "shot_hash": J.story_hash(shot), "refs": refs,
+                    "preset_hash": J.preset_hash(doc, shot), **J.laid_fields(self.ep, shot)}
+        from seriesmith import takes as T
+        doc = align_and_build()
+        made = {s["id"]: sidecar(doc, s) for s in doc["shots"]}
+        rows = self.plan()["lines"]
+        row = rows[len(rows) // 2]
+        speaker = row["speaker"]["id"]
+        self.fake.routes[("POST", f"/v1/text-to-speech/{speaker}/with-timestamps")] = lambda c: timed_answer(json.loads(c["body"])["text"], 3.0)
+        self.ok(self.A.post_lines_generate(self.ctx, {"ep": self.ep, "target": self.tid, "lines": [row["id"]], "confirm_chars": row["chars"], "backend": "api:local_eleven"}))
+        self.settle()
+        self.ok(self.A.post_lines_pick(self.ctx, {"ep": self.ep, "line": row["id"], "take": 2}))
+        self.ok(self.A.post_lines_lay(self.ctx, {"ep": self.ep}))
+        doc = align_and_build()
+        return {s["id"]: J.stale_reasons(self.ep, doc, s, made[s["id"]]) for s in doc["shots"] if s["id"] in made}, row["shot"], [s["id"] for s in doc["shots"]]
+
+    def test_a_redone_line_makes_only_its_own_shot_stale(self):
+        stale, redone, order = self.staleness_after_a_redo()
+        self.assertTrue(stale[redone], redone)
+        self.assertEqual({k: v for k, v in stale.items() if v and k != redone}, {})
+
+    def test_a_recording_replaced_by_hand_still_says_so(self):
+        from seriesmith import jobs as J
+        from seriesmith import takes as T
+        self.make_them()
+        self.ok(self.A.post_lines_lay(self.ctx, {"ep": self.ep}))
+        path = os.path.join(self.ep, self.LN.DIR, self.LN.RECORDING)
+        shot = {"id": "sh020", "audio_in": 1.0, "audio_out": 2.0}
+        doc = {"defaults": {}}
+        side = {"refs": [{"kind": "audio", "path": os.path.relpath(path, self.ep), "sha1": "other"}]}
+        # no lines remembered: a take from before lines, or an actor's recording
+        self.assertIn("ref", J.stale_reasons(self.ep, doc, shot, side))
+        # remembered, but this shot's lines were laid differently since
+        side.update(lines_sound="different", place_free_hash=J.place_free_hash(shot))
+        self.assertIn("ref", J.stale_reasons(self.ep, doc, shot, side))
+        self.assertTrue(T.file_sha1(path))
+
     def test_laying_refuses_while_a_line_has_no_take(self):
         code, data = self.A.post_lines_lay(self.ctx, {"ep": self.ep})
         self.assertEqual(code, 400)

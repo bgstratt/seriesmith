@@ -255,6 +255,12 @@ export function comboChoices(info: unknown, classType: string, field: string): s
 // ---------------------------------------------------------------------------
 
 /** A badge on a shot whose target isn't the series default (e.g. "LTX"). */
+/** A model's badge: in the paid colour when it bills someone, as its Generate buttons are. */
+function targetKindOf(list: TargetList | null | undefined, id: string): "target" | "paid" {
+  const t = findTarget(list, id);
+  return t && isHosted(t) ? "paid" : "target";
+}
+
 export function shotTargetBadge(
   s: Pick<ShotStatus, "target" | "built_target">,
   list: TargetList | null | undefined,
@@ -263,7 +269,7 @@ export function shotTargetBadge(
   const t = shotTarget(s, seriesDefault);
   if (t === seriesDefault) return null;
   const re = isRetargeted(s) ? ` ${retargetNote(list, s)}` : "";
-  return { kind: "target", label: targetShort(list, t), title: `Renders on ${targetLabel(list, t)}${re}; the series default is ${targetLabel(list, seriesDefault)}` };
+  return { kind: targetKindOf(list, t), label: targetShort(list, t), title: `Renders on ${targetLabel(list, t)}${re}; the series default is ${targetLabel(list, seriesDefault)}` };
 }
 
 /**
@@ -276,7 +282,7 @@ export function takeTargetBadge(
   list: TargetList | null | undefined,
 ): Badge | null {
   if (!t.target || t.target === shotCurrent) return null;
-  return { kind: "target", label: targetShort(list, t.target), title: `Rendered on ${targetLabel(list, t.target)}; the shot now renders on ${targetLabel(list, shotCurrent)}` };
+  return { kind: targetKindOf(list, t.target), label: targetShort(list, t.target), title: `Rendered on ${targetLabel(list, t.target)}; the shot now renders on ${targetLabel(list, shotCurrent)}` };
 }
 
 /**

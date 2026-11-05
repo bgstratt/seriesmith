@@ -2119,8 +2119,15 @@ download with the key). Reading the reference moved up from step 7 (decided with
       lines. A script's delivery note as a v3/v4 tag ([whispers]): it's left out for now.
 - [x] "Generate missing" (voices, refs, shots) in the paid colour (`h3-paid`) when a model it uses
       is hosted, 2026-11-05; voices ask first. A money total first, per provider, isn't built.
-- [ ] A redone line that changes length moves what follows: those windows go stale, and the
-      shots they touch say so before anything is re-rendered.
+- [x] A redone line that changes length moves what follows: those windows go stale, and the
+      shots they touch say so before anything is re-rendered (measured 2026-11-05: `script` from the
+      moved window). Aligning again keeps a silent shot's length from its window (it was 3.04 s).
+- [x] It said so too often, and each is a paid re-render if believed: every dub shot before the
+      redone line went `ref` (its whole recording's sha1 changed, its own window's sound didn't), and
+      every shot after went `script` for a window that only moved. A take on a laid recording now
+      remembers which line takes it spoke (`lines_sound`) and the shot apart from where it sits
+      (`place_free_hash`), so only a shot whose own sound or length changed goes stale. A take from
+      before this, or a recording replaced by hand, can't say what changed, and goes stale as it did.
 - [ ] Only if it proves needed: a script field for a pause between lines in one shot.
 - Replaces "ElevenLabs and the like as voice models" under "Voices before the picture".
 
