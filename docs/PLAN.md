@@ -2106,12 +2106,19 @@ download with the key). Reading the reference moved up from step 7 (decided with
       (cloning, a provider's IVC) isn't built. Tried live with no key the same day: `/v1/voices`
       answers with its 21 voices and their previews; `/v1/shared-voices` only at a page of 3 or so,
       with no search or later pages (401), so the library is behind the key, or on its site.
-- [ ] Lines refused until the voice is picked; the count of lines and characters shown first.
-- [ ] A line per take, the words alone in the request; laid in script order, with the pauses
+- [x] Lines refused until the voice is picked; the count of lines and characters shown first, and
+      a generate must name the total it was shown (`lines.py`, the Recording window). 2026-11-05, on
+      local servers only: no key, no real take.
+- [x] A line per take, the words alone in the request; laid in script order, with the pauses
       silent shots' `dur:` give, into the episode's recording; `align` windows the shots from it.
-- [ ] The API's own timings where it gives them (ElevenLabs `with-timestamps`) in place of
-      Whisper (`align --words`). Text-to-dialogue (all the lines in one call, its segments
-      per input) as an option for flow; one line can't be redone alone there.
+- [x] The API's own timings where it gives them (ElevenLabs `with-timestamps`, a definition's
+      `timed` way) in place of Whisper (`<recording>.words.json`, which align reads). The mp3 they
+      come in may start a few ms late of its timings: only a real take will say if that shows.
+- [ ] Text-to-dialogue (all the lines in one call, its segments per input) as an option for flow;
+      one line can't be redone alone there. `previous_text` / `next_text` for flow between single
+      lines. A script's delivery note as a v3/v4 tag ([whispers]): it's left out for now.
+- [x] "Generate missing" (voices, refs, shots) in the paid colour (`h3-paid`) when a model it uses
+      is hosted, 2026-11-05; voices ask first. A money total first, per provider, isn't built.
 - [ ] A redone line that changes length moves what follows: those windows go stale, and the
       shots they touch say so before anything is re-rendered.
 - [ ] Only if it proves needed: a script field for a pause between lines in one shot.

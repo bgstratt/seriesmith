@@ -1370,7 +1370,9 @@ const ADD_LABEL: Partial<Record<string, string>> = {
 };
 
 /** A voice sample for each voice ref with none (lib/refs voicesMissing), one at a time. */
-function generateMissingVoices(refs: Ref[]) {
+function generateMissingVoices(refs: Ref[], paid: boolean) {
+  const n = voicesMissing(refs).length;
+  if (paid && !confirm(`This queues ${n} paid ${n === 1 ? "sample" : "samples"} on the voice model, billed to your account. Go ahead?`)) return;
   void (async () => {
     for (const r of voicesMissing(refs)) {
       await generateRef({ ref: r.id, view: null, count: 1, seed_mode: "auto", seed: null, prompt: null,
@@ -1382,6 +1384,17 @@ function generateMissingVoices(refs: Ref[]) {
 export function RefsTab() {
   const ep = useApp((s) => s.ep);
   const pass = useApp((s) => s.pass);
+  const { list: modelList } = useTargets();
+  const modelDefaults = useRefDefaults();
+  // a model that bills someone: its buttons don't look like the free ones
+  const paidKind = (k: RefTargetKind) => {
+    const t = findTarget(modelList, defaultOf(modelDefaults, k).target);
+    return !!t && isHosted(t);
+  };
+  const paidVoice = (r: Ref) => {
+    const t = findTarget(modelList, refTargetOf(r, modelDefaults).target);
+    return !!t && isHosted(t);
+  };
   const refs = useApp((s) => (s.ep ? s.refs[s.ep] : undefined));
   const err = useApp((s) => (s.ep ? s.refsError[s.ep] : undefined));
   const loading = useApp((s) => (s.ep ? !!s.refsLoading[s.ep] : false));
@@ -1468,7 +1481,7 @@ export function RefsTab() {
               <SupplyPicker />
               {(planLabels.length > 0 || counts.missing > 0) && (
                 <button
-                  className="h3-btn h3-primary"
+                  className={`h3-btn ${(["refs", "keyframes", "voices"] as RefTargetKind[]).some(paidKind) ? "h3-paid" : "h3-primary"}`}
                   disabled={genBusy}
                   title={`Queue one candidate for each ref this episode is missing (${pass}); each goes live when it finishes.
 Keyframes: required ones, and optional ones the script asks for (continuity from the neighbouring take when it has one, else a still; a file the script names is imported).
@@ -1535,9 +1548,9 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
                     {g.id === "voices" && voicesMissing(g.refs).length > 0 && (
                       <>
                         <span className="h3-grow" />
-                        <button className="h3-btn h3-primary"
+                        <button className={`h3-btn ${voicesMissing(g.refs).some(paidVoice) ? "h3-paid" : "h3-primary"}`}
                           title={`A voice sample for each character with none (what Clone speaks in): ${voicesMissing(g.refs).map((r) => r.name).join(", ")}. Each is a candidate to listen to and pick.`}
-                          onClick={(e) => { e.stopPropagation(); generateMissingVoices(g.refs); }}>
+                          onClick={(e) => { e.stopPropagation(); generateMissingVoices(g.refs, voicesMissing(g.refs).some(paidVoice)); }}>
                           <i className="pi pi-microphone" /> Generate missing ({voicesMissing(g.refs).length})
                         </button>
                       </>

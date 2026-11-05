@@ -38,12 +38,12 @@ def asked() -> dict | None:
 # How long a job may run before it is taken as hung, stopped and failed:
 # several times the longest such job seen (a 4K SeedVR2 post is the slow one).
 LIMITS = {"render": 2 * 3600, "ref": 1800, "upscale": 4 * 3600, "post": 6 * 3600,
-          "tour": 3600, "cue": 1800, "fx": 1800, "vocals": 1800}
+          "tour": 3600, "cue": 1800, "fx": 1800, "vocals": 1800, "line": 600}
 
 # The least free disk a job needs where its files land (GB): a take is a few
 # hundred MB with its latent and frames, a 4K upscale or post a few GB.
 ROOM_GB = {"render": 1.0, "ref": 0.2, "upscale": 3.0, "post": 3.0, "tour": 1.0, "cue": 0.2,
-           "fx": 0.2, "vocals": 0.5}
+           "fx": 0.2, "vocals": 0.5, "line": 0.1}
 
 
 def room(folder: str, kind: str) -> None:
@@ -564,6 +564,46 @@ class Runner:
                     resume={"kind": "tour", "ep": ep, "ref": ref.id, "tour": n, "asked": asked()})
         side.update(comfy_prompt_id=qjob.id, backend=backend.name, queue=self.queue.name)
         TR.save_side(ref, side)
+        self._submit(qjob)
+        return n, qjob.id
+
+    def enqueue_line(self, ep: str, line: dict, target, backend_name: str) -> tuple[int, str]:
+        """One take of a line of dialogue (lines.py) queued on its provider: its words alone, in its
+        character's speaker. Returns (the take's number, the queue's job id)."""
+        from seriesmith import lines as LN
+
+        backend = self.backend_for(backend_name)
+        self.reserve(backend, ep, "line")
+        n = LN.reserve(ep, line, target)
+        lid = line["id"]
+        call = LN.call_for(ep, line, n, target)
+
+        def event(status: str) -> None:
+            self._emit("seriesmith.lines", {"ep": ep, "line": lid, "take": n, "status": status})
+
+        def work(qjob: QJob, report) -> str:
+            try:
+                run = backend.call(*call)
+                self.started(qjob, run, backend, report)
+                status = run.watch(on_progress=progress_to(report))
+                if status != "succeeded":
+                    raise RuntimeError(run.error or f"the job ended {status}")
+                LN.finish(ep, lid, n, run)
+                result = "succeeded"
+            except Exception as e:                       # noqa: BLE001  the take fails
+                qjob.error = str(e)[:800]
+                LN.fail(ep, lid, n, stopped(qjob) if qjob.cancel_asked else str(e))
+                result = "canceled" if qjob.cancel_asked else "failed"
+            event("ok" if result == "succeeded" else "failed")
+            return result
+
+        def cancelled(qjob: QJob) -> None:
+            LN.fail(ep, lid, n, "canceled before it ran")
+            event("failed")
+
+        qjob = QJob(kind="line", lane=backend.name, title=f"{_ep_name(ep)} line {lid} t{n:02d}",
+                    work=work, info={"ep": ep, "line": lid, "take": n, "backend": backend.name},
+                    on_cancel=cancelled, limit=LIMITS["line"])
         self._submit(qjob)
         return n, qjob.id
 

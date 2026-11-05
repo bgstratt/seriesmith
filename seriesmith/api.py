@@ -4225,6 +4225,105 @@ def post_provider_draft(ctx: Context, body):
     return 200, {**out, "form": form, "definition": d, "problems": left}
 
 
+def _lines_target(ep: str, asked):
+    """The voice model an episode's lines are made with: `asked`, else its voice model. None and why
+    when that one can't make them: lines go to a provider, one call a line."""
+    from seriesmith import refs as R
+    tid = asked if isinstance(asked, str) and asked else R.image_defaults(R.load_series(ep)).get("voice_target")
+    try:
+        t = TG.load_target(tid, "audio", root=ep)
+    except (TG.TargetError, TypeError):
+        return None, f"there's no voice model called {tid}"
+    if not TG.service_of(t.spec) or t.spec.get("code") != "builtin:router_audio":
+        return None, (f"{t.label} makes a sample to clone, not a line in a speaker's voice. Choose a voice model "
+                      f"on a provider under \"Voices with:\" on the Refs tab.")
+    return t, ""
+
+
+@handler
+def get_lines(ctx: Context, query):
+    """What an episode's lines are, and what generating them would make, with a voice model on a
+    provider. Costs nothing. Query {ep, target?}. seriesmith.lines.plan's answer, or {available: false,
+    why} when the voice model isn't one that can."""
+    from seriesmith import lines as LN
+    ep = check_ep(ctx, query.get("ep"))
+    t, why = _lines_target(ep, query.get("target"))
+    if t is None:
+        return 200, {"available": False, "why": why}
+    return 200, {"available": True, **LN.plan(ep, t)}
+
+
+@handler
+def post_lines_generate(ctx: Context, body):
+    """Queue a take of each line asked (`lines`: ids), else each with none that matches the script.
+    Paid. Body {ep, confirm_chars, target?, lines?, backend?}: `confirm_chars` is the total the person
+    was shown, and a different total is **409**, so what's sent is what was agreed. **400** naming the
+    characters with no speaker, and nothing is sent. Returns {queued: [{line, take, job}], errors}."""
+    from seriesmith import jobs as J
+    from seriesmith import lines as LN
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    t, why = _lines_target(ep, body.get("target"))
+    if t is None:
+        raise ApiError(400, why)
+    if ctx.runner is None:
+        raise ApiError(400, "lines go on seriesmith's queue, which this server hasn't got")
+    plan = LN.plan(ep, t)
+    asked = body.get("lines")
+    if asked is not None and not (isinstance(asked, list) and all(isinstance(x, str) for x in asked)):
+        raise ApiError(400, "lines must be a list of line ids")
+    known = {r["id"]: r for r in plan["lines"]}
+    unknown = [x for x in asked or [] if x not in known]
+    if unknown:
+        raise ApiError(404, f"this script has no line {unknown[0]}")
+    rows = [known[x] for x in asked] if asked else [r for r in plan["lines"] if r["status"] != "ok"]
+    silent = sorted({r["name"] for r in rows if not r["speaker"]})
+    if silent:
+        raise ApiError(400, f"pick a speaker first for {', '.join(silent)}: nothing was sent")
+    chars = sum(r["chars"] for r in rows)
+    if body.get("confirm_chars") != chars:
+        raise ApiError(409, f"that's {chars} characters now, not {body.get('confirm_chars')}: look again, nothing was sent", chars=chars)
+    out = {"queued": [], "errors": []}
+    for r in rows:
+        try:
+            name = J.backend_choice({}, r["id"], t, _opt_str(body, "backend"), ep)[0]
+            n, qid = ctx.runner.enqueue_line(ep, r, t, name)
+            out["queued"].append({"line": r["id"], "take": n, "job": qid})
+        except Exception as e:                            # noqa: BLE001  said, and the rest still go
+            out["errors"].append({"line": r["id"], "error": str(e)[:400]})
+    episode_event(ctx, ep)
+    return 200, out
+
+
+@handler
+def post_lines_pick(ctx: Context, body):
+    """Which finished take of a line is used. Body {ep, line, take}."""
+    from seriesmith import lines as LN
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    try:
+        LN.pick(ep, _opt_str(body, "line") or "", int(body.get("take")))
+    except (LN.LinesError, TypeError, ValueError) as e:
+        raise ApiError(400, str(e))
+    return 200, {"ok": True}
+
+
+@handler
+def post_lines_lay(ctx: Context, body):
+    """Every line's picked take laid in script order into the episode's recording, its timings beside
+    it, attached as the dialogue track, ready to align. Costs nothing. Body {ep}. Returns {path, seconds,
+    lines, timed, notes}."""
+    from seriesmith import lines as LN
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    try:
+        got = LN.lay(ep)
+    except LN.LinesError as e:
+        raise ApiError(400, str(e))
+    episode_event(ctx, ep)
+    return 200, got
+
+
 @handler
 def get_provider_voices(ctx: Context, query):
     """The speakers a provider has, costing nothing: with its key where there is one, and a list
@@ -6184,6 +6283,10 @@ ROUTES = [
     ("DELETE", "/seriesmith/providers", delete_provider, "query"),
     ("PUT", "/seriesmith/providers/key", put_provider_key, "body"),
     ("GET", "/seriesmith/providers/voices", get_provider_voices, "query"),
+    ("GET", "/seriesmith/lines", get_lines, "query"),
+    ("POST", "/seriesmith/lines/generate", post_lines_generate, "body"),
+    ("POST", "/seriesmith/lines/pick", post_lines_pick, "body"),
+    ("POST", "/seriesmith/lines/lay", post_lines_lay, "body"),
     ("PUT", "/seriesmith/refs/provider-voice", put_refs_provider_voice, "body"),
     ("POST", "/seriesmith/providers/read-spec", post_provider_read_spec, "body"),
     ("POST", "/seriesmith/providers/draft", post_provider_draft, "body"),

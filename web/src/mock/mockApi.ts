@@ -2479,6 +2479,23 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(40);
       return { reached: true, key_ok: true, status: 404, says: "not found" };
     },
+    async lines() {
+      await wait(40);
+      return { available: false, why: "the mock has no voice model on a provider", target: "", label: "", service: "", lines: [], characters: [],
+               to_make: { lines: 0, chars: 0 }, no_speaker: [], recording: null, can_lay: false };
+    },
+    async generateLines() {
+      await wait(40);
+      return { queued: [], errors: [] };
+    },
+    async pickLine() {
+      await wait(40);
+      return { ok: true };
+    },
+    async layLines() {
+      await wait(40);
+      return { path: "audio/lines/lines_recording.wav", seconds: 0, lines: 0, timed: true, notes: [] };
+    },
     async providerVoices() {
       await wait(40);
       return { voices: [{ id: "v1", name: "Sample voice", preview: "", about: "", category: "premade", labels: {} }], next: "" };

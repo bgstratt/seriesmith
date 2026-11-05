@@ -1,0 +1,349 @@
+"""
+lines.py -- an episode's dialogue from a voice model: a take per line, each in its character's
+speaker, the words alone in the request, then laid in script order into the episode's recording.
+From there it's a recording like an actor's (docs/RECORDED_DIALOGUE.md): `align` windows the shots
+from it, using the timings the model gave in place of Whisper (`<recording>.words.json`).
+
+    <ep>/audio/lines/lines.json                  what was asked and what's picked
+    <ep>/audio/lines/<shot>.<n>_t<take>.wav      a take of a line
+    <ep>/audio/lines/lines_recording.wav         the recording, and .words.json beside it
+
+Nothing is paid for here: `plan` says what a generate would make, the queue makes it
+(runner.enqueue_line), and a line is only asked for once its character has a speaker. A take whose
+words or speaker no longer match the script is `changed`, and is never used without saying so.
+
+The pause a silent shot gives is its `dur:`. Aligning turns `dur:` into a comment, so what was read
+is kept in lines.json for the next time the recording is laid.
+"""
+from __future__ import annotations
+
+import io
+import json
+import os
+import subprocess
+import tempfile
+import threading
+import wave
+
+from seriesmith import build as BLD
+from seriesmith import ff as FF
+from seriesmith.core import fileio as F
+from seriesmith.core import paths as P
+from seriesmith.core.ir import stable_seed
+
+DIR = os.path.join("audio", "lines")
+RECORDING = "lines_recording.wav"
+RATE = 44100
+WITHIN_SHOT = 0.35       # seconds between two lines in one shot
+BETWEEN_SHOTS = 0.60     # and between two shots that speak, one after the other
+AROUND_SILENT = 0.55     # what a pause holds besides its silent shots' own length (align's LEAD + TAIL)
+ENDS = 0.50              # silence before the first line, and after the last
+SILENT_DEFAULT = 3.04    # a silent shot with no `dur:`, as align reads one
+_WRITING = threading.Lock()   # takes end together on a provider's parallel lane: one edit of lines.json at a time
+
+
+class LinesError(ValueError):
+    pass
+
+
+def folder(ep: str) -> str:
+    return os.path.join(ep, DIR)
+
+
+def record_path(ep: str) -> str:
+    return os.path.join(folder(ep), "lines.json")
+
+
+def load(ep: str) -> dict:
+    got = F.read_json_or(record_path(ep), {}, want=dict)
+    got.setdefault("lines", {})
+    got.setdefault("pauses", {})
+    return got
+
+
+def save(ep: str, record: dict) -> None:
+    os.makedirs(folder(ep), exist_ok=True)
+    F.write_json(record_path(ep), record)
+
+
+def script_shots(ep: str) -> list[dict]:
+    """Every shot in script order: {"id", "dur", "lines": [{"id", "shot", "who", "text"}]}."""
+    from seriesmith.core.series_config import variant_of
+    cfg_path, md_path = P.episode_files(ep)
+    with open(cfg_path, encoding="utf-8-sig") as fh:
+        cfg = json.load(fh)
+    book = cfg.get("subjects") or {}
+    subjects = {k for k in book if not k.startswith("_")}
+    chars = {k for k, v in book.items() if not k.startswith("_") and isinstance(v, dict)
+             and v.get("kind", "character") == "character"}
+    with open(md_path, encoding="utf-8-sig") as fh:
+        text = fh.read()
+    epi = BLD.parse_script(text, subjects, chars, variant_of(cfg))
+    out = []
+    for seq in epi["sequences"]:
+        for sh in seq["shots"]:
+            lines = [{"id": f"{sh['id']}.{i}", "shot": sh["id"], "who": d["who"], "text": d["line"]}
+                     for i, d in enumerate(sh["dialogue"], 1) if str(d.get("line") or "").strip()]
+            out.append({"id": sh["id"], "dur": sh.get("duration"), "lines": lines})
+    return out
+
+
+def _speaker(cfg: dict, who: str, service: str) -> dict | None:
+    from seriesmith.targets.generic.router_audio import speaker_of
+    book = cfg.get("subjects") or {}
+    entry = book.get(who) if isinstance(book.get(who), dict) else {}
+    # a variant shares its base's voice
+    base = book.get(entry.get("of")) if entry.get("of") else None
+    return speaker_of(base if isinstance(base, dict) else entry, service)
+
+
+def _name(cfg: dict, who: str) -> str:
+    entry = (cfg.get("subjects") or {}).get(who)
+    return (entry.get("name") if isinstance(entry, dict) else None) or who
+
+
+def _picked(row: dict) -> dict | None:
+    return next((t for t in row.get("takes") or [] if t.get("take") == row.get("picked") and t.get("status") == "ok"), None)
+
+
+def plan(ep: str, target) -> dict:
+    """What the episode's lines are, and what generating would make. Costs nothing.
+    {"target", "service", "lines": [{"id", "shot", "who", "name", "text", "chars", "status": "missing" |
+    "ok" | "changed", "speaker", "picked", "takes"}], "characters": [{"who", "name", "lines", "chars",
+    "speaker"}], "to_make": {"lines", "chars"}, "no_speaker": [names], "recording": path or None,
+    "can_lay": whether every line has a take}."""
+    from seriesmith import targets as TG
+    cfg_path, _ = P.episode_files(ep)
+    with open(cfg_path, encoding="utf-8-sig") as fh:
+        cfg = json.load(fh)
+    service = TG.service_of(target.spec)
+    record = load(ep)
+    rows, people = [], {}
+    for shot in script_shots(ep):
+        for ln in shot["lines"]:
+            speaker = _speaker(cfg, ln["who"], service)
+            have = record["lines"].get(ln["id"]) or {}
+            chosen = _picked(have)
+            status = "missing"
+            if chosen:
+                same = chosen.get("text") == ln["text"] and chosen.get("voice") == (speaker or {}).get("id")
+                status = "ok" if same else "changed"
+            rows.append({**ln, "name": _name(cfg, ln["who"]), "chars": len(ln["text"]), "status": status,
+                         "speaker": speaker, "picked": have.get("picked"), "takes": have.get("takes") or []})
+            p = people.setdefault(ln["who"], {"who": ln["who"], "name": _name(cfg, ln["who"]), "lines": 0,
+                                              "chars": 0, "speaker": speaker})
+            p["lines"] += 1
+            p["chars"] += len(ln["text"])
+    todo = [r for r in rows if r["status"] != "ok"]
+    recording = os.path.join(DIR, RECORDING).replace("\\", "/")
+    return {"target": target.id, "label": target.label, "service": service, "lines": rows,
+            "characters": list(people.values()),
+            "to_make": {"lines": len(todo), "chars": sum(r["chars"] for r in todo)},
+            "no_speaker": sorted(p["name"] for p in people.values() if not p["speaker"]),
+            "recording": recording if os.path.isfile(os.path.join(ep, recording)) else None,
+            "can_lay": bool(rows) and all(_picked(record["lines"].get(r["id"]) or {}) for r in rows)}
+
+
+def reserve(ep: str, line: dict, target) -> int:
+    """A new take of `line` written down as running, before it's sent. Its number."""
+    with _WRITING:
+        record = load(ep)
+        row = record["lines"].setdefault(line["id"], {"takes": []})
+        n = max((t["take"] for t in row["takes"]), default=0) + 1
+        speaker = line["speaker"]
+        row["takes"].append({"take": n, "status": "running", "text": line["text"], "voice": speaker["id"],
+                             "voice_name": speaker.get("name") or speaker["id"], "target": target.id, "chars": len(line["text"])})
+        save(ep, record)
+    return n
+
+
+def fail(ep: str, line_id: str, n: int, error: str) -> None:
+    with _WRITING:
+        record = load(ep)
+        for t in (record["lines"].get(line_id) or {}).get("takes") or []:
+            if t["take"] == n:
+                t.update(status="failed", error=error[:800])
+        save(ep, record)
+
+
+def call_for(ep: str, line: dict, n: int, target) -> tuple[str, dict]:
+    """(the model's id, its arguments) for take `n` of a line: the words alone, in its speaker."""
+    from types import SimpleNamespace as NS
+    from seriesmith import targets as TG
+    entry = {"voices": {TG.service_of(target.spec): line["speaker"]}}
+    job = NS(prompt=line["text"], seed=stable_seed(os.path.basename(os.path.abspath(ep)), line["id"], str(n)),
+             ref=NS(entry=entry, subject=line["who"]))
+    model, args = target.module.router_call(target, job)
+    from seriesmith.backends.router import ROUTING
+    args[ROUTING]["values"]["use"] = "timed"       # its timings too, where the provider gives them
+    return model, args
+
+
+def words_from(alignment: dict | None) -> list[dict] | None:
+    """Character timings ({"characters", "character_start_times_seconds", "character_end_times_seconds"})
+    as words, as Whisper's transcript gives them: [{"word", "start", "end"}]."""
+    if not isinstance(alignment, dict):
+        return None
+    chars = alignment.get("characters")
+    starts = alignment.get("character_start_times_seconds")
+    ends = alignment.get("character_end_times_seconds")
+    if not (isinstance(chars, list) and isinstance(starts, list) and isinstance(ends, list)) \
+            or not chars or not len(chars) == len(starts) == len(ends):
+        return None
+    words, word, a, b = [], "", 0.0, 0.0
+    for c, s, e in zip(chars, starts, ends):
+        if str(c).isspace():
+            if word:
+                words.append({"word": word, "start": round(a, 3), "end": round(b, 3)})
+            word = ""
+            continue
+        if not word:
+            a = float(s)
+        word += str(c)
+        b = float(e)
+    if word:
+        words.append({"word": word, "start": round(a, 3), "end": round(b, 3)})
+    return words or None
+
+
+def _to_wav(source: str, dest: str) -> None:
+    """Any recording as what the episode's recording is laid from: 44.1 kHz, mono, 16 bit."""
+    if not FF.have("ffmpeg"):
+        raise LinesError("laying lines needs ffmpeg")
+    got = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", source, "-ac", "1", "-ar", str(RATE),
+                          "-c:a", "pcm_s16le", dest], capture_output=True, text=True)
+    if got.returncode != 0 or not os.path.isfile(dest):
+        raise LinesError(f"that take's sound couldn't be read: {(got.stderr or '').strip()[:300]}")
+
+
+def finish(ep: str, line_id: str, n: int, run) -> dict:
+    """A finished run's sound kept as take `n` of the line, with its timings; picked when the line
+    has no take picked, or the one picked no longer matches its words."""
+    outs = [o for o in run.outputs() if o.type in ("audio", "file")]
+    if not outs:
+        raise LinesError("the job finished but returned no sound")
+    fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1] or ".mp3")
+    os.close(fd)
+    os.makedirs(folder(ep), exist_ok=True)
+    name = f"{line_id}_t{n:02d}.wav"
+    dest = os.path.join(folder(ep), name)
+    try:
+        outs[0].save(tmp)
+        scratch = dest + ".tmp.wav"
+        try:
+            _to_wav(tmp, scratch)
+            F.replace(scratch, dest)
+        finally:
+            if os.path.exists(scratch):
+                os.remove(scratch)
+    finally:
+        os.remove(tmp)
+    with wave.open(dest, "rb") as w:
+        seconds = w.getnframes() / float(w.getframerate())
+    result = getattr(run, "result", None)
+    words = words_from(result.get("alignment") if isinstance(result, dict) else None)
+    with _WRITING:
+        record = load(ep)
+        row = record["lines"].setdefault(line_id, {"takes": []})
+        take = next((t for t in row["takes"] if t["take"] == n), None)
+        if take is None:
+            take = {"take": n}
+            row["takes"].append(take)
+        take.update(status="ok", file=os.path.join(DIR, name).replace("\\", "/"), seconds=round(seconds, 3),
+                    **({"words": words} if words else {}))
+        was = _picked(row)
+        if was is None or was.get("text") != take.get("text") or was.get("voice") != take.get("voice"):
+            row["picked"] = n
+        save(ep, record)
+    return take
+
+
+def pick(ep: str, line_id: str, n: int) -> None:
+    with _WRITING:
+        record = load(ep)
+        row = record["lines"].get(line_id) or {}
+        if not any(t.get("take") == n and t.get("status") == "ok" for t in row.get("takes") or []):
+            raise LinesError(f"{line_id} has no finished take {n}")
+        row["picked"] = n
+        save(ep, record)
+
+
+def _silence(seconds: float) -> bytes:
+    return b"\0\0" * int(round(seconds * RATE))
+
+
+def lay(ep: str) -> dict:
+    """Every line's picked take, in script order with the script's pauses, as the episode's recording
+    and its word timings beside it, attached as the dialogue track. Paid for already: costs nothing.
+    {"path", "seconds", "lines", "timed", "notes"}. LinesError when a line has no take."""
+    record = load(ep)
+    shots = script_shots(ep)
+    missing = [ln["id"] for s in shots for ln in s["lines"] if not _picked(record["lines"].get(ln["id"]) or {})]
+    if missing:
+        raise LinesError(f"{len(missing)} line(s) have no take yet: {', '.join(missing[:6])}")
+    if not any(s["lines"] for s in shots):
+        raise LinesError("this script has no lines")
+    pauses = record["pauses"]
+    audio, words, notes = bytearray(), [], []
+    untimed = 0
+    at = 0.0
+
+    def add(data: bytes) -> None:
+        nonlocal at
+        audio.extend(data)
+        at += len(data) / 2 / RATE
+
+    add(_silence(ENDS))
+    silent = 0.0
+    spoke_last = False
+    for shot in shots:
+        if not shot["lines"]:
+            # what this shot's `dur:` said when it still had one (align comments it out)
+            secs = shot["dur"] if shot["dur"] else pauses.get(shot["id"], SILENT_DEFAULT)
+            pauses[shot["id"]] = float(secs)
+            silent += float(secs)
+            continue
+        if silent:
+            add(_silence(silent + AROUND_SILENT))
+        elif spoke_last:
+            add(_silence(BETWEEN_SHOTS))
+        silent = 0.0
+        for i, ln in enumerate(shot["lines"]):
+            take = _picked(record["lines"][ln["id"]])
+            if take.get("text") != ln["text"]:
+                notes.append(f"{ln['id']}: its take says something else now: generate it again")
+            if i:
+                add(_silence(WITHIN_SHOT))
+            with wave.open(os.path.join(ep, take["file"]), "rb") as w:
+                data = w.readframes(w.getnframes())
+            if take.get("words"):
+                words += [{"word": x["word"], "start": round(x["start"] + at, 3), "end": round(x["end"] + at, 3)}
+                          for x in take["words"]]
+            else:
+                untimed += 1
+            add(data)
+        spoke_last = True
+    add(_silence(silent + (AROUND_SILENT if silent else 0) + ENDS))
+
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(RATE)
+        w.writeframes(bytes(audio))
+    os.makedirs(folder(ep), exist_ok=True)
+    path = os.path.join(folder(ep), RECORDING)
+    F.write_bytes(path, buf.getvalue())
+    cache = path + ".words.json"
+    if untimed:
+        # a line with no timings: Whisper hears the whole recording, as for an actor's
+        if os.path.exists(cache):
+            os.remove(cache)
+        notes.append(f"{untimed} line(s) came back with no timings, so align will transcribe the recording")
+    else:
+        F.write_json(cache, words)                     # after the recording: align wants it the newer
+    save(ep, record)
+    from seriesmith import track as K
+    K.set_track(ep, os.path.join(DIR, RECORDING).replace("\\", "/"))
+    return {"path": os.path.join(DIR, RECORDING).replace("\\", "/"), "seconds": round(at, 3),
+            "lines": sum(len(s["lines"]) for s in shots), "timed": not untimed, "notes": notes}

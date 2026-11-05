@@ -4583,6 +4583,30 @@ Whether a provider can be reached with a key, by one read that starts nothing: a
 doesn't exist. Body `{definition, key?}`: `key`, else the one saved. The key isn't kept. Returns
 `{reached, key_ok, status, says}`. A 401 or 403 can be the key or a firewall in front of it.
 
+### `GET /seriesmith/lines`
+
+An episode's lines from a voice model on a provider (`seriesmith/lines.py`), costing nothing. Query `ep`,
+`target?` (default: the voice model). Returns `{available, label, service, lines: [{id, shot, who, name, text,
+chars, status: missing | ok | changed, speaker, picked, takes}], characters, to_make: {lines, chars}, no_speaker,
+recording, can_lay}`, or `{available: false, why}`.
+
+### `POST /seriesmith/lines/generate`
+
+Paid. Queues a take of each line in `lines`, else of each without one matching the script. Body `{ep,
+confirm_chars, target?, lines?, backend?}`: `confirm_chars` is the total shown, and any other is **409**. A
+character with no speaker is **400**. Nothing is sent in either case. Returns `{queued, errors}`;
+`seriesmith.lines` follows each.
+
+### `POST /seriesmith/lines/pick`
+
+Which finished take of a line is used. Body `{ep, line, take}`.
+
+### `POST /seriesmith/lines/lay`
+
+Costs nothing. Lays each line's picked take in script order, with the pauses silent shots give, into
+`audio/lines/lines_recording.wav`, writes its timings beside it, and attaches it as the dialogue track. Body
+`{ep}`. Returns `{path, seconds, lines, timed, notes}`. Then `POST /seriesmith/align` as for any recording.
+
 ### `GET /seriesmith/providers/voices`
 
 The speakers a provider has, costing nothing. Query `service`, `list?` (an id from the provider row's

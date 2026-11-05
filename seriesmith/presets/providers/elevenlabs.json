@@ -23,6 +23,23 @@
   "result": {
     "type": "audio"
   },
+  "timed": {
+    "steps": [
+      {
+        "method": "POST",
+        "url": "/v1/text-to-speech/{voice}/with-timestamps",
+        "json": {
+          "model_id": "$model",
+          "...": "$args"
+        }
+      }
+    ],
+    "result": {
+      "inline": "audio_base64",
+      "mime": "audio/mpeg",
+      "type": "audio"
+    }
+  },
   "check": "/v1/models",
   "key_url": "https://elevenlabs.io/app/settings/api-keys",
   "voices": {

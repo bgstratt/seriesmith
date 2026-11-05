@@ -111,6 +111,43 @@ export interface ProviderRow {
 }
 
 /** POST /seriesmith/providers/read-spec: a model's API reference read into a proposed target. */
+export interface LineTake {
+  take: number;
+  status: "running" | "ok" | "failed";
+  text: string;
+  file?: string;
+  seconds?: number;
+  error?: string;
+}
+
+export interface LineRow {
+  id: string;
+  shot: string;
+  who: string;
+  name: string;
+  text: string;
+  chars: number;
+  status: "missing" | "ok" | "changed";
+  speaker: { id: string; name?: string; preview?: string } | null;
+  picked?: number | null;
+  takes: LineTake[];
+}
+
+/** GET /seriesmith/lines */
+export interface LinesPlan {
+  available: boolean;
+  why?: string;
+  target: string;
+  label: string;
+  service: string;
+  lines: LineRow[];
+  characters: { who: string; name: string; lines: number; chars: number; speaker: LineRow["speaker"] }[];
+  to_make: { lines: number; chars: number };
+  no_speaker: string[];
+  recording: string | null;
+  can_lay: boolean;
+}
+
 export interface ProviderVoice {
   id: string;
   name: string;
@@ -539,6 +576,12 @@ export interface Api {
   /** One read that starts nothing. The key isn't kept. */
   checkProvider(definition: Record<string, unknown>, key: string): Promise<{ reached: boolean; key_ok: boolean; proves_key?: boolean; status: number | null; says: string }>;
   readProviderSpec(req: { service: string; model: string; kind?: string; text: string; path?: string }): Promise<ProviderSpecRead>;
+  /** What an episode's lines are, and what generating them would make: costs nothing. */
+  lines(ep: string): Promise<LinesPlan>;
+  /** Paid: `confirm_chars` is the total the person was shown. */
+  generateLines(req: { ep: string; confirm_chars: number; lines?: string[] }): Promise<{ queued: { line: string; take: number; job: string }[]; errors: { line: string; error: string }[] }>;
+  pickLine(ep: string, line: string, take: number): Promise<{ ok: boolean }>;
+  layLines(ep: string): Promise<{ path: string; seconds: number; lines: number; timed: boolean; notes: string[] }>;
   /** A provider's speakers: one read that costs nothing. */
   providerVoices(req: { service: string; list?: string; search?: string; after?: string }): Promise<{ voices: ProviderVoice[]; next: string }>;
   /** Null `id` takes the speaker away. */
@@ -1093,6 +1136,10 @@ export function createHttpApi(t: Transport): Api {
     readProviderSpec: (req) => call("POST", "/seriesmith/providers/read-spec", req),
     providerVoices: ({ service, list, search, after }) => call("GET", `/seriesmith/providers/voices?service=${encodeURIComponent(service)}${list ? `&list=${encodeURIComponent(list)}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}${after ? `&after=${encodeURIComponent(after)}` : ""}`),
     putProviderVoice: (req) => call("PUT", "/seriesmith/refs/provider-voice", req),
+    lines: (ep) => call("GET", `/seriesmith/lines?ep=${encodeURIComponent(ep)}`),
+    generateLines: (req) => call("POST", "/seriesmith/lines/generate", req),
+    pickLine: (ep, line, take) => call("POST", "/seriesmith/lines/pick", { ep, line, take }),
+    layLines: (ep) => call("POST", "/seriesmith/lines/lay", { ep }),
     draftProvider: (req) => call("POST", "/seriesmith/providers/draft", req),
     checkProvider: (definition, key) => call("POST", "/seriesmith/providers/check", { definition, key }),
     routerModels: (ep) => get(`/seriesmith/router/models?${qs({ ep: ep || undefined })}`),

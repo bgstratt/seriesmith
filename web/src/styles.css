@@ -80,6 +80,9 @@
 .h3-root .h3-btn:hover:not(:disabled) { background: var(--h3-hover); }
 .h3-root .h3-btn:disabled { opacity: 0.5; cursor: default; }
 .h3-root .h3-btn.h3-primary { background: var(--h3-primary); border-color: var(--h3-primary); color: var(--h3-primary-fg); font-weight: 600; }
+/* a button that spends money: never the same green as one that doesn't */
+.h3-root .h3-btn.h3-paid { background: #b4641e; border-color: #b4641e; color: #fff; font-weight: 600; }
+.h3-root .h3-btn.h3-paid:hover:not(:disabled) { filter: brightness(1.1); background: #b4641e; }
 .h3-root .h3-btn.h3-primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--h3-primary); }
 .h3-root .h3-btn.h3-danger { color: var(--h3-failed); }
 .h3-root .h3-btn.h3-icon { padding: 2px 5px; min-width: 22px; justify-content: center; }

@@ -9,7 +9,7 @@
 
 import { ProvidersCard } from "./ApiModels";
 import { useEffect, useState } from "react";
-import { loadTargets, openBrowse, openFeatures, openSettings, setBackends, tookFolder } from "../actions";
+import { loadTargets, openBrowse, openFeatures, openMissing, openSettings, setBackends, tookFolder } from "../actions";
 import { api } from "../host";
 import { useApp } from "../store";
 import type { BackendInfo } from "../store";
@@ -262,7 +262,11 @@ function SettingsBody({ server }: { server: boolean }) {
             <button className="h3-btn" onClick={() => openFeatures(true)}>
               <i className="pi pi-box" /> Features…
             </button>
-            <span className="h3-small h3-muted">Add models, node packs and tools: H3 at full quality, voices, upscale, post, ffmpeg.</span>
+            <button className="h3-btn" title="Add a model (Comfy Router, another API, a workflow of yours) or see what each one needs"
+              onClick={() => { openSettings(false); openMissing(null); }}>
+              <i className="pi pi-sliders-h" /> Add or validate models…
+            </button>
+            <span className="h3-small h3-muted">Features installs models, node packs and tools: H3 at full quality, voices, upscale, post, ffmpeg.</span>
           </div>
           <details open={!!(view?.settings.ffmpeg_dir || view?.settings.comfyui_dir)}>
             <summary className="h3-small">Folders (ffmpeg, ComfyUI)</summary>

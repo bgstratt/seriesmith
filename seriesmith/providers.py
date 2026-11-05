@@ -28,6 +28,8 @@ is plain data, run by backends/http.py:
                    "error": "data.error", "every": 5, "timeout": 3600}}
       ],
       "result": {"files": "data.outputs"},   # or {"url": "/videos/{task}/content", "auth": true, "type": "video"}
+                                             # or {"inline": "audio_base64", "mime": "audio/mpeg"}: inside the answer
+      "timed": {"steps": [...], "result": {...}},   # a voice's other way, with its timings (lines.py)
       "voices": {"id": "voice_id", "name": "name", "preview": "preview_url", "browse": "https://...",
                  "lists": [{"id": "own", "label": "Its own voices", "url": "/v1/voices", "list": "voices",
                             "free": true}]}

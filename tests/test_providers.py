@@ -1802,6 +1802,243 @@ class AVoiceOnAProvider(ScratchSettings):
         self.assertTrue(any(n.endswith((".mp3", ".wav")) for n in made), made)
 
 
+def fake_speech(seconds=1.0):
+    """A real little sound, as a provider's bytes: what ffmpeg must be able to read."""
+    import io
+    import wave
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(44100)
+        w.writeframes(b"\x10\x00" * int(44100 * seconds))
+    return buf.getvalue()
+
+
+def timed_answer(text, seconds=1.0):
+    """ElevenLabs' with-timestamps: the sound as base64, a time for each character."""
+    import base64
+    n = max(len(text), 1)
+    return {"audio_base64": base64.b64encode(fake_speech(seconds)).decode("ascii"),
+            "alignment": {"characters": list(text),
+                          "character_start_times_seconds": [round(i * seconds / n, 3) for i in range(len(text))],
+                          "character_end_times_seconds": [round((i + 1) * seconds / n, 3) for i in range(len(text))]}}
+
+
+class Lines(ScratchSettings):
+    """An episode's lines: what they'd cost first, a take each, then a recording align can read."""
+
+    def setUp(self):
+        super().setUp()
+        from seriesmith import api as A
+        from seriesmith import lines as LN
+        self.A, self.LN = A, LN
+        self.fake = Fake()
+        self.addCleanup(self.fake.close)
+        d = json.loads(json.dumps(PR.definitions()["elevenlabs"]))
+        d.update(id="local_eleven", base_url=self.fake.url, untested=False)
+        self.ok(A.put_provider(self.ctx, {"definition": d}))
+        self.ok(A.put_provider_key(self.ctx, {"id": "local_eleven", "key": KEY}))
+        spec = json.loads(json.dumps(AS.propose("elevenlabs", "eleven_v4", "")["proposal"]))
+        spec["api"]["service"] = "local_eleven"
+        spec.update(id="eleven_v4_local", draft=False)
+        self.tid = self.ok(A.put_targets_custom(self.ctx, {"ep": self.ep, "target": spec, "scope": "show"}))["id"]
+        self.t = TG.load_target(self.tid, "audio", root=self.ep)
+        self.fake.routes[("POST", "/v1/text-to-speech/v1/with-timestamps")] = lambda c: timed_answer(json.loads(c["body"])["text"])
+        self.fake.routes[("POST", "/v1/text-to-speech/v2/with-timestamps")] = lambda c: timed_answer(json.loads(c["body"])["text"])
+
+    def plan(self):
+        return self.ok(self.A.get_lines(self.ctx, {"ep": self.ep, "target": self.tid}))
+
+    def people(self):
+        return sorted({r["who"] for r in self.plan()["lines"]})
+
+    def speak_all(self):
+        for i, who in enumerate(self.people()):
+            base = (json.load(open(self.series_path(), encoding="utf-8"))["subjects"][who]).get("of") or who
+            self.A.put_refs_provider_voice(self.ctx, {"ep": self.ep, "subject": base, "service": "local_eleven",
+                                                      "id": "v1" if i % 2 == 0 else "v2", "name": f"Voice {i}"})
+
+    def series_path(self):
+        from seriesmith.core import paths as P
+        return P.episode_files(self.ep)[0]
+
+    def generate(self, **more):
+        plan = self.plan()
+        return self.A.post_lines_generate(self.ctx, {"ep": self.ep, "target": self.tid, "confirm_chars": plan["to_make"]["chars"], "backend": "api:local_eleven", **more})
+
+    def posts(self):
+        return [c for c in self.fake.calls if c["method"] == "POST"]
+
+    def test_a_voice_model_that_cant_says_so(self):
+        got = self.ok(self.A.get_lines(self.ctx, {"ep": self.ep, "target": "ltx2_voice"}))
+        self.assertFalse(got["available"])
+        self.assertIn("provider", got["why"])
+
+    def test_the_plan_counts_what_it_would_cost_and_sends_nothing(self):
+        plan = self.plan()
+        self.assertTrue(plan["available"])
+        self.assertGreater(plan["to_make"]["lines"], 0)
+        self.assertEqual(plan["to_make"]["chars"], sum(len(r["text"]) for r in plan["lines"]))
+        self.assertEqual(sum(c["chars"] for c in plan["characters"]), plan["to_make"]["chars"])
+        self.assertFalse(plan["can_lay"])
+        self.assertEqual(self.fake.calls, [])
+
+    def test_refused_until_every_speaker_is_picked_and_nothing_is_sent(self):
+        code, data = self.generate()
+        self.assertEqual(code, 400)
+        self.assertIn("pick a speaker", data["error"])
+        self.assertEqual(self.posts(), [])
+
+    def test_refused_when_the_total_is_not_what_was_shown(self):
+        self.speak_all()
+        plan = self.plan()
+        code, data = self.A.post_lines_generate(self.ctx, {"ep": self.ep, "target": self.tid, "confirm_chars": plan["to_make"]["chars"] + 1, "backend": "api:local_eleven"})
+        self.assertEqual(code, 409)
+        self.assertEqual(self.posts(), [])
+
+    def make_them(self):
+        self.speak_all()
+        got = self.ok(self.generate())
+        self.assertEqual(got["errors"], [])
+        self.settle()
+        return got
+
+    def test_each_line_is_a_call_with_the_words_alone(self):
+        got = self.make_them()
+        plan = self.plan()
+        self.assertEqual(len(self.posts()), len(plan["lines"]))
+        self.assertEqual(len(got["queued"]), len(plan["lines"]))
+        sent = sorted(json.loads(c["body"])["text"] for c in self.posts())
+        self.assertEqual(sent, sorted(r["text"] for r in plan["lines"]))
+        for c in self.posts():
+            self.assertEqual(set(json.loads(c["body"])), {"model_id", "text", "seed"})
+            self.assertEqual(c["headers"]["xi-api-key"], KEY)
+        self.assertEqual({r["status"] for r in plan["lines"]}, {"ok"})
+        self.assertEqual(plan["to_make"], {"lines": 0, "chars": 0})
+        self.assertTrue(plan["can_lay"])
+
+    def test_they_lay_into_a_recording_with_its_timings_in_script_order(self):
+        import wave
+        self.make_them()
+        rows = self.plan()["lines"]
+        got = self.ok(self.A.post_lines_lay(self.ctx, {"ep": self.ep}))
+        self.assertTrue(got["timed"])
+        self.assertEqual(got["lines"], len(rows))
+        path = os.path.join(self.ep, got["path"])
+        with wave.open(path, "rb") as w:
+            self.assertAlmostEqual(w.getnframes() / w.getframerate(), got["seconds"], places=1)
+        with open(path + ".words.json", encoding="utf-8") as fh:
+            words = json.load(fh)
+        self.assertEqual([w["word"] for w in words], " ".join(r["text"] for r in rows).split())
+        starts = [w["start"] for w in words]
+        self.assertEqual(starts, sorted(starts))
+        self.assertGreaterEqual(starts[0], self.LN.ENDS)
+        # attached, and align needs no Whisper: the timings are newer than the recording
+        with open(self.series_path(), encoding="utf-8") as fh:
+            audio = json.load(fh)["audio"]
+        self.assertEqual(audio["mode"], "source_track")
+        self.assertEqual(audio["track"], got["path"])
+        from seriesmith import edit as E
+        self.assertTrue(E.has_words(path))
+
+    def test_a_silent_shot_keeps_its_pause_after_align_takes_its_dur(self):
+        self.make_them()
+        shots = self.LN.script_shots(self.ep)
+        silent = [s for s in shots if not s["lines"]]
+        self.ok(self.A.post_lines_lay(self.ctx, {"ep": self.ep}))
+        kept = self.LN.load(self.ep)["pauses"]
+        self.assertEqual(set(kept), {s["id"] for s in silent})
+        for s in silent:
+            self.assertEqual(kept[s["id"]], float(s["dur"] or self.LN.SILENT_DEFAULT))
+
+    def test_align_reads_the_recording_with_no_whisper_and_every_word_matches(self):
+        import subprocess
+        from test_render import ENV
+        self.make_them()
+        rows = self.plan()["lines"]
+        self.ok(self.A.post_lines_lay(self.ctx, {"ep": self.ep}))
+        out = os.path.join(self.tmp, "align.json")
+
+        def align(*more):
+            got = subprocess.run([sys.executable, "-m", "seriesmith.align", self.ep, "--json", out, *more],
+                                 capture_output=True, text=True, env=ENV)
+            self.assertEqual(got.returncode, 0, got.stderr[-800:] + got.stdout[-800:])
+            with open(out, encoding="utf-8") as fh:
+                return json.load(fh)
+
+        dry = align("--dry-run")
+        self.assertEqual(dry["words"], sum(len(r["text"].split()) for r in rows))
+        self.assertEqual([n for n in dry["notes"] if "couldn't hear" in n or "matched" in n], [])
+        real = align()
+        self.assertTrue(real["ok"])
+        from seriesmith import build as BLD  # noqa: F401
+        from seriesmith.core import paths as P
+        with open(P.episode_files(self.ep)[1], encoding="utf-8") as fh:
+            script = fh.read()
+        self.assertIn("audio: ", script)
+        # laid again after align took the silent shots' `dur:`: their pauses are still there
+        again = self.ok(self.A.post_lines_lay(self.ctx, {"ep": self.ep}))
+        self.assertTrue(again["timed"])
+        again2 = align("--dry-run")
+        self.assertEqual(again2["duration"], real["duration"])
+
+    def test_laying_refuses_while_a_line_has_no_take(self):
+        code, data = self.A.post_lines_lay(self.ctx, {"ep": self.ep})
+        self.assertEqual(code, 400)
+        self.assertIn("no take yet", data["error"])
+
+    def test_a_line_redone_alone_and_a_take_picked(self):
+        self.make_them()
+        first = self.plan()["lines"][0]
+        before = len(self.posts())
+        got = self.ok(self.A.post_lines_generate(self.ctx, {"ep": self.ep, "target": self.tid, "lines": [first["id"]], "confirm_chars": first["chars"], "backend": "api:local_eleven"}))
+        self.assertEqual(got["queued"][0]["take"], 2)
+        self.settle()
+        self.assertEqual(len(self.posts()), before + 1)
+        row = self.plan()["lines"][0]
+        self.assertEqual(row["picked"], 1)                   # kept: you choose after hearing it
+        self.ok(self.A.post_lines_pick(self.ctx, {"ep": self.ep, "line": row["id"], "take": 2}))
+        self.assertEqual(self.plan()["lines"][0]["picked"], 2)
+        self.assertEqual(self.A.post_lines_pick(self.ctx, {"ep": self.ep, "line": row["id"], "take": 9})[0], 400)
+
+    def test_a_changed_speaker_needs_its_line_again(self):
+        self.make_them()
+        row = self.plan()["lines"][0]
+        base = (json.load(open(self.series_path(), encoding="utf-8"))["subjects"][row["who"]]).get("of") or row["who"]
+        self.ok(self.A.put_refs_provider_voice(self.ctx, {"ep": self.ep, "subject": base, "service": "local_eleven", "id": "other"}))
+        plan = self.plan()
+        self.assertIn("changed", {r["status"] for r in plan["lines"] if r["who"] == row["who"]})
+        self.assertGreater(plan["to_make"]["chars"], 0)
+
+    def test_a_failure_is_said_on_its_line_and_the_rest_are_kept(self):
+        self.speak_all()
+        self.fake.routes[("POST", "/v1/text-to-speech/v1/with-timestamps")] = (402, {"detail": {"code": "insufficient_credits", "message": "no credits"}}, {})
+        self.ok(self.generate())
+        self.settle()
+        plan = self.plan()
+        failed = [t for r in plan["lines"] for t in r["takes"] if t["status"] == "failed"]
+        self.assertTrue(failed)
+        self.assertIn("no credits", failed[0]["error"])
+        self.assertNotIn(KEY, json.dumps(plan))
+        self.assertFalse(plan["can_lay"])
+
+    def test_words_from_character_timings(self):
+        got = self.LN.words_from({"characters": list("Hi, you."), "character_start_times_seconds": [0, .1, .2, .3, .4, .5, .6, .7],
+                                  "character_end_times_seconds": [.1, .2, .3, .4, .5, .6, .7, .8]})
+        self.assertEqual(got, [{"word": "Hi,", "start": 0.0, "end": 0.3}, {"word": "you.", "start": 0.4, "end": 0.8}])
+        self.assertIsNone(self.LN.words_from(None))
+        self.assertIsNone(self.LN.words_from({"characters": ["a"], "character_start_times_seconds": [], "character_end_times_seconds": []}))
+
+    def test_the_timed_way_shows_in_the_panel(self):
+        from seriesmith.backends.http import planned_calls
+        d = PR.definitions()["local_eleven"]
+        calls = planned_calls(d, "eleven_v4", {"text": "a", ROUTING: {"values": {"voice": "v1", "use": "timed"}}})
+        self.assertTrue(calls[0]["url"].endswith("/v1/text-to-speech/v1/with-timestamps"))
+        plain = planned_calls(d, "eleven_v4", {"text": "a", ROUTING: {"values": {"voice": "v1"}}})
+        self.assertTrue(plain[0]["url"].endswith("/v1/text-to-speech/v1"))
+
+
 class AWholeTake(ScratchSettings):
     """Pasted example to a finished take, through the queue, as the app does it."""
 

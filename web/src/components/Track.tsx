@@ -21,6 +21,8 @@ import { Progress } from "./Thumb";
 import { UploadStatus } from "./Upload";
 
 /** The h3 Shots header button; it badges the recording's state. */
+import { LinesSection } from "./Lines";
+
 export function TrackButton() {
   const ep = useApp((s) => s.ep);
   const st = useStatus();
@@ -329,6 +331,8 @@ export function TrackWindow() {
         A file already inside the episode is used where it is; anything else is copied into{" "}
         <span className="h3-mono">&lt;episode&gt;/audio/</span>. Attaching the same file twice changes nothing.
       </div>
+
+      <LinesSection ep={ep} />
 
       <div className="h3-h">Align the script to the recording</div>
       <Readiness words={words} />

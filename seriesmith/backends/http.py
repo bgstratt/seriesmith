@@ -358,6 +358,8 @@ def planned_calls(d: dict, model: str, arguments: dict) -> list[dict]:
     out = []
     has_files = bool(list(files_in(args)))
     how_files = d.get("files") or {}
+    if values.get("use") == "timed" and isinstance(d.get("timed"), dict):
+        d = {**d, **d["timed"]}
     if has_files and how_files.get("via") == "upload":
         for step in how_files.get("steps") or []:
             sends = ({"body": "(the file)"} if "body" in step else
@@ -518,8 +520,14 @@ class HttpRun(Run):
         keep = {k: v for k, v in self.values.items() if k != "args" and not isinstance(v, File)}
         self.id = json.dumps({"model": self.model, "step": self.step, "values": keep})
 
+    def _how(self) -> dict:
+        """What this run follows: the definition's, or its `timed` way when it was asked for and
+        the provider has one (a voice with its timings)."""
+        d = self.backend_obj.d
+        return (d.get("timed") if self.values.get("use") == "timed" and isinstance(d.get("timed"), dict) else None) or d
+
     def _steps(self) -> list[dict]:
-        return self.backend_obj.d.get("steps") or []
+        return self._how().get("steps") or []
 
     def _to_first_wait(self) -> None:
         """The steps up to the first that waits: the job is started here. Never asked twice: it
@@ -580,7 +588,7 @@ class HttpRun(Run):
                 self.step += 1
                 self._mark()
             # a provider can finish and still say it failed (fal: COMPLETED, with an error)
-            said = b._said(self.result, b.d.get("result") or {}) if self.result else ""
+            said = b._said(self.result, self._how().get("result") or {}) if self.result else ""
             if said:
                 self.error = said
                 say("failed")
@@ -607,8 +615,21 @@ class HttpRun(Run):
         if self.status != "succeeded":
             return []
         b = self.backend_obj
-        result = b.d.get("result") or {}
+        result = self._how().get("result") or {}
         want = result.get("type") or self.values.get("type")
+        if result.get("inline"):
+            # the file inside the answer, as base64 (ElevenLabs' with-timestamps)
+            import base64
+            data = pick(self.result, result["inline"])
+            if not isinstance(data, str) or not data:
+                return []
+            mime = str(result.get("mime") or "application/octet-stream")
+            ext = mimetypes.guess_extension(mime) or ".bin"
+
+            def inside(path, d=data):
+                from seriesmith.core import fileio as F
+                F.write_bytes(path, base64.b64decode(d))
+            return [Output("", f"output{ext}", want or "file", inside)]
         if self.file is not None:
             raw, kind = self.file
             ty = want or (kind.split("/")[0] if kind.split("/")[0] in ("video", "image", "audio") else "file")

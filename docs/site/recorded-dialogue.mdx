@@ -24,6 +24,23 @@ seriesmith assemble Shows\ep05 --proxy --audio master  # picture + your recordin
 
 Put the recording inside the episode folder (for example `ep05\audio\`) so the series config can point at it with a relative path. faster-whisper isn't one of seriesmith's dependencies: install it and numpy (and, with an NVIDIA card, `nvidia-cublas-cu12`) in the Python align runs from: seriesmith's own server and the command line use seriesmith's Python, the editor inside ComfyUI uses ComfyUI's ([FULL_SETUP.md](/full-setup), "Sound: voices and recorded dialogue"). Its model is downloaded in the Features window (**Recorded dialogue** has `medium.en`, the default; each other model is a line of its own, **Whisper large-v3 (align)** and so on) into the Hugging Face cache; align reads it from there and never downloads it itself, so with the model not there it stops and says which line to download. The editor does the same from its dialogue track: attach the recording, then align (`seriesmith/track.py`).
 
+## Lines from a voice model
+
+You don't need to record anything if a voice model on a provider speaks the lines. Choose one, such as
+ElevenLabs, under **Voices with:** on the Refs tab, and pick a speaker on each character's voice row. Then, in
+the **Recording** window, open **Or make the lines with a voice model**:
+
+1. **Look at the total.** Every line and character is counted before anything is sent, and a character with
+   no speaker stops it.
+2. **Generate them.** That's paid, one call per line. Each line is its own take, so you can redo one alone and
+   choose between its takes.
+3. **Lay them into the recording.** That's free. It joins the takes in script order, leaving each silent shot's
+   `dur:` as a pause, and attaches the result. The model's own timings go beside it, so no Whisper is needed.
+4. **Align**, as below.
+
+If you change a line or its speaker, its take is marked as changed. Redoing a line can change its length, so
+lay and align again afterwards: the shots after it move.
+
 ## Recording
 
 - Record the lines in script order, dry: no music under them. If there is music under them (a song), see **A recording with music: the vocal stem** below.
