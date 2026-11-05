@@ -144,6 +144,32 @@ class Writers(unittest.TestCase):
                          f"flat vector, {parts['size']}. She waits.")
 
 
+class WhoSaysIt(unittest.TestCase):
+    """"says" comes right before the words: told otherwise, a model gave a narrator's words to
+    the character on screen (2026-11-04)."""
+    CFG = {"subjects": {"dean": {"name": "Dean", "design": "a boy"},
+                        "narrator": {"name": "The narrator", "voice": "warm"}},
+           "locations": {"room": {"description": "a room"}}, "style": {"look": "flat"}}
+
+    def lines(self, cast, *dialogue):
+        shot = ir.Shot(id="sh010", size="medium", action="", cast=cast, dialogue=list(dialogue))
+        return LTX.shot_parts(shot, types.SimpleNamespace(location="room"), self.CFG)["lines"]
+
+    def test_a_narrator_over_someone_in_frame(self):
+        got = self.lines(["dean"], ir.Line(speaker="narrator", line="Once upon a time.", mode="vo"))
+        self.assertEqual(got, 'The narrator, in a voice that is warm, in an off-screen voiceover, says: '
+                              '"Once upon a time."')
+
+    def test_someone_in_frame_keeps_their_own_mouth_shut(self):
+        got = self.lines(["dean"], ir.Line(speaker="dean", line="Always.", mode="vo"))
+        self.assertEqual(got, 'Dean, in an off-screen voiceover, their lips staying closed, says: "Always."')
+
+    def test_on_screen_the_delivery_comes_before_says_too(self):
+        got = self.lines(["dean"], ir.Line(speaker="dean", line="Hi.", delivery="warmly"))
+        self.assertEqual(got, 'Dean, warmly, says: "Hi."')
+        self.assertEqual(self.lines(["dean"], ir.Line(speaker="dean", line="Hi.")), 'Dean says: "Hi."')
+
+
 class RequestPrompt(unittest.TestCase):
     TEMPLATE = TP.profile("prose")["request"]
 

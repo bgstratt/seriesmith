@@ -362,9 +362,9 @@ def board_parts(shot: ir.Shot, series_cfg: dict, sent_of: dict) -> dict:
     cam = framing.orbit((shot.camera or "").strip().rstrip("."), ", ".join(who))
     lines = []
     for d in shot.dialogue:
-        how = f", {d.delivery.strip()}" if (d.delivery or "").strip() else ""
-        where = {"vo": " in voiceover", "os": " from off screen"}.get(d.mode, "")
-        lines.append(f'{cap(name(d.speaker))} says{where}{how}: "{d.line.strip()}"')
+        how = [(d.delivery or "").strip(), {"vo": "in voiceover", "os": "from off screen"}.get(d.mode, "")]
+        how = ", ".join(x for x in how if x)
+        lines.append(f'{cap(name(d.speaker))}{", " + how + "," if how else ""} says: "{d.line.strip()}"')
     return {"frame": f"{frame} of {listed}." if listed else f"{frame}.",
             "camera": f"The camera {cam}." if cam else "",
             "action": (shot.action or "").strip(),

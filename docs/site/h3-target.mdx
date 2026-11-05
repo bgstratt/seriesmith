@@ -102,8 +102,11 @@ and got rendered into frame.
 | Form | Meaning | Slot? | Prompt |
 |---|---|---|---|
 | `RILEY: line` | on screen, speaking | yes | `<Subject N> (Sx) says,` |
-| `RILEY (V.O.): line` | voiceover / narration / phone | only if also in `who:` | `says in an off-screen voiceover` |
-| `RILEY (O.S.): line` | in the space, outside frame | only if also in `who:` | `says from off-screen, outside the frame` |
+| `RILEY (V.O.): line` | voiceover / narration / phone | only if also in `who:` | `..., in an off-screen voiceover, says:` |
+| `RILEY (O.S.): line` | in the space, outside frame | only if also in `who:` | `..., from off-screen, outside the frame, says:` |
+
+"says" is always the last thing before the words. With the voiceover phrase after it, H3 gave a
+narrator's words to the character on screen (2026-11-04), and how a line is said can be read aloud.
 
 A `(V.O.)` speaker who *is* in `who:` — a character narrating over their own
 shot — additionally gets H3's required lips-closed clause ("while their lips remain

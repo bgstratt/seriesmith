@@ -234,32 +234,26 @@ def framing_sentence(shot: dict, subjects: list[str], subj: dict, unref: list[st
 
 
 def dialogue_lines(shot: dict, speaker_label, subj: dict, copying: bool) -> list[str]:
-    """The shot's lines, each `<label>, <delivery>, says, <d>[English] ...</d>`
-    (V.O. and O.S. in the spec's own phrases)."""
+    """The shot's lines, each `<label>, <how it's said>, says, <d>[English] ...</d>`. "says" is
+    the last thing before the words: told after it, how a line is said gets read aloud as part
+    of it (a V.O. "on the truck radio"), or an off-screen line goes to whoever is on screen."""
     desc: list[str] = []
     for d in shot["dialogue"]:
-        deliv = f" {d['delivery']}," if d["delivery"] else ""
-        src = " in the recorded voice from <Audio 1>," if copying else ""
-        label = speaker_label(d["who"])
         mode = d.get("mode", "")
-        # A delivery note next to <d> is read aloud as part of the line (a
-        # V.O. "on the truck radio", then "crisp, without missing a beat,
-        # Excellent."), so it rides with the speaker, before the verb.
-        pre = f",{deliv}" if deliv else ""
+        how = [d["delivery"]] if d["delivery"] else []
         if mode == "vo":
-            # Exact phrase required by the spec, plus the lips-closed clause --
-            # but only when the speaker is actually visible, since that clause
-            # exists to stop H3 animating an on-screen mouth over narration.
-            line = (f"{label}{pre} says in an off-screen voiceover{src.rstrip(',')}: "
-                    f"<d>[English] {d['line']}</d>")
-            if d["who"] in subj:
-                line += " while their lips remain completely closed."
-            desc.append(line)
+            how.append("in an off-screen voiceover")
         elif mode == "os":
-            desc.append(f"{label}{pre} says from off-screen, outside the frame,{src} "
-                        f"<d>[English] {d['line']}</d>")
-        else:
-            desc.append(f"{label}{pre} says,{src} <d>[English] {d['line']}</d>")
+            how.append("from off-screen, outside the frame")
+        if copying:
+            how.append("in the recorded voice from <Audio 1>")
+        label = speaker_label(d["who"])
+        lead = f"{label}, {', '.join(how)}," if how else label
+        line = f"{lead} says{':' if mode else ','} <d>[English] {d['line']}</d>"
+        # only when the speaker is visible: it stops H3 animating an on-screen mouth over narration
+        if mode == "vo" and d["who"] in subj:
+            line += " while their lips remain completely closed."
+        desc.append(line)
     return desc
 
 

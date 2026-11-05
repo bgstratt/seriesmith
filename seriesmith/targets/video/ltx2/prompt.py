@@ -14,7 +14,7 @@ paragraph from the story IR and the series config, without calling the LLM:
 
     Style: <look>. A <size> of <location description>, <camera>. <Name> is
     <design>, and <Name> is <design>. <action> <Name>, in a voice that is
-    <voice>, says, <delivery>: "<line>" ... <sound>. <music> plays underneath.
+    <voice>, <delivery>, says: "<line>" ... <sound>. <music> plays underneath.
 
 Subjects are described in words (the series config's `design`): LTX takes no
 identity reference. A shot rendered from a first-frame keyframe still carries
@@ -38,24 +38,21 @@ def shot_parts(shot, seq, series_cfg: dict) -> dict:
         e = book.get(d.speaker) or {}
         name = e.get("name", d.speaker)
         voice = (e.get("voice") or "").strip()
-        who = name
-        if d.speaker not in introduced and voice:
-            who = f"{name}, in a voice that is {voice},"
+        # who and how first, "says" last, right before the words: told after "says", how it's
+        # said gets read aloud as part of the line, or the line goes to whoever is on screen
+        how = [f"in a voice that is {voice}"] if d.speaker not in introduced and voice else []
         introduced.add(d.speaker)
-        if d.mode == "vo":
-            verb = "says in an off-screen voiceover"
-            if d.speaker in shot.cast:
-                verb += ", their lips staying closed"
-        elif d.mode == "os":
-            verb = "says from off-screen, outside the frame"
-        else:
-            verb = "says"
         delivery = (d.delivery or "").strip()
-        # A V.O./O.S. note ("on the truck radio") next to the line gets read
-        # aloud as part of it, so on those it goes with the speaker instead.
-        if delivery and d.mode in ("vo", "os"):
-            who, delivery = f"{who.rstrip(',')}, {delivery},", ""
-        line = f'{who} {verb}{", " + delivery if delivery else ""}: "{d.line.strip()}"'
+        if delivery:
+            how.append(delivery)
+        if d.mode == "vo":
+            how.append("in an off-screen voiceover")
+            if d.speaker in shot.cast:
+                how.append("their lips staying closed")
+        elif d.mode == "os":
+            how.append("from off-screen, outside the frame")
+        who = f"{name}, {', '.join(how)}," if how else name
+        line = f'{who} says: "{d.line.strip()}"'
         lines.append(line[0].upper() + line[1:])
         spoken.append(f'{name}: "{d.line.strip()}"')
 
