@@ -45,7 +45,7 @@ import copy
 from seriesmith.targets import hosted_block
 from seriesmith.targets import prompt_template as TP
 from seriesmith.targets.generic.request_map import (  # noqa: F401
-    append, clamp, field_name, fill, fit, fit_size, k_of, max_chars, nearest_ratio, nearest_size,
+    append, clamp, field_name, fill, fit, fit_size, k_of, max_chars, nearest_ratio, nearest_size, ratio_for,
     pick_resolution, place, put, put_seed)
 from seriesmith.targets.image.common import keyframe_prompt, ref_prompt  # noqa: F401
 
@@ -101,7 +101,7 @@ def router_call(target, job) -> tuple[str, dict]:
 
     # the size
     if inp.get("ratio"):
-        put(args, field_name(inp["ratio"]), nearest_ratio(w, h, inp["ratio"]["values"]))
+        put(args, field_name(inp["ratio"]), ratio_for(w, h, inp["ratio"]))
     if inp.get("resolution"):
         put(args, field_name(inp["resolution"]), pick_resolution(w, h, inp["resolution"]["values"]))
     if inp.get("size"):

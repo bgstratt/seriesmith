@@ -1,0 +1,271 @@
+{
+  "read": "2026-11-05",
+  "source": "https://docs.dev.runwayml.com/openapi.json",
+  "models": [
+    {
+      "id": "gen4.5",
+      "label": "Gen-4.5",
+      "kind": "video",
+      "required": ["promptText"],
+      "fields": {
+        "promptText": {"type": "string", "maxLength": 1000},
+        "promptImage": {"type": "string"},
+        "ratio": {"type": "string", "enum": ["1280:720", "720:1280", "1104:832", "960:960", "832:1104", "1584:672"]},
+        "duration": {"type": "integer", "minimum": 2, "maximum": 10},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      },
+      "inputs": {
+        "prompt": {"field": "promptText", "max_chars": 1000},
+        "first": {"field": "promptImage"},
+        "ratio": {"name": "ratio", "values": ["1280:720", "720:1280", "1104:832", "960:960", "832:1104", "1584:672"], "with_frames": "keep"},
+        "duration": {"name": "duration", "min": 2, "max": 10},
+        "seed": {"name": "seed", "max": 4294967295}
+      },
+      "note": "12 credits a second ($0.12). No sound field. From words alone it takes only 1280:720 or 720:1280."
+    },
+    {
+      "id": "gen4_turbo",
+      "label": "Gen-4 Turbo (from a first frame)",
+      "kind": "video",
+      "required": ["promptImage"],
+      "fields": {
+        "promptText": {"type": "string", "maxLength": 1000},
+        "promptImage": {"type": "string"},
+        "ratio": {"type": "string", "enum": ["1280:720", "720:1280", "1104:832", "832:1104", "960:960", "1584:672"]},
+        "duration": {"type": "integer", "minimum": 2, "maximum": 10},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      },
+      "inputs": {
+        "prompt": {"field": "promptText", "max_chars": 1000},
+        "first": {"field": "promptImage"},
+        "ratio": {"name": "ratio", "values": ["1280:720", "720:1280", "1104:832", "832:1104", "960:960", "1584:672"], "with_frames": "keep"},
+        "duration": {"name": "duration", "min": 2, "max": 10},
+        "seed": {"name": "seed", "max": 4294967295}
+      },
+      "note": "5 credits a second ($0.05). No sound field."
+    },
+    {
+      "id": "h3_max",
+      "label": "MiniMax H3 Max",
+      "kind": "video",
+      "required": ["promptText"],
+      "arguments": {"promptExpansionMode": "disabled"},
+      "fields": {
+        "promptText": {"type": "string", "maxLength": 6000},
+        "promptImage": {"type": "string"},
+        "resolution": {"type": "string", "enum": ["480p", "768p"]},
+        "promptExpansionMode": {"type": "string", "enum": ["disabled", "balanced", "quality"]},
+        "duration": {"type": "integer", "minimum": 5, "maximum": 15},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      },
+      "inputs": {
+        "prompt": {"field": "promptText", "max_chars": 6000},
+        "first": {"list": "promptImage", "item": {"uri": "$url", "position": "first"}},
+        "last": {"list": "promptImage", "item": {"uri": "$url", "position": "last"}},
+        "resolution": {"name": "resolution", "values": ["480p", "768p"]},
+        "duration": {"name": "duration", "min": 5, "max": 15},
+        "seed": {"name": "seed", "max": 4294967295}
+      },
+      "note": "5 credits a second at 480p, 8 at 768p. Sent with promptExpansionMode disabled, so your prompt isn't rewritten (its default is balanced) and a seed can repeat. At least 5 seconds. No field for sound, and no reference pictures on this one."
+    },
+    {
+      "id": "hailuo3",
+      "label": "Hailuo 3.0",
+      "kind": "video",
+      "required": ["promptText"],
+      "fields": {
+        "promptText": {"type": "string", "maxLength": 6000},
+        "promptImage": {"type": "string"},
+        "resolution": {"type": "string", "enum": ["768p", "2k"]},
+        "ratio": {"type": "string", "enum": ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]},
+        "duration": {"type": "integer", "minimum": 5, "maximum": 15}
+      },
+      "inputs": {
+        "prompt": {"field": "promptText", "max_chars": 6000},
+        "references": {"list": "promptImage", "item": {"uri": "$url"}, "max": 9, "max_total": 9},
+        "first": {"list": "promptImage", "item": {"uri": "$url", "position": "first"}},
+        "last": {"list": "promptImage", "item": {"uri": "$url", "position": "last"}},
+        "resolution": {"name": "resolution", "values": ["768p", "2k"]},
+        "ratio": {"name": "ratio", "values": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"], "with_frames": "adaptive"},
+        "duration": {"name": "duration", "min": 5, "max": 15}
+      },
+      "note": "10 credits a second at 768p plus 2 per reference picture, 15 at 2K. At least 5 seconds. No seed. Voices (referenceAudio) aren't mapped yet."
+    },
+    {
+      "id": "seedance2_5",
+      "label": "Seedance 2.5",
+      "kind": "video",
+      "fields": {
+        "promptText": {"type": "string", "maxLength": 15000},
+        "promptImage": {"type": "string"},
+        "ratio": {"type": "string", "enum": ["992:432", "854:480", "752:560", "640:640", "560:752", "480:854", "1470:630", "1280:720", "1112:834", "960:960", "834:1112", "720:1280", "2206:946", "1920:1080", "1664:1248", "1440:1440", "1248:1664", "1080:1920"]},
+        "duration": {"type": "integer", "minimum": 4, "maximum": 30},
+        "audio": {"type": "boolean"},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      },
+      "inputs": {
+        "prompt": {"field": "promptText", "max_chars": 15000},
+        "references": {"list": "promptImage", "item": {"uri": "$url"}, "max": 30, "max_total": 30, "define": true, "define_as": "@Image{n}"},
+        "first": {"list": "promptImage", "item": {"uri": "$url", "position": "first"}},
+        "last": {"list": "promptImage", "item": {"uri": "$url", "position": "last"}},
+        "ratio": {"name": "ratio", "values": ["992:432", "854:480", "752:560", "640:640", "560:752", "480:854", "1470:630", "1280:720", "1112:834", "960:960", "834:1112", "720:1280", "2206:946", "1920:1080", "1664:1248", "1440:1440", "1248:1664", "1080:1920"], "with_frames": "keep", "by_size": true},
+        "duration": {"name": "duration", "min": 4, "max": 30},
+        "audio": {"name": "audio"},
+        "seed": {"name": "seed", "max": 4294967295}
+      },
+      "note": "The ratio is also its resolution, so your render size sets the price: check the pricing page, whose Seedance 2.5 rate wasn't read. Its docs don't say how a prompt names a picture: @Image1 is how Atlas's Seedance takes it, so look at the first take."
+    },
+    {
+      "id": "wan3",
+      "label": "Wan 3.0",
+      "kind": "video",
+      "required": ["promptText"],
+      "fields": {
+        "promptText": {"type": "string", "maxLength": 20000},
+        "promptImage": {"type": "string"},
+        "ratio": {"type": "string", "enum": ["832:480", "720:544", "624:624", "544:720", "480:832", "1280:720", "1104:832", "960:960", "832:1104", "720:1280", "1920:1080", "1648:1248", "1440:1440", "1248:1648", "1080:1920", "auto_480p", "auto_720p", "auto_1080p"]},
+        "duration": {"type": "integer", "minimum": 2, "maximum": 30},
+        "audio": {"type": "boolean"}
+      },
+      "inputs": {
+        "prompt": {"field": "promptText", "max_chars": 20000},
+        "references": {"list": "promptImage", "item": {"uri": "$url"}, "max": 10, "max_total": 10},
+        "first": {"list": "promptImage", "item": {"uri": "$url", "position": "first"}},
+        "last": {"list": "promptImage", "item": {"uri": "$url", "position": "last"}},
+        "ratio": {"name": "ratio", "values": ["832:480", "720:544", "624:624", "544:720", "480:832", "1280:720", "1104:832", "960:960", "832:1104", "720:1280", "1920:1080", "1648:1248", "1440:1440", "1248:1648", "1080:1920"], "with_frames": "auto_720p", "by_size": true},
+        "duration": {"name": "duration", "min": 2, "max": 30},
+        "audio": {"name": "audio"}
+      },
+      "note": "5 credits a second at 480p, 10 at 720p, 20 at 1080p. From a first or last frame it must take an auto_ size, and auto_720p is what's sent: change it under Fields. No seed."
+    },
+    {
+      "id": "kling3.0_pro",
+      "label": "Kling 3.0 Pro",
+      "kind": "video",
+      "fields": {
+        "promptText": {"type": "string", "maxLength": 2500},
+        "promptImage": {"type": "string"},
+        "ratio": {"type": "string", "enum": ["1920:1080", "1080:1920", "1440:1440"]},
+        "duration": {"type": "integer", "minimum": 3, "maximum": 15},
+        "audio": {"type": "boolean"}
+      },
+      "inputs": {
+        "prompt": {"field": "promptText", "max_chars": 2500},
+        "first": {"list": "promptImage", "item": {"uri": "$url", "position": "first"}},
+        "last": {"list": "promptImage", "item": {"uri": "$url", "position": "last"}},
+        "ratio": {"name": "ratio", "values": ["1920:1080", "1080:1920", "1440:1440"], "with_frames": "keep"},
+        "duration": {"name": "duration", "min": 3, "max": 15},
+        "audio": {"name": "audio"}
+      },
+      "note": "17 credits a second with sound, 12 without. No seed. Its multi-shot settings (providerSettings) aren't mapped yet."
+    },
+    {
+      "id": "veo3.1",
+      "label": "Veo 3.1",
+      "kind": "video",
+      "fields": {
+        "promptText": {"type": "string", "maxLength": 1000},
+        "promptImage": {"type": "string"},
+        "ratio": {"type": "string", "enum": ["1280:720", "720:1280", "1080:1920", "1920:1080"]},
+        "duration": {"type": "number", "enum": [4, 6, 8]},
+        "audio": {"type": "boolean"},
+        "negativePrompt": {"type": "string", "maxLength": 1000},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      },
+      "inputs": {
+        "prompt": {"field": "promptText", "max_chars": 1000},
+        "negative": "negativePrompt",
+        "first": {"list": "promptImage", "item": {"uri": "$url", "position": "first"}},
+        "last": {"list": "promptImage", "item": {"uri": "$url", "position": "last"}},
+        "ratio": {"name": "ratio", "values": ["1280:720", "720:1280", "1080:1920", "1920:1080"], "with_frames": "keep", "by_size": true},
+        "duration": {"name": "duration", "values": [4, 6, 8]},
+        "audio": {"name": "audio"},
+        "seed": {"name": "seed", "max": 4294967295}
+      },
+      "note": "40 credits a second with sound, 20 without. It can't take a last frame without a first."
+    },
+    {
+      "id": "veo3.1_fast",
+      "label": "Veo 3.1 Fast",
+      "kind": "video",
+      "fields": {
+        "promptText": {"type": "string", "maxLength": 1000},
+        "promptImage": {"type": "string"},
+        "ratio": {"type": "string", "enum": ["1280:720", "720:1280", "1080:1920", "1920:1080"]},
+        "duration": {"type": "number", "enum": [4, 6, 8]},
+        "audio": {"type": "boolean"},
+        "negativePrompt": {"type": "string", "maxLength": 1000},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      },
+      "inputs": {
+        "prompt": {"field": "promptText", "max_chars": 1000},
+        "negative": "negativePrompt",
+        "first": {"list": "promptImage", "item": {"uri": "$url", "position": "first"}},
+        "last": {"list": "promptImage", "item": {"uri": "$url", "position": "last"}},
+        "ratio": {"name": "ratio", "values": ["1280:720", "720:1280", "1080:1920", "1920:1080"], "with_frames": "keep", "by_size": true},
+        "duration": {"name": "duration", "values": [4, 6, 8]},
+        "audio": {"name": "audio"},
+        "seed": {"name": "seed", "max": 4294967295}
+      },
+      "note": "15 credits a second with sound, 10 without. It can't take a last frame without a first."
+    },
+    {
+      "id": "gemini_omni_flash_1.1",
+      "label": "Gemini Omni Flash 1.1",
+      "kind": "video",
+      "required": ["promptText"],
+      "fields": {
+        "promptText": {"type": "string", "maxLength": 4000},
+        "promptImage": {"type": "string"},
+        "ratio": {"type": "string", "enum": ["640:360", "360:640", "1280:720", "720:1280", "1920:1080", "1080:1920", "3840:2160", "2160:3840"]},
+        "duration": {"type": "integer", "minimum": 3, "maximum": 10}
+      },
+      "inputs": {
+        "prompt": {"field": "promptText", "max_chars": 4000},
+        "first": {"list": "promptImage", "item": {"uri": "$url", "position": "first"}},
+        "last": {"list": "promptImage", "item": {"uri": "$url", "position": "last"}},
+        "ratio": {"name": "ratio", "values": ["640:360", "360:640", "1280:720", "720:1280", "1920:1080", "1080:1920", "3840:2160", "2160:3840"], "with_frames": "keep", "by_size": true},
+        "duration": {"name": "duration", "min": 3, "max": 10}
+      },
+      "note": "The ratio is also its resolution, so your render size sets the price. This rate wasn't read: check the pricing page. No seed."
+    },
+    {
+      "id": "gen4_image",
+      "label": "Gen-4 Image",
+      "kind": "image",
+      "required": ["promptText"],
+      "fields": {
+        "promptText": {"type": "string", "maxLength": 1000},
+        "referenceImages": {"type": "array", "items": {"type": "string"}, "maxItems": 3},
+        "ratio": {"type": "string", "enum": ["1024:1024", "1080:1080", "1168:880", "1360:768", "1440:1080", "1080:1440", "1808:768", "1920:1080", "1080:1920", "2112:912", "1280:720", "720:1280", "720:720", "960:720", "720:960", "1680:720"]},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      },
+      "inputs": {
+        "prompt": {"field": "promptText", "max_chars": 1000},
+        "images": {"list": "referenceImages", "item": {"uri": "$url"}, "max": 3},
+        "ratio": {"name": "ratio", "values": ["1024:1024", "1080:1080", "1168:880", "1360:768", "1440:1080", "1080:1440", "1808:768", "1920:1080", "1080:1920", "2112:912", "1280:720", "720:1280", "720:720", "960:720", "720:960", "1680:720"], "by_size": true},
+        "seed": {"name": "seed", "max": 4294967295}
+      },
+      "note": "5 credits a 720p picture, 8 at 1080p. Up to three reference pictures, sent untagged."
+    },
+    {
+      "id": "gen4_image_turbo",
+      "label": "Gen-4 Image Turbo (needs a reference picture)",
+      "kind": "image",
+      "required": ["promptText", "referenceImages"],
+      "fields": {
+        "promptText": {"type": "string", "maxLength": 1000},
+        "referenceImages": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 3},
+        "ratio": {"type": "string", "enum": ["1024:1024", "1080:1080", "1168:880", "1360:768", "1440:1080", "1080:1440", "1808:768", "1920:1080", "1080:1920", "2112:912", "1280:720", "720:1280", "720:720", "960:720", "720:960", "1680:720"]},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      },
+      "inputs": {
+        "prompt": {"field": "promptText", "max_chars": 1000},
+        "images": {"list": "referenceImages", "item": {"uri": "$url"}, "max": 3},
+        "ratio": {"name": "ratio", "values": ["1024:1024", "1080:1080", "1168:880", "1360:768", "1440:1080", "1080:1440", "1808:768", "1920:1080", "1080:1920", "2112:912", "1280:720", "720:1280", "720:720", "960:720", "720:960", "1680:720"], "by_size": true},
+        "seed": {"name": "seed", "max": 4294967295}
+      },
+      "note": "2 credits a picture."
+    }
+  ]
+}

@@ -112,6 +112,22 @@ def nearest_ratio(width: int, height: int, ratios: list[str]) -> str:
     return min(shapes, key=off)
 
 
+def ratio_for(width: int, height: int, spec: dict) -> str:
+    """The ratio a model is sent. With `by_size`, its ratios are also its sizes ("854:480",
+    "1280:720", "1920:1080" on Runway), and what they cost: the nearest shape, then the nearest size.
+    Shapes count as one within 2%: 854:480 isn't quite 16:9, and is that shape at 480p."""
+    ratios = spec["values"]
+    best = nearest_ratio(width, height, ratios)
+    if not spec.get("by_size"):
+        return best
+
+    def shape(r: str) -> float:
+        a, b = (float(x) for x in str(r).split(":"))
+        return a / b
+    same = [r for r in ratios if re.fullmatch(r"\d+:\d+", str(r)) and abs(math.log(shape(r) / shape(best))) <= 0.02]
+    return min(same, key=lambda r: abs(math.log(float(str(r).split(":")[1]) / height)))
+
+
 # named sizes, by their height
 NAMED = {"2k": 1440, "4k": 2160, "8k": 4320, "uhd": 2160, "fhd": 1080, "hd": 720, "sd": 480}
 

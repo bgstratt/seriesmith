@@ -49,7 +49,7 @@ model…**:
 For a model on a provider you have your own account with, such as Atlas Cloud. Video and image
 models for now; sound follows.
 
-1. **Pick the provider, and add its key.** Atlas Cloud, Higgsfield, ElevenLabs and OpenAI come listed, marked
+1. **Pick the provider, and add its key.** Atlas Cloud, Higgsfield, Runway, ElevenLabs and OpenAI come listed, marked
    *untested*: they're written from each provider's docs and haven't been proved by a real render
    yet. The key stays on this machine, is never shown again, and goes only to that provider's own
    address. Settings lists the keys too. `SERIESMITH_KEY_<PROVIDER>` in the environment wins.
@@ -62,7 +62,10 @@ models for now; sound follows.
    open.higgsfield.ai. Otherwise, type the model's id as the provider's docs give it. Where the id
    is in the provider's address, as on Higgsfield and fal, a docs page's address gives you the id
    too: on Higgsfield, the model's page on docs.higgsfield.ai (open.higgsfield.ai's draw themselves
-   in the browser).
+   in the browser). Runway's list holds Gen-4.5, Gen-4 Turbo, MiniMax H3 Max, Hailuo 3.0, Seedance
+   2.5, Wan 3.0, Kling 3.0 Pro, Veo 3.1 and Fast, Gemini Omni Flash 1.1, Gen-4 Image and Turbo, none
+   yet proved, each with its price per second as read. On some, the ratio is also the resolution:
+   the render size you ask for sets the price.
 3. **Paste the API's reference**, whichever the provider gives you:
 
    | What the provider has | Paste | What seriesmith learns |

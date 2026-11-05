@@ -4590,7 +4590,7 @@ A model's API reference read into a proposed target, nothing saved or sent to th
 cURL, an example request's JSON, or a docs page's address. Returns `{proposal, mapped, unplaced,
 warnings, form, paths, schema, auth?, limits, model}`. An OpenAPI document with several requests and
 no `path` returns `proposal: null` and the `paths` to choose from. A key in a pasted cURL isn't kept,
-only how it's sent. With `model` empty, a docs page's address and a provider whose first step has
+only how it's sent. A reference's fixed `X-` header is kept in the form's `headers`. With `model` empty, a docs page's address and a provider whose first step has
 `{model}` in its address, the page's request gives the id, returned as `model`.
 
 ### `POST /seriesmith/targets/schema`

@@ -1289,6 +1289,202 @@ class Higgsfield(WithFake):
         self.assertEqual(self.fake.calls, [])
 
 
+class Runway(WithFake):
+    """Its definition as it ships, on answers shaped as its OpenAPI document says (read 2026-11-05):
+    a version every request needs, a form for storage, a text-only shot at another address."""
+
+    def setUp(self):
+        super().setUp()
+        self.storage = Fake()
+        self.addCleanup(self.storage.close)
+        self.d = json.loads(json.dumps(PR.definitions()["runwayml"]))
+        self.d["base_url"] = self.fake.url
+        self.d["steps"][1]["until"]["every"] = 0.01
+        self.b = HttpBackend(self.d, KEY)
+        f, s = self.fake, self.storage
+        f.routes[("POST", "/v1/uploads")] = {
+            "uploadUrl": s.url + "/bucket", "fields": {"key": "k/1", "policy": "p"}, "runwayUri": "runway://abc"}
+        s.routes[("POST", "/bucket")] = (204, b"", {})
+        f.routes[("POST", "/v1/image_to_video")] = {"id": "t1", "estimatedCost": {"credits": 60}}
+        f.routes[("POST", "/v1/text_to_video")] = {"id": "t1", "estimatedCost": {"credits": 60}}
+        s.routes[("GET", "/out/v.mp4")] = b"video bytes"
+        self.finished({"id": "t1", "status": "SUCCEEDED", "output": [s.url + "/out/v.mp4"], "cost": {"credits": 60}})
+
+    def finished(self, answer):
+        self.fake.routes[("GET", "/v1/tasks/t1")] = answer
+
+    def go(self, args=None, endpoint="image_to_video"):
+        return self.b.call("gen4.5", {"promptText": "a", "promptImage": File(self.pic), "ratio": "1280:720", **(args or {}),
+                                      ROUTING: {"values": {"endpoint": endpoint}}})
+
+    def test_a_take_from_upload_to_download(self):
+        run = self.go()
+        self.assertEqual(run.watch(), "succeeded")
+        ask, job, *_ = self.fake.calls
+        self.assertEqual(json.loads(ask["body"]), {"filename": "pic.png", "type": "ephemeral"})
+        self.assertEqual(ask["path"], "/v1/uploads")
+        self.assertEqual(json.loads(job["body"]), {"model": "gen4.5", "promptText": "a", "promptImage": "runway://abc", "ratio": "1280:720"})
+        self.assertEqual(job["path"], "/v1/image_to_video")
+        form = self.storage.calls[0]
+        self.assertEqual(form["method"], "POST")
+        self.assertTrue(form["headers"]["Content-Type"].startswith("multipart/form-data"))
+        # its fields, then the file last, as storage wants
+        self.assertLess(form["body"].index(b'name="key"'), form["body"].index(b'name="file"'))
+        self.assertIn(b"k/1", form["body"])
+        self.assertIn(b"\x89PNG picture", form["body"])
+        (out,) = run.outputs()
+        path = out.save(os.path.join(self.tmp.name, "v.mp4"))
+        with open(path, "rb") as fh:
+            self.assertEqual(fh.read(), b"video bytes")
+
+    def test_every_request_of_its_own_has_the_version_and_the_key(self):
+        self.go().watch()
+        for c in self.fake.calls:
+            self.assertEqual(c["headers"]["X-Runway-Version"], "2024-11-06", c["path"])
+            self.assertEqual(c["headers"]["Authorization"], "Bearer " + KEY)
+        for c in self.storage.calls:
+            self.assertNotIn("Authorization", c["headers"])
+            self.assertNotIn("X-Runway-Version", c["headers"])
+
+    def test_storage_answering_in_xml_is_fine(self):
+        self.storage.routes[("POST", "/bucket")] = (201, b"<PostResponse/>", {})
+        self.assertEqual(self.go().watch(), "succeeded")
+
+    def test_failed_and_cancelled_say_so(self):
+        for status, want in (("FAILED", "the picture was refused"), ("CANCELLED", "the provider says cancelled")):
+            with self.subTest(status):
+                self.finished({"id": "t1", "status": status, "failure": "the picture was refused" if status == "FAILED" else None})
+                run = self.go()
+                self.assertEqual(run.watch(), "failed")
+                self.assertEqual(run.error, want)
+        self.finished({"id": "t1", "status": "FAILED", "failureCode": "INPUT.BAD"})
+        run = self.go()
+        run.watch()
+        self.assertEqual(run.error, "INPUT.BAD")
+
+    def test_waiting_through_its_states(self):
+        states = iter(["PENDING", "THROTTLED", "RUNNING", "SUCCEEDED"])
+        self.fake.routes[("GET", "/v1/tasks/t1")] = lambda c: {"id": "t1", "status": next(states), "output": [self.storage.url + "/out/v.mp4"]}
+        self.assertEqual(self.go().watch(), "succeeded")
+
+    def test_cancel_deletes_the_task(self):
+        self.fake.routes[("DELETE", "/v1/tasks/t1")] = (204, b"", {})
+        self.go().cancel()
+        self.assertTrue(any(c["method"] == "DELETE" and c["path"] == "/v1/tasks/t1" for c in self.fake.calls))
+
+    def test_check_it_is_a_real_read(self):
+        from seriesmith.backends.http import check_key
+        self.fake.routes[("GET", "/v1/organization")] = lambda c: (
+            (200, {"creditBalance": 100}, {}) if c["headers"].get("X-Runway-Version") and c["headers"].get("Authorization") == "Bearer " + KEY
+            else (401, {"error": "bad"}, {}))
+        got = check_key(self.d, KEY)
+        self.assertTrue(got["key_ok"] and got["proves_key"])
+        self.assertFalse(check_key(self.d, "other")["key_ok"])
+
+    def test_the_panel_shows_the_version_and_the_form(self):
+        from seriesmith.backends.http import planned_calls
+        calls = planned_calls(self.d, "gen4.5", {"promptText": "a", "promptImage": File(self.pic), ROUTING: {"values": {"endpoint": "image_to_video"}}})
+        self.assertIn("X-Runway-Version: 2024-11-06", calls[0]["key"])
+        self.assertEqual(calls[1]["key"], "no key")
+        self.assertEqual(calls[1]["sends"], {"(the fields its answer gives)": "...", "file": "(the file)"})
+        self.assertEqual(calls[2]["url"], self.fake.url + "/v1/image_to_video")
+
+
+class RunwayList(AtlasList):
+    """Runway's models as its OpenAPI document states them (presets/providers/runwayml.models.json)."""
+
+    def proposed(self, model):
+        return AS.propose("runwayml", model, "", base=self.base)
+
+    def view(self, model, frame=False):
+        spec = self.proposed(model)["proposal"]
+        if frame:
+            path = os.path.join(self.root, spec["recipe"]["keyframe_path"].format(shot="sh010", end="first"))
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as fh:
+                fh.write(b"\x89PNG")
+        return PV.preview(self.root, spec["id"], shot="sh010", spec=spec)
+
+    def test_every_one_proposes_and_previews_with_its_own_fields_placed(self):
+        from seriesmith import inspector as IN
+        for m in PR.catalog("runwayml"):
+            with self.subTest(m["id"]):
+                got = self.proposed(m["id"])
+                spec = got["proposal"]
+                self.assertEqual(IN.validate_spec(spec), [])
+                self.assertEqual(got["form"], "catalog")
+                self.assertEqual(got["unplaced"], [])
+                self.assertEqual(spec["kind"], m["kind"])
+                view = PV.preview(self.root, spec["id"], shot="sh010", spec=spec) if m["kind"] == "video" \
+                    else PV.preview(self.root, spec["id"], spec=spec)
+                self.assertTrue(view["ok"], view.get("why"))
+                self.assertEqual(TG.service_of(spec), "runwayml")
+
+    def test_no_id_collides_with_a_shipped_model(self):
+        for m in PR.catalog("runwayml"):
+            spec = self.proposed(m["id"])["proposal"]
+            with self.assertRaises(Exception, msg=spec["id"]):
+                TG.load_target(spec["id"], m["kind"])
+
+    def test_only_what_a_model_has_is_sent(self):
+        for m in PR.catalog("runwayml"):
+            if m["kind"] != "video":
+                continue
+            with self.subTest(m["id"]):
+                view = self.view(m["id"], frame=m["id"] == "gen4_turbo")
+                self.assertTrue(view["ok"], view.get("why"))
+                self.assertLessEqual(set(view["arguments"]), set(m["fields"]))
+
+    def test_a_text_shot_goes_to_text_to_video(self):
+        from seriesmith.targets.generic.router_video import with_routing
+        spec = self.proposed("gen4.5")["proposal"]["api"]
+        self.assertEqual(spec["values"]["endpoint"], "image_to_video")
+        self.assertEqual(with_routing({}, spec, pictures=False)[ROUTING]["values"]["endpoint"], "text_to_video")
+        self.assertEqual(with_routing({}, spec, pictures=True)[ROUTING]["values"]["endpoint"], "image_to_video")
+
+    def test_an_image_stays_at_text_to_image(self):
+        spec = self.proposed("gen4_image")["proposal"]["api"]
+        self.assertEqual(spec["values"]["endpoint"], "text_to_image")
+        self.assertNotIn("values_text", spec)
+
+    def test_a_frame_goes_as_its_model_writes_it(self):
+        self.assertIsInstance(self.view("gen4.5", frame=True)["arguments"]["promptImage"], (str, dict))
+        got = self.view("seedance2_5", frame=True)["arguments"]
+        self.assertEqual(got["promptImage"][0]["position"], "first")
+        self.assertIn("ratio", got)
+
+    def test_h3_keeps_the_prompt_as_written(self):
+        self.assertEqual(self.proposed("h3_max")["proposal"]["api"]["arguments"]["promptExpansionMode"], "disabled")
+        self.assertEqual(self.view("h3_max")["arguments"]["promptExpansionMode"], "disabled")
+
+    def test_a_ratio_that_is_also_a_size_goes_by_the_size_asked(self):
+        from seriesmith.targets.generic.request_map import ratio_for
+        spec = {"values": ["854:480", "480:854", "1280:720", "720:1280", "1920:1080", "1080:1920", "960:960", "640:640"], "by_size": True}
+        self.assertEqual(ratio_for(1920, 1080, spec), "1920:1080")
+        self.assertEqual(ratio_for(1280, 720, spec), "1280:720")
+        self.assertEqual(ratio_for(848, 480, spec), "854:480")
+        self.assertEqual(ratio_for(1080, 1920, spec), "1080:1920")
+        self.assertEqual(ratio_for(720, 720, spec), "640:640")
+        # without it, as ever: the nearest shape, the first of a tie
+        self.assertEqual(ratio_for(1920, 1080, {"values": ["1280:720", "1920:1080"]}), "1280:720")
+
+    def test_a_listing_says_what_is_on_it(self):
+        row = next(r for r in PR.listing(S.Settings(), {}) if r["id"] == "runwayml")
+        self.assertIn("h3_max", {m["id"] for m in row["catalog"]})
+        self.assertTrue(row["untested"])
+
+    # what's only Atlas's
+    test_the_last_frame_on_any_name = None
+    test_what_the_sound_is_called = None
+    test_a_size_as_the_api_writes_it = None
+    test_an_edit_models_pictures = None
+    test_a_first_frame_model_says_it_needs_one = None
+    test_it_comes_from_the_docs_and_says_so = None
+    test_seedance_goes_to_the_id_for_what_is_sent = None
+    test_a_first_frame_sends_the_frame_and_goes_to_its_id = None
+    test_an_answer_flat_or_wrapped = None
+
+
 class AMarkdownPage(ScratchSettings):
     """A Higgsfield model page, as served 2026-11-05: its source in Markdown beside the page, with the
     cURL, the whole schema in a quote, and example answers. Other models' pages are the same."""
@@ -1379,6 +1575,14 @@ JSON
         got = AS.parse_curl("curl https://a.example/go -d '{\"a\": 1}'\ncat <<EOF\nnot it\nEOF\n")
         self.assertEqual(got["body"], {"a": 1})
 
+    def test_a_header_it_asks_for_every_time_but_no_key_or_placeholder(self):
+        got = AS.parse_curl("curl https://a.example/go -H 'Authorization: Bearer $K' -H 'X-Runway-Version: 2024-11-06' "
+                            "-H 'X-Trace: $TRACE' -H 'X-Secret-Thing: s' -H 'Content-Type: application/json' -d '{}'")
+        self.assertEqual(got["headers"], {"X-Runway-Version": "2024-11-06"})
+        from seriesmith import providerdraft as PD
+        drafted = PD.draft("curl https://a.example/go -H 'X-Runway-Version: 2024-11-06' -d '{\"model\": \"m\"}'")
+        self.assertEqual(drafted["form"]["headers"], "X-Runway-Version: 2024-11-06")
+
     def test_the_key_is_who_is_asking_and_not_the_request(self):
         for text in ("curl https://a.example/go -H 'Authorization: Key x' -H 'Idempotency-Key: y' -d '{\"a\": 1}'",
                      "curl https://a.example/go -H 'Idempotency-Key: y' -H 'Authorization: Key x' -d '{\"a\": 1}'"):
@@ -1403,16 +1607,34 @@ class AnUploadAddressInTheForm(unittest.TestCase):
 
     def test_headers_only_when_it_gives_them(self):
         from seriesmith import providerdraft as PD
-        d = PD.definition({**self.FORM, "upload_headers": "h", "upload_type_field": "kind"})
+        d = PD.definition({**self.FORM, "upload_headers": "h"})
         ask, put = d["files"]["steps"]
-        self.assertEqual(ask["json"], {"kind": "$mime"})
+        self.assertEqual(ask["json"], {"content_type": "$mime"})
         self.assertEqual(ask["take"]["put_headers"], "h")
         self.assertEqual(put["headers"], "$put_headers")
+
+    def test_a_form_to_post_where_its_answer_says(self):
+        from seriesmith import providerdraft as PD
+        d = PD.definition({**self.FORM, "upload_fields": "fields", "upload_body": '{"filename": "$name"}'})
+        ask, put = d["files"]["steps"]
+        self.assertEqual(ask["json"], {"filename": "$name"})
+        self.assertEqual(put["multipart"], {"...": "$put_fields", "file": "$file"})
+        self.assertFalse(put["key"])
+        self.assertEqual(put["response"], "none")
 
     def test_it_says_what_is_missing(self):
         from seriesmith import providerdraft as PD
         self.assertEqual(PD.form_problems(self.FORM), [])
         self.assertTrue(PD.form_problems({**self.FORM, "upload_put": ""}))
+        self.assertTrue(PD.form_problems({**self.FORM, "upload_body": "not json"}))
+        PD.definition({**self.FORM, "upload_body": "not json"})     # still comes to something to show
+
+    def test_headers_every_request_sends(self):
+        from seriesmith import providerdraft as PD
+        d = PD.definition({**self.FORM, "headers": "X-Version: 2024-11-06\n\nnot one\nX-Other: a:b"})
+        self.assertEqual(d["headers"], {"X-Version": "2024-11-06", "X-Other": "a:b"})
+        self.assertEqual(PR.problems(d), [])
+        self.assertNotIn("headers", PD.definition(self.FORM))
 
 
 class AWholeTake(ScratchSettings):

@@ -2056,6 +2056,13 @@ download with the key). Reading the reference moved up from step 7 (decided with
       document has a few models only. Status `nsfw` is a failure. No seed on its Seedance, H3 or
       Kling; H3 only at 2K, from 5 s. An `Idempotency-Key` could make a submit safe to ask again.
       Not proved: anything by a real take, and how its Seedance prompt names a picture.
+- [x] Runway shipped untested (2026-11-05, from its OpenAPI document, local servers only, no key):
+      `presets/providers/runwayml.json` and its list (`runwayml` because the Router's model is already
+      `runway_gen4_turbo`). What it asked of the engine: `headers` on every request to its own hosts,
+      a form posted to the address its answer gives (S3's way, `response: "none"`), `endpoints.video_text`
+      and `values_text` for a shot with no pictures, `by_size` on a ratio that's also a resolution, a
+      list's `arguments`. Its H3 is sent with `promptExpansionMode: disabled`. Not proved: a real take,
+      how its Seedance prompt names a picture, a file under its 512-byte floor (no real frame is).
 - [ ] A live paid proof of ElevenLabs (needs step 6) and OpenAI: tested against a local server
       answering as their docs say, and marked untested until a real take comes back.
 - [ ] Router's `seedance_asset` moved onto the steps, as the proof the asset path is data.

@@ -163,6 +163,8 @@ class HttpBackend(Backend):
         """`url`, and `headers` given the key, on the provider's own hosts only."""
         if not self._ours(url):
             return url
+        for name, value in (self.d.get("headers") or {}).items():
+            headers.setdefault(name, str(value))         # what it asks of every request (Runway's version)
         auth = self.d.get("auth") or {}
         kind = auth.get("type")
         if kind == "bearer":
@@ -231,7 +233,7 @@ class HttpBackend(Backend):
                               timeout=BIG_TIMEOUT if wants_file or raw_file else TIMEOUT)
         if wants_file:
             return None, raw, kind
-        if raw_file:
+        if raw_file or step.get("response") == "none":
             return {}, None, kind               # storage's answer, if any, isn't the provider's JSON
         if not raw.strip():
             return {}, None, kind
@@ -352,6 +354,7 @@ def planned_calls(d: dict, model: str, arguments: dict) -> list[dict]:
     key = ("Authorization: Bearer (your key)" if auth.get("type") == "bearer"
            else f"{auth.get('name')}: {auth.get('prefix') or ''}(your key)" if auth.get("type") == "header"
            else f"?{auth.get('name')}=(your key)")
+    key = ", ".join([key] + [f"{k}: {v}" for k, v in (d.get("headers") or {}).items()])
     out = []
     has_files = bool(list(files_in(args)))
     how_files = d.get("files") or {}
@@ -359,7 +362,8 @@ def planned_calls(d: dict, model: str, arguments: dict) -> list[dict]:
         for step in how_files.get("steps") or []:
             sends = ({"body": "(the file)"} if "body" in step else
                      fill(step["json"], {"mime": "(its type)", "name": "(its name)"}) if "json" in step else
-                     {k: "(the file)" for k in step.get("multipart") or {}})
+                     {("(the fields its answer gives)" if k == "..." else k): "(the file)" if v == "$file" else "..."
+                      for k, v in (step.get("multipart") or {}).items()})
             out.append({"what": "upload, for each picture", "method": step.get("method") or ("PUT" if "body" in step else "POST"),
                         "url": _full(base, step["url"]), "key": "no key" if step.get("key") is False else key,
                         "sends": sends, "takes": step.get("take")})

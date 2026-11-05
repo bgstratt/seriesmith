@@ -72,7 +72,7 @@ from seriesmith.targets import moderate as MOD
 from seriesmith.targets import prompt_template as TP
 from seriesmith.targets.generic.request_map import (  # noqa: F401
     NAMED, append, field_name, fill, fit, max_chars, nearest_ratio, nearest_resolution, place,
-    put, put_seed, seconds_for, size_of)
+    put, put_seed, ratio_for, seconds_for, size_of)
 from seriesmith.targets.generic import video_prose as G
 from seriesmith.targets.generic.video_prose import prompt_parts  # noqa: F401
 
@@ -459,7 +459,7 @@ def router_call(target, job) -> tuple[str, dict]:
             if frames_mode != "omit":
                 put(args, field_name(ratio), frames_mode)                 # e.g. "adaptive"
         else:
-            put(args, field_name(ratio), nearest_ratio(w, h, ratio["values"]))
+            put(args, field_name(ratio), ratio_for(w, h, ratio))
     if inp.get("seed"):
         put_seed(args, inp["seed"], job.seed, 4294967295)
     if inp.get("audio"):
@@ -476,7 +476,7 @@ def router_call(target, job) -> tuple[str, dict]:
         args["draft"] = True
         if draft.get("resolution"):
             put(args, res_name, draft["resolution"])
-    return model_for(spec, mode, pics), with_routing(args, spec)
+    return model_for(spec, mode, pics), with_routing(args, spec, pictures=bool(pics))
 
 
 def model_for(spec: dict, mode: str, pics: list) -> str:
@@ -487,11 +487,14 @@ def model_for(spec: dict, mode: str, pics: list) -> str:
     return ids.get(mode if pics else "text") or ids.get(mode) or spec["model"]
 
 
-def with_routing(args: dict, spec: dict) -> dict:
+def with_routing(args: dict, spec: dict, pictures: bool = True) -> dict:
     """`args` with how Router is to serve the call (the model's provider, and
-    whether it may fall back), when the target says."""
+    whether it may fall back), when the target says. `values_text`: a provider's values for a
+    shot with no pictures (Runway's text_to_video, where the rest go to image_to_video)."""
     from seriesmith.backends.router import ROUTING
     how = {k: spec[k] for k in ("provider", "fallback", "values") if spec.get(k) is not None}
+    if not pictures and spec.get("values_text"):
+        how["values"] = {**(how.get("values") or {}), **spec["values_text"]}
     if how:
         args[ROUTING] = how
     return args

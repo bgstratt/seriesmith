@@ -255,6 +255,7 @@ export function AddProvider({ onSaved, onCancel }: {
             </div>
           )}
           {f.answer === "links" && <Field label="Links are at" hint="data.outputs" value={f.files_path} onChange={set("files_path")} />}
+          <Field label="Every request also sends" hint="X-Version: 1 (one a line)" value={f.headers} onChange={set("headers")} />
           <div className="h3-h">How pictures go in</div>
           <select className="h3-in h3-small" style={{ alignSelf: "flex-start" }} value={String(f.files_via)} onChange={(e) => set("files_via")(e.target.value)}>
             <option value="datauri">In the request, as a data: address</option>
@@ -273,9 +274,10 @@ export function AddProvider({ onSaved, onCancel }: {
           {f.files_via === "presigned" && (
             <div className="h3-row h3-wrap" style={{ gap: 6 }}>
               <Field label="Ask at" hint="/files/generate-upload-url" value={f.upload_url} onChange={set("upload_url")} />
-              <Field label="File's type goes in" hint="content_type" value={f.upload_type_field} onChange={set("upload_type_field")} />
+              <Field label="Asked with" hint='{"content_type": "$mime"}' value={f.upload_body} onChange={set("upload_body")} />
               <Field label="Address is at" hint="upload_url" value={f.upload_put} onChange={set("upload_put")} />
               <Field label="Its headers are at" hint="upload_headers, if it gives any" value={f.upload_headers} onChange={set("upload_headers")} />
+              <Field label="A form's fields are at" hint="fields, if it wants a form" value={f.upload_fields} onChange={set("upload_fields")} />
               <Field label="Link is at" hint="public_url" value={f.upload_link} onChange={set("upload_link")} />
             </div>
           )}

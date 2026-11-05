@@ -9,8 +9,10 @@ is plain data, run by backends/http.py:
       "auth": {"type": "bearer"},            # or {"type": "header", "name": "xi-api-key", "prefix": ""}
                                              # or {"type": "query", "name": "key"}
       "hosts": ["other.host"],               # more hosts that may have the key (default: base_url's)
+      "headers": {"X-Version": "1"},         # sent with every request to those hosts
       "parallel": 3,                         # jobs at once
-      "endpoints": {"video": "generateVideo"},   # {endpoint} in a step, by what a model makes
+      "endpoints": {"video": "generateVideo",    # {endpoint} in a step, by what a model makes
+                    "video_text": "..."},        # and for a shot with no pictures, if that differs
       "files": {"via": "upload",             # or "base64", "datauri"
                 "steps": [{"method": "POST", "url": "/model/uploadMedia",
                            "multipart": {"file": "$file"}, "take": {"url": "url"}}],
@@ -104,6 +106,9 @@ def problems(d: dict) -> list[str]:
         out.append(f"auth.type must be one of {', '.join(AUTH_TYPES)}")
     elif auth["type"] in ("header", "query") and not auth.get("name"):
         out.append(f"auth.name says which {auth['type']} takes the key")
+    extra = d.get("headers")
+    if extra is not None and not (isinstance(extra, dict) and all(isinstance(v, (str, int)) for v in extra.values())):
+        out.append("headers must be names and their values")
     steps = d.get("steps")
     if not isinstance(steps, list) or not steps:
         out.append("steps must list at least one request")

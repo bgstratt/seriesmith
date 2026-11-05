@@ -115,8 +115,8 @@ def _empty_form() -> dict:
             "id_path": "", "poll_url": "", "status_path": "", "done": ", ".join(DONE), "failed": ", ".join(FAILED),
             "error_path": "", "files_path": "", "fetch_url": "", "download_auth": False, "every": 5,
             "files_via": "datauri", "upload_url": "", "upload_field": "file", "upload_link": "",
-            "upload_type_field": "content_type", "upload_put": "", "upload_headers": "",
-            "check_url": ""}
+            "upload_body": '{"content_type": "$mime"}', "upload_put": "", "upload_headers": "", "upload_fields": "",
+            "headers": "", "check_url": ""}
 
 
 def _apply_answer(form: dict, answer: dict, notes: list[str]) -> None:
@@ -312,7 +312,8 @@ def draft(text: str, answer: str | None = None, poll: str | None = None,
             notes.append("That cURL doesn't show a key. Bearer is assumed: change it below if the docs say otherwise.")
         if auth:
             form.update(auth_type=auth["type"], auth_name=auth.get("name", ""), auth_prefix=auth.get("prefix", ""))
-        form.update(base_url=base, method=c["method"], body="multipart" if c["form"] else "json", url=rest)
+        form.update(base_url=base, method=c["method"], body="multipart" if c["form"] else "json", url=rest,
+                    headers="\n".join(f"{k}: {v}" for k, v in (c.get("headers") or {}).items()))
         if c["form"]:
             form["files_via"] = "multipart"
         field = next((k for k in MODEL_KEYS if k in c["body"]), "")
@@ -424,6 +425,14 @@ def _words(text) -> list[str]:
     return [x.strip() for x in str(text or "").split(",") if x.strip()]
 
 
+def _object(text) -> dict | None:
+    try:
+        got = json.loads(text or "")
+    except ValueError:
+        return None
+    return got if isinstance(got, dict) else None
+
+
 def definition(form: dict) -> dict:
     """The provider definition a form comes to."""
     f = {**_empty_form(), **form}
@@ -468,6 +477,9 @@ def definition(form: dict) -> dict:
         result["auth"] = True
     if f["check_url"]:
         out["check"] = f["check_url"]
+    extra = dict((k.strip(), v.strip()) for k, _, v in (line.partition(":") for line in str(f["headers"]).splitlines()) if k.strip() and v.strip())
+    if extra:
+        out["headers"] = extra
     if f["files_via"] == "upload":
         out["files"] = {"via": "upload", "value": "$url", "steps": [
             {"method": "POST", "url": f["upload_url"], "multipart": {f["upload_field"] or "file": "$file"},
@@ -475,13 +487,18 @@ def definition(form: dict) -> dict:
     elif f["files_via"] == "presigned":
         # ask where, then put the file there: storage gets the file and never the key
         take = {"put_to": f["upload_put"], "link": f["upload_link"]}
-        put = {"method": "PUT", "url": "$put_to", "key": False, "body": "$file"}
+        if f["upload_fields"]:
+            # a form to post to it, with the fields its answer gives and the file last (S3's way)
+            take["put_fields"] = f["upload_fields"]
+            put = {"method": "POST", "url": "$put_to", "key": False, "response": "none",
+                   "multipart": {"...": "$put_fields", f["upload_field"] or "file": "$file"}}
+        else:
+            put = {"method": "PUT", "url": "$put_to", "key": False, "body": "$file"}
         if f["upload_headers"]:
             take["put_headers"] = f["upload_headers"]
             put["headers"] = "$put_headers"
         out["files"] = {"via": "upload", "value": "$link", "steps": [
-            {"method": "POST", "url": f["upload_url"], "json": {f["upload_type_field"] or "content_type": "$mime"},
-             "take": take}, put]}
+            {"method": "POST", "url": f["upload_url"], "json": _object(f["upload_body"]) or {}, "take": take}, put]}
     else:
         out["files"] = {"via": f["files_via"]}
     return out
@@ -506,4 +523,6 @@ def form_problems(form: dict) -> list[str]:
         out.append("Say the upload address, and where its answer has the file's link")
     if f["files_via"] == "presigned" and not (f["upload_url"] and f["upload_put"] and f["upload_link"]):
         out.append("Say the address that gives an upload address, and where its answer has that address and the file's link")
+    if f["files_via"] == "presigned" and _object(f["upload_body"]) is None:
+        out.append("What it's asked with must be JSON")
     return out

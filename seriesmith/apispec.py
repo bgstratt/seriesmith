@@ -117,6 +117,7 @@ def parse_curl(text: str) -> dict:
     except ValueError as e:
         raise SpecError(f"that cURL couldn't be read: {e}") from None
     url, method, data, form, auth = "", "", None, {}, None
+    extra = {}
     i = 1
     while i < len(words):
         w = words[i]
@@ -134,6 +135,8 @@ def parse_curl(text: str) -> dict:
                     auth and (auth["type"] == "bearer" or auth.get("name", "").lower() == "authorization")):
                 # an Idempotency-Key names a request, and isn't what says who's asking
                 auth = {"type": "header", "name": name.strip()}
+            elif low.startswith("x-") and "key" not in low and "token" not in low and "secret" not in low and not value.startswith("$"):
+                extra[name.strip()] = value     # one it asks for every time (X-Runway-Version)
             i += 2
         elif w in ("-d", "--data", "--data-raw", "--data-binary"):
             data, i = following, i + 2
@@ -161,7 +164,7 @@ def parse_curl(text: str) -> dict:
             raise SpecError("that cURL's body isn't a JSON object")
         body = got
     return {"method": (method or ("POST" if body else "GET")).upper(),
-            "url": url, "body": body, "auth": auth, "form": bool(form)}
+            "url": url, "body": body, "auth": auth, "form": bool(form), "headers": extra}
 
 
 def post_paths(doc: dict) -> list[str]:
@@ -279,8 +282,13 @@ def propose(service: str, model: str, text: str, kind: str = "video", path: str 
     if endpoint:
         values["endpoint"] = endpoint
     values["type"] = kind
+    text_endpoint = (defs[service].get("endpoints") or {}).get(f"{kind}_text")
+    if text_endpoint:
+        block["values_text"] = {"endpoint": text_endpoint}
     if entry:
         block.get("inputs", {}).update(entry.get("inputs") or {})
+        if entry.get("arguments"):
+            block["arguments"] = {**(block.get("arguments") or {}), **entry["arguments"]}
         if entry.get("models"):
             block["models"] = entry["models"]
         if "first" in block.get("inputs", {}) and "references" in block["inputs"]:
@@ -306,6 +314,6 @@ def propose(service: str, model: str, text: str, kind: str = "video", path: str 
         warnings.append("Read from an example: its limits and required fields aren't known. Check the "
                         "Fields tab, then probe one take.")
     return {"proposal": spec, "mapped": made.get("mapped") or {},
-            "unplaced": [f for f in made.get("unplaced") or [] if f not in named_in_steps], "warnings": warnings,
+            "unplaced": [f for f in made.get("unplaced") or [] if f not in named_in_steps and f not in placed], "warnings": warnings,
             "form": read_["form"], "paths": read_["paths"], "schema": schema,
             **({"auth": read_["auth"]} if read_.get("auth") else {})}
