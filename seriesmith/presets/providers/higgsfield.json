@@ -1,0 +1,83 @@
+{
+  "id": "higgsfield",
+  "label": "Higgsfield",
+  "docs": "https://docs.higgsfield.ai",
+  "key_hint": "the key from open.higgsfield.ai, as copied",
+  "base_url": "https://api.higgsfield.ai",
+  "auth": {
+    "type": "header",
+    "name": "Authorization",
+    "prefix": "Key "
+  },
+  "parallel": 3,
+  "untested": true,
+  "files": {
+    "via": "upload",
+    "value": "$public_url",
+    "steps": [
+      {
+        "method": "POST",
+        "url": "/files/generate-upload-url",
+        "json": {
+          "content_type": "$mime"
+        },
+        "take": {
+          "put_to": "upload_url",
+          "public_url": "public_url",
+          "put_headers": "upload_headers"
+        }
+      },
+      {
+        "method": "PUT",
+        "url": "$put_to",
+        "key": false,
+        "headers": "$put_headers",
+        "body": "$file"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "method": "POST",
+      "url": "/{model}",
+      "json": {
+        "...": "$args"
+      },
+      "take": {
+        "task": "request_id",
+        "status_url": "status_url",
+        "cancel_url": "cancel_url"
+      }
+    },
+    {
+      "method": "GET",
+      "url": "$status_url",
+      "until": {
+        "status": "status",
+        "done": [
+          "completed"
+        ],
+        "failed": [
+          "failed",
+          "nsfw",
+          "canceled"
+        ],
+        "error": "error",
+        "every": 5,
+        "timeout": 3600
+      }
+    }
+  ],
+  "result": {
+    "files": [
+      "video.url",
+      "images.0.url",
+      "audio.url"
+    ]
+  },
+  "cancel": {
+    "method": "POST",
+    "url": "$cancel_url"
+  },
+  "check": "/requests/00000000-0000-0000-0000-000000000000/status"
+}

@@ -129,6 +129,12 @@ def multipart(fields: dict) -> tuple[bytes, str]:
     return bytes(out), f"multipart/form-data; boundary={boundary}"
 
 
+def file_type(path: str) -> str:
+    """A file's media type as an upload declares it. What's declared can have to match what's sent
+    (Higgsfield's upload address), so a .webp isn't called a png."""
+    return mimetypes.guess_type(path)[0] or mime_of(path)
+
+
 class HttpBackend(Backend):
     kind = "api"
 
@@ -201,19 +207,32 @@ class HttpBackend(Backend):
     def run_step(self, step: dict, values: dict) -> tuple[Any, bytes | None, str]:
         """One step: (its JSON answer or None, its bytes when it answers with a file, their type)."""
         url = fill(step["url"], values, quote=True)
-        headers = {k: str(fill(v, values)) for k, v in (step.get("headers") or {}).items()}
+        # a step's headers can be a whole object an earlier answer gave ("$upload_headers")
+        told = fill(step.get("headers") or {}, values)
+        headers = {str(k): str(v) for k, v in told.items()} if isinstance(told, dict) else {}
         data = None
-        if "json" in step:
+        raw_file = "body" in step
+        if raw_file:
+            got = fill(step["body"], values)
+            if not isinstance(got, File):
+                raise BackendError(f"{self.id}: a step's body is a file (\"$file\"), and this has none")
+            with open(got.path, "rb") as fh:
+                data = fh.read()
+            headers.setdefault("Content-Type", file_type(got.path))
+        elif "json" in step:
             data = json.dumps(_plain(fill(step["json"], values))).encode("utf-8")
             headers.setdefault("Content-Type", "application/json")
         elif "multipart" in step:
             data, kind = multipart(fill(step["multipart"], values))
             headers["Content-Type"] = kind
         wants_file = step.get("response") == "bytes"
-        raw, kind = self.send(step.get("method") or ("POST" if data else "GET"), url, data, headers,
-                              timeout=BIG_TIMEOUT if wants_file else TIMEOUT)
+        raw, kind = self.send(step.get("method") or ("PUT" if raw_file else "POST" if data else "GET"), url, data, headers,
+                              keyed=step.get("key") is not False,
+                              timeout=BIG_TIMEOUT if wants_file or raw_file else TIMEOUT)
         if wants_file:
             return None, raw, kind
+        if raw_file:
+            return {}, None, kind               # storage's answer, if any, isn't the provider's JSON
         if not raw.strip():
             return {}, None, kind
         try:
@@ -227,8 +246,10 @@ class HttpBackend(Backend):
         for name, path in (step.get("take") or {}).items():
             got = pick(doc, path)
             if got is None:
+                # a signed address in the answer isn't for a log: its query is what signs it
+                said = re.sub(r"(https?://[^\s\"'?]*)\?[^\s\"']*", r"\1?...", self._clean(json.dumps(doc)))
                 raise BackendError(f"{self.id}: its answer has no {path}, which the definition takes "
-                                   f"as {name}: {self._clean(json.dumps(doc))[:300]}")
+                                   f"as {name}: {said[:300]}")
             values[name] = got
 
     # -- files ------------------------------------------------------------------
@@ -251,7 +272,7 @@ class HttpBackend(Backend):
             with open(f.path, "rb") as fh:
                 b64 = base64.b64encode(fh.read()).decode("ascii")
             return b64 if via == "base64" else f"data:{mime_of(f.path)};base64,{b64}"
-        values: dict = {"file": f, "name": os.path.basename(f.path)}
+        values: dict = {"file": f, "name": os.path.basename(f.path), "mime": file_type(f.path)}
         for step in how.get("steps") or []:
             # no job has started: asked again while the network hiccups
             doc = self._wait_for(step, values) if step.get("until") else \
@@ -336,9 +357,12 @@ def planned_calls(d: dict, model: str, arguments: dict) -> list[dict]:
     how_files = d.get("files") or {}
     if has_files and how_files.get("via") == "upload":
         for step in how_files.get("steps") or []:
-            out.append({"what": "upload, for each picture", "method": step.get("method") or "POST",
-                        "url": _full(base, step["url"]), "key": key,
-                        "sends": {k: "(the file)" for k in step.get("multipart") or {}}, "takes": step.get("take")})
+            sends = ({"body": "(the file)"} if "body" in step else
+                     fill(step["json"], {"mime": "(its type)", "name": "(its name)"}) if "json" in step else
+                     {k: "(the file)" for k in step.get("multipart") or {}})
+            out.append({"what": "upload, for each picture", "method": step.get("method") or ("PUT" if "body" in step else "POST"),
+                        "url": _full(base, step["url"]), "key": "no key" if step.get("key") is False else key,
+                        "sends": sends, "takes": step.get("take")})
     for i, step in enumerate(d.get("steps") or []):
         url = str(fill(step["url"], values, quote=True))
         body = None

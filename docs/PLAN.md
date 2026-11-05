@@ -2049,6 +2049,13 @@ download with the key). Reading the reference moved up from step 7 (decided with
       data URIs ("not recommended for files larger than a few KB", no limit stated): frames go inline.
       BytePlus refuses a photoreal person as a URL; a face as a data URI is untested, and a direct
       key's way into its asset library unknown (its docs pages draw themselves in the browser).
+- [x] Higgsfield shipped untested (2026-11-05, read from its docs, tried on local servers only, no key):
+      `presets/providers/higgsfield.json` and its list. A file goes by an address its answer gives, a
+      step's `body` (the file as the whole request), `headers` from an answer, and `key: false`; the
+      form offers it. Its model pages' Markdown (`<page>.md`) has the whole schema where its OpenAPI
+      document has a few models only. Status `nsfw` is a failure. No seed on its Seedance, H3 or
+      Kling; H3 only at 2K, from 5 s. An `Idempotency-Key` could make a submit safe to ask again.
+      Not proved: anything by a real take, and how its Seedance prompt names a picture.
 - [ ] A live paid proof of ElevenLabs (needs step 6) and OpenAI: tested against a local server
       answering as their docs say, and marked untested until a real take comes back.
 - [ ] Router's `seedance_asset` moved onto the steps, as the proof the asset path is data.

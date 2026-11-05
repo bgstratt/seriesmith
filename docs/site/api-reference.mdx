@@ -4371,7 +4371,7 @@ Set a provider's key, write-only; `key: null` removes it. Body `{id, key}`. Retu
 
 ### `POST /seriesmith/providers/draft`
 
-A provider set up from what its docs give; nothing is saved or sent to it. Body `{text, answer?, poll?, poll_answer?, path?}`: `text` is the cURL that starts a generation, an OpenAPI document, or an address: that document's, or a docs page whose HTML shows either.
+A provider set up from what its docs give; nothing is saved or sent to it. Body `{text, answer?, poll?, poll_answer?, path?}`: `text` is the cURL that starts a generation, an OpenAPI document, or an address: that document's, or a docs page whose HTML shows either, or whose Markdown source beside it (`<page>.md`) has the example and a JSON Schema. That source's example answers fill in `answer` and `poll_answer` unless given.
 Or `{form}`: a form as edited. Returns `{form, definition, problems, notes?, model?, paths?}`. A key in
 a pasted cURL isn't kept, only how it was sent.
 
@@ -4385,7 +4385,10 @@ doesn't exist. Body `{definition, key?}`: `key`, else the one saved. The key isn
 
 A model's API reference read into a proposed target, nothing saved or sent to the provider. Body
 `{service, model, kind?, text, path?}`: `text` is an OpenAPI document or its address, an example
-cURL, or an example request's JSON. Returns `{proposal, mapped, unplaced, warnings, form, paths, schema, auth?, limits}`. An OpenAPI document with several requests and no `path` returns `proposal: null` and the `paths` to choose from. A key in a pasted cURL isn't kept, only how it's sent.
+cURL, an example request's JSON, or a docs page's address. Returns `{proposal, mapped, unplaced, warnings, form, paths, schema, auth?, limits, model}`. An OpenAPI document with several requests and
+no `path` returns `proposal: null` and the `paths` to choose from. A key in a pasted cURL isn't kept,
+only how it's sent. With `model` empty, a docs page's address and a provider whose first step has
+`{model}` in its address, the page's request gives the id, returned as `model`.
 
 ### `POST /seriesmith/targets/schema`
 

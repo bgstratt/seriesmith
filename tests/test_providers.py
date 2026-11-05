@@ -69,7 +69,7 @@ class Fake:
                 self.send_header("Content-Length", str(len(raw)))
                 self.end_headers()
                 self.wfile.write(raw)
-            do_GET = do_POST = do_DELETE = answer
+            do_GET = do_POST = do_DELETE = do_PUT = answer
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), H)
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -560,6 +560,80 @@ class AtlasList(unittest.TestCase):
     def test_a_listing_says_what_is_on_it(self):
         row = next(r for r in PR.listing(S.Settings(), {}) if r["id"] == "atlas")
         self.assertIn("qwen-image-3.0/edit", {m["id"] for m in row["catalog"]})
+
+
+class HiggsfieldList(AtlasList):
+    """Higgsfield's documented models (presets/providers/higgsfield.models.json, read 2026-11-05)."""
+
+    def proposed(self, model):
+        return AS.propose("higgsfield", model, "", base=self.base)
+
+    def view(self, model):
+        spec = self.proposed(model)["proposal"]
+        return spec, PV.preview(self.root, spec["id"], shot="sh010", spec=spec)
+
+    def test_every_one_proposes_and_previews_with_its_own_fields_placed(self):
+        from seriesmith import inspector as IN
+        for m in PR.catalog("higgsfield"):
+            with self.subTest(m["id"]):
+                got = self.proposed(m["id"])
+                spec = got["proposal"]
+                self.assertEqual(IN.validate_spec(spec), [])
+                self.assertEqual(got["form"], "catalog")
+                self.assertEqual(got["unplaced"], [])
+                self.assertEqual(spec["kind"], m["kind"])
+                view = PV.preview(self.root, spec["id"], shot="sh010", spec=spec) if m["kind"] == "video" \
+                    else PV.preview(self.root, spec["id"], spec=spec)
+                self.assertTrue(view["ok"], view.get("why"))
+
+    def test_only_what_a_model_has_is_sent(self):
+        # their schemas refuse anything else (additionalProperties: false), and have no seed
+        for m in PR.catalog("higgsfield"):
+            if m["kind"] != "video":
+                continue
+            with self.subTest(m["id"]):
+                _, view = self.view(m["id"])
+                self.assertTrue(view["ok"], view.get("why"))
+                self.assertLessEqual(set(view["arguments"]), set(m["fields"]))
+
+    def test_each_goes_to_the_id_for_what_is_sent(self):
+        from seriesmith.targets.generic.router_video import model_for
+        block = self.proposed("minimax/h3/reference-to-video")["proposal"]["api"]
+        self.assertEqual(model_for(block, "references", ["pic"]), "minimax/h3/reference-to-video")
+        self.assertEqual(model_for(block, "frames", ["pic"]), "minimax/h3/image-to-video")
+        self.assertEqual(model_for(block, "references", []), "minimax/h3/text-to-video")
+
+    def test_sound_as_kling_writes_it(self):
+        spec = self.proposed("kling-video/v3.0/pro/image-to-video")["proposal"]
+        self.assertEqual(spec["api"]["inputs"]["audio"], {"name": "sound", "on": "on", "off": "off"})
+
+    def test_a_first_frame_sends_the_frame_and_goes_to_its_id(self):
+        spec = self.proposed("bytedance/seedance-2.5/reference-to-video")["proposal"]
+        path = os.path.join(self.root, spec["recipe"]["keyframe_path"].format(shot="sh010", end="first"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as fh:
+            fh.write(b"\x89PNG")
+        view = PV.preview(self.root, spec["id"], shot="sh010", spec=spec)
+        self.assertEqual(view["model"], "bytedance/seedance-2.5/image-to-video")
+        self.assertIn("image_url", view["arguments"])
+        self.assertNotIn("image_urls", view["arguments"])
+        self.assertNotIn("aspect_ratio", view["arguments"])
+
+    def test_a_listing_says_what_is_on_it(self):
+        row = next(r for r in PR.listing(S.Settings(), {}) if r["id"] == "higgsfield")
+        self.assertIn("minimax/h3/reference-to-video", {m["id"] for m in row["catalog"]})
+        self.assertTrue(row["untested"])
+        self.assertIn("as copied", row["key_hint"])
+
+    # what's only Atlas's
+    test_the_last_frame_on_any_name = None
+    test_what_the_sound_is_called = None
+    test_a_size_as_the_api_writes_it = None
+    test_an_edit_models_pictures = None
+    test_a_first_frame_model_says_it_needs_one = None
+    test_it_comes_from_the_docs_and_says_so = None
+    test_seedance_goes_to_the_id_for_what_is_sent = None
+    test_an_answer_flat_or_wrapped = None
 
 
 class AModelOnAProvider(unittest.TestCase):
@@ -1087,6 +1161,258 @@ REQUEST_ID=$(echo &quot;$response&quot; | grep -o &#x27;&quot;request_id&quot;: 
         d, _ = self.backend()
         del d["check"]
         self.assertFalse(check_key(d, KEY)["proves_key"])
+
+
+class Higgsfield(WithFake):
+    """Its definition as it ships, on answers as its docs show them (read 2026-11-05): a file goes to
+    an address its answer gives, with the headers its answer gives, and that storage gets no key."""
+
+    MODEL = "minimax/h3/reference-to-video"
+    KEY = "id-1:secret-2"
+
+    def setUp(self):
+        super().setUp()
+        self.storage = Fake()
+        self.addCleanup(self.storage.close)
+        self.d = json.loads(json.dumps(PR.definitions()["higgsfield"]))
+        self.d["base_url"] = self.fake.url
+        self.d["steps"][1]["until"]["every"] = 0.01
+        self.b = HttpBackend(self.d, self.KEY)
+        f, s = self.fake, self.storage
+        f.routes[("POST", "/files/generate-upload-url")] = lambda c: {
+            "public_url": s.url + "/input/pic.png", "upload_url": s.url + "/put/pic.png?sig=a%2Bb&x=1",
+            "content_type": json.loads(c["body"])["content_type"],
+            "upload_headers": {"Content-Type": json.loads(c["body"])["content_type"], "x-amz-tagging": "retention=temporary"}}
+        s.routes[("PUT", "/put/pic.png")] = b""
+        s.routes[("GET", "/out/v.mp4")] = b"video bytes"
+        f.routes[("POST", "/" + self.MODEL)] = {
+            "status": "queued", "request_id": "r1", "status_url": f.url + "/requests/r1/status",
+            "cancel_url": f.url + "/requests/r1/cancel", "expires_after": 604800}
+        self.finished({"status": "completed", "request_id": "r1", "video": {"url": s.url + "/out/v.mp4"}, "error": None})
+
+    def finished(self, answer):
+        self.fake.routes[("GET", "/requests/r1/status")] = answer
+
+    def go(self, pics=None):
+        return self.b.call(self.MODEL, {"prompt": "a", "image_urls": [File(self.pic)] if pics is None else pics})
+
+    def test_a_picture_goes_in_two_steps_and_a_take_comes_back(self):
+        run = self.go()
+        self.assertEqual(run.watch(), "succeeded")
+        [ask, job, *_] = self.fake.calls
+        self.assertEqual(ask["path"], "/files/generate-upload-url")
+        self.assertEqual(json.loads(ask["body"]), {"content_type": "image/png"})
+        self.assertEqual(ask["headers"]["Authorization"], "Key " + self.KEY)
+        put = self.storage.calls[0]
+        self.assertEqual((put["method"], put["path"]), ("PUT", "/put/pic.png?sig=a%2Bb&x=1"))
+        self.assertEqual(put["body"], b"\x89PNG picture")
+        self.assertEqual(put["headers"]["Content-Type"], "image/png")
+        self.assertEqual(put["headers"]["x-amz-tagging"], "retention=temporary")
+        # the model is in the address, and what's sent is the model's own fields
+        self.assertEqual(json.loads(job["body"]), {"prompt": "a", "image_urls": [self.storage.url + "/input/pic.png"]})
+        (out,) = run.outputs()
+        self.assertEqual(out.type, "video")
+        path = out.save(os.path.join(self.tmp.name, "v.mp4"))
+        with open(path, "rb") as fh:
+            self.assertEqual(fh.read(), b"video bytes")
+
+    def test_storage_and_links_never_get_the_key(self):
+        self.assertEqual(self.go().watch(), "succeeded")
+        for c in self.storage.calls:
+            self.assertNotIn("Authorization", c["headers"])
+            self.assertNotIn(self.KEY, c["path"])
+
+    def test_no_key_where_a_step_says_so_on_its_own_host_too(self):
+        f = self.fake
+        f.routes[("POST", "/files/generate-upload-url")] = {
+            "public_url": "https://cdn.example/p.png", "upload_url": f.url + "/put", "upload_headers": {"x-a": "b"}}
+        f.routes[("PUT", "/put")] = b"<ok/>"              # an answer that isn't JSON is fine here
+        self.assertEqual(self.go().watch(), "succeeded")
+        put = next(c for c in f.calls if c["method"] == "PUT")
+        self.assertNotIn("Authorization", put["headers"])
+
+    def test_a_signed_address_stays_out_of_a_message(self):
+        self.fake.routes[("POST", "/files/generate-upload-url")] = {"upload_url": "https://s.example/a?sig=secret", "upload_headers": {}}
+        with self.assertRaises(Exception) as e:
+            self.go()
+        self.assertIn("public_url", str(e.exception))
+        self.assertNotIn("sig=secret", str(e.exception))
+
+    def test_a_webp_is_declared_as_one(self):
+        pic = os.path.join(self.tmp.name, "pic.webp")
+        with open(pic, "wb") as fh:
+            fh.write(b"RIFF")
+        self.go([File(pic)])
+        self.assertEqual(json.loads(self.fake.calls[0]["body"]), {"content_type": "image/webp"})
+        self.assertEqual(self.storage.calls[0]["headers"]["Content-Type"], "image/webp")
+
+    def test_one_picture_twice_goes_once(self):
+        self.go([File(self.pic), File(self.pic)])
+        self.assertEqual(len(self.storage.calls), 1)
+
+    def test_a_picture_or_answer_it_refuses_fails_and_says_so(self):
+        for status, said in (("failed", "it broke"), ("nsfw", "the provider says nsfw"), ("canceled", "the provider says canceled")):
+            with self.subTest(status):
+                self.finished({"status": status, "request_id": "r1", "error": "it broke" if status == "failed" else None})
+                run = self.go()
+                self.assertEqual(run.watch(), "failed")
+                self.assertEqual(run.error, said)
+
+    def test_a_run_followed_after_a_restart_has_no_key_in_it(self):
+        run = self.go()
+        self.assertNotIn(self.KEY, run.id)
+        again = self.b.attach(run.id)
+        self.assertEqual(again.watch(), "succeeded")
+        self.assertEqual(len([c for c in self.fake.calls if c["path"] == "/" + self.MODEL]), 1)
+
+    def test_cancel_asks_it_to(self):
+        self.fake.routes[("POST", "/requests/r1/cancel")] = (202, b"", {})
+        self.go().cancel()
+        self.assertTrue(any(c["path"] == "/requests/r1/cancel" for c in self.fake.calls))
+
+    def test_check_it_proves_the_key(self):
+        from seriesmith.backends.http import check_key
+        self.fake.routes[("GET", "/requests/00000000-0000-0000-0000-000000000000/status")] = lambda c: (
+            (404, {"detail": "no"}, {}) if c["headers"].get("Authorization") == "Key " + self.KEY
+            else (401, {"detail": "Invalid credentials"}, {}))
+        good = check_key(self.d, self.KEY)
+        self.assertTrue(good["key_ok"] and good["proves_key"])
+        self.assertFalse(check_key(self.d, "x:y")["key_ok"])
+
+    def test_the_panel_shows_both_steps_with_nothing_sent(self):
+        from seriesmith.backends.http import planned_calls
+        calls = planned_calls(self.d, self.MODEL, {"prompt": "a", "image_urls": [File(self.pic)]})
+        self.assertEqual([c["method"] for c in calls[:3]], ["POST", "PUT", "POST"])
+        self.assertEqual(calls[0]["sends"], {"content_type": "(its type)"})
+        self.assertEqual(calls[1]["sends"], {"body": "(the file)"})
+        self.assertEqual(calls[1]["key"], "no key")
+        self.assertEqual(self.fake.calls, [])
+
+
+class AMarkdownPage(ScratchSettings):
+    """A Higgsfield model page, as served 2026-11-05: its source in Markdown beside the page, with the
+    cURL, the whole schema in a quote, and example answers. Other models' pages are the same."""
+
+    MODEL = "minimax/h3/image-to-video"
+
+    def setUp(self):
+        super().setUp()
+        self.fake = Fake()
+        self.addCleanup(self.fake.close)
+        with open(os.path.join(os.path.dirname(__file__), "fixtures", "provider_docs", "higgsfield_h3_i2v.md"), "rb") as fh:
+            self.md = fh.read()
+        self.fake.routes[("GET", "/docs/h3.md")] = self.md
+        # its HTML: an example, and a link to an OpenAPI document without this model
+        self.fake.routes[("GET", "/docs/h3")] = (b'<a href="/docs/openapi.json">x</a><pre><code>curl --request POST '
+                                                 b'--url https://api.higgsfield.ai/minimax/h3/image-to-video --data \'{"prompt": "a"}\''
+                                                 b'</code></pre>')
+        self.fake.routes[("GET", "/docs/openapi.json")] = {"openapi": "3.1.0", "paths": {"/other": {}}}
+
+    def test_what_it_reads(self):
+        from seriesmith import providerdraft as PD
+        got = PD.from_page(self.md.decode("utf-8"), "https://docs.higgsfield.ai/x.md")
+        self.assertIn("/minimax/h3/image-to-video", got["post"])
+        self.assertEqual(got["schema"]["required"], ["prompt", "image_url"])
+        self.assertIn("status_url", got["answer"])
+        self.assertIn("video", got["poll_answer"])
+
+    def test_the_address_fills_the_form_with_or_without_md(self):
+        from seriesmith import api as A
+        for tail in ("/docs/h3.md", "/docs/h3", "/docs/h3?x=1"):
+            with self.subTest(tail):
+                got = self.ok(A.post_provider_draft(self.ctx, {"text": self.fake.url + tail}))
+                f = got["form"]
+                self.assertEqual(got["model"], self.MODEL)
+                self.assertEqual((f["base_url"], f["url"], f["auth_name"], f["auth_prefix"]),
+                                 ("https://api.higgsfield.ai", "/{model}", "Authorization", "Key "))
+                self.assertEqual((f["id_path"], f["poll_url"], f["status_path"], f["files_path"]),
+                                 ("request_id", "$status_url", "status", "video.url"))
+                self.assertEqual(got["problems"], [])
+
+    def test_another_model_on_a_listed_provider_needs_only_its_address(self):
+        from seriesmith import api as A
+        got = self.ok(A.post_provider_read_spec(self.ctx, {"service": "higgsfield", "model": "", "text": self.fake.url + "/docs/h3"}))
+        self.assertEqual(got["model"], self.MODEL)
+        self.assertEqual(got["form"], "openapi")
+        inputs = got["proposal"]["api"]["inputs"]
+        self.assertEqual(inputs["duration"], {"name": "duration", "min": 5, "max": 15})
+        self.assertEqual(inputs["first"], {"field": "image_url"})
+        self.assertEqual(inputs["last"], {"field": "end_image_url"})
+
+    def test_a_typed_model_stays(self):
+        from seriesmith import api as A
+        got = self.ok(A.post_provider_read_spec(self.ctx, {"service": "higgsfield", "model": "my/own", "text": self.fake.url + "/docs/h3"}))
+        self.assertEqual(got["model"], "my/own")
+
+    def test_a_provider_with_the_model_in_its_body_still_asks_for_it(self):
+        from seriesmith import api as A
+        got = A.post_provider_read_spec(self.ctx, {"service": "atlas", "model": "", "text": self.fake.url + "/docs/h3"})
+        self.assertEqual(got[0], 400)
+
+    def test_a_body_as_a_here_document(self):
+        # Higgsfield's sample request, as its site shows it
+        sample = """curl --request POST \\
+  --url 'https://api.higgsfield.ai/bytedance/seedance-2.5/text-to-video' \\
+  --header "Authorization: Key $HF_KEY" \\
+  --header "Content-Type: application/json" \\
+  --data @- <<'JSON'
+{
+  "prompt": "A cinematic scene at sunset",
+  "duration": 5,
+  "generate_audio": true
+}
+JSON
+"""
+        for text in (sample, sample.replace("\n", "\r\n")):
+            got = AS.parse_curl(text)
+            self.assertEqual(got["url"], "https://api.higgsfield.ai/bytedance/seedance-2.5/text-to-video")
+            self.assertEqual(got["method"], "POST")
+            self.assertEqual(got["auth"], {"type": "header", "name": "Authorization", "prefix": "Key "})
+            self.assertEqual(got["body"], {"prompt": "A cinematic scene at sunset", "duration": 5, "generate_audio": True})
+        self.assertEqual(AS.read(sample, None)["form"], "curl")
+        from seriesmith import providerdraft as PD
+        drafted = PD.draft(sample)
+        self.assertEqual(drafted["model"], "bytedance/seedance-2.5/text-to-video")
+        self.assertEqual(drafted["form"]["url"], "/{model}")
+
+    def test_a_here_document_is_only_for_data_that_asks_for_it(self):
+        got = AS.parse_curl("curl https://a.example/go -d '{\"a\": 1}'\ncat <<EOF\nnot it\nEOF\n")
+        self.assertEqual(got["body"], {"a": 1})
+
+    def test_the_key_is_who_is_asking_and_not_the_request(self):
+        for text in ("curl https://a.example/go -H 'Authorization: Key x' -H 'Idempotency-Key: y' -d '{\"a\": 1}'",
+                     "curl https://a.example/go -H 'Idempotency-Key: y' -H 'Authorization: Key x' -d '{\"a\": 1}'"):
+            self.assertEqual(AS.parse_curl(text)["auth"], {"type": "header", "name": "Authorization", "prefix": "Key "})
+        self.assertEqual(AS.parse_curl("curl https://a.example/go -H 'Idempotency-Key: y' -d '{}'")["auth"], None)
+        self.assertEqual(AS.parse_curl("curl https://a.example/go -H 'x-api-key: y' -d '{}'")["auth"], {"type": "header", "name": "x-api-key"})
+
+
+class AnUploadAddressInTheForm(unittest.TestCase):
+    FORM = {"id": "x", "base_url": "https://a.example", "url": "/{model}", "answer": "links", "files_path": "url",
+            "files_via": "presigned", "upload_url": "/ask", "upload_put": "put.to", "upload_link": "public"}
+
+    def test_it_comes_to_two_steps_and_storage_gets_no_key(self):
+        from seriesmith import providerdraft as PD
+        d = PD.definition(self.FORM)
+        self.assertEqual(PR.problems(d), [])
+        ask, put = d["files"]["steps"]
+        self.assertEqual(d["files"]["via"], "upload")
+        self.assertEqual(ask["json"], {"content_type": "$mime"})
+        self.assertEqual(ask["take"], {"put_to": "put.to", "link": "public"})
+        self.assertEqual(put, {"method": "PUT", "url": "$put_to", "key": False, "body": "$file"})
+
+    def test_headers_only_when_it_gives_them(self):
+        from seriesmith import providerdraft as PD
+        d = PD.definition({**self.FORM, "upload_headers": "h", "upload_type_field": "kind"})
+        ask, put = d["files"]["steps"]
+        self.assertEqual(ask["json"], {"kind": "$mime"})
+        self.assertEqual(ask["take"]["put_headers"], "h")
+        self.assertEqual(put["headers"], "$put_headers")
+
+    def test_it_says_what_is_missing(self):
+        from seriesmith import providerdraft as PD
+        self.assertEqual(PD.form_problems(self.FORM), [])
+        self.assertTrue(PD.form_problems({**self.FORM, "upload_put": ""}))
 
 
 class AWholeTake(ScratchSettings):

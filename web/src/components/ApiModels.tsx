@@ -47,7 +47,7 @@ function ProviderKey({ row, onChanged, onError }: {
       ) : (
         <>
           <input className="h3-in h3-mono h3-grow" style={{ minWidth: 160 }} type="password" autoComplete="off" value={key}
-            placeholder={row.has_key ? "a new key replaces the one saved" : "its API key"}
+            placeholder={row.has_key ? "a new key replaces the one saved" : row.key_hint || "its API key"}
             onChange={(e) => setKey(e.target.value)} />
           <button className="h3-btn" disabled={busy || !key.trim()} onClick={() => void put(key)}>Save key</button>
           {row.has_key && <button className="h3-btn" disabled={busy} onClick={() => void put(null)}>Remove</button>}
@@ -260,6 +260,7 @@ export function AddProvider({ onSaved, onCancel }: {
             <option value="datauri">In the request, as a data: address</option>
             <option value="base64">In the request, as base64</option>
             <option value="upload">Uploaded first, then sent as a link</option>
+            <option value="presigned">Sent to an address it gives, then as a link</option>
             <option value="multipart">As files in the form</option>
           </select>
           {f.files_via === "upload" && (
@@ -267,6 +268,15 @@ export function AddProvider({ onSaved, onCancel }: {
               <Field label="Upload to" hint="/uploads" value={f.upload_url} onChange={set("upload_url")} />
               <Field label="File's field" hint="file" value={f.upload_field} onChange={set("upload_field")} />
               <Field label="Link is at" hint="data.url" value={f.upload_link} onChange={set("upload_link")} />
+            </div>
+          )}
+          {f.files_via === "presigned" && (
+            <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+              <Field label="Ask at" hint="/files/generate-upload-url" value={f.upload_url} onChange={set("upload_url")} />
+              <Field label="File's type goes in" hint="content_type" value={f.upload_type_field} onChange={set("upload_type_field")} />
+              <Field label="Address is at" hint="upload_url" value={f.upload_put} onChange={set("upload_put")} />
+              <Field label="Its headers are at" hint="upload_headers, if it gives any" value={f.upload_headers} onChange={set("upload_headers")} />
+              <Field label="Link is at" hint="public_url" value={f.upload_link} onChange={set("upload_link")} />
             </div>
           )}
           <details className="h3-small">
@@ -336,6 +346,7 @@ export function ApiModelWizard({ onClose }: { onClose: () => void }) {
     setErr(null);
     try {
       const got = await api().readProviderSpec({ service, model: model.trim(), kind, text: fromList ? "" : text, ...(which ?? path ? { path: which ?? path } : {}) });
+      if (got.model && !model.trim()) setModel(got.model);
       setR(got);
       if (got.proposal) {
         setId(String(got.proposal.id));
@@ -466,7 +477,7 @@ export function ApiModelWizard({ onClose }: { onClose: () => void }) {
           </select>
         </label>
       )}
-      <button className="h3-btn h3-primary" style={{ alignSelf: "flex-start" }} disabled={busy || !service || !model.trim() || (!fromList && !text.trim())}
+      <button className="h3-btn h3-primary" style={{ alignSelf: "flex-start" }} disabled={busy || !service || (!model.trim() && !/^https?:\/\/\S+$/.test(text.trim())) || (!fromList && !text.trim())}
         onClick={() => void read()}>
         <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-search"} /> Read it
       </button>

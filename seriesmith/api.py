@@ -4166,13 +4166,28 @@ def _reference_at(address: str) -> dict:
     if doc is not None:
         return {"text": json.dumps(doc)}
     page = PD.from_page(raw, address)
+    bare = address.split("#")[0].split("?")[0].rstrip("/")
+    if not page["schema"] and not bare.endswith(".md"):
+        # a docs site can serve a page's source beside it, with more than its HTML shows (Mintlify's,
+        # as Higgsfield's: the model's whole schema, where the OpenAPI document it links has a few
+        # models only, and the example answers)
+        try:
+            source = PD.from_page(fetched(bare + ".md"), address)
+            if source["post"] and source["schema"]:
+                page = source
+        except (urllib.error.URLError, OSError, ValueError):
+            pass
+    if page["post"] and page["schema"]:
+        return {"text": page["post"], "doc": PD.document_of(page["schema"], page["post"]), "poll": page["poll"],
+                "answer": page["answer"], "poll_answer": page["poll_answer"]}
     if page["openapi"]:
         try:
             doc = as_document(fetched(page["openapi"]))
         except (urllib.error.URLError, OSError, ValueError):
             doc = None
     if page["post"]:
-        return {"text": page["post"], "doc": doc, "poll": page["poll"]}
+        return {"text": page["post"], "doc": doc, "poll": page["poll"],
+                "answer": page["answer"], "poll_answer": page["poll_answer"]}
     if doc is not None:
         return {"text": json.dumps(doc)}
     raise AS.SpecError(cant)
@@ -4198,8 +4213,8 @@ def post_provider_draft(ctx: Context, body):
             if re.fullmatch(r"https?://\S+", text.strip()):
                 found = _reference_at(text.strip())
                 text = found["text"]
-            out = PD.draft(text, body.get("answer"), body.get("poll") or found.get("poll"), body.get("poll_answer"),
-                           _opt_str(body, "path"), doc=found.get("doc"))
+            out = PD.draft(text, body.get("answer") or found.get("answer"), body.get("poll") or found.get("poll"),
+                           body.get("poll_answer") or found.get("poll_answer"), _opt_str(body, "path"), doc=found.get("doc"))
         except AS.SpecError as e:
             raise ApiError(400, str(e))
         form = out["form"]
@@ -4235,9 +4250,13 @@ def post_provider_read_spec(ctx: Context, body):
     """A model's API reference, as pasted, read into a proposed target: an OpenAPI document (or
     its URL), an example cURL, or an example request's JSON. Nothing is saved or sent to the
     provider. Body {service, model, kind?, text, path?}. With an OpenAPI document holding several
-    requests and no `path`, {proposal: null, paths} to choose from."""
+    requests and no `path`, {proposal: null, paths} to choose from. No `model`, a docs page's address
+    and a provider that takes the model in its address: the page's request says which, as `model`."""
     from seriesmith import apispec as AS
+    import urllib.parse
+
     from seriesmith import limits as L
+    from seriesmith import providers as PR
     body = body_dict(body)
     kind = body.get("kind") or "video"
     if kind not in ("video", "image"):
@@ -4245,14 +4264,19 @@ def post_provider_read_spec(ctx: Context, body):
     text = body.get("text") or ""
     if not isinstance(text, str):
         raise ApiError(400, "text is the API's reference")
+    service, model = _opt_str(body, "service") or "", (_opt_str(body, "model") or "").strip()
     try:
         if re.fullmatch(r"https?://\S+", text.strip()):
             found = _reference_at(text.strip())
             text = json.dumps(found["doc"]) if found.get("doc") else found["text"]
-        out = AS.propose(_opt_str(body, "service") or "", _opt_str(body, "model") or "", text, kind,
-                         _opt_str(body, "path"), base=TG.load_target("seedance_2_5", "video").spec)
+            steps = (PR.definitions().get(service) or {}).get("steps") or [{}]
+            if not model and AS.curl_in(found["text"]) and "{model}" in str(steps[0].get("url")):
+                model = urllib.parse.urlparse(AS.parse_curl(found["text"])["url"]).path.strip("/")
+        out = AS.propose(service, model, text, kind, _opt_str(body, "path"),
+                         base=TG.load_target("seedance_2_5", "video").spec)
     except AS.SpecError as e:
         raise ApiError(400, str(e))
+    out["model"] = model
     if out.get("proposal"):
         out["limits"] = L.describe(out["proposal"])
     return 200, out

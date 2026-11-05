@@ -99,6 +99,7 @@ export interface ProviderRow {
   /** written from its docs, and not yet proved by a real render */
   untested: boolean;
   has_key: boolean;
+  key_hint?: string;
   key_from_env: string | null;
   env_name: string;
   docs: string;
@@ -109,6 +110,7 @@ export interface ProviderRow {
 
 /** POST /seriesmith/providers/read-spec: a model's API reference read into a proposed target. */
 export interface ProviderSpecRead {
+  model?: string;
   form: "openapi" | "curl" | "example" | "catalog";
   /** the requests of an OpenAPI document; with no proposal, one to choose */
   paths: string[];

@@ -14,7 +14,10 @@ is plain data, run by backends/http.py:
       "files": {"via": "upload",             # or "base64", "datauri"
                 "steps": [{"method": "POST", "url": "/model/uploadMedia",
                            "multipart": {"file": "$file"}, "take": {"url": "url"}}],
-                "value": "$url"},
+                "value": "$url"},            # or in two: ask where, then put it there (higgsfield.json):
+                                             # {"json": {"content_type": "$mime"}, "take": {...}}, then
+                                             # {"method": "PUT", "url": "$to", "headers": "$its_headers",
+                                             #  "body": "$file", "key": false}
       "steps": [
         {"method": "POST", "url": "/model/{endpoint}", "json": {"model": "$model", "...": "$args"},
          "take": {"task": ["data.id", "id"]}},
@@ -173,5 +176,6 @@ def listing(settings=None, env=None) -> list[dict]:
                     "key_from_env": env_name(pid) if env.get(env_name(pid)) else None,
                     "env_name": env_name(pid), "endpoints": d.get("endpoints") or {},
                     "catalog": [{k: m.get(k) for k in ("id", "label", "kind", "note") if m.get(k)} for m in catalog(pid)],
-                    "docs": d.get("docs") or "", "definition": {k: v for k, v in d.items() if k != "source"}})
+                    "docs": d.get("docs") or "", "key_hint": d.get("key_hint") or "",
+                    "definition": {k: v for k, v in d.items() if k != "source"}})
     return out

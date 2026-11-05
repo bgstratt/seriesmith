@@ -104,6 +104,13 @@ def curl_in(text: str) -> str | None:
 
 def parse_curl(text: str) -> dict:
     """{"method", "url", "body", "auth"} of a cURL line, the auth as how and never the key."""
+    # the body as a here-document (`--data @- <<'JSON'`, Higgsfield's samples): lifted out first, as
+    # it's on lines of its own
+    told = None
+    m = re.search(r"<<-?[ \t]*(['\"]?)(\w+)\1[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*\2[ \t]*(?:\r?\n|$)", text or "")
+    if m:
+        told = m.group(3)
+        text = text[:m.start()] + "\n" + text[m.end():]
     text = curl_in(text) or text
     try:
         words = shlex.split(text.replace("\\\r\n", " ").replace("\\\n", " "), posix=True)
@@ -123,7 +130,9 @@ def parse_curl(text: str) -> dict:
                 scheme = value.split(" ", 1)[0].lower() if " " in value else ""
                 auth = {"type": "bearer"} if scheme == "bearer" else {
                     "type": "header", "name": name.strip(), "prefix": f"{value.split(' ', 1)[0]} " if scheme else ""}
-            elif low in ("x-api-key", "api-key", "xi-api-key") or "key" in low or "token" in low:
+            elif "idempotency" not in low and ("key" in low or "token" in low) and not (
+                    auth and (auth["type"] == "bearer" or auth.get("name", "").lower() == "authorization")):
+                # an Idempotency-Key names a request, and isn't what says who's asking
                 auth = {"type": "header", "name": name.strip()}
             i += 2
         elif w in ("-d", "--data", "--data-raw", "--data-binary"):
@@ -141,6 +150,8 @@ def parse_curl(text: str) -> dict:
     if not url:
         raise SpecError("that cURL has no address in it")
     body: dict = dict(form)
+    if data in ("@-", "@/dev/stdin") and told is not None:
+        data = told
     if data is not None:
         try:
             got = json.loads(data)

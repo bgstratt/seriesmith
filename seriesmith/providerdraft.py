@@ -21,7 +21,7 @@ import urllib.parse
 from seriesmith import apispec as AS
 
 DONE = ["completed", "succeeded", "success", "done", "finished"]
-FAILED = ["failed", "error", "canceled", "cancelled", "rejected"]
+FAILED = ["failed", "error", "canceled", "cancelled", "rejected", "expired", "nsfw"]
 MODEL_KEYS = ("model", "model_id", "modelId", "model_name", "modelName")
 ID_KEYS = ("id", "request_id", "requestId", "task_id", "taskId", "prediction_id", "predictionId",
            "job_id", "jobId", "generation_id", "uuid")
@@ -115,6 +115,7 @@ def _empty_form() -> dict:
             "id_path": "", "poll_url": "", "status_path": "", "done": ", ".join(DONE), "failed": ", ".join(FAILED),
             "error_path": "", "files_path": "", "fetch_url": "", "download_auth": False, "every": 5,
             "files_via": "datauri", "upload_url": "", "upload_field": "file", "upload_link": "",
+            "upload_type_field": "content_type", "upload_put": "", "upload_headers": "",
             "check_url": ""}
 
 
@@ -162,9 +163,10 @@ def _apply_poll_answer(form: dict, answer: dict) -> None:
 
 
 def from_page(page: str, address: str) -> dict:
-    """What a docs page's HTML shows: {"openapi": a link to its OpenAPI document on the same host,
-    "post": the cURL that starts a generation, "poll": the one that checks on it}, each None when
-    the page doesn't have it in its HTML (many draw themselves in the browser)."""
+    """What a docs page shows, in its HTML or as Markdown: {"openapi": a link to its OpenAPI document
+    on the same host, "post": the cURL that starts a generation, "poll": the one that checks on it,
+    "schema": a request's JSON Schema, "answer" and "poll_answer": example answers}, each None when
+    the page doesn't have it (many draw themselves in the browser)."""
     host = urllib.parse.urlparse(address).netloc
     openapi = None
     for link in re.findall(r"""[^"'\s<>\\]*openapi[^"'\s<>\\]*\.json[^"'\s<>\\]*""", page):
@@ -173,8 +175,10 @@ def from_page(page: str, address: str) -> dict:
             openapi = full
             break
     post = poll = other = None
-    for m in re.finditer(r"curl(?:\s|<[^>]+>)+-[\s\S]{0,40000}?(?=</code>|</pre>)", page):
-        text = html.unescape(re.sub(r"<[^>]+>", "", m.group())).strip()
+    fenced = _fences(page)
+    shown = [html.unescape(re.sub(r"<[^>]+>", "", m.group())).strip()
+             for m in re.finditer(r"curl(?:\s|<[^>]+>)+-[\s\S]{0,40000}?(?=</code>|</pre>)", page)]
+    for text in shown + [x for x in fenced if AS.curl_in(x)]:
         try:
             c = AS.parse_curl(text)
         except (AS.SpecError, ValueError):
@@ -186,7 +190,32 @@ def from_page(page: str, address: str) -> dict:
                 poll = poll or text
             else:
                 other = other or text
-    return {"openapi": openapi, "post": post, "poll": poll or other}
+    examples = []
+    for x in fenced:
+        try:
+            got = json.loads(x)
+        except ValueError:
+            continue                            # the page's other code: Python, TypeScript
+        if isinstance(got, dict):
+            examples.append(got)
+    schema = next((x for x in examples if x.get("type") == "object" and isinstance(x.get("properties"), dict)), None)
+    answers = [x for x in examples if x is not schema and _find(x, STATUS_KEYS)]
+    return {"openapi": openapi, "post": post, "poll": poll or other, "schema": schema,
+            "answer": next((json.dumps(x) for x in answers if not links_in(x)), None),
+            "poll_answer": next((json.dumps(x) for x in answers if links_in(x)), None)}
+
+
+def _fences(page: str) -> list[str]:
+    """The code blocks of a Markdown page, a block inside a quote (`> ```json`) included."""
+    plain = "\n".join(re.sub(r"^(?:> ?)+", "", line) for line in page.splitlines())
+    return [m.group(1) for m in re.finditer(r"^```[^\n]*\n([\s\S]*?)^```", plain, re.MULTILINE)]
+
+
+def document_of(schema: dict, curl: str) -> dict:
+    """The one request a docs page describes, as an OpenAPI document."""
+    path = urllib.parse.urlparse(AS.parse_curl(curl)["url"]).path or "/"
+    return {"openapi": "3.1.0", "paths": {path: {"post": {"requestBody": {"content": {
+        "application/json": {"schema": schema}}}}}}}
 
 
 def _example(doc: dict, schema, name: str = "", depth: int = 0):
@@ -443,6 +472,16 @@ def definition(form: dict) -> dict:
         out["files"] = {"via": "upload", "value": "$url", "steps": [
             {"method": "POST", "url": f["upload_url"], "multipart": {f["upload_field"] or "file": "$file"},
              "take": {"url": f["upload_link"]}}]}
+    elif f["files_via"] == "presigned":
+        # ask where, then put the file there: storage gets the file and never the key
+        take = {"put_to": f["upload_put"], "link": f["upload_link"]}
+        put = {"method": "PUT", "url": "$put_to", "key": False, "body": "$file"}
+        if f["upload_headers"]:
+            take["put_headers"] = f["upload_headers"]
+            put["headers"] = "$put_headers"
+        out["files"] = {"via": "upload", "value": "$link", "steps": [
+            {"method": "POST", "url": f["upload_url"], "json": {f["upload_type_field"] or "content_type": "$mime"},
+             "take": take}, put]}
     else:
         out["files"] = {"via": f["files_via"]}
     return out
@@ -465,4 +504,6 @@ def form_problems(form: dict) -> list[str]:
         out.append("Say where its answer has the links")
     if f["files_via"] == "upload" and not (f["upload_url"] and f["upload_link"]):
         out.append("Say the upload address, and where its answer has the file's link")
+    if f["files_via"] == "presigned" and not (f["upload_url"] and f["upload_put"] and f["upload_link"]):
+        out.append("Say the address that gives an upload address, and where its answer has that address and the file's link")
     return out
