@@ -67,7 +67,7 @@ section and search for the path for its later additions.
 | `POST /seriesmith/audio/import` | Phase 9d |
 | `POST` / `DELETE /seriesmith/workflow/install` | Phase 11 |
 | `GET /seriesmith/workflows`, `POST /seriesmith/targets/inspect`, `PUT` / `DELETE /seriesmith/targets/custom` | Phase 12 |
-| `GET /seriesmith/router/models`, `POST /seriesmith/targets/router-inspect`, `POST /seriesmith/targets/router-dryrun`, `POST /seriesmith/targets/prompt-preview`, `PUT /seriesmith/targets/prompt`, `POST /seriesmith/targets/schema`, `PUT /seriesmith/targets/limits` | Hosted models, limits and your own workflows |
+| `GET /seriesmith/router/models`, `POST /seriesmith/targets/router-inspect`, `POST /seriesmith/targets/router-dryrun`, `POST /seriesmith/targets/prompt-preview`, `PUT /seriesmith/targets/prompt`, `POST /seriesmith/targets/schema`, `GET`/`PUT`/`DELETE /seriesmith/providers`, `PUT /seriesmith/providers/key`, `POST /seriesmith/providers/read-spec`, `PUT /seriesmith/targets/limits` | Hosted models, limits and your own workflows |
 
 Not seriesmith's own: the page's websocket `/ws` (Live updates) and, under `seriesmith serve`, ComfyUI's `/models`, `/object_info/{node}` and `/queue` (Models). The `api.py`
 routes and `server/stop` also answer under `/api/seriesmith/...` (inside ComfyUI, every
@@ -4351,6 +4351,29 @@ to shipped. A built-in or every-show model's change goes in `<show>/targets/over
 own model's in its target.json. Build the episode afterwards: its shots hold their prompts. 400: a
 wrong template (`problems`), a required field nothing fills (when the schema can be read), or a model
 that writes its own prompt. Returns `{ok, id, path, changed}`.
+
+### `GET /seriesmith/providers`
+
+The providers on this machine: `{providers: [{id, label, base_url, source, untested, has_key, key_from_env, env_name, endpoints, docs, definition}]}`. A key is never returned.
+
+### `PUT /seriesmith/providers`
+
+Add or replace a provider's definition on this machine. Body `{definition}`. 400: what's wrong with
+it. Returns `{ok, id, path, providers}`.
+
+### `DELETE /seriesmith/providers`
+
+Remove this machine's definition. Query `{id}`. Returns `{ok, deleted, providers}`.
+
+### `PUT /seriesmith/providers/key`
+
+Set a provider's key, write-only; `key: null` removes it. Body `{id, key}`. Returns `{ok, id, providers}`.
+
+### `POST /seriesmith/providers/read-spec`
+
+A model's API reference read into a proposed target, nothing saved or sent to the provider. Body
+`{service, model, kind?, text, path?}`: `text` is an OpenAPI document or its address, an example
+cURL, or an example request's JSON. Returns `{proposal, mapped, unplaced, warnings, form, paths, schema, auth?, limits}`. An OpenAPI document with several requests and no `path` returns `proposal: null` and the `paths` to choose from. A key in a pasted cURL isn't kept, only how it's sent.
 
 ### `POST /seriesmith/targets/schema`
 

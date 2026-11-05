@@ -2055,6 +2055,8 @@ export interface Target {
   id: string;
   kind: TargetKind;
   label: string;
+  /** the provider of the user's own that runs it */
+  service?: string;
   /** what this show changes of the model (<show>/targets/overrides.json) */
   show_fields?: string[];
   default?: boolean;

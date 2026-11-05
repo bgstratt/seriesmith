@@ -7,8 +7,8 @@ description: "Adding a video or image model: a Comfy Router model or a workflow 
 
 There are two ways to add a video or image model to seriesmith:
 
-- **In the app.** The Models window turns a Comfy Router model, or a workflow you've saved
-  in ComfyUI, into a model your shows can use. No code. It's kept on your machine, for
+- **In the app.** The Models window turns a Comfy Router model, a model on another API, or a
+  workflow you've saved in ComfyUI, into a model your shows can use. No code. It's kept on your machine, for
   every show or for one show, and you try it before you switch it on.
 - **In seriesmith's code.** A model that ships with seriesmith, for everyone: a folder
   under `seriesmith/targets/`, the files generated from it, and its tests. This is for
@@ -48,6 +48,39 @@ model…**:
 3. **Correct its limits** in the form below it: what the prose said.
 4. **Dry run (free).** Pick a shot (or a ref) and see the exact request, with nothing sent.
 5. **Save** it for every show or for this show only. It's saved as a draft.
+
+### A model on another API
+
+For a model on a provider you have your own account with, such as Atlas Cloud. Video and image
+models for now; sound follows.
+
+1. **Pick the provider, and add its key.** Atlas Cloud, ElevenLabs and OpenAI come listed, marked
+   *untested*: they're written from each provider's docs and haven't been proved by a real render
+   yet. The key stays on this machine, is never shown again, and goes only to that provider's own
+   address. Settings lists the keys too. `SERIESMITH_KEY_<PROVIDER>` in the environment wins.
+2. **Type the model's id**, as the provider's docs give it.
+3. **Paste the API's reference**, whichever the provider gives you:
+
+   | What the provider has | Paste | What seriesmith learns |
+   |---|---|---|
+   | An OpenAPI document | The JSON, or its address | Fields, types, limits and what's required |
+   | A docs page with an example | The example cURL or request JSON | Field names and example values |
+
+   A key in a pasted cURL isn't kept. An example can't say what's required or what the limits
+   are, so those stay yours to check. With no reference at all, paste a small JSON of the field
+   names you know, and fix the rest under **Fields**.
+4. **Read it**, then look over **Prompt & mapping**: where each value goes, the prompt, and the
+   exact request for a real shot. This is free: nothing is uploaded or sent.
+5. **Save it as a draft**, and probe one take. That's a paid render, and it's the only thing that
+   proves the mapping, because no reference says everything a model will refuse.
+
+**A provider that isn't listed:** **Add a provider** takes its definition as JSON: its address, how
+it takes its key, the requests a job makes, and where the files are. An LLM can draft one from the
+provider's docs. An API that only reports through a webhook can't work, as nothing can call back to
+your machine, and is refused.
+
+A request that may have started a job is never sent twice. If it gets no answer, the take fails and
+says to check the provider's dashboard, because it may have been charged.
 
 ### A model from your own workflow
 

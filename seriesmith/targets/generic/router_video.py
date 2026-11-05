@@ -472,7 +472,7 @@ def with_routing(args: dict, spec: dict) -> dict:
     """`args` with how Router is to serve the call (the model's provider, and
     whether it may fall back), when the target says."""
     from seriesmith.backends.router import ROUTING
-    how = {k: spec[k] for k in ("provider", "fallback") if spec.get(k) is not None}
+    how = {k: spec[k] for k in ("provider", "fallback", "values") if spec.get(k) is not None}
     if how:
         args[ROUTING] = how
     return args

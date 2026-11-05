@@ -124,21 +124,28 @@ PASSES = ("final", "proxy")
 # Where a job can run (docs/DESIGN.md, "Backends"): your own ComfyUI, Comfy
 # Cloud, a Comfy API deployment of the target's workflow, or a hosted model
 # through Comfy Router.
-BACKENDS = ("local", "cloud", "deployment", "router")
+# `api` is a provider of the user's own (providers.py, backends/http.py): "api:<provider>".
+BACKENDS = ("local", "cloud", "deployment", "router", "api")
 
 
 def is_hosted(spec: dict) -> bool:
     """Whether a target.json is a hosted model, rendered by a call rather than a workflow.
     Ask this rather than looking for its block: where a model is hosted can change, and
     what follows from being hosted (no workflow, no model files) doesn't."""
-    return spec.get("router") is not None
+    return spec.get("router") is not None or spec.get("api") is not None
 
 
 def hosted_block(spec: dict) -> dict:
     """The block of a target.json saying how its hosted model is called (its model id,
     its fixed arguments, where each value goes): {} when it has none."""
-    block = spec.get("router")
+    block = spec.get("router") if spec.get("router") is not None else spec.get("api")
     return block if isinstance(block, dict) else {}
+
+
+def service_of(spec: dict) -> str:
+    """The provider of the user's own a target.json names ("": none; it's on Router or local)."""
+    block = spec.get("api")
+    return str(block.get("service") or "") if isinstance(block, dict) else ""
 # A target that renders a ComfyUI workflow runs where that workflow can: your
 # own ComfyUI, Comfy Cloud (with Cloud's own nodes in place of seriesmith's:
 # seriesmith/cloud.py; what Cloud hasn't, it says when the job starts), or a
@@ -662,7 +669,7 @@ class Target:
         caps = self.spec.get("capabilities") or {}
         if "moderated" in caps:
             return bool(caps["moderated"])
-        return self.backends == ["router"]
+        return self.backends in (["router"], ["api"])
 
     @property
     def reproducible(self) -> bool:
@@ -1004,6 +1011,8 @@ class Target:
                 **({"limits": _limits_json(self)} if self.kind in ("video", "image") else {}),
                 # this show has changed how its prompt is written
                 **({"show_fields": sorted(self.show_fields)} if self.show_fields else {}),
+                # the provider of the user's own that runs it (providers.py)
+                **({"service": service_of(self.spec)} if service_of(self.spec) else {}),
                 "capabilities": self.capabilities(),
                 "models": {k: {"family": v["family"], "label": modelid.family_label(v["family"]),
                                "patterns": list(v["patterns"]), "folder": v["folder"],
@@ -1423,6 +1432,9 @@ def _with_fields(t: Target, fields: dict) -> Target:
     for place, value in fields.items():
         at = spec
         *path, last = place.split(".")
+        # the same place whoever serves the model
+        if path[0] == "router" and spec.get("router") is None and spec.get("api") is not None:
+            path[0] = "api"
         for name in path:
             at = at.setdefault(name, {})
         if value is None:

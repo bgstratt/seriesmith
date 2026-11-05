@@ -1207,7 +1207,15 @@ def validate_spec(spec: dict, graph: dict | None = None,
     if TG.is_hosted(spec):
         # a Comfy Router model (targets/generic/router_video): no workflow to bind
         r = TG.hosted_block(spec)
-        if not isinstance(r.get("model"), str) or "/" not in r["model"]:
+        if TG.service_of(spec):
+            from seriesmith import providers as PR
+            if TG.service_of(spec) not in PR.definitions():
+                out.append(f"there's no provider called {TG.service_of(spec)} on this machine")
+            if not isinstance(r.get("model"), str) or not r["model"].strip():
+                out.append("api.model must be the id the provider knows the model by")
+        elif spec.get("api") is not None:
+            out.append("api.service must name the provider")
+        elif not isinstance(r.get("model"), str) or "/" not in r["model"]:
             out.append("router.model must be the Router model's id (provider/model)")
         inputs = r.get("inputs")
         if not isinstance(inputs, dict) or not inputs.get("prompt"):

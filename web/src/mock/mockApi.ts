@@ -2459,6 +2459,22 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(40);
       return { ok: true, id, path: "targets/overrides.json", changed: !!(template || request || inputs || args) };
     },
+    async providers() {
+      await wait(40);
+      return { providers: [] };
+    },
+    async putProvider(definition) {
+      await wait(40);
+      return { ok: true, id: String(definition.id), providers: [] };
+    },
+    async putProviderKey(id) {
+      await wait(40);
+      return { ok: true, id, providers: [] };
+    },
+    async readProviderSpec() {
+      await wait(40);
+      return { form: "example", paths: ["/generate"], proposal: null };
+    },
     async modelSchema() {
       await wait(40);
       return { available: true, required: ["prompt"], fields: [{ path: "prompt", type: "string", required: true }, { path: "seed", type: "integer", required: false }] };

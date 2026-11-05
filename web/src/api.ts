@@ -90,6 +90,33 @@ export interface PromptPart {
   value: string;
 }
 
+/** GET /seriesmith/providers: a provider of the user's own. The key itself never comes back. */
+export interface ProviderRow {
+  id: string;
+  label: string;
+  base_url: string;
+  source: "shipped" | "yours";
+  /** written from its docs, and not yet proved by a real render */
+  untested: boolean;
+  has_key: boolean;
+  key_from_env: string | null;
+  env_name: string;
+  docs: string;
+  definition: Record<string, unknown>;
+}
+
+/** POST /seriesmith/providers/read-spec: a model's API reference read into a proposed target. */
+export interface ProviderSpecRead {
+  form: "openapi" | "curl" | "example";
+  /** the requests of an OpenAPI document; with no proposal, one to choose */
+  paths: string[];
+  proposal: Record<string, unknown> | null;
+  unplaced?: string[];
+  warnings?: string[];
+  schema?: ModelSchema;
+  auth?: Record<string, unknown>;
+}
+
 /** One value a hosted model takes, where it goes, and what it comes to on the shot. */
 export interface MappingRow {
   role: string;
@@ -127,6 +154,8 @@ export interface PromptPreview {
   shipped: { template: string; request: string; inputs?: Record<string, unknown>; arguments?: Record<string, unknown> };
   problems: { template: string[]; request: string[] };
   rows?: MappingRow[];
+  /** a provider model's fields, read from the reference pasted when it was added */
+  schema?: ModelSchema;
   inputs?: Record<string, unknown>;
   fixed_arguments?: Record<string, unknown>;
   /** what the model's schema requires and nothing fills */
@@ -462,6 +491,11 @@ export interface Api {
   promptPreview(req: { ep: string; id?: string; target?: Record<string, unknown>; limits?: Record<string, unknown>; shot?: string | null; ref?: string | null; pass?: string; template?: string; request?: string; inputs?: Record<string, unknown>; arguments?: Record<string, unknown>; required?: string[]; count?: boolean }): Promise<PromptPreview>;
   /** Save how a model's prompt is written and where its values go, for this show; empty goes back to the model's own. */
   putTargetPrompt(ep: string, id: string, template: string, request: string, inputs?: Record<string, unknown>, args?: Record<string, unknown>): Promise<{ ok: boolean; id: string; path: string; changed: boolean }>;
+  providers(): Promise<{ providers: ProviderRow[] }>;
+  putProvider(definition: Record<string, unknown>): Promise<{ ok: boolean; id: string; providers: ProviderRow[] }>;
+  /** Write-only: null removes it. */
+  putProviderKey(id: string, key: string | null): Promise<{ ok: boolean; id: string; providers: ProviderRow[] }>;
+  readProviderSpec(req: { service: string; model: string; kind?: string; text: string; path?: string }): Promise<ProviderSpecRead>;
   /** The fields a Router model's schema has (free, kept an hour). */
   modelSchema(model: string): Promise<ModelSchema>;
   /** Phase 12b: remove one. */
@@ -1006,6 +1040,10 @@ export function createHttpApi(t: Transport): Api {
       ep, id, template, request, ...(inputs ? { inputs } : {}), ...(args ? { arguments: args } : {}),
     }),
     modelSchema: (model) => call("POST", "/seriesmith/targets/schema", { model }),
+    providers: () => get("/seriesmith/providers"),
+    putProvider: (definition) => call("PUT", "/seriesmith/providers", { definition }),
+    putProviderKey: (id, key) => call("PUT", "/seriesmith/providers/key", { id, key }),
+    readProviderSpec: (req) => call("POST", "/seriesmith/providers/read-spec", req),
     routerModels: (ep) => get(`/seriesmith/router/models?${qs({ ep: ep || undefined })}`),
     deleteCustomTarget: (ep, id) => call("DELETE", `/seriesmith/targets/custom?${qs({ ep, id })}`),
     setTargetDraft: (ep, id, draft) => call("PUT", "/seriesmith/targets/custom", { ep, id, draft }),

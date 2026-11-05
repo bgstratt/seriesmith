@@ -86,6 +86,7 @@ class Runner:
     def __init__(self, queue: Queue, backends: dict, emit=None, review_copy: bool = False):
         self.queue = queue
         self.backends = backends
+        queue.lane_limit = lambda lane: getattr(self.backends.get(lane), "parallel", None)
         self._emit = emit or (lambda e, d: None)
         self.review_copy = review_copy
         # ask(path, body) -> (status, data): an API request made from a job (the

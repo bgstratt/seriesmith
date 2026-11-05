@@ -4057,6 +4057,8 @@ def _required_of(t) -> list[str]:
     panel says so, and a save isn't held up by it."""
     from seriesmith import router_inspect as RI
     from seriesmith.settings import load_settings
+    if TG.service_of(t.spec):                     # read when it was added, from what was pasted
+        return list((TG.hosted_block(t.spec).get("schema") or {}).get("required") or [])
     model = TG.hosted_block(t.spec).get("model")
     key = load_settings().api_key
     if not model or not key:
@@ -4065,6 +4067,99 @@ def _required_of(t) -> list[str]:
         return RI.cached_schema_fields(model, key)["required"]
     except RI.RouterInspectError:
         return []
+
+
+def _refresh_providers(ctx: Context) -> None:
+    """The queue's backends as the providers now stand. A job already running keeps its own."""
+    from seriesmith.backends import available
+    if ctx.runner is None:
+        return
+    made = available()
+    for name in [n for n in ctx.runner.backends if J.backend_kind(n) == "api" and n not in made]:
+        ctx.runner.backends.pop(name)
+    ctx.runner.backends.update({n: b for n, b in made.items() if J.backend_kind(n) == "api"})
+
+
+@handler
+def get_providers(ctx: Context, query: dict):
+    """The providers on this machine, and whether each has a key (never the key itself)."""
+    from seriesmith import providers as PR
+    return 200, {"providers": PR.listing()}
+
+
+@handler
+def put_provider(ctx: Context, body):
+    """Add or replace a provider's definition on this machine. Body {definition}. 400: what's
+    wrong with it."""
+    from seriesmith import providers as PR
+    d = body_dict(body).get("definition")
+    if not isinstance(d, dict):
+        raise ApiError(400, "definition must be the provider's definition, as an object")
+    try:
+        path = PR.save(d)
+    except PR.ProviderError as e:
+        raise ApiError(400, str(e))
+    _refresh_providers(ctx)
+    return 200, {"ok": True, "id": d["id"], "path": path, "providers": PR.listing()}
+
+
+@handler
+def delete_provider(ctx: Context, query: dict):
+    """Remove this machine's definition of a provider. Query {id}."""
+    from seriesmith import providers as PR
+    gone = PR.delete(query.get("id") or "")
+    _refresh_providers(ctx)
+    return 200, {"ok": True, "deleted": gone, "providers": PR.listing()}
+
+
+@handler
+def put_provider_key(ctx: Context, body):
+    """Set a provider's key, write-only; a null removes it. Body {id, key}."""
+    from seriesmith import providers as PR
+    from seriesmith import settings as S
+    body = body_dict(body)
+    pid, key = _opt_str(body, "id") or "", body.get("key")
+    if pid not in PR.definitions():
+        raise ApiError(404, f"there's no provider called {pid}")
+    if key is not None and not isinstance(key, str):
+        raise ApiError(400, "key is text, or null to remove it")
+    try:
+        S.save_settings({"provider_keys": {pid: (key or "").strip() or None}})
+    except (OSError, ValueError) as e:
+        raise ApiError(500, f"the settings couldn't be saved: {e}")
+    _refresh_providers(ctx)
+    return 200, {"ok": True, "id": pid, "providers": PR.listing()}
+
+
+@handler
+def post_provider_read_spec(ctx: Context, body):
+    """A model's API reference, as pasted, read into a proposed target: an OpenAPI document (or
+    its URL), an example cURL, or an example request's JSON. Nothing is saved or sent to the
+    provider. Body {service, model, kind?, text, path?}. With an OpenAPI document holding several
+    requests and no `path`, {proposal: null, paths} to choose from."""
+    from seriesmith import apispec as AS
+    from seriesmith import limits as L
+    body = body_dict(body)
+    kind = body.get("kind") or "video"
+    if kind not in ("video", "image"):
+        raise ApiError(400, "kind is video or image")
+    text = body.get("text")
+    if not isinstance(text, str):
+        raise ApiError(400, "text is the API's reference")
+    try:
+        if re.fullmatch(r"https?://\S+", text.strip()):
+            from seriesmith.backends import HTTPFailure, http_json
+            try:
+                text = json.dumps(http_json(text.strip(), timeout=30.0))
+            except (HTTPFailure, OSError, ValueError) as e:
+                raise AS.SpecError(f"that address didn't give a JSON document: {e}") from None
+        out = AS.propose(_opt_str(body, "service") or "", _opt_str(body, "model") or "", text, kind,
+                         _opt_str(body, "path"), base=TG.load_target("seedance_2_5", "video").spec)
+    except AS.SpecError as e:
+        raise ApiError(400, str(e))
+    if out.get("proposal"):
+        out["limits"] = L.describe(out["proposal"])
+    return 200, out
 
 
 @handler
@@ -5918,6 +6013,11 @@ ROUTES = [
     ("POST", "/seriesmith/targets/prompt-preview", post_targets_prompt_preview, "body"),
     ("PUT", "/seriesmith/targets/prompt", put_targets_prompt, "body"),
     ("POST", "/seriesmith/targets/schema", post_targets_schema, "body"),
+    ("GET", "/seriesmith/providers", get_providers, "query"),
+    ("PUT", "/seriesmith/providers", put_provider, "body"),
+    ("DELETE", "/seriesmith/providers", delete_provider, "query"),
+    ("PUT", "/seriesmith/providers/key", put_provider_key, "body"),
+    ("POST", "/seriesmith/providers/read-spec", post_provider_read_spec, "body"),
     ("GET", "/seriesmith/router/models", get_router_models, "query"),
     ("PUT", "/seriesmith/targets/limits", put_targets_limits, "body"),
     ("DELETE", "/seriesmith/targets/custom", delete_targets_custom, "query"),

@@ -253,7 +253,8 @@ def main(argv: list[str] | None = None) -> int:
                     j.notes.append(note)
                 if name not in backends:
                     why = (f"{name} isn't set up on this machine"
-                           + (" (it needs COMFY_API_KEY)" if J.backend_kind(name) != "local"
+                           + (" (add its key in Settings)" if J.backend_kind(name) == "api"
+                              else " (it needs COMFY_API_KEY)" if J.backend_kind(name) != "local"
                               else "") + "; seriesmith backends lists what is")
                     if not (args.dry_run or args.list):
                         j.action, j.error = "error", why

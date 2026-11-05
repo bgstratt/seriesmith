@@ -126,6 +126,8 @@ class Queue:
         self.name = name
         self._emit = emit or (lambda e, d: None)
         self._serial = serial or (lambda lane: lane in SERIAL)
+        # how many at once a lane takes, when its backend says (a provider's own limit)
+        self.lane_limit: Callable[[str], int | None] = lambda lane: None
         self.journal = journal
         self.paid_count = 0
         self.paid_limit: int | None = None
@@ -254,7 +256,7 @@ class Queue:
 
     def _lane(self, name: str) -> Lane:
         if name not in self.lanes:
-            self.lanes[name] = Lane(name, 1 if self._serial(name) else PARALLEL)
+            self.lanes[name] = Lane(name, 1 if self._serial(name) else (self.lane_limit(name) or PARALLEL))
         return self.lanes[name]
 
     def submit(self, job: Job) -> Job:

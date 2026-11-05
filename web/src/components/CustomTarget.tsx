@@ -10,6 +10,7 @@ import {
 import { customTargets, isHosted } from "../lib/targets";
 import type { PromptPreview, RouterCatalogModel, RouterProposal } from "../api";
 import { ImageLimitsForm, LimitsCard, LimitsForm, changedImageLimits, changedLimits } from "./Limits";
+import { ApiModelWizard } from "./ApiModels";
 import { PromptMapping, type PanelEdits } from "./PromptMapping";
 import { api } from "../host";
 import { useRefs, useStatus } from "./hooks";
@@ -95,29 +96,35 @@ export function CustomTargets({ list }: { list: TargetList | null }) {
   const ep = useApp((s) => s.ep);
   const [open, setOpen] = useState(false);
   const [routerOpen, setRouterOpen] = useState(false);
+  const [apiOpen, setApiOpen] = useState(false);
   const mine = useMemo(() => customTargets(list), [list]);
   const shipped = useMemo(() => (list?.targets ?? []).filter((t) => t.shipped_draft), [list]);
   // an opened wizard is brought into view (the window is usually scrolled to the table)
   const top = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (open || routerOpen) top.current?.scrollIntoView({ block: "start", behavior: "smooth" });
-  }, [open, routerOpen]);
+    if (open || routerOpen || apiOpen) top.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [open, routerOpen, apiOpen]);
   if (!ep) return null;
   return (
     <div className="h3-col" style={{ gap: 6 }}>
       <div ref={top} className="h3-h">
         Add a model
         <span className="h3-muted h3-small" style={{ textTransform: "none", fontWeight: 400 }}>
-          {" "}— a Comfy Router model from its catalog, or a ComfyUI workflow of yours
+          {" "}— a Comfy Router model from its catalog, a model on another API, or a ComfyUI workflow of yours
         </span>
       </div>
       {routerOpen && <RouterWizard onClose={() => setRouterOpen(false)} />}
       {open && <Wizard onClose={() => setOpen(false)} />}
-      {!open && !routerOpen && (
+      {apiOpen && <ApiModelWizard onClose={() => setApiOpen(false)} />}
+      {!open && !routerOpen && !apiOpen && (
         <div className="h3-row h3-wrap" style={{ gap: 6 }}>
           <button className="h3-btn h3-primary" title="Pick one from Router's catalog: seriesmith reads its schema and proposes how a shot goes in"
             onClick={() => setRouterOpen(true)}>
             <i className="pi pi-cloud" /> Add a Comfy Router model…
+          </button>
+          <button className="h3-btn" title="A provider of your own (Atlas, fal, Runway...): paste its API reference and seriesmith proposes how a shot goes in"
+            onClick={() => setApiOpen(true)}>
+            <i className="pi pi-globe" /> Add a model from another API…
           </button>
           <button className="h3-btn" onClick={() => setOpen(true)}>
             <i className="pi pi-plus" /> Add a model from a workflow…
@@ -190,7 +197,7 @@ function MineRow({ t, builtin = false }: { t: Target; builtin?: boolean }) {
         </span>
         <b className="h3-ell h3-grow" title={t.id}>{t.label || t.id}</b>
         <span className="h3-mono h3-small h3-muted h3-ell" style={{ maxWidth: 220 }}
-              title={t.graph?.name}>{hosted ? "Comfy Router" : t.graph?.name}</span>
+              title={t.graph?.name}>{t.service ?? (hosted ? "Comfy Router" : t.graph?.name)}</span>
       </div>
       {t.draft && (
         <div className="h3-small">

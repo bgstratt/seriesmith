@@ -358,7 +358,7 @@ function AllTargets({ video, list }: { video: Target[]; list: TargetList }) {
 /** The all-targets table's Graph cell: where this target's workflow comes from. */
 function graphWord(t: Target): React.ReactNode {
   // a hosted model has no workflow: Router runs it
-  if (isHosted(t)) return <span className="h3-muted">Comfy Router</span>;
+  if (isHosted(t)) return <span className="h3-muted">{t.service ?? "Comfy Router"}</span>;
   const g = t.graph;
   if (!g) return "";
   const word = g.source === "env" ? `$${g.env}` :

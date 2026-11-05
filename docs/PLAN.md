@@ -2002,23 +2002,37 @@ is asked for first.
       parts with the shot's values, the prompt as sent, the shotlist entry, the request.
       A model with a writer of its own (H3, the reference-sheet LTX-2s) shows it read-only.
 
-**4. Providers and the step engine** (`backends/http.py`, stdlib only: nothing new for
-`requirements.txt`). Proved on the hardest first: Atlas Seedance (upload first), ElevenLabs
-(bytes back), OpenAI (multipart in, download with the key).
-- [ ] Provider definitions on this machine; **keys per provider** in its settings (never the
-      series config), environment variables over them; Settings lists them, write-only like
-      the Comfy key.
-- [ ] Steps: request, values taken, wait condition; JSON or multipart in; JSON or bytes out.
+**4. Providers, the step engine and reading an API's reference** (`backends/http.py`,
+`providers.py`, `apispec.py`, stdlib only: nothing new for `requirements.txt`). Proved on the
+hardest first: Atlas Seedance (upload first), ElevenLabs (bytes back), OpenAI (multipart in,
+download with the key). Reading the reference moved up from step 7 (decided with the user
+2026-11-04): without it, a provider can be added and its fields can't be read.
+- [x] A model read from an OpenAPI document (a URL, or pasted) by the same proposer as
+      Router's (`apispec.py`); else a pasted cURL or sample JSON (Atlas publishes per-model pages,
+      no OpenAPI file). The definition is plain data, so an LLM can draft one from a provider's
+      docs, and the validator and dry run check it. A key in a cURL is never kept.
+- [x] Provider definitions on this machine (`providers.py`, `presets/providers/` the shipped
+      untested ones); **keys per provider** in its settings (never the series config),
+      environment variables over them (`SERIESMITH_KEY_<ID>`); Settings lists them, write-only.
+- [x] Steps: request, values taken, wait condition; JSON or multipart in; JSON or bytes out.
       Reattached after a restart by its job id, as Router's are; a lane per provider with its
       own parallel limit; the paid limit counts them; no submit retried blind.
-- [ ] Results by data: the status field, its done and failed values, where the files are,
-      failure read from the result too (fal says `COMPLETED` for a failure), several outputs
-      as several takes (Suno's two tracks), links saved at once (Replicate's last an hour).
-- [ ] Authentication: a header, bearer or query key by data; signed ways (a JWT, then others
-      as wanted) as named methods.
-- [ ] Pictures: inline (base64 / data URI) where the API takes it, a provider's upload route,
-      an asset library, else a link: the Comfy asset store while there's a Comfy key, or a
-      **media host** of the user's own (a bucket) for an API that only fetches URLs.
+- [x] Results by data: the status field, its done and failed values, where the files are,
+      failure read from the result too (fal says `COMPLETED` for a failure), links saved when the
+      take is collected.
+- [ ] Several outputs as several takes (Suno's two tracks): a run's outputs are all there; what
+      collecting does with a second isn't decided.
+- [x] Authentication: a header, bearer or query key by data. The key goes only to the provider's
+      own host and port, a redirect elsewhere drops it, an echoed one is cut from errors.
+- [ ] Signed ways of authenticating (a JWT for Kling's old keys, then others as wanted) as named
+      methods.
+- [x] Pictures: inline (base64 / data URI) where the API takes it, a provider's upload route,
+      multipart with the request.
+- [ ] An asset library by data (Atlas turned out not to need one), and a link for an API that
+      only fetches URLs: the Comfy asset store while there's a Comfy key, or a **media host** of
+      the user's own (a bucket).
+- [ ] A live paid proof of each shipped definition: all three are tested against a local server
+      answering as their docs say, and are marked untested until a real take comes back.
 - [ ] Router's `seedance_asset` moved onto the steps, as the proof the asset path is data.
 - [ ] **Asset libraries** (Seedance and its resellers; 2026-10-21). Register a fetchable URL,
       poll until it's Active, send `asset://<id>`. Router does this already (`via="seedance"`,
@@ -2029,6 +2043,9 @@ is asked for first.
       `/sd/assets/<id>` for `Active` / `Failed` with `error_code`), generation on
       `api.atlascloud.ai`, a public URL only (no base64; its `model/uploadMedia` gives one
       without a Comfy key). Video and audio must be registered there; images may go inline.
+      **Read 2026-11-04: Atlas's Seedance 2.5 page says the opposite of these notes:** URL and
+      Base64 are registered for you, and no page shows this route. So Atlas ships as upload,
+      generate, poll, and this item waits for an API that does need it.
       Registration validates up front (Atlas: images 300-6000 px, aspect 0.4-2.5, < 30 MB;
       video mp4/mov 2-15 s, 24-60 fps, 409,600-927,408 px; audio wav/mp3 2-15 s): its
       refusal is the take's error, said plainly. Atlas's docs (read 2026-11-04) show
@@ -2063,11 +2080,7 @@ is asked for first.
 - [ ] Only if it proves needed: a script field for a pause between lines in one shot.
 - Replaces "ElevenLabs and the like as voice models" under "Voices before the picture".
 
-**7. Import and presets**
-- [ ] A model read from an OpenAPI document (a URL, or pasted) by the same proposer as
-      Router's; else a pasted cURL or sample JSON (Atlas publishes per-model pages, no OpenAPI
-      file). The definition is plain data, so an LLM can draft one from a provider's docs,
-      and the validator and dry run check it.
+**7. Presets**
 - [ ] Presets as data files: fal, Replicate, ElevenLabs, Runway, BytePlus, Atlas, OpenAI, xAI,
       Gemini / Vertex. Shipped as untested drafts, inert until a key is added; a user's own
       added without a release.

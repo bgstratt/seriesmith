@@ -1,0 +1,26 @@
+{
+  "id": "elevenlabs",
+  "label": "ElevenLabs",
+  "untested": true,
+  "docs": "https://elevenlabs.io/docs/api-reference",
+  "base_url": "https://api.elevenlabs.io",
+  "auth": {
+    "type": "header",
+    "name": "xi-api-key"
+  },
+  "parallel": 2,
+  "steps": [
+    {
+      "method": "POST",
+      "url": "/v1/text-to-speech/{voice}",
+      "json": {
+        "model_id": "$model",
+        "...": "$args"
+      },
+      "response": "bytes"
+    }
+  ],
+  "result": {
+    "type": "audio"
+  }
+}

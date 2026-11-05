@@ -253,7 +253,9 @@ export function PromptMapping({ id, kind = "video", spec, limits, onEdit, onBloc
   const inputsKey = JSON.stringify(inputs);
   const fixedKey = JSON.stringify(fixed ?? null);
   const limitsKey = JSON.stringify(limits ?? null);
-  const hostedModel = view?.hosted ? view.model ?? (spec?.router as { model?: string } | undefined)?.model : undefined;
+  // Router's is read by its model id; a provider's came with what was pasted
+  const hostedModel = view?.hosted && !view.schema && !spec?.api
+    ? view.model ?? (spec?.router as { model?: string } | undefined)?.model : undefined;
 
   // the model's fields, once: reading a schema is free, and kept an hour by the server
   useEffect(() => {
@@ -406,7 +408,7 @@ export function PromptMapping({ id, kind = "video", spec, limits, onEdit, onBloc
       )}
 
       {tab === "fields" && view.hosted ? (
-        <FieldsTab view={view} schema={schema} inputs={inputs} setInput={setInput} setArguments={setArguments} />
+        <FieldsTab view={view} schema={view.schema ?? schema} inputs={inputs} setInput={setInput} setArguments={setArguments} />
       ) : (
         <>
           {view.editable && (

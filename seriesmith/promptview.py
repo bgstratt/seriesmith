@@ -297,7 +297,10 @@ def _mapping(t: "TG.Target", out: dict, args, required) -> None:
         return
     block = TG.hosted_block(t.spec)
     out.update(rows=rows(t, args), inputs=block.get("inputs") or {},
-               fixed_arguments=block.get("arguments") or {})
+               fixed_arguments=block.get("arguments") or {},
+               **({"schema": {"available": True, **block["schema"]}} if block.get("schema") else {}))
+    if required is None and block.get("schema"):
+        required = block["schema"].get("required")     # read when it was added
     if required is not None:
         out["unfilled"] = unfilled(t, required)
 

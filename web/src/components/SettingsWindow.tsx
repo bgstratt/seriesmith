@@ -7,6 +7,7 @@
 // gives (COMFY_API_KEY, ...) wins over the file, so it shows here but can't be
 // changed here.
 
+import { ProvidersCard } from "./ApiModels";
 import { useEffect, useState } from "react";
 import { loadTargets, openBrowse, openFeatures, openSettings, setBackends, tookFolder } from "../actions";
 import { api } from "../host";
@@ -338,6 +339,7 @@ function SettingsBody({ server }: { server: boolean }) {
               <span className="h3-small h3-muted">a session, then it stops and asks</span>
             </div>
           </div>
+          <ProvidersCard />
           {view?.settings.api_key && sdk && sdk.status !== "ready" && (
             <div className="h3-col" style={{ gap: 4 }}>
               <span className="h3-status">Cloud and Router need Comfy's SDK in this Python</span>

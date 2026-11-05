@@ -10,6 +10,7 @@ is one place that can do that:
     cloud        Comfy Cloud                                   ComfyBackend
     deployment   a Comfy API deployment of one workflow        ComfyBackend
     router       a hosted model through Comfy Router           RouterBackend
+    api:<id>     a hosted model on a provider of your own      HttpBackend (backends/http.py)
 
 A ComfyUI backend runs an API-format workflow (`submit`); Router calls a model
 with arguments (`call`). Either way the result is a `Run`: its status, its
@@ -319,6 +320,12 @@ def available(settings=None) -> dict[str, Backend]:
         out["cloud"] = ComfyBackend("cloud", "cloud", s.cloud_url, s.api_key)
         from seriesmith.backends.router import RouterBackend
         out["router"] = RouterBackend(s.api_key, s.cloud_url)
+    from seriesmith import providers as PR
+    from seriesmith.backends.http import HttpBackend
+    for pid, d in PR.definitions().items():
+        key = PR.key_of(pid, s)
+        if key and not PR.problems(d):
+            out[f"api:{pid}"] = HttpBackend(d, key)
     for target_id, url in sorted(s.deployments.items()):
         out[f"deployment:{target_id}"] = ComfyBackend(f"deployment:{target_id}", "deployment",
                                                       url, s.api_key)
