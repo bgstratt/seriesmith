@@ -3,6 +3,7 @@
   "label": "Higgsfield",
   "docs": "https://docs.higgsfield.ai",
   "key_hint": "the key from open.higgsfield.ai, as copied",
+  "key_url": "https://open.higgsfield.ai/api-keys",
   "base_url": "https://api.higgsfield.ai",
   "auth": {
     "type": "header",

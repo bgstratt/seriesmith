@@ -197,7 +197,7 @@ function MineRow({ t, builtin = false }: { t: Target; builtin?: boolean }) {
         </span>
         <b className="h3-ell h3-grow" title={t.id}>{t.label || t.id}</b>
         <span className="h3-mono h3-small h3-muted h3-ell" style={{ maxWidth: 220 }}
-              title={t.graph?.name}>{t.service ?? (hosted ? "Comfy Router" : t.graph?.name)}</span>
+              title={t.graph?.name}>{t.service_label ?? t.service ?? (hosted ? "Comfy Router" : t.graph?.name)}</span>
       </div>
       {t.draft && (
         <div className="h3-small">

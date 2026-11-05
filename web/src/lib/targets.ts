@@ -28,13 +28,16 @@ export function isHosted(t: Pick<Target, "capabilities">): boolean {
   return Array.isArray(b) && b.length > 0 && !b.includes("local");
 }
 
-/** Models grouped by where they run -- your GPU first, then Comfy Router --
- * each group alphabetical by its label; an empty group is left out. */
-export function byWhere<T extends Pick<Target, "id" | "label" | "capabilities">>(ts: T[]): { label: string; targets: T[] }[] {
+/** Models grouped by where they run and who bills for them -- your GPU first, then Comfy Router,
+ * then each provider of your own, by its name -- each group alphabetical by its label; an empty
+ * group is left out. */
+export function byWhere<T extends Pick<Target, "id" | "label" | "capabilities" | "service" | "service_label">>(ts: T[]): { label: string; targets: T[] }[] {
   const sorted = [...ts].sort((a, b) => (a.label || a.id).localeCompare(b.label || b.id));
+  const providers = [...new Set(sorted.filter((t) => t.service).map((t) => t.service_label || t.service!))].sort((a, b) => a.localeCompare(b));
   return [
-    { label: "Your GPU", targets: sorted.filter((t) => !isHosted(t)) },
-    { label: "Comfy Router (paid)", targets: sorted.filter(isHosted) },
+    { label: "Your GPU", targets: sorted.filter((t) => !t.service && !isHosted(t)) },
+    { label: "Comfy Router (paid)", targets: sorted.filter((t) => !t.service && isHosted(t)) },
+    ...providers.map((name) => ({ label: `${name} (paid)`, targets: sorted.filter((t) => t.service && (t.service_label || t.service) === name) })),
   ].filter((g) => g.targets.length);
 }
 

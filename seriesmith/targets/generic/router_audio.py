@@ -54,7 +54,9 @@ def refuses(target, job) -> str | None:
     if speaker_of(job.ref.entry, service):
         return None
     name = job.ref.entry.get("name", job.ref.subject)
-    return f"{name} has no voice on {service} yet: pick one first, so nothing is paid for in the wrong voice"
+    from seriesmith import providers as PR
+    who = (PR.definitions().get(service) or {}).get("label") or service
+    return f"{name} has no voice on {who} yet: pick one first, so nothing is paid for in the wrong voice"
 
 
 def router_call(target, job) -> tuple[str, dict]:

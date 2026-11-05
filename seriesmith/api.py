@@ -4227,8 +4227,9 @@ def post_provider_draft(ctx: Context, body):
 
 @handler
 def get_provider_voices(ctx: Context, query):
-    """The speakers a provider has, read with its key and costing nothing. Query {service, search?,
-    after?}. Returns {voices: [{id, name, preview, about, category, labels}], next}."""
+    """The speakers a provider has, costing nothing: with its key where there is one, and a list
+    that's free without. Query {service, list?, search?, after?}. Returns {voices: [{id, name, preview,
+    about, category, labels}], next}."""
     import urllib.error
 
     from seriesmith import providers as PR
@@ -4239,10 +4240,12 @@ def get_provider_voices(ctx: Context, query):
     if not d:
         raise ApiError(404, f"there's no provider called {service}")
     key = PR.key_of(service)
-    if not key:
-        raise ApiError(400, f"{d.get('label') or service} needs its key before its voices can be listed")
+    which = str(query.get("list") or "")
+    lists = {x.get("id"): x for x in ((d.get("voices") or {}).get("lists") or [])}
+    if not key and which and which in lists and not lists[which].get("free"):
+        raise ApiError(400, f"{d.get('label') or service} needs its key for that list")
     try:
-        return 200, list_voices(d, key, str(query.get("search") or ""), str(query.get("after") or ""))
+        return 200, list_voices(d, key, which, str(query.get("search") or ""), str(query.get("after") or ""))
     except HTTPFailure as e:
         raise ApiError(502, f"{d.get('label') or service} answered {e.status}: {e.text[:300]}")
     except (BackendError, urllib.error.URLError, OSError) as e:
@@ -4252,14 +4255,14 @@ def get_provider_voices(ctx: Context, query):
 @handler
 def put_refs_provider_voice(ctx: Context, body):
     """Give a subject a provider's speaker, written in the series config (`voices.<service>`), or a
-    null `id` takes it away. Body {ep, subject, service, id, name?}."""
+    null `id` takes it away. Body {ep, subject, service, id, name?, preview?}."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     subject, service = _opt_str(body, "subject") or "", _opt_str(body, "service") or ""
     if not subject or not service:
         raise ApiError(400, "subject and service say whose voice, and on which provider")
-    vid, name = _opt_str(body, "id"), _opt_str(body, "name")
-    voice = {"id": vid, **({"name": name} if name else {})} if vid else None
+    vid, name, preview = _opt_str(body, "id"), _opt_str(body, "name"), _opt_str(body, "preview")
+    voice = {"id": vid, **({"name": name} if name else {}), **({"preview": preview} if preview else {})} if vid else None
     try:
         changed = R.set_provider_voice(_series(ep), subject, service, voice)
     except R.RefError as e:

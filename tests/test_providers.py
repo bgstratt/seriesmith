@@ -1655,6 +1655,11 @@ class AVoiceOnAProvider(ScratchSettings):
                         "category": "premade", "labels": {"accent": "british"}, "description": "warm"},
                        {"voice_id": "v2", "name": "Sarah"}] if "next_page_token" not in c["path"] else [{"voice_id": "v3", "name": "Third"}],
             "has_more": "next_page_token" not in c["path"], "next_page_token": None if "next_page_token" in c["path"] else "p2"}
+        self.fake.routes[("GET", "/v1/voices")] = {"voices": [{"voice_id": "b1", "name": "Roger", "preview_url": "https://cdn.example/r.mp3",
+                                                               "labels": {"accent": "american"}}]}
+        self.fake.routes[("GET", "/v1/shared-voices")] = lambda c: {
+            "voices": [{"voice_id": "s1", "name": "Mark", "gender": "male", "accent": "american", "preview_url": ""}],
+            "has_more": "page=" not in c["path"], "last_sort_id": "x"}
 
     def speak(self, voice="v1", name="George"):
         from seriesmith import api as A
@@ -1670,13 +1675,13 @@ class AVoiceOnAProvider(ScratchSettings):
 
     def test_its_list_is_free_and_read_in_one_shape(self):
         from seriesmith import api as A
-        got = self.ok(A.get_provider_voices(self.ctx, {"service": "local_eleven"}))
+        got = self.ok(A.get_provider_voices(self.ctx, {"service": "local_eleven", "list": "yours"}))
         self.assertEqual(got["voices"][0], {"id": "v1", "name": "George", "preview": "https://cdn.example/g.mp3", "about": "warm",
                                             "category": "premade", "labels": {"accent": "british"}})
         self.assertEqual(got["voices"][1]["preview"], "")
         self.assertEqual(got["next"], "p2")
         self.assertEqual(self.fake.calls[0]["headers"]["xi-api-key"], KEY)
-        more = self.ok(A.get_provider_voices(self.ctx, {"service": "local_eleven", "after": "p2", "search": "a b"}))
+        more = self.ok(A.get_provider_voices(self.ctx, {"service": "local_eleven", "list": "yours", "after": "p2", "search": "a b"}))
         self.assertEqual([v["id"] for v in more["voices"]], ["v3"])
         self.assertIn("search=a%20b", self.fake.calls[-1]["path"])
         self.assertEqual(more["next"], "")
@@ -1685,18 +1690,41 @@ class AVoiceOnAProvider(ScratchSettings):
     def test_its_list_needs_the_key_and_says_what_went_wrong(self):
         from seriesmith import api as A
         self.ok(A.put_provider_key(self.ctx, {"id": "local_eleven", "key": None}))
-        self.assertEqual(A.get_provider_voices(self.ctx, {"service": "local_eleven"})[0], 400)
+        self.assertEqual(A.get_provider_voices(self.ctx, {"service": "local_eleven", "list": "library"})[0], 400)
         self.ok(A.put_provider_key(self.ctx, {"id": "local_eleven", "key": KEY}))
         self.fake.routes[("GET", "/v2/voices")] = (401, {"detail": {"message": "bad " + KEY}}, {})
-        code, data = A.get_provider_voices(self.ctx, {"service": "local_eleven"})
+        code, data = A.get_provider_voices(self.ctx, {"service": "local_eleven", "list": "yours"})
         self.assertEqual(code, 502)
         self.assertNotIn(KEY, data["error"])
         self.assertEqual(A.get_provider_voices(self.ctx, {"service": "nobody"})[0], 404)
 
+    def test_its_own_voices_play_with_no_key_and_none_is_sent(self):
+        from seriesmith import api as A
+        self.ok(A.put_provider_key(self.ctx, {"id": "local_eleven", "key": None}))
+        got = self.ok(A.get_provider_voices(self.ctx, {"service": "local_eleven", "search": "ignored", "after": "2"}))
+        self.assertEqual([v["name"] for v in got["voices"]], ["Roger"])
+        self.assertEqual(got["voices"][0]["labels"], {"accent": "american"})
+        self.assertEqual(self.fake.calls[-1]["path"], "/v1/voices")
+        self.assertNotIn("xi-api-key", self.fake.calls[-1]["headers"])
+
+    def test_the_library_with_a_key_pages_and_searches(self):
+        from seriesmith import api as A
+        got = self.ok(A.get_provider_voices(self.ctx, {"service": "local_eleven", "list": "library", "search": "old"}))
+        self.assertEqual(got["voices"][0]["labels"], {"gender": "male", "accent": "american"})
+        self.assertEqual(got["next"], "1")
+        self.assertIn("search=old", self.fake.calls[-1]["path"])
+        self.assertEqual(self.fake.calls[-1]["headers"]["xi-api-key"], KEY)
+        more = self.ok(A.get_provider_voices(self.ctx, {"service": "local_eleven", "list": "library", "after": "1"}))
+        self.assertIn("page=1", self.fake.calls[-1]["path"])
+        self.assertEqual(more["next"], "")
+
     def test_a_listing_says_it_has_voices(self):
         rows = {r["id"]: r for r in PR.listing(S.Settings(), {})}
-        self.assertTrue(rows["elevenlabs"]["has_voices"])
-        self.assertFalse(rows["atlas"]["has_voices"])
+        self.assertEqual([x["id"] for x in rows["elevenlabs"]["voices"]["lists"]], ["own", "library", "yours"])
+        self.assertTrue(rows["elevenlabs"]["voices"]["lists"][0]["free"])
+        self.assertFalse(rows["elevenlabs"]["voices"]["lists"][1]["free"])
+        self.assertTrue(rows["elevenlabs"]["key_url"])
+        self.assertIsNone(rows["atlas"]["voices"])
         self.assertEqual({m["kind"] for m in rows["elevenlabs"]["catalog"]}, {"audio"})
 
     def test_the_speaker_is_on_the_subject_in_the_series_config(self):
@@ -1707,6 +1735,9 @@ class AVoiceOnAProvider(ScratchSettings):
         s = R.load_series(self.ep)
         ref = R.find_ref(s, "voice:ada")
         self.assertEqual(ref.entry["voices"], {"local_eleven": {"id": "v1", "name": "George"}})
+        self.ok(A.put_refs_provider_voice(self.ctx, {"ep": self.ep, "subject": "ada", "service": "local_eleven", "id": "v1",
+                                                     "name": "George", "preview": "https://cdn.example/g.mp3"}))
+        self.assertEqual(R.find_ref(R.load_series(self.ep), "voice:ada").entry["voices"]["local_eleven"]["preview"], "https://cdn.example/g.mp3")
         self.ok(A.put_refs_provider_voice(self.ctx, {"ep": self.ep, "subject": "ada", "service": "local_eleven", "id": None}))
         self.assertNotIn("voices", R.find_ref(R.load_series(self.ep), "voice:ada").entry)
         self.assertEqual(A.put_refs_provider_voice(self.ctx, {"ep": self.ep, "subject": "nobody", "service": "x", "id": "v"})[0], 400)
@@ -1716,8 +1747,38 @@ class AVoiceOnAProvider(ScratchSettings):
         tid = self.add_model()
         got = self.ok(A.post_refs_generate(self.ctx, {"ep": self.ep, "ref": "voice:ada", "target": tid, "backend": "api:local_eleven"}))
         self.assertEqual(got["queued"], [])
-        self.assertIn("no voice on local_eleven", got["errors"][0]["error"])
+        self.assertIn("no voice on ElevenLabs", got["errors"][0]["error"])
         self.assertEqual([c for c in self.fake.calls if c["method"] == "POST"], [])
+
+    def test_the_prompt_panel_shows_the_words_and_the_call(self):
+        tid = self.add_model()
+        view = PV.preview(self.ep, tid, ref="voice:ada")
+        self.assertTrue(view["ok"], view.get("why"))
+        self.assertEqual(view["kind"], "audio")
+        self.assertEqual(view["model"], "eleven_v4")
+        self.assertEqual(view["arguments"]["text"], view["prompt"])
+        self.assertNotIn("says:", view["prompt"])
+        self.assertIsNone(view["speaker"])
+        self.assertIn("VOICE_ID", view["calls"][0]["url"])
+        self.speak()
+        view = PV.preview(self.ep, tid, ref="voice:ada")
+        self.assertEqual(view["speaker"]["name"], "George")
+        self.assertIn("/v1/text-to-speech/v1", view["calls"][0]["url"])
+        self.assertEqual([c for c in self.fake.calls if c["method"] == "POST"], [])
+
+    def test_its_listing_names_the_provider_and_its_voices(self):
+        t = TG.load_target(self.add_model(), "audio", root=self.ep)
+        row = next(x for x in TG.list_targets("audio", root=self.ep) if x.id == t.id).describe()
+        self.assertEqual(row["service"], "local_eleven")
+        self.assertEqual(row["service_label"], "ElevenLabs")
+        self.assertTrue(row["service_voices"])
+
+    def test_a_hosted_model_needs_nothing_of_comfyui(self):
+        from seriesmith import edit as E
+        t = TG.load_target(self.add_model(), "audio", root=self.ep)
+        self.assertEqual(E.readiness([t], None)[t.id]["status"], "ready")
+        local = TG.load_target("ltx2_voice", "audio")
+        self.assertEqual(E.readiness([local], None)[local.id]["status"], "unknown")
 
     def test_a_sample_is_the_words_alone_in_the_speakers_voice(self):
         from seriesmith import api as A

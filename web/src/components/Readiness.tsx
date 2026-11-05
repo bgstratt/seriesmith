@@ -358,7 +358,7 @@ function AllTargets({ video, list }: { video: Target[]; list: TargetList }) {
 /** The all-targets table's Graph cell: where this target's workflow comes from. */
 function graphWord(t: Target): React.ReactNode {
   // a hosted model has no workflow: Router runs it
-  if (isHosted(t)) return <span className="h3-muted">{t.service ?? "Comfy Router"}</span>;
+  if (isHosted(t)) return <span className="h3-muted">{t.service_label ?? t.service ?? "Comfy Router"}</span>;
   const g = t.graph;
   if (!g) return "";
   const word = g.source === "env" ? `$${g.env}` :
@@ -387,7 +387,7 @@ function statusLine(label: string, r: Readiness): string {
 }
 
 /** The panel inside a <details>: fetched only once it's opened. */
-function PromptPanelWhenOpen({ id }: { id: string }) {
+function PromptPanelWhenOpen({ id, kind }: { id: string; kind?: string }) {
   const [open, setOpen] = useState(false);
   const here = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -397,7 +397,7 @@ function PromptPanelWhenOpen({ id }: { id: string }) {
     box.addEventListener("toggle", seen);
     return () => box.removeEventListener("toggle", seen);
   }, []);
-  return <div ref={here}>{open && <PromptMapping key={id} id={id} />}</div>;
+  return <div ref={here}>{open && <PromptMapping key={id} id={id} kind={kind} />}</div>;
 }
 
 function TargetMissing({ list, id }: { list: TargetList; id: string }) {
@@ -429,7 +429,7 @@ function TargetMissing({ list, id }: { list: TargetList; id: string }) {
               how a shot becomes what this model is sent{t.show_fields?.length ? " (changed for this show)" : ""}
             </span>
           </summary>
-          <PromptPanelWhenOpen id={t.id} />
+          <PromptPanelWhenOpen id={t.id} kind={t.kind} />
         </details>
       )}
       {groups.map((g) => (

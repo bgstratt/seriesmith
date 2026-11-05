@@ -405,36 +405,52 @@ def _shown(v):
     return v
 
 
-def list_voices(d: dict, key: str, search: str = "", after: str = "") -> dict:
-    """The speakers a provider has (its definition's `voices`): one read that costs nothing.
-    {"voices": [{"id", "name", "preview", "about", "category", "labels"}], "next": the page after, if
-    any}. HTTPFailure and URLError as a request's."""
-    how = d.get("voices")
-    if not isinstance(how, dict) or not how.get("url"):
-        raise BackendError(f"{d.get('id')}: its definition doesn't say where its voices are listed")
-    b = HttpBackend(d, key)
-    url = str(how["url"])
-    for name, value in ((how.get("search_param"), search), (how.get("next_param"), after)):
-        if name and value:
-            url += ("&" if "?" in url else "?") + f"{urllib.parse.quote(str(name))}={urllib.parse.quote(value, safe='')}"
-    raw, _ = patiently(lambda: b.send("GET", url))
+def list_voices(d: dict, key: str | None, which: str = "", search: str = "", after: str = "") -> dict:
+    """The speakers a provider has, from one of its definition's `voices.lists`: one read that costs
+    nothing. A `free` list goes with no key when there isn't one, and as it answers an anonymous
+    reader only its plain address is asked. {"voices": [{"id", "name", "preview", "about", "category",
+    "labels"}], "next": the page after, if any}. HTTPFailure and URLError as a request's."""
+    how = d.get("voices") if isinstance(d.get("voices"), dict) else {}
+    lists = how.get("lists") or []
+    one = next((x for x in lists if x.get("id") == which), lists[0] if lists and not which else None)
+    if not one or not one.get("url"):
+        raise BackendError(f"{d.get('id')}: its definition doesn't list voices called {which or 'anything'}")
+    if not key and not one.get("free"):
+        raise BackendError(f"{d.get('label') or d.get('id')} needs its key for that list")
+    b = HttpBackend(d, key or "(no key)")
+    url = str(one["url"])
+    if key:
+        for name, value in ((one.get("search_param"), search),
+                            (one.get("next_param") or one.get("page_param"), after)):
+            if name and value:
+                url += ("&" if "?" in url else "?") + f"{urllib.parse.quote(str(name))}={urllib.parse.quote(value, safe='')}"
+    raw, _ = patiently(lambda: b.send("GET", url, keyed=bool(key)))
     try:
         doc = json.loads(raw.decode("utf-8"))
     except ValueError:
         raise BackendError(f"{b.id}: its list of voices wasn't JSON") from None
-    rows = pick(doc, how.get("list")) if how.get("list") else doc
+    rows = pick(doc, one.get("list")) if one.get("list") else doc
     out = []
     for row in rows if isinstance(rows, list) else []:
         vid = pick(row, how.get("id") or "id")
-        if vid:
-            labels = pick(row, how["labels"]) if how.get("labels") else None
-            out.append({"id": str(vid), "name": str(pick(row, how.get("name") or "name") or vid),
-                        "preview": (pick(row, how["preview"]) if how.get("preview") else None) or "",
-                        "about": (pick(row, how["about"]) if how.get("about") else None) or "",
-                        "category": (pick(row, how["category"]) if how.get("category") else None) or "",
-                        "labels": labels if isinstance(labels, dict) else {}})
-    following = pick(doc, how["next"]) if how.get("next") else None
-    return {"voices": out, "next": str(following) if following else ""}
+        if not vid:
+            continue
+        labels = pick(row, how["labels"]) if how.get("labels") else None
+        labels = dict(labels) if isinstance(labels, dict) else {}
+        for name in how.get("label_fields") or []:
+            if row.get(name) and name not in labels:
+                labels[name] = row[name]
+        out.append({"id": str(vid), "name": str(pick(row, how.get("name") or "name") or vid),
+                    "preview": (pick(row, how["preview"]) if how.get("preview") else None) or "",
+                    "about": (pick(row, how["about"]) if how.get("about") else None) or "",
+                    "category": (pick(row, how["category"]) if how.get("category") else None) or "",
+                    "labels": {str(k): str(v) for k, v in labels.items()}})
+    following = ""
+    if one.get("next"):
+        following = str(pick(doc, one["next"]) or "")
+    elif one.get("page_param") and key and pick(doc, one.get("has_more") or "has_more"):
+        following = str(int(after or 0) + 1)
+    return {"voices": out, "next": following}
 
 
 def check_key(d: dict, key: str) -> dict:

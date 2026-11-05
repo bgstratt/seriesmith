@@ -230,10 +230,11 @@ export function PromptMapping({ id, kind = "video", spec, limits, onEdit, onBloc
   const ep = useApp((s) => s.ep);
   const saving = useApp((s) => !!s.busy["prompt-save"]);
   const st = useStatus();
-  const refs = useRefs(kind === "image" ? ep : null);
+  const onRef = kind === "image" || kind === "audio";
+  const refs = useRefs(onRef ? ep : null);
   const [shot, setShot] = useState("");
   const [pass, setPass] = useState<"proxy" | "final">("proxy");
-  const [tab, setTab] = useState<"prompt" | "fields">(kind === "image" ? "fields" : "prompt");
+  const [tab, setTab] = useState<"prompt" | "fields">(onRef ? "fields" : "prompt");
   const [template, setTemplate] = useState<string | null>(null);
   const [request, setRequest] = useState<string | null>(null);
   const [inputs, setInputs] = useState<Record<string, unknown>>({});
@@ -274,11 +275,11 @@ export function PromptMapping({ id, kind = "video", spec, limits, onEdit, onBloc
     const timer = setTimeout(() => {
       api().promptPreview({
         ep, ...(spec ? { target: spec, ...(limits ? { limits } : {}) } : { id }),
-        pass, ...(kind === "image" ? { ref: shot || null } : { shot: shot || null }),
-        ...(template !== null && kind !== "image" ? { template } : {}), ...(request !== null ? { request } : {}),
+        pass, ...(onRef ? { ref: shot || null } : { shot: shot || null }),
+        ...(template !== null && !onRef ? { template } : {}), ...(request !== null ? { request } : {}),
         ...(Object.keys(inputs).length ? { inputs } : {}), ...(fixed ? { arguments: fixed } : {}),
         ...(schema?.available ? { required: schema.required } : {}),
-        count: takes === null && kind !== "image",
+        count: takes === null && !onRef,
       }).then((v) => {
         if (mine !== asked.current) return;
         setView(v);
@@ -313,14 +314,14 @@ export function PromptMapping({ id, kind = "video", spec, limits, onEdit, onBloc
 
   if (err && !view) return <div className="h3-small h3-err">{err}</div>;
   if (!view || template === null || request === null) {
-    return <div className="h3-small h3-muted"><i className="pi pi-spin pi-spinner" /> Reading the {kind === "image" ? "ref" : "shot"}…</div>;
+    return <div className="h3-small h3-muted"><i className="pi pi-spin pi-spinner" /> Reading the {kind === "image" ? "ref" : kind === "audio" ? "character" : "shot"}…</div>;
   }
   const shipped = own.current ?? view.shipped;
   const dirty = !!saved && (template !== saved.template || request !== saved.request
     || JSON.stringify([inputs, fixed ?? null]) !== saved.mapping);
   const atShipped = template === shipped.template && request === shipped.request
     && !Object.keys(inputs).length && !fixed;
-  const image = kind === "image";
+  const image = onRef;
 
   function report(next: Partial<PanelEdits>) {
     onEdit?.({ template: template!, request: request!, inputs, ...(fixed ? { arguments: fixed } : {}), ...next }, shipped);
@@ -369,7 +370,7 @@ export function PromptMapping({ id, kind = "video", spec, limits, onEdit, onBloc
         <span>Try on</span>
         {image ? (
           <select className="h3-in" value={shot || view.shot} onChange={(e) => setShot(e.target.value)} style={{ maxWidth: 180 }}>
-            {(refs ?? []).filter((r) => r.kind !== "voice").map((r) => <option key={r.id} value={r.id}>{r.name || r.id}</option>)}
+            {(refs ?? []).filter((r) => (kind === "audio") === (r.kind === "voice")).map((r) => <option key={r.id} value={r.id}>{r.name || r.id}</option>)}
           </select>
         ) : (
           <>

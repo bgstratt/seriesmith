@@ -3,6 +3,7 @@
   "label": "Runway",
   "docs": "https://docs.dev.runwayml.com",
   "key_hint": "its key from dev.runwayml.com (key_...)",
+  "key_url": "https://dev.runwayml.com",
   "base_url": "https://api.dev.runwayml.com",
   "auth": {
     "type": "bearer"

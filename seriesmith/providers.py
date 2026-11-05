@@ -28,8 +28,11 @@ is plain data, run by backends/http.py:
                    "error": "data.error", "every": 5, "timeout": 3600}}
       ],
       "result": {"files": "data.outputs"},   # or {"url": "/videos/{task}/content", "auth": true, "type": "video"}
-      "voices": {"url": "/v2/voices", "list": "voices", "id": "voice_id", "name": "name"}
-                                             # where its speakers are listed, if it has them
+      "voices": {"id": "voice_id", "name": "name", "preview": "preview_url", "browse": "https://...",
+                 "lists": [{"id": "own", "label": "Its own voices", "url": "/v1/voices", "list": "voices",
+                            "free": true}]}
+                                             # where its speakers are listed, if it has them; a `free`
+                                             # list can be read with no key, to hear them first
     }
 
 Definitions live on this machine, beside the settings, with their keys: a show names a provider
@@ -172,6 +175,17 @@ def key_of(pid: str, settings=None, env=None) -> str | None:
     return (getattr(settings, "provider_keys", None) or {}).get(pid) or None
 
 
+def voices_of(d: dict) -> dict | None:
+    """How a provider's speakers can be listed, for the editor; None when it has none to list."""
+    how = d.get("voices")
+    lists = how.get("lists") if isinstance(how, dict) else None
+    if not lists:
+        return None
+    return {"browse": how.get("browse") or "",
+            "lists": [{"id": x.get("id"), "label": x.get("label") or x.get("id"), "free": bool(x.get("free")),
+                       "searches": bool(x.get("search_param"))} for x in lists]}
+
+
 def listing(settings=None, env=None) -> list[dict]:
     """Every provider, for the editor: whether it has a key, and never the key."""
     env = os.environ if env is None else env
@@ -184,6 +198,7 @@ def listing(settings=None, env=None) -> list[dict]:
                     "env_name": env_name(pid), "endpoints": d.get("endpoints") or {},
                     "catalog": [{k: m.get(k) for k in ("id", "label", "kind", "note") if m.get(k)} for m in catalog(pid)],
                     "docs": d.get("docs") or "", "key_hint": d.get("key_hint") or "",
-                    "has_voices": bool((d.get("voices") or {}).get("url")),
+                    "key_url": d.get("key_url") or "",
+                    "voices": voices_of(d),
                     "definition": {k: v for k, v in d.items() if k != "source"}})
     return out

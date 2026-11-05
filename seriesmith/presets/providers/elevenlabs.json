@@ -24,17 +24,22 @@
     "type": "audio"
   },
   "check": "/v1/models",
+  "key_url": "https://elevenlabs.io/app/settings/api-keys",
   "voices": {
-    "url": "/v2/voices?page_size=100",
-    "list": "voices",
+    "browse": "https://elevenlabs.io/voice-library",
     "id": "voice_id",
     "name": "name",
     "preview": "preview_url",
     "about": "description",
     "category": "category",
     "labels": "labels",
-    "next": "next_page_token",
-    "next_param": "next_page_token",
-    "search_param": "search"
+    "label_fields": ["gender", "age", "accent", "descriptive", "use_case", "language"],
+    "lists": [
+      {"id": "own", "label": "Its own voices", "url": "/v1/voices", "list": "voices", "free": true},
+      {"id": "library", "label": "Its library, most used first", "url": "/v1/shared-voices?page_size=100&sort=cloned_by_count",
+       "list": "voices", "search_param": "search", "page_param": "page", "has_more": "has_more"},
+      {"id": "yours", "label": "Your account's", "url": "/v2/voices?page_size=100", "list": "voices",
+       "search_param": "search", "next": "next_page_token", "next_param": "next_page_token"}
+    ]
   }
 }

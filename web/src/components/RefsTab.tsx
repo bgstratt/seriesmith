@@ -24,6 +24,7 @@ import {
 } from "../lib/imageTargets";
 import { TURN_ANGLES_LABEL, TURN_TARGET, turnPlan } from "../lib/turn";
 import { audioTargets, voiceCapNotes, voiceModeText } from "../lib/voice";
+import { ProviderVoices } from "./ProviderVoices";
 import { VoiceCandidate, VoiceGenerateBar, VoiceLive } from "./VoiceRef";
 import { dragHasFiles, missingResultText } from "../lib/lookback";
 import { keptAt, readDraft, useDraft } from "../lib/drafts";
@@ -35,7 +36,7 @@ import {
   unpickedViews, usedBy, viewLabel, viewOf, type RefFilter,
 } from "../lib/refs";
 import type { GalleryGroup } from "../lib/gallery";
-import { findTarget, targetLabel, targetShort } from "../lib/targets";
+import { findTarget, isHosted, targetLabel, targetShort } from "../lib/targets";
 import { store, useApp } from "../store";
 import { TUNABLE_PARAMS, type OverrideFields as OverrideFieldValues, type Ref, type RefEffective, type RefParams, type OwnerTake, type RefTake, type SeedMode, type Target } from "../types";
 import { sizeRule } from "../lib/size";
@@ -78,6 +79,7 @@ export function ImageModelBar({ open0 = false }: { open0?: boolean }) {
   const images = imageTargets(list);
   const voices = audioTargets(list);
   if (!list || (!images.length && !voices.length)) return null;
+  const voiceModel = findTarget(list, defaultOf(defaults, "voices").target);
   const row = (kind: RefTargetKind, label: string) => {
     const choices = kind === "voices" ? voices : kind === "edits" || kind === "turns" ? images.filter(isEditTarget) : images;
     if (!choices.length) return null;
@@ -152,6 +154,12 @@ export function ImageModelBar({ open0 = false }: { open0?: boolean }) {
           {row("turns", "Turns with:")}
           {row("voices", "Voices with:")}
         </div>
+      )}
+      {voiceModel?.service && voiceModel.service_voices && (
+        <details className="h3-small">
+          <summary style={{ cursor: "pointer" }}>Listen to {voiceModel.service_label ?? voiceModel.service}'s voices</summary>
+          <div style={{ marginTop: 4 }}><ProviderVoices service={voiceModel.service} /></div>
+        </details>
       )}
       {custom.map((k) => {
         const id = defaultOf(defaults, k).target;
@@ -798,6 +806,8 @@ function RefSettingsForm({ r, view }: { r: Ref; view: string | null }) {
   const { list: targetList } = useTargets();
   const refDefaultsNow = useRefDefaults();
   const tgt = findTarget(targetList, eff?.target ?? refTargetOf(r, refDefaultsNow).target);
+  // a hosted model: no file, no LoRAs, no steps of its own to set here
+  const hostedHere = !!tgt && isHosted(tgt);
   const initialKnobs = useMemo(() => knobsOf(src.override), [src]);
   const [knobs, setKnobs] = useState<Knobs>(() => (kept ? { ...initialKnobs, ...kept.value.knobs } : initialKnobs));
   const [baseKnobs, setBaseKnobs] = useState<Knobs>(initialKnobs);
@@ -852,6 +862,10 @@ function RefSettingsForm({ r, view }: { r: Ref; view: string | null }) {
         set={set}
         builtPrompt={src.built_prompt}
         builtLabel="series config"
+        hosted={hostedHere}
+        noSteps={hostedHere}
+        {...(hostedHere ? { loraChoices: null } : {})}
+        {...(hostedHere && isAudioRef(r) ? { promptName: "The words it says" } : {})}
         promptOverridden={promptOverridden}
         promptLocked={noPrompt ? { label: "the sheet's description, read-only", note: "A character's prompt is per view: pick a view above to change what it generates.", text: r.built_prompt ?? r.prompt ?? "" } : null}
         showDiff={showDiff}

@@ -142,6 +142,17 @@ def hosted_block(spec: dict) -> dict:
     return block if isinstance(block, dict) else {}
 
 
+def _service_json(service: str) -> dict:
+    """What a model's listing says of the provider of the user's own that runs it: its id, its name,
+    and whether its speakers can be listed. {} for a model that has none."""
+    if not service:
+        return {}
+    from seriesmith import providers as PR
+    d = PR.definitions().get(service) or {}
+    return {"service": service, "service_label": d.get("label") or service,
+            **({"service_voices": True} if PR.voices_of(d) else {})}
+
+
 def service_of(spec: dict) -> str:
     """The provider of the user's own a target.json names ("": none; it's on Router or local)."""
     block = spec.get("api")
@@ -1012,7 +1023,7 @@ class Target:
                 # this show has changed how its prompt is written
                 **({"show_fields": sorted(self.show_fields)} if self.show_fields else {}),
                 # the provider of the user's own that runs it (providers.py)
-                **({"service": service_of(self.spec)} if service_of(self.spec) else {}),
+                **_service_json(service_of(self.spec)),
                 "capabilities": self.capabilities(),
                 "models": {k: {"family": v["family"], "label": modelid.family_label(v["family"]),
                                "patterns": list(v["patterns"]), "folder": v["folder"],

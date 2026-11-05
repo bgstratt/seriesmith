@@ -4383,14 +4383,15 @@ doesn't exist. Body `{definition, key?}`: `key`, else the one saved. The key isn
 
 ### `GET /seriesmith/providers/voices`
 
-The speakers a provider has, read with its key, costing nothing. Query `service`, `search?`, `after?`.
-Returns `{voices: [{id, name, preview, about, category, labels}], next}`; **502** with what the provider
-said. A ref row for a voice carries the speakers picked as `speakers`.
+The speakers a provider has, costing nothing. Query `service`, `list?` (an id from the provider row's
+`voices.lists`), `search?`, `after?`. A list marked `free` is read with no key when there isn't one, and
+then has no search or further pages; any other needs the key (**400**). Returns `{voices: [{id, name, preview, about, category, labels}], next}`; **502** with what the provider said. A ref row for a voice
+carries the speakers picked as `speakers`.
 
 ### `PUT /seriesmith/refs/provider-voice`
 
 Gives a subject a provider's speaker, in the series config (`subjects.<id>.voices.<service>`), or takes
-it away with a null `id`. Body `{ep, subject, service, id, name?}`. Returns `{ok, changed}`. A variant
+it away with a null `id`. Body `{ep, subject, service, id, name?, preview?}` (`preview`: the provider's clip, to hear it again). Returns `{ok, changed}`. A variant
 shares its base's voice (**400**). A hosted voice take without a speaker is refused before it's queued.
 
 ### `POST /seriesmith/providers/read-spec`

@@ -105,7 +105,8 @@ export interface ProviderRow {
   docs: string;
   /** the models its docs have been read for: picked rather than pasted */
   catalog: { id: string; label: string; kind: "video" | "image" | "audio"; note?: string }[];
-  has_voices?: boolean;
+  key_url?: string;
+  voices?: { browse: string; lists: { id: string; label: string; free: boolean; searches: boolean }[] } | null;
   definition: Record<string, unknown>;
 }
 
@@ -539,9 +540,9 @@ export interface Api {
   checkProvider(definition: Record<string, unknown>, key: string): Promise<{ reached: boolean; key_ok: boolean; proves_key?: boolean; status: number | null; says: string }>;
   readProviderSpec(req: { service: string; model: string; kind?: string; text: string; path?: string }): Promise<ProviderSpecRead>;
   /** A provider's speakers: one read that costs nothing. */
-  providerVoices(req: { service: string; search?: string; after?: string }): Promise<{ voices: ProviderVoice[]; next: string }>;
+  providerVoices(req: { service: string; list?: string; search?: string; after?: string }): Promise<{ voices: ProviderVoice[]; next: string }>;
   /** Null `id` takes the speaker away. */
-  putProviderVoice(req: { ep: string; subject: string; service: string; id: string | null; name?: string }): Promise<{ ok: boolean; changed: boolean }>;
+  putProviderVoice(req: { ep: string; subject: string; service: string; id: string | null; name?: string; preview?: string }): Promise<{ ok: boolean; changed: boolean }>;
   /** The fields a Router model's schema has (free, kept an hour). */
   modelSchema(model: string): Promise<ModelSchema>;
   /** Phase 12b: remove one. */
@@ -1090,7 +1091,7 @@ export function createHttpApi(t: Transport): Api {
     putProvider: (definition) => call("PUT", "/seriesmith/providers", { definition }),
     putProviderKey: (id, key) => call("PUT", "/seriesmith/providers/key", { id, key }),
     readProviderSpec: (req) => call("POST", "/seriesmith/providers/read-spec", req),
-    providerVoices: ({ service, search, after }) => call("GET", `/seriesmith/providers/voices?service=${encodeURIComponent(service)}${search ? `&search=${encodeURIComponent(search)}` : ""}${after ? `&after=${encodeURIComponent(after)}` : ""}`),
+    providerVoices: ({ service, list, search, after }) => call("GET", `/seriesmith/providers/voices?service=${encodeURIComponent(service)}${list ? `&list=${encodeURIComponent(list)}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}${after ? `&after=${encodeURIComponent(after)}` : ""}`),
     putProviderVoice: (req) => call("PUT", "/seriesmith/refs/provider-voice", req),
     draftProvider: (req) => call("POST", "/seriesmith/providers/draft", req),
     checkProvider: (definition, key) => call("POST", "/seriesmith/providers/check", { definition, key }),

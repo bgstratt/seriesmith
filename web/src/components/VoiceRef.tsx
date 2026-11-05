@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";
 import { closeVoiceClip, generateRef, loadRefs, openVoiceClip, updateVoiceClip, voiceFromTake } from "../actions";
-import type { ProviderVoice } from "../api";
+import { HearSpeaker, ProviderVoices } from "./ProviderVoices";
 import { api } from "../host";
 import { MAX_BINS } from "../lib/peaks";
 import { fmtSeconds, tn } from "../lib/format";
@@ -116,38 +116,22 @@ export function VoiceLive({ ep, r }: { ep: string; r: Ref }) {
  * prompt starts as the brief the target would write (the character's `voice`
  * line, their design, and a line to say).
  */
-/** The speaker a character has on the provider of its voice model: listed when opened, each one
- *  heard from the provider's own preview for free, and nothing is paid for until one is picked. */
-function ProviderSpeaker({ r, service }: { r: Ref; service: string }) {
+/** The speaker a character has on the provider of its voice model: nothing is paid for until one
+ *  is picked. */
+function ProviderSpeaker({ r, service, label }: { r: Ref; service: string; label: string }) {
   const ep = useApp((s) => s.ep);
   const speaker = r.speakers?.[service];
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [voices, setVoices] = useState<ProviderVoice[] | null>(null);
-  const [next, setNext] = useState("");
+  // no speaker yet: choosing one is the next thing to do, so the list is already there
+  const [open, setOpen] = useState(!speaker);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function list(after = "") {
-    setBusy(true);
-    setErr(null);
-    try {
-      const got = await api().providerVoices({ service, search: search.trim() || undefined, after: after || undefined });
-      setVoices((was) => (after ? [...(was ?? []), ...got.voices] : got.voices));
-      setNext(got.next);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function choose(id: string | null, name?: string) {
+  async function choose(id: string | null, name?: string, preview?: string) {
     if (!ep || !r.subject) return;
     setBusy(true);
     setErr(null);
     try {
-      await api().putProviderVoice({ ep, subject: r.subject, service, id, name });
+      await api().putProviderVoice({ ep, subject: r.subject, service, id, name, ...(preview ? { preview } : {}) });
       await loadRefs(ep);
       if (id) setOpen(false);
     } catch (e) {
@@ -160,34 +144,14 @@ function ProviderSpeaker({ r, service }: { r: Ref; service: string }) {
   return (
     <div className="h3-col" style={{ gap: 4 }}>
       <div className="h3-row h3-wrap h3-small" style={{ gap: 6 }}>
-        <span className="h3-muted">Speaker on {service}:</span>
-        {speaker ? <b title={speaker.id}>{speaker.name || speaker.id}</b> : <span className="h3-warn">none yet: pick one before generating</span>}
-        <button className="h3-link" onClick={() => { setOpen(!open); if (!open && !voices) void list(); }}>{open ? "hide" : speaker ? "change…" : "choose…"}</button>
+        <span className="h3-muted">Speaker on {label}:</span>
+        {speaker ? <b title={speaker.id}>{speaker.name || speaker.id}</b> : <span className="h3-warn">none yet: pick one to generate</span>}
+        {speaker?.preview && <HearSpeaker url={speaker.preview} name={speaker.name || speaker.id} />}
+        <button className="h3-link" onClick={() => setOpen(!open)}>{open ? "hide" : speaker ? "change…" : "choose…"}</button>
         {speaker && <button className="h3-link" disabled={busy} onClick={() => void choose(null)}>remove</button>}
       </div>
-      {open && (
-        <div className="h3-col" style={{ gap: 4 }}>
-          <div className="h3-row" style={{ gap: 4 }}>
-            <input className="h3-in h3-grow" placeholder="search its voices" value={search} onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") void list(); }} />
-            <button className="h3-btn" disabled={busy} onClick={() => void list()}>Search</button>
-          </div>
-          {err && <span className="h3-small h3-err">{err}</span>}
-          {busy && !voices && <span className="h3-small h3-muted">Reading its voices…</span>}
-          {voices?.length === 0 && <span className="h3-small h3-muted">No voices found.</span>}
-          <div className="h3-col" style={{ gap: 4, maxHeight: 280, overflow: "auto" }}>
-            {voices?.map((v) => (
-              <div key={v.id} className="h3-row h3-wrap h3-small" style={{ gap: 6 }} title={v.about || v.id}>
-                <button className="h3-btn" disabled={busy || speaker?.id === v.id} onClick={() => void choose(v.id, v.name)}>{speaker?.id === v.id ? "Picked" : "Pick"}</button>
-                <b>{v.name}</b>
-                <span className="h3-muted h3-grow">{Object.values(v.labels).join(", ") || v.category}</span>
-                {v.preview && <audio controls preload="none" src={v.preview} style={{ height: 26, maxWidth: 220 }} />}
-              </div>
-            ))}
-          </div>
-          {next && <button className="h3-link" disabled={busy} onClick={() => void list(next)}>more…</button>}
-        </div>
-      )}
+      {err && <span className="h3-small h3-err">{err}</span>}
+      {open && <ProviderVoices service={service} picked={speaker?.id} busy={busy} onPick={(id, name, preview) => void choose(id, name, preview)} />}
     </div>
   );
 }
@@ -207,12 +171,12 @@ export function VoiceGenerateBar({ r }: { r: Ref }) {
   const line = eff?.line ?? "";
   return (
     <div className="h3-col" style={{ gap: 4 }}>
-      {service && <ProviderSpeaker r={r} service={service} />}
+      {service && <ProviderSpeaker r={r} service={service} label={target?.service_label ?? service} />}
       <div className="h3-row h3-wrap h3-genbar">
         <select className="h3-in" value={count} onChange={(e) => setCount(Number(e.target.value))} title="How many samples (each with its own seed)">
           {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}×</option>)}
         </select>
-        <label className="h3-row h3-small" title={`How long the sample is, ${MIN_VOICE_SECONDS}–${max} s on ${targetLabel(list, eff?.target ?? "")}. The target snaps it onto its frame grid.`}>
+        <label className="h3-row h3-small" title={service ? `About how many seconds of this character's lines to say. The words set its real length.` : `How long the sample is, ${MIN_VOICE_SECONDS}–${max} s on ${targetLabel(list, eff?.target ?? "")}. The target snaps it onto its frame grid.`}>
           <input
             className="h3-in"
             style={{ width: 58 }}

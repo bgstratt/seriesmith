@@ -1628,7 +1628,7 @@ export interface Ref {
   /** the series config subject it belongs to (null for a location or a keyframe) */
   subject?: string | null;
   /** a voice: the speaker it has on each provider (voices.<provider> in the series config) */
-  speakers?: Record<string, { id: string; name?: string }>;
+  speakers?: Record<string, { id: string; name?: string; preview?: string }>;
   /**
    * a wardrobe variant's base: the subject it is a variant of (`of:` in the
    * series config), null for everything else. A variant keeps that character's
@@ -2059,6 +2059,10 @@ export interface Target {
   label: string;
   /** the provider of the user's own that runs it */
   service?: string;
+  /** that provider's name */
+  service_label?: string;
+  /** that provider's speakers can be listed (GET /seriesmith/providers/voices) */
+  service_voices?: boolean;
   /** what this show changes of the model (<show>/targets/overrides.json) */
   show_fields?: string[];
   default?: boolean;

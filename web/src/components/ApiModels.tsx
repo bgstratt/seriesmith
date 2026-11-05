@@ -8,6 +8,7 @@ import type { ProviderDraft, ProviderRow, ProviderSpecRead } from "../api";
 import { api } from "../host";
 import { useApp } from "../store";
 import { PromptMapping, type PanelEdits } from "./PromptMapping";
+import { ProviderVoices } from "./ProviderVoices";
 import type { PromptPreview } from "../api";
 
 function useProviders() {
@@ -53,6 +54,7 @@ function ProviderKey({ row, onChanged, onError }: {
           {row.has_key && <button className="h3-btn" disabled={busy} onClick={() => void put(null)}>Remove</button>}
         </>
       )}
+      {row.key_url && !row.has_key && !row.key_from_env && <a className="h3-link" href={row.key_url} target="_blank" rel="noreferrer">get a key</a>}
       {row.docs && <a className="h3-link" href={row.docs} target="_blank" rel="noreferrer">docs</a>}
     </div>
   );
@@ -451,6 +453,12 @@ export function ApiModelWizard({ onClose }: { onClose: () => void }) {
       )}
       {listErr && <div className="h3-small h3-err">{listErr}</div>}
       {row && !row.has_key && <ProviderKey row={row} onChanged={setRows} onError={setListErr} />}
+      {row?.voices && (
+        <details className="h3-small">
+          <summary style={{ cursor: "pointer" }}>Listen to {row.label}'s voices{row.has_key ? "" : " (no key needed to hear its own)"}</summary>
+          <div style={{ marginTop: 4 }}><ProviderVoices service={row.id} /></div>
+        </details>
+      )}
       {row?.untested && (
         <div className="h3-small h3-warn">{row.label}'s definition was written from its docs and hasn't been proved by a real render yet.</div>
       )}

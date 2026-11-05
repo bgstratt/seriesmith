@@ -247,6 +247,8 @@ def preview(root: str, target_id: str, pass_: str = "proxy", shot: str | None = 
     kind = spec.get("kind") if spec else saved.kind
     if kind == "image":
         return _preview_image(root, target_id, fields, spec, problems, changed, ref, view, required)
+    if kind == "audio" and TG.is_hosted(spec or saved.spec):
+        return _preview_voice(root, target_id, fields, spec, problems, changed, ref, required)
     if kind != "video":
         raise PreviewError(f"{target_id} is a {kind} model: its prompts aren't templated yet")
 
@@ -342,6 +344,38 @@ def _preview_image(root, target_id, fields, spec, problems, changed, ref_id, vie
             R.hosted_references(s, job)
             _request(t, job, out)
             _mapping(t, out, out.get("arguments"), required)
+    return out
+
+
+def _preview_voice(root, target_id, fields, spec, problems, changed, ref_id, required) -> dict:
+    """A voice model on one character: the words it's sent and its request. A voice has no prompt to
+    template: the words alone go, so there's nothing around them to change. A character with no
+    speaker yet shows the id's place, as nothing is sent from here."""
+    import types
+
+    from seriesmith import refs as R
+    s = R.load_series(root)
+    voices = [r for r in R.series_refs(s) if r.kind == "voice"]
+    ref = next((r for r in voices if r.id == ref_id), voices[0] if voices else None)
+    if ref is None:
+        raise PreviewError("this episode has no characters with a voice to try it on")
+    with TG.trying(target_id, fields, spec):
+        t = TG.load_target(target_id, "audio", root=root)
+        out = {"ok": True, "id": t.id, "kind": "audio", "label": t.label, "scope": TG.scope_of(t.folder),
+               "hosted": True, "shot": ref.id, "pass": "", "editable": False, "problems": problems,
+               "changed": changed, "shipped": _own_image(t), "parts": [], "request_parts": [],
+               "template": "", "request": TP.request_template(t, "image")}
+        _mapping(t, out, None, required)
+        words = R.voice_brief(s, ref, t)[0]
+        out["prompt"] = out["sent"] = words
+        block = TG.hosted_block(t.spec)
+        service = block.get("service") or ""
+        has = (ref.entry.get("voices") or {}).get(service)
+        out["speaker"] = has if isinstance(has, dict) else None
+        entry = {**ref.entry, "voices": {service: has or {"id": "VOICE_ID"}}}
+        job = types.SimpleNamespace(prompt=words, seed=1, ref=types.SimpleNamespace(entry=entry, subject=ref.subject))
+        _request(t, job, out)
+        _mapping(t, out, out.get("arguments"), required)
     return out
 
 

@@ -2159,6 +2159,12 @@ def readiness(targets, object_info: dict | None, resolve=None, cache=None,
                          "by_pass": {p: {} for p in J.TG.PASSES}, "features_off": [],
                          "nodes_missing": []}
             continue
+        if J.TG.is_hosted(t.spec):
+            # one call to its provider: no files, no nodes, whatever ComfyUI says
+            out[t.id] = {"status": "ready", "missing": [], "resolved": {},
+                         "by_pass": {p: {} for p in t.presets}, "features_off": [],
+                         "nodes_missing": []}
+            continue
         if object_info is None:
             out[t.id] = {"status": "unknown", "missing": [], "resolved": {}, "by_pass": {},
                          "features_off": [], "nodes_missing": [],
