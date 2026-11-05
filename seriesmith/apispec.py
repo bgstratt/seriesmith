@@ -20,6 +20,11 @@ from seriesmith import router_inspect as RI
 from seriesmith import targets as TG
 
 
+def PV_where(spec) -> str:
+    from seriesmith.promptview import where
+    return where(spec)
+
+
 class SpecError(ValueError):
     pass
 
@@ -190,6 +195,12 @@ def propose(service: str, model: str, text: str, kind: str = "video", path: str 
     spec["short"] = model.split("/")[-1] if "/" in model else model
     spec["draft"] = True
     warnings = list(made.get("warnings") or [])
+    placed = {p.strip() for m in (block.get("inputs") or {}).values() for p in PV_where(m).split(",")}
+    placed |= set(block.get("arguments") or {})
+    left = sorted(f["path"] for f in schema["fields"] if "." not in f["path"] and f["path"] not in placed)
+    if left:
+        warnings.append(f"Nothing goes in {', '.join(left)} yet: look at each under Fields. A "
+                        f"resolution needs its values listed before a proxy can ask for a small one.")
     if read_["form"] != "openapi":
         warnings.append("Read from an example: its limits and required fields aren't known. Check the "
                         "Fields tab, then probe one take.")

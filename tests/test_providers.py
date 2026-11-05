@@ -100,7 +100,10 @@ class WithFake(unittest.TestCase):
 
     def answers_for_atlas(self, status="completed", error=None, outputs=None):
         f = self.fake
-        f.routes[("POST", "/api/v1/model/uploadMedia")] = {"url": "https://files.example/pic.png"}
+        # as Atlas really answered, 2026-11-04 (its docs say a top-level `url`)
+        f.routes[("POST", "/api/v1/model/uploadMedia")] = {
+            "code": 200, "message": "success",
+            "data": {"type": "image", "download_url": "https://files.example/pic.png", "filename": "pic.png", "size": 12}}
         f.routes[("POST", "/api/v1/model/generateVideo")] = {"code": 0, "data": {"id": "p1"}}
         f.routes[("GET", "/api/v1/model/prediction/p1")] = {
             "data": {"id": "p1", "status": status, "error": error,
@@ -211,6 +214,14 @@ class TheKey(WithFake):
         self.assertIn(f"key={KEY}", self.fake.calls[-1]["path"])
 
 
+class WhoIsAsking(WithFake):
+    def test_not_as_python(self):
+        """Python's default User-Agent gets a 403 from a provider behind Cloudflare."""
+        self.fake.routes[("GET", "/a")] = {}
+        self.atlas().send("GET", self.fake.url + "/a")
+        self.assertEqual(self.fake.calls[-1]["headers"]["User-Agent"], "seriesmith")
+
+
 class NoBlindRetry(WithFake):
     def test_a_submit_with_no_answer_is_not_sent_again_and_says_so(self):
         b = self.atlas()
@@ -311,11 +322,13 @@ class Definitions(unittest.TestCase):
     def test_a_good_one(self):
         self.assertEqual(PR.problems(self.GOOD), [])
 
-    def test_everything_shipped_is_good_and_says_it_is_untested(self):
+    def test_everything_shipped_is_good_and_says_it_is_untested_until_proved(self):
         defs = PR.definitions()
         for name in ("atlas", "elevenlabs", "openai"):
             self.assertEqual(PR.problems(defs[name]), [], name)
+        for name in ("elevenlabs", "openai"):
             self.assertTrue(defs[name]["untested"], name)
+        self.assertFalse(defs["atlas"].get("untested"))     # a real take came back
 
     def test_what_is_refused(self):
         for bad, says in (({"id": "A B"}, "id"), ({"base_url": "http://a.example"}, "https"),
@@ -418,6 +431,38 @@ class ReadingAReference(unittest.TestCase):
                 self.propose(text)
         with self.assertRaisesRegex(AS.SpecError, "no provider"):
             AS.propose("nope", "m", "{}")
+
+
+class HowPicturesAreNamed(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(TG.forget_targets)
+        self.root = self.tmp.name
+        build_episode(self.root)
+        shutil.copy(os.path.join(FIXTURE, "series.json"), self.root)
+        self.spec = AS.propose("atlas", "m/n", json.dumps(ATLAS_EXAMPLE),
+                               base=TG.load_target("seedance_2_5", "video").spec)["proposal"]
+
+    def sent(self, **references):
+        spec = json.loads(json.dumps(self.spec))
+        spec["api"]["inputs"]["references"].update(references)
+        return PV.preview(self.root, spec["id"], shot="sh010", spec=spec)["sent"]
+
+    def test_a_provider_writes_the_number_its_own_way(self):
+        got = self.sent(define=True, define_as="@Image{n}")
+        self.assertIn("@Image1", got)
+        self.assertNotIn("@Image 1", got)
+
+    def test_the_default_is_as_it_was(self):
+        self.assertIn("@Image 1", self.sent(define=True))
+
+    def test_not_defined_unless_asked(self):
+        self.assertNotIn("@Image", self.sent())
+
+    def test_what_an_example_has_and_nothing_takes_is_said(self):
+        got = AS.propose("atlas", "m/n", json.dumps(ATLAS_EXAMPLE), base=TG.load_target("seedance_2_5", "video").spec)
+        self.assertTrue(any("resolution" in w for w in got["warnings"]))
 
 
 class AModelOnAProvider(unittest.TestCase):
@@ -573,7 +618,10 @@ class AWholeTake(ScratchSettings):
         from seriesmith import takes as T
         from test_router_render import tiny_mp4
         f = self.fake
-        f.routes[("POST", "/api/v1/model/uploadMedia")] = {"url": "https://files.example/pic.png"}
+        # as Atlas really answered, 2026-11-04 (its docs say a top-level `url`)
+        f.routes[("POST", "/api/v1/model/uploadMedia")] = {
+            "code": 200, "message": "success",
+            "data": {"type": "image", "download_url": "https://files.example/pic.png", "filename": "pic.png", "size": 12}}
         f.routes[("POST", "/api/v1/model/generateVideo")] = {"code": 0, "data": {"id": "p1"}}
         f.routes[("GET", "/api/v1/model/prediction/p1")] = {
             "data": {"id": "p1", "status": "completed", "error": None, "outputs": [f.url + "/out/v.mp4"]}}

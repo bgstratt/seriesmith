@@ -1,7 +1,6 @@
 {
   "id": "atlas",
   "label": "Atlas Cloud",
-  "untested": true,
   "docs": "https://www.atlascloud.ai/docs",
   "base_url": "https://api.atlascloud.ai/api/v1",
   "auth": {
@@ -25,6 +24,7 @@
         },
         "take": {
           "url": [
+            "data.download_url",
             "url",
             "data.url"
           ]
@@ -66,5 +66,6 @@
   ],
   "result": {
     "files": "data.outputs"
-  }
+  },
+  "proved": "Seedance 2.5 reference-to-video, one proxy take (2026-11-04). Other models and kinds aren't."
 }

@@ -24,6 +24,8 @@ where it goes -- a field (a dotted path: "prompt", "parameters.seed",
         "seed": {"name": "seed", "max": 2147483647},
         "audio": {"name": "generate_audio"},      # or "on": "on", "off": "off"
         "references": {"list": "image_urls", "max": 4},           # item default "$url";
+                    # "define": true opens the prompt defining each ("define_as": "@Image{n}"
+                    # where a provider writes the number its own way)
                     # "mention": "<<<image_{n}>>>" names each in the prompt (Kling)
         "first": {"field": "image_url"},          # or a list and an item, e.g.
                   # {"list": "content", "item": {"type": "image_url",
@@ -398,6 +400,10 @@ def router_call(target, job) -> tuple[str, dict]:
     # the pictures defined first (Seedance: its prompt guide's "Define ... in @Image N as ...")
     head = (definitions(pics, shot, J.series_config(job.root) or {})
             if (inp.get("references") or {}).get("define") and mode == "references" and pics else "")
+    # how this provider writes a picture's number (Atlas: "@Image1")
+    written_as = (inp.get("references") or {}).get("define_as")
+    if head and written_as:
+        head = re.sub(r"@Image (\d+)", lambda m: written_as.replace("{n}", m.group(1)), head)
     # and the audio named after them ("Use @Audio 1 as the voice of Ada."): the template places them
     text = TP.request_prompt(TP.request_template(target), text, max_chars(pspec), fit,
                              definitions=head, voices=voice_line, mentions=tail)

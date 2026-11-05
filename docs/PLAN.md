@@ -2031,8 +2031,12 @@ download with the key). Reading the reference moved up from step 7 (decided with
 - [ ] An asset library by data (Atlas turned out not to need one), and a link for an API that
       only fetches URLs: the Comfy asset store while there's a Comfy key, or a **media host** of
       the user's own (a bucket).
-- [ ] A live paid proof of each shipped definition: all three are tested against a local server
-      answering as their docs say, and are marked untested until a real take comes back.
+- [x] Atlas proved live (2026-11-04): Porchlights ep02 sh630, proxy, Seedance 2.5 reference to
+      video, upload, generate, poll, download, 2:31. Two things no docs or local server showed:
+      Cloudflare's 403 (1010) for Python's default User-Agent, and `uploadMedia` answering
+      `data.download_url` where its docs say `url`. Its other models and kinds aren't proved.
+- [ ] A live paid proof of ElevenLabs (needs step 6) and OpenAI: tested against a local server
+      answering as their docs say, and marked untested until a real take comes back.
 - [ ] Router's `seedance_asset` moved onto the steps, as the proof the asset path is data.
 - [ ] **Asset libraries** (Seedance and its resellers; 2026-10-21). Register a fetchable URL,
       poll until it's Active, send `asset://<id>`. Router does this already (`via="seedance"`,

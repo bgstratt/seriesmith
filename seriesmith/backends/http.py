@@ -37,7 +37,9 @@ _VAR = re.compile(r"\{([a-z_][a-z0-9_]*)\}")
 TIMEOUT = 120.0
 BIG_TIMEOUT = 600.0                     # a request whose answer is the file itself
 MAX_REDIRECTS = 5
-RAW = object()
+# who's asking. Python's default gets a provider behind Cloudflare a flat 403, "error code: 1010",
+# before the request reaches it (Atlas, 2026-11-04)
+USER_AGENT = "seriesmith"
 
 
 class ProviderHTTP(HTTPFailure):
@@ -178,7 +180,7 @@ class HttpBackend(Backend):
         carried to another host. ProviderHTTP for an error status."""
         url = self.url_of(url)
         for _ in range(MAX_REDIRECTS + 1):
-            hdrs = dict(headers or {})
+            hdrs = {"User-Agent": USER_AGENT, **(headers or {})}
             full = self._with_key(url, hdrs) if keyed else url
             req = urllib.request.Request(full, data=data, method=method, headers=hdrs)
             try:
