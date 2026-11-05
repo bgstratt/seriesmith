@@ -22,5 +22,19 @@
   ],
   "result": {
     "type": "audio"
+  },
+  "check": "/v1/models",
+  "voices": {
+    "url": "/v2/voices?page_size=100",
+    "list": "voices",
+    "id": "voice_id",
+    "name": "name",
+    "preview": "preview_url",
+    "about": "description",
+    "category": "category",
+    "labels": "labels",
+    "next": "next_page_token",
+    "next_param": "next_page_token",
+    "search_param": "search"
   }
 }

@@ -1637,6 +1637,110 @@ class AnUploadAddressInTheForm(unittest.TestCase):
         self.assertNotIn("headers", PD.definition(self.FORM))
 
 
+class AVoiceOnAProvider(ScratchSettings):
+    """A character's speaker on ElevenLabs, from its free list to a sample through the queue."""
+
+    def setUp(self):
+        super().setUp()
+        self.fake = Fake()
+        self.addCleanup(self.fake.close)
+        d = json.loads(json.dumps(PR.definitions()["elevenlabs"]))
+        d.update(id="local_eleven", base_url=self.fake.url, untested=False)
+        self.d = d
+        from seriesmith import api as A
+        self.ok(A.put_provider(self.ctx, {"definition": d}))
+        self.ok(A.put_provider_key(self.ctx, {"id": "local_eleven", "key": KEY}))
+        self.fake.routes[("GET", "/v2/voices")] = lambda c: {
+            "voices": [{"voice_id": "v1", "name": "George", "preview_url": "https://cdn.example/g.mp3",
+                        "category": "premade", "labels": {"accent": "british"}, "description": "warm"},
+                       {"voice_id": "v2", "name": "Sarah"}] if "next_page_token" not in c["path"] else [{"voice_id": "v3", "name": "Third"}],
+            "has_more": "next_page_token" not in c["path"], "next_page_token": None if "next_page_token" in c["path"] else "p2"}
+
+    def speak(self, voice="v1", name="George"):
+        from seriesmith import api as A
+        return self.ok(A.put_refs_provider_voice(self.ctx, {"ep": self.ep, "subject": "ada", "service": "local_eleven", "id": voice, "name": name}))
+
+    def add_model(self):
+        from seriesmith import api as A
+        got = AS.propose("elevenlabs", "eleven_v4", "")
+        spec = json.loads(json.dumps(got["proposal"]))
+        spec["api"]["service"] = "local_eleven"
+        spec.update(id="eleven_v4_local", draft=False)
+        return self.ok(A.put_targets_custom(self.ctx, {"ep": self.ep, "target": spec, "scope": "show"}))["id"]
+
+    def test_its_list_is_free_and_read_in_one_shape(self):
+        from seriesmith import api as A
+        got = self.ok(A.get_provider_voices(self.ctx, {"service": "local_eleven"}))
+        self.assertEqual(got["voices"][0], {"id": "v1", "name": "George", "preview": "https://cdn.example/g.mp3", "about": "warm",
+                                            "category": "premade", "labels": {"accent": "british"}})
+        self.assertEqual(got["voices"][1]["preview"], "")
+        self.assertEqual(got["next"], "p2")
+        self.assertEqual(self.fake.calls[0]["headers"]["xi-api-key"], KEY)
+        more = self.ok(A.get_provider_voices(self.ctx, {"service": "local_eleven", "after": "p2", "search": "a b"}))
+        self.assertEqual([v["id"] for v in more["voices"]], ["v3"])
+        self.assertIn("search=a%20b", self.fake.calls[-1]["path"])
+        self.assertEqual(more["next"], "")
+        self.assertTrue(all(c["method"] == "GET" for c in self.fake.calls))
+
+    def test_its_list_needs_the_key_and_says_what_went_wrong(self):
+        from seriesmith import api as A
+        self.ok(A.put_provider_key(self.ctx, {"id": "local_eleven", "key": None}))
+        self.assertEqual(A.get_provider_voices(self.ctx, {"service": "local_eleven"})[0], 400)
+        self.ok(A.put_provider_key(self.ctx, {"id": "local_eleven", "key": KEY}))
+        self.fake.routes[("GET", "/v2/voices")] = (401, {"detail": {"message": "bad " + KEY}}, {})
+        code, data = A.get_provider_voices(self.ctx, {"service": "local_eleven"})
+        self.assertEqual(code, 502)
+        self.assertNotIn(KEY, data["error"])
+        self.assertEqual(A.get_provider_voices(self.ctx, {"service": "nobody"})[0], 404)
+
+    def test_a_listing_says_it_has_voices(self):
+        rows = {r["id"]: r for r in PR.listing(S.Settings(), {})}
+        self.assertTrue(rows["elevenlabs"]["has_voices"])
+        self.assertFalse(rows["atlas"]["has_voices"])
+        self.assertEqual({m["kind"] for m in rows["elevenlabs"]["catalog"]}, {"audio"})
+
+    def test_the_speaker_is_on_the_subject_in_the_series_config(self):
+        from seriesmith import api as A
+        from seriesmith import refs as R
+        self.assertTrue(self.speak()["changed"])
+        self.assertFalse(self.speak()["changed"])
+        s = R.load_series(self.ep)
+        ref = R.find_ref(s, "voice:ada")
+        self.assertEqual(ref.entry["voices"], {"local_eleven": {"id": "v1", "name": "George"}})
+        self.ok(A.put_refs_provider_voice(self.ctx, {"ep": self.ep, "subject": "ada", "service": "local_eleven", "id": None}))
+        self.assertNotIn("voices", R.find_ref(R.load_series(self.ep), "voice:ada").entry)
+        self.assertEqual(A.put_refs_provider_voice(self.ctx, {"ep": self.ep, "subject": "nobody", "service": "x", "id": "v"})[0], 400)
+
+    def test_no_speaker_no_call(self):
+        from seriesmith import api as A
+        tid = self.add_model()
+        got = self.ok(A.post_refs_generate(self.ctx, {"ep": self.ep, "ref": "voice:ada", "target": tid, "backend": "api:local_eleven"}))
+        self.assertEqual(got["queued"], [])
+        self.assertIn("no voice on local_eleven", got["errors"][0]["error"])
+        self.assertEqual([c for c in self.fake.calls if c["method"] == "POST"], [])
+
+    def test_a_sample_is_the_words_alone_in_the_speakers_voice(self):
+        from seriesmith import api as A
+        from seriesmith import refs as R
+        self.fake.routes[("POST", "/v1/text-to-speech/v1")] = (200, b"not really an mp3", {"Content-Type": "audio/mpeg"})
+        tid = self.add_model()
+        self.speak()
+        got = self.ok(A.post_refs_generate(self.ctx, {"ep": self.ep, "ref": "voice:ada", "target": tid, "backend": "api:local_eleven"}))
+        self.assertEqual(got["errors"], [])
+        self.settle()
+        call = next(c for c in self.fake.calls if c["method"] == "POST")
+        body = json.loads(call["body"])
+        self.assertEqual(body["model_id"], "eleven_v4")
+        self.assertEqual(set(body), {"model_id", "text", "seed"})
+        self.assertTrue(body["text"])
+        for said in ("speaking", "says:", "Voice:", "microphone"):
+            self.assertNotIn(said, body["text"])
+        self.assertEqual(call["headers"]["xi-api-key"], KEY)
+        # and it landed as one of the voice's takes, to play and pick
+        made = os.listdir(R.takes_dir(R.find_ref(R.load_series(self.ep), "voice:ada")))
+        self.assertTrue(any(n.endswith((".mp3", ".wav")) for n in made), made)
+
+
 class AWholeTake(ScratchSettings):
     """Pasted example to a finished take, through the queue, as the app does it."""
 

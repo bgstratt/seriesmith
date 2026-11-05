@@ -1,0 +1,66 @@
+{
+  "read": "2026-11-05",
+  "source": "https://elevenlabs.io/docs/overview/models.md",
+  "models": [
+    {
+      "id": "eleven_v4",
+      "label": "Eleven v4",
+      "kind": "audio",
+      "required": ["text"],
+      "fields": {
+        "text": {"type": "string", "maxLength": 10000},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      },
+      "inputs": {
+        "prompt": {"field": "text", "max_chars": 10000},
+        "seed": {"name": "seed", "max": 4294967295}
+      },
+      "note": "$0.08 per 1,000 characters. Takes tags in the words ([whispers], [sighs]). The seed is best effort. Whether it's on your plan isn't stated."
+    },
+    {
+      "id": "eleven_v3",
+      "label": "Eleven v3",
+      "kind": "audio",
+      "required": ["text"],
+      "fields": {
+        "text": {"type": "string", "maxLength": 5000},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      },
+      "inputs": {
+        "prompt": {"field": "text", "max_chars": 5000},
+        "seed": {"name": "seed", "max": 4294967295}
+      },
+      "note": "$0.08 per 1,000 characters. Takes tags in the words. The seed is best effort."
+    },
+    {
+      "id": "eleven_multilingual_v2",
+      "label": "Eleven Multilingual v2",
+      "kind": "audio",
+      "required": ["text"],
+      "fields": {
+        "text": {"type": "string", "maxLength": 10000},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      },
+      "inputs": {
+        "prompt": {"field": "text", "max_chars": 10000},
+        "seed": {"name": "seed", "max": 4294967295}
+      },
+      "note": "$0.08 per 1,000 characters. The seed is best effort."
+    },
+    {
+      "id": "eleven_flash_v2_5",
+      "label": "Eleven Flash v2.5",
+      "kind": "audio",
+      "required": ["text"],
+      "fields": {
+        "text": {"type": "string", "maxLength": 40000},
+        "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295}
+      },
+      "inputs": {
+        "prompt": {"field": "text", "max_chars": 40000},
+        "seed": {"name": "seed", "max": 4294967295}
+      },
+      "note": "$0.04 per 1,000 characters: the cheapest of them, for trying voices. The seed is best effort."
+    }
+  ]
+}

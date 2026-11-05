@@ -234,6 +234,25 @@ def _as_api_block(spec: dict, service: str, values: dict, schema: dict) -> dict:
     return spec
 
 
+def _proposed_voice(named: str, doc: dict) -> dict:
+    """A voice model read from its reference: words in, a recording out (generic/router_audio.py)."""
+    fields = {f["path"] for f in RI.schema_fields(doc)["fields"]}
+    words = next((f for f in ("text", "input", "prompt") if f in fields), None)
+    if not words:
+        raise SpecError("that voice model's reference has no field for the words: text, input or prompt")
+    inputs: dict = {"prompt": {"field": words}}
+    if "seed" in fields:
+        inputs["seed"] = {"name": "seed", "max": 4294967295}
+    return {"proposal": {
+        "id": "x", "kind": "audio", "label": named, "short": named, "code": "builtin:router_audio",
+        "capabilities": {"mode": "t2a", "max_seconds": 60},
+        "template": {"fps": 24, "frames": {"step": 1, "base": 0, "max": 1440},
+                     "default_seconds": 8.0, "min_seconds": 1.0, "max_seconds": 60.0},
+        "presets": {"final": {"model": named, "lora": "", "steps": 0, "cfg": 1.0}},
+        "recipe": {"_note": "The words alone go in the request, in the character's speaker (generic/router_audio.py)."},
+        "router": {"model": named, "inputs": inputs}}, "mapped": {}, "unplaced": [], "warnings": []}
+
+
 def propose(service: str, model: str, text: str, kind: str = "video", path: str | None = None,
             base: dict | None = None) -> dict:
     """{"proposal": target.json, "mapped", "unplaced", "warnings", "form", "paths", "schema",
@@ -258,7 +277,8 @@ def propose(service: str, model: str, text: str, kind: str = "video", path: str 
     # the proposer names a model by provider/model; what it writes of it is overwritten below
     named = model if "/" in model else f"{service}/{model}"
     try:
-        made = RI.propose_image(named, doc) if kind == "image" else RI.propose(named, doc, base=base)
+        made = (_proposed_voice(named, doc) if kind == "audio" else
+                RI.propose_image(named, doc) if kind == "image" else RI.propose(named, doc, base=base))
         schema = RI.schema_fields(doc)
     except RI.RouterInspectError as e:
         raise SpecError(str(e)) from None

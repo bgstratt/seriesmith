@@ -4226,6 +4226,49 @@ def post_provider_draft(ctx: Context, body):
 
 
 @handler
+def get_provider_voices(ctx: Context, query):
+    """The speakers a provider has, read with its key and costing nothing. Query {service, search?,
+    after?}. Returns {voices: [{id, name, preview, about, category, labels}], next}."""
+    import urllib.error
+
+    from seriesmith import providers as PR
+    from seriesmith.backends import BackendError, HTTPFailure
+    from seriesmith.backends.http import list_voices
+    service = str(query.get("service") or "")
+    d = PR.definitions().get(service)
+    if not d:
+        raise ApiError(404, f"there's no provider called {service}")
+    key = PR.key_of(service)
+    if not key:
+        raise ApiError(400, f"{d.get('label') or service} needs its key before its voices can be listed")
+    try:
+        return 200, list_voices(d, key, str(query.get("search") or ""), str(query.get("after") or ""))
+    except HTTPFailure as e:
+        raise ApiError(502, f"{d.get('label') or service} answered {e.status}: {e.text[:300]}")
+    except (BackendError, urllib.error.URLError, OSError) as e:
+        raise ApiError(502, f"{d.get('label') or service}: {e}")
+
+
+@handler
+def put_refs_provider_voice(ctx: Context, body):
+    """Give a subject a provider's speaker, written in the series config (`voices.<service>`), or a
+    null `id` takes it away. Body {ep, subject, service, id, name?}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    subject, service = _opt_str(body, "subject") or "", _opt_str(body, "service") or ""
+    if not subject or not service:
+        raise ApiError(400, "subject and service say whose voice, and on which provider")
+    vid, name = _opt_str(body, "id"), _opt_str(body, "name")
+    voice = {"id": vid, **({"name": name} if name else {})} if vid else None
+    try:
+        changed = R.set_provider_voice(_series(ep), subject, service, voice)
+    except R.RefError as e:
+        raise ApiError(400, str(e))
+    episode_event(ctx, ep)
+    return 200, {"ok": True, "changed": changed}
+
+
+@handler
 def post_provider_check(ctx: Context, body):
     """Whether a provider can be reached with a key, by one read that starts nothing and costs
     nothing. Body {definition, key?}: `key`, else the one saved for it. The key isn't kept."""
@@ -4259,8 +4302,8 @@ def post_provider_read_spec(ctx: Context, body):
     from seriesmith import providers as PR
     body = body_dict(body)
     kind = body.get("kind") or "video"
-    if kind not in ("video", "image"):
-        raise ApiError(400, "kind is video or image")
+    if kind not in ("video", "image", "audio"):
+        raise ApiError(400, "kind is video, image or audio")
     text = body.get("text") or ""
     if not isinstance(text, str):
         raise ApiError(400, "text is the API's reference")
@@ -6137,6 +6180,8 @@ ROUTES = [
     ("PUT", "/seriesmith/providers", put_provider, "body"),
     ("DELETE", "/seriesmith/providers", delete_provider, "query"),
     ("PUT", "/seriesmith/providers/key", put_provider_key, "body"),
+    ("GET", "/seriesmith/providers/voices", get_provider_voices, "query"),
+    ("PUT", "/seriesmith/refs/provider-voice", put_refs_provider_voice, "body"),
     ("POST", "/seriesmith/providers/read-spec", post_provider_read_spec, "body"),
     ("POST", "/seriesmith/providers/draft", post_provider_draft, "body"),
     ("POST", "/seriesmith/providers/check", post_provider_check, "body"),

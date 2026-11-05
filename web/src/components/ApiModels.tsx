@@ -326,7 +326,7 @@ export function ApiModelWizard({ onClose }: { onClose: () => void }) {
   const { rows, setRows, err: listErr, setErr: setListErr } = useProviders();
   const [service, setService] = useState("");
   const [model, setModel] = useState("");
-  const [kind, setKind] = useState<"video" | "image">("video");
+  const [kind, setKind] = useState<"video" | "image" | "audio">("video");
   const [text, setText] = useState("");
   const [path, setPath] = useState("");
   const [busy, setBusy] = useState(false);
@@ -421,8 +421,8 @@ export function ApiModelWizard({ onClose }: { onClose: () => void }) {
                 setR(null);
               }}>
               <option value="">(another model)</option>
-              {(["video", "image"] as const).map((k) => (
-                <optgroup key={k} label={k === "video" ? "Video" : "Image"}>
+              {(["video", "image", "audio"] as const).filter((k) => listed.some((m) => m.kind === k)).map((k) => (
+                <optgroup key={k} label={k === "video" ? "Video" : k === "image" ? "Image" : "Voice"}>
                   {listed.filter((m) => m.kind === k).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
                 </optgroup>
               ))}
@@ -435,7 +435,7 @@ export function ApiModelWizard({ onClose }: { onClose: () => void }) {
         </label>
         <span className="h3-seg">
           {(["video", "image"] as const).map((k) => (
-            <button key={k} className={kind === k ? "h3-on" : ""} onClick={() => setKind(k)}>{k === "video" ? "Video" : "Image"}</button>
+            <button key={k} className={kind === k ? "h3-on" : ""} onClick={() => setKind(k)}>{k === "video" ? "Video" : k === "image" ? "Image" : "Voice"}</button>
           ))}
         </span>
       </div>

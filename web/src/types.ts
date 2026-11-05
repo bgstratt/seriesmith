@@ -1627,6 +1627,8 @@ export interface Ref {
   key?: string;
   /** the series config subject it belongs to (null for a location or a keyframe) */
   subject?: string | null;
+  /** a voice: the speaker it has on each provider (voices.<provider> in the series config) */
+  speakers?: Record<string, { id: string; name?: string }>;
   /**
    * a wardrobe variant's base: the subject it is a variant of (`of:` in the
    * series config), null for everything else. A variant keeps that character's

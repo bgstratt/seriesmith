@@ -4583,10 +4583,22 @@ Whether a provider can be reached with a key, by one read that starts nothing: a
 doesn't exist. Body `{definition, key?}`: `key`, else the one saved. The key isn't kept. Returns
 `{reached, key_ok, status, says}`. A 401 or 403 can be the key or a firewall in front of it.
 
+### `GET /seriesmith/providers/voices`
+
+The speakers a provider has, read with its key, costing nothing. Query `service`, `search?`, `after?`.
+Returns `{voices: [{id, name, preview, about, category, labels}], next}`; **502** with what the provider
+said. A ref row for a voice carries the speakers picked as `speakers`.
+
+### `PUT /seriesmith/refs/provider-voice`
+
+Gives a subject a provider's speaker, in the series config (`subjects.<id>.voices.<service>`), or takes
+it away with a null `id`. Body `{ep, subject, service, id, name?}`. Returns `{ok, changed}`. A variant
+shares its base's voice (**400**). A hosted voice take without a speaker is refused before it's queued.
+
 ### `POST /seriesmith/providers/read-spec`
 
 A model's API reference read into a proposed target, nothing saved or sent to the provider. Body
-`{service, model, kind?, text, path?}`: `text` is an OpenAPI document or its address, an example
+`{service, model, kind? (video, image or audio), text, path?}`: `text` is an OpenAPI document or its address, an example
 cURL, an example request's JSON, or a docs page's address. Returns `{proposal, mapped, unplaced,
 warnings, form, paths, schema, auth?, limits, model}`. An OpenAPI document with several requests and
 no `path` returns `proposal: null` and the `paths` to choose from. A key in a pasted cURL isn't kept,

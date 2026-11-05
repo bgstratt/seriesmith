@@ -405,6 +405,38 @@ def _shown(v):
     return v
 
 
+def list_voices(d: dict, key: str, search: str = "", after: str = "") -> dict:
+    """The speakers a provider has (its definition's `voices`): one read that costs nothing.
+    {"voices": [{"id", "name", "preview", "about", "category", "labels"}], "next": the page after, if
+    any}. HTTPFailure and URLError as a request's."""
+    how = d.get("voices")
+    if not isinstance(how, dict) or not how.get("url"):
+        raise BackendError(f"{d.get('id')}: its definition doesn't say where its voices are listed")
+    b = HttpBackend(d, key)
+    url = str(how["url"])
+    for name, value in ((how.get("search_param"), search), (how.get("next_param"), after)):
+        if name and value:
+            url += ("&" if "?" in url else "?") + f"{urllib.parse.quote(str(name))}={urllib.parse.quote(value, safe='')}"
+    raw, _ = patiently(lambda: b.send("GET", url))
+    try:
+        doc = json.loads(raw.decode("utf-8"))
+    except ValueError:
+        raise BackendError(f"{b.id}: its list of voices wasn't JSON") from None
+    rows = pick(doc, how.get("list")) if how.get("list") else doc
+    out = []
+    for row in rows if isinstance(rows, list) else []:
+        vid = pick(row, how.get("id") or "id")
+        if vid:
+            labels = pick(row, how["labels"]) if how.get("labels") else None
+            out.append({"id": str(vid), "name": str(pick(row, how.get("name") or "name") or vid),
+                        "preview": (pick(row, how["preview"]) if how.get("preview") else None) or "",
+                        "about": (pick(row, how["about"]) if how.get("about") else None) or "",
+                        "category": (pick(row, how["category"]) if how.get("category") else None) or "",
+                        "labels": labels if isinstance(labels, dict) else {}})
+    following = pick(doc, how["next"]) if how.get("next") else None
+    return {"voices": out, "next": str(following) if following else ""}
+
+
 def check_key(d: dict, key: str) -> dict:
     """Whether a provider can be reached with a key, by one read that starts nothing: asking after
     a job that doesn't exist. {"reached", "key_ok", "proves_key", "status", "says"}. A 401 or 403 can

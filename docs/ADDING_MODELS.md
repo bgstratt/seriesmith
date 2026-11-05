@@ -46,8 +46,11 @@ model…**:
 
 ### A model on another API
 
-For a model on a provider you have your own account with, such as Atlas Cloud. Video and image
-models for now; sound follows.
+For a model on a provider you have your own account with, such as Atlas Cloud. Video, image and
+voice models for now; other sound follows. A voice model on ElevenLabs takes a speaker per character:
+choose it on the character's voice row, hear each one's free preview, and generating is refused
+until there is one. A model you save appears in the model list; until then, a provider's models are
+only on its list here.
 
 1. **Pick the provider, and add its key.** Atlas Cloud, Higgsfield, Runway, ElevenLabs and OpenAI come listed, marked
    *untested*: they're written from each provider's docs and haven't been proved by a real render

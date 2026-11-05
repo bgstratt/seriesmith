@@ -27,7 +27,9 @@ is plain data, run by backends/http.py:
          "until": {"status": "data.status", "done": ["completed"], "failed": ["failed"],
                    "error": "data.error", "every": 5, "timeout": 3600}}
       ],
-      "result": {"files": "data.outputs"}    # or {"url": "/videos/{task}/content", "auth": true, "type": "video"}
+      "result": {"files": "data.outputs"},   # or {"url": "/videos/{task}/content", "auth": true, "type": "video"}
+      "voices": {"url": "/v2/voices", "list": "voices", "id": "voice_id", "name": "name"}
+                                             # where its speakers are listed, if it has them
     }
 
 Definitions live on this machine, beside the settings, with their keys: a show names a provider
@@ -182,5 +184,6 @@ def listing(settings=None, env=None) -> list[dict]:
                     "env_name": env_name(pid), "endpoints": d.get("endpoints") or {},
                     "catalog": [{k: m.get(k) for k in ("id", "label", "kind", "note") if m.get(k)} for m in catalog(pid)],
                     "docs": d.get("docs") or "", "key_hint": d.get("key_hint") or "",
+                    "has_voices": bool((d.get("voices") or {}).get("url")),
                     "definition": {k: v for k, v in d.items() if k != "source"}})
     return out

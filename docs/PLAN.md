@@ -2098,9 +2098,12 @@ download with the key). Reading the reference moved up from step 7 (decided with
       public self-serve API as of 2026-11-04).
 
 **6. Voices, then lines**
-- [ ] A voice per character: a provider's speaker (an id per provider, on the subject in the
-      series config; one private to an account fails plainly on another's) or a reference
-      sample (`voice:<subject>`), auditioned on a short sample in the character's own words.
+- [x] A voice per character: a provider's speaker (an id per provider, on the subject in the
+      series config: `voices.<provider>`; one private to an account fails plainly on another's),
+      listed from the provider for free with its previews, auditioned on a short sample in the
+      character's own words through the voice ref's takes (`generic/router_audio.py`, ElevenLabs'
+      list). Built on local servers only, 2026-11-05: no key, no real take. A reference sample
+      (cloning, a provider's IVC) isn't built.
 - [ ] Lines refused until the voice is picked; the count of lines and characters shown first.
 - [ ] A line per take, the words alone in the request; laid in script order, with the pauses
       silent shots' `dur:` give, into the episode's recording; `align` windows the shots from it.

@@ -504,6 +504,9 @@ The picture models, and what each needs installed, are in [FULL_SETUP.md](/full-
   that reads reference images, so the face carries. On a text-to-image model (Krea 2) the
   variant is drawn from its `design` alone: write that sentence as close to the
   original's as the change allows.
+- `voices`, on a character, is the speaker it has on a provider, by provider, written when you
+  pick one in the editor: `"voices": {"elevenlabs": {"id": "JBFqnCBsd6RMkjVDRZzb", "name": "George"}}`.
+  An id belongs to the provider, and one private to an account fails on another's.
 - A character with no `voice_sample` still gets one: generating and picking a voice in the
   editor (or `seriesmith refs <ep> --voices`) writes `refs/voices/<id>.wav` and adds the
   `voice_sample` line to `series.json`. Don't invent a `voice_sample` path for a file that

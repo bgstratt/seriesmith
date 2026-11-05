@@ -367,6 +367,10 @@ class Runner:
 
         backend = self.backend_for(backend_name)
         hosted = TG.is_hosted(job.target.spec)
+        refuses = getattr(job.target.module, "refuses", None) if hosted else None
+        why = refuses(job.target, job) if refuses else None
+        if why:
+            raise ValueError(why)                # before anything is reserved or paid for
         if not hosted:
             # what its node pack would fetch by itself (an ambience bed's BigVGAN), not
             # downloaded: refused before anything is reserved

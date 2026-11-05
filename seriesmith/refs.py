@@ -1592,6 +1592,40 @@ def set_voice_sample(s: Series, subject: str, rel: str) -> bool:
     return True
 
 
+def set_provider_voice(s: Series, subject: str, service: str, voice: dict | None) -> bool:
+    """Write the speaker a subject has on a provider (`subjects.<subject>.voices.<service>`: {"id",
+    "name"}; None removes it) into the series config, by the same path as a `voice_sample`. A variant
+    shares its base's voice. False when it already said that. RefError as set_voice_sample's."""
+    import json
+
+    from seriesmith import promote as P
+    from seriesmith import source as H
+    try:
+        src = H.read_source(s.ep, "series")
+        raw = json.loads(src.text)
+    except (H.SourceError, ValueError) as e:
+        raise RefError(f"the series config can't be read: {e}") from None
+    book = raw.get("subjects")
+    if not isinstance(book, dict) or not isinstance(book.get(subject), dict):
+        raise RefError(f"the series config has no subject {subject!r} to give a voice to")
+    entry = book[subject]
+    if entry.get("of"):
+        raise RefError(f"{subject!r} is a variant of {entry['of']!r} and shares its voice: "
+                       f"give the voice to {entry['of']!r} instead")
+    was = entry.get("voices") if isinstance(entry.get("voices"), dict) else {}
+    now = {k: v for k, v in was.items() if k != service}
+    if voice:
+        now[service] = voice
+    if now == was:
+        return False
+    if now:
+        entry["voices"] = now
+    else:
+        entry.pop("voices", None)
+    H.write_source(src, P.dump_series(raw, src.text))
+    return True
+
+
 def pick_take(s: Series, ref: Ref, view: str | None, take: int,
               force: bool = False, panel_height: int = 1024,
               mksheet: str | None = None) -> PickResult:
@@ -4479,6 +4513,7 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
     out = {
         "id": ref.id, "key": ref.key, "scope": ref.scope, "kind": ref.kind,
         "name": ref.name, "subject": ref.subject,
+        **({"speakers": ref.entry["voices"]} if ref.is_audio and isinstance(ref.entry.get("voices"), dict) else {}),
         # a wardrobe variant keeps the subject's name (it is the same character,
         # and that name goes into every prompt), so the listing says whose
         # variant it is rather than inventing a second name for them
