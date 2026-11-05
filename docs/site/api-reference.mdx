@@ -67,7 +67,7 @@ section and search for the path for its later additions.
 | `POST /seriesmith/audio/import` | Phase 9d |
 | `POST` / `DELETE /seriesmith/workflow/install` | Phase 11 |
 | `GET /seriesmith/workflows`, `POST /seriesmith/targets/inspect`, `PUT` / `DELETE /seriesmith/targets/custom` | Phase 12 |
-| `GET /seriesmith/router/models`, `POST /seriesmith/targets/router-inspect`, `POST /seriesmith/targets/router-dryrun`, `POST /seriesmith/targets/prompt-preview`, `PUT /seriesmith/targets/prompt`, `POST /seriesmith/targets/schema`, `GET`/`PUT`/`DELETE /seriesmith/providers`, `PUT /seriesmith/providers/key`, `POST /seriesmith/providers/read-spec`, `PUT /seriesmith/targets/limits` | Hosted models, limits and your own workflows |
+| `GET /seriesmith/router/models`, `POST /seriesmith/targets/router-inspect`, `POST /seriesmith/targets/router-dryrun`, `POST /seriesmith/targets/prompt-preview`, `PUT /seriesmith/targets/prompt`, `POST /seriesmith/targets/schema`, `GET`/`PUT`/`DELETE /seriesmith/providers`, `PUT /seriesmith/providers/key`, `POST /seriesmith/providers/read-spec`, `POST /seriesmith/providers/draft`, `POST /seriesmith/providers/check`, `PUT /seriesmith/targets/limits` | Hosted models, limits and your own workflows |
 
 Not seriesmith's own: the page's websocket `/ws` (Live updates) and, under `seriesmith serve`, ComfyUI's `/models`, `/object_info/{node}` and `/queue` (Models). The `api.py`
 routes and `server/stop` also answer under `/api/seriesmith/...` (inside ComfyUI, every
@@ -4368,6 +4368,18 @@ Remove this machine's definition. Query `{id}`. Returns `{ok, deleted, providers
 ### `PUT /seriesmith/providers/key`
 
 Set a provider's key, write-only; `key: null` removes it. Body `{id, key}`. Returns `{ok, id, providers}`.
+
+### `POST /seriesmith/providers/draft`
+
+A provider set up from what its docs give; nothing is saved or sent to it. Body `{text, answer?, poll?, poll_answer?, path?}`: `text` is the cURL that starts a generation, an OpenAPI document, or an address: that document's, or a docs page whose HTML shows either.
+Or `{form}`: a form as edited. Returns `{form, definition, problems, notes?, model?, paths?}`. A key in
+a pasted cURL isn't kept, only how it was sent.
+
+### `POST /seriesmith/providers/check`
+
+Whether a provider can be reached with a key, by one read that starts nothing: asking after a job that
+doesn't exist. Body `{definition, key?}`: `key`, else the one saved. The key isn't kept. Returns
+`{reached, key_ok, status, says}`. A 401 or 403 can be the key or a firewall in front of it.
 
 ### `POST /seriesmith/providers/read-spec`
 

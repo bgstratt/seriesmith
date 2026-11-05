@@ -4131,6 +4131,105 @@ def put_provider_key(ctx: Context, body):
     return 200, {"ok": True, "id": pid, "providers": PR.listing()}
 
 
+def _reference_at(address: str) -> dict:
+    """What an address gives of a provider's API: {"text": an OpenAPI document or a cURL, "doc"?: the
+    document that goes with that cURL, "poll"?: the cURL that checks on a job}. A docs page counts,
+    when its HTML has them. SpecError saying what to do."""
+    import urllib.error
+    import urllib.request
+
+    from seriesmith import apispec as AS
+    from seriesmith import providerdraft as PD
+    from seriesmith.backends import tls
+    from seriesmith.backends.http import USER_AGENT
+
+    def fetched(url: str) -> str:
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        ctx_ = tls() if url.startswith("https") else None
+        with urllib.request.urlopen(req, timeout=30.0, context=ctx_) as r:
+            return r.read(8 * 1024 * 1024).decode("utf-8", "replace")
+
+    def as_document(raw: str) -> dict | None:
+        try:
+            got = json.loads(raw)
+        except ValueError:
+            return None
+        return got if isinstance(got, dict) else None
+
+    cant = ("that address didn't give an OpenAPI document or an example to read: its page may draw "
+            "itself in the browser. Paste the example cURL from it instead")
+    try:
+        raw = fetched(address)
+    except (urllib.error.URLError, OSError, ValueError):
+        raise AS.SpecError(cant) from None
+    doc = as_document(raw)
+    if doc is not None:
+        return {"text": json.dumps(doc)}
+    page = PD.from_page(raw, address)
+    if page["openapi"]:
+        try:
+            doc = as_document(fetched(page["openapi"]))
+        except (urllib.error.URLError, OSError, ValueError):
+            doc = None
+    if page["post"]:
+        return {"text": page["post"], "doc": doc, "poll": page["poll"]}
+    if doc is not None:
+        return {"text": json.dumps(doc)}
+    raise AS.SpecError(cant)
+
+
+@handler
+def post_provider_draft(ctx: Context, body):
+    """A provider set up from what its docs give (seriesmith.providerdraft). With `text` (the cURL
+    that starts a generation, an OpenAPI document, or an address: that document's, or a docs page
+    showing either), and optionally `answer`, `poll`
+    and `poll_answer`, a proposed form; with `form`, the definition it comes to and what's left to
+    fill in. Nothing is saved or sent to the provider. A key in a pasted cURL isn't kept."""
+    from seriesmith import apispec as AS
+    from seriesmith import providerdraft as PD
+    from seriesmith import providers as PR
+    body = body_dict(body)
+    out: dict = {}
+    form = body.get("form")
+    if form is None:
+        text = str(body.get("text") or "")
+        try:
+            found: dict = {}
+            if re.fullmatch(r"https?://\S+", text.strip()):
+                found = _reference_at(text.strip())
+                text = found["text"]
+            out = PD.draft(text, body.get("answer"), body.get("poll") or found.get("poll"), body.get("poll_answer"),
+                           _opt_str(body, "path"), doc=found.get("doc"))
+        except AS.SpecError as e:
+            raise ApiError(400, str(e))
+        form = out["form"]
+    elif not isinstance(form, dict):
+        raise ApiError(400, "form must be an object")
+    d = PD.definition(form)
+    left = PD.form_problems(form) or [p for p in PR.problems(d)]
+    return 200, {**out, "form": form, "definition": d, "problems": left}
+
+
+@handler
+def post_provider_check(ctx: Context, body):
+    """Whether a provider can be reached with a key, by one read that starts nothing and costs
+    nothing. Body {definition, key?}: `key`, else the one saved for it. The key isn't kept."""
+    from seriesmith import providers as PR
+    from seriesmith.backends.http import check_key
+    body = body_dict(body)
+    d = body.get("definition")
+    if not isinstance(d, dict):
+        raise ApiError(400, "definition must be the provider's definition")
+    wrong = PR.problems(d)
+    if wrong:
+        raise ApiError(400, wrong[0])
+    key = (body.get("key") or "").strip() if isinstance(body.get("key"), str) else ""
+    key = key or PR.key_of(str(d.get("id")))
+    if not key:
+        raise ApiError(400, "there's no key to check: type it in")
+    return 200, check_key(d, key)
+
+
 @handler
 def post_provider_read_spec(ctx: Context, body):
     """A model's API reference, as pasted, read into a proposed target: an OpenAPI document (or
@@ -4143,16 +4242,13 @@ def post_provider_read_spec(ctx: Context, body):
     kind = body.get("kind") or "video"
     if kind not in ("video", "image"):
         raise ApiError(400, "kind is video or image")
-    text = body.get("text")
+    text = body.get("text") or ""
     if not isinstance(text, str):
         raise ApiError(400, "text is the API's reference")
     try:
         if re.fullmatch(r"https?://\S+", text.strip()):
-            from seriesmith.backends import HTTPFailure, http_json
-            try:
-                text = json.dumps(http_json(text.strip(), timeout=30.0))
-            except (HTTPFailure, OSError, ValueError) as e:
-                raise AS.SpecError(f"that address didn't give a JSON document: {e}") from None
+            found = _reference_at(text.strip())
+            text = json.dumps(found["doc"]) if found.get("doc") else found["text"]
         out = AS.propose(_opt_str(body, "service") or "", _opt_str(body, "model") or "", text, kind,
                          _opt_str(body, "path"), base=TG.load_target("seedance_2_5", "video").spec)
     except AS.SpecError as e:
@@ -6018,6 +6114,8 @@ ROUTES = [
     ("DELETE", "/seriesmith/providers", delete_provider, "query"),
     ("PUT", "/seriesmith/providers/key", put_provider_key, "body"),
     ("POST", "/seriesmith/providers/read-spec", post_provider_read_spec, "body"),
+    ("POST", "/seriesmith/providers/draft", post_provider_draft, "body"),
+    ("POST", "/seriesmith/providers/check", post_provider_check, "body"),
     ("GET", "/seriesmith/router/models", get_router_models, "query"),
     ("PUT", "/seriesmith/targets/limits", put_targets_limits, "body"),
     ("DELETE", "/seriesmith/targets/custom", delete_targets_custom, "query"),

@@ -215,7 +215,7 @@ NAMES = {
     "first": ["firstframe", "firstframeimage", "firstframeurl", "image", "imageurl", "imgurl",
               "startimage", "imagestart", "startframe", "startimageurl", "promptimage"],
     "last": ["lastframe", "lastframeimage", "lastframeurl", "endimage", "imageend", "tailimage",
-             "endframe", "endimageurl", "imagetail"],
+             "endframe", "endimageurl", "imagetail", "lastimage"],
     "references": ["referenceimages", "referenceimage", "imageurls", "images", "referenceimageurls",
                    "refimages"],
 }
@@ -550,7 +550,7 @@ def _name(m: dict) -> str:
 
 GEMINI_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
 _PICTURE_NAMES = ("image", "images", "imageurls", "imagelist", "inputimage", "inputimages",
-                  "referenceimages", "imageinput", "imageurl")
+                  "referenceimages", "referenceimageurls", "imageinput", "imageurl")
 
 
 def propose_image(model: str, doc: dict) -> dict:
@@ -633,9 +633,13 @@ def propose_image(model: str, doc: dict) -> dict:
                 inputs["resolution"] = {"name": path, "values": vals}
         elif leaf == "size" and t == "string" and "size" not in inputs:
             star = "*" in re.sub(r"\s", "", desc[:400]) and re.search(r"\d+\*\d+", desc)
+            under = re.search(r"\d+_\d+|width_height", desc)
             sizes = re.findall(r"\b(\d{3,4}x\d{3,4})\b", desc)
+            listed = [str(e) for e in enum or [] if re.fullmatch(r"\d+[x*_]\d+", str(e))]
             free = re.search(r"total pixels|pixel area|width and height in pixels", desc, re.I)
-            if sizes and not star and not free and len(desc) < 300:
+            if listed:
+                inputs["size"] = {"name": path, "values": listed}       # written as the API writes them
+            elif sizes and not star and not free and len(desc) < 300:
                 # a short list ("e.g., 1024x1024, 1536x1024, auto"): those, and each
                 # landscape one's portrait twin
                 vals = list(dict.fromkeys(sizes))
@@ -645,7 +649,8 @@ def propose_image(model: str, doc: dict) -> dict:
                         vals.append(f"{b}x{a}")
                 inputs["size"] = {"name": path, "values": vals}
             else:
-                inputs["size"] = {"name": path, "format": "{w}*{h}" if star else "{w}x{h}", "multiple": 16}
+                inputs["size"] = {"name": path, "multiple": 16,
+                                  "format": "{w}*{h}" if star else "{w}_{h}" if under else "{w}x{h}"}
                 # "a pixel area between 262144 (512*512) and 6553600 (2560*2560)"
                 big = [int(x) for x in re.findall(r"\b\d{5,}\b", desc)[:2]]
                 if len(big) == 2 and big[0] < big[1]:

@@ -2011,6 +2011,9 @@ download with the key). Reading the reference moved up from step 7 (decided with
       Router's (`apispec.py`); else a pasted cURL or sample JSON (Atlas publishes per-model pages,
       no OpenAPI file). The definition is plain data, so an LLM can draft one from a provider's
       docs, and the validator and dry run check it. A key in a cURL is never kept.
+- [x] A provider set up from scratch in the app (`providerdraft.py`, `AddProvider`): a cURL or OpenAPI
+      document read into a form, example answers filling in more, a free key check, its first model
+      from the same request, and **The calls** showing every call a take makes.
 - [x] Provider definitions on this machine (`providers.py`, `presets/providers/` the shipped
       untested ones); **keys per provider** in its settings (never the series config),
       environment variables over them (`SERIESMITH_KEY_<ID>`); Settings lists them, write-only.
@@ -2035,6 +2038,17 @@ download with the key). Reading the reference moved up from step 7 (decided with
       video, upload, generate, poll, download, 2:31. Two things no docs or local server showed:
       Cloudflare's 403 (1010) for Python's default User-Agent, and `uploadMedia` answering
       `data.download_url` where its docs say `url`. Its other models and kinds aren't proved.
+- [x] One model, several ids (`api.models`, by what's sent: Atlas's Seedance image-to-video and
+      reference-to-video). A provider's documented models as a list to pick from, needing nothing
+      pasted (`presets/providers/atlas.models.json`, read from its docs 2026-11-04; only Seedance 2.5
+      reference-to-video proved).
+- [x] From a provider's docs, read for free 2026-11-05, no key: fal's FLUX 3 Max page (its address alone
+      fills the form: the cURLs in its HTML, the OpenAPI document it links, `Key ` before the key, a
+      failed job as done with `error` beside it) and BytePlus's cURL (a list of typed items, every item
+      read). Neither proved by a real take. fal documents no plain-HTTP upload to its CDN, and takes
+      data URIs ("not recommended for files larger than a few KB", no limit stated): frames go inline.
+      BytePlus refuses a photoreal person as a URL; a face as a data URI is untested, and a direct
+      key's way into its asset library unknown (its docs pages draw themselves in the browser).
 - [ ] A live paid proof of ElevenLabs (needs step 6) and OpenAI: tested against a local server
       answering as their docs say, and marked untested until a real take comes back.
 - [ ] Router's `seedance_asset` moved onto the steps, as the proof the asset path is data.

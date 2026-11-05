@@ -20,7 +20,7 @@ user's side.
 - `seriesmith/build.py` — script + series config -> story IR -> each target's shotlist, refs_todo
 - `seriesmith/commands.py` — the `seriesmith` command: every subcommand in one table (`COMMANDS`: usage, help, what runs it; stages in-process, align a subprocess; usage errors exit 2); `cli.py` is its entry point
 - `seriesmith/backends/` — where a job runs: local ComfyUI straight to its own API (`native.py`; or via comfy-api-proxy with `local_via: "proxy"`), Cloud, deployments (`comfy.py`), Router (`router.py`), a provider of the user's own from its definition (`http.py`, the step engine), a fake for tests
-- `seriesmith/providers.py` — those providers' definitions (this machine's, `presets/providers/` the shipped untested ones) and keys; `apispec.py` — a model's API reference (OpenAPI, cURL, an example's JSON) read into a proposed target
+- `seriesmith/providers.py` — those providers' definitions (this machine's, `presets/providers/` the shipped untested ones) and keys; `apispec.py` — a model's API reference (OpenAPI, cURL, an example's JSON) read into a proposed target; `providerdraft.py` — a provider set up from what its docs give: a cURL, an OpenAPI document or a docs page's HTML read into a form, and the definition a form comes to
 - `seriesmith/settings.py` — this machine's settings (backend URLs, API key, built-in drafts switched on, limit overrides); never the series config
 - `seriesmith/limits.py` — a video or hosted image model's limits read into one form and written back where each lives; `router_inspect.py` — a Router model's schema read into a proposed target (video and image), its catalog
 - `seriesmith/jobs.py`, `takes.py`, `render.py` — planning a take, its files and record, rendering through a backend (portable graphs)

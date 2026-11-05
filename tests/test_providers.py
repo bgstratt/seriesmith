@@ -428,7 +428,7 @@ class ReadingAReference(unittest.TestCase):
         for text, says in (("", "paste"), ("openapi: 3.0.0\npaths: {}", "YAML"), ("[1]", "object"),
                            ("curl https://a.example/x", "no body"), ("curl -d 'a=$b' https://a.example/x", "JSON")):
             with self.assertRaisesRegex(AS.SpecError, says):
-                self.propose(text)
+                self.propose(text, model="not/on-its-list")
         with self.assertRaisesRegex(AS.SpecError, "no provider"):
             AS.propose("nope", "m", "{}")
 
@@ -463,6 +463,103 @@ class HowPicturesAreNamed(unittest.TestCase):
     def test_what_an_example_has_and_nothing_takes_is_said(self):
         got = AS.propose("atlas", "m/n", json.dumps(ATLAS_EXAMPLE), base=TG.load_target("seedance_2_5", "video").spec)
         self.assertTrue(any("resolution" in w for w in got["warnings"]))
+
+
+class AtlasList(unittest.TestCase):
+    """Atlas's documented models, picked rather than pasted (presets/providers/atlas.models.json)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(TG.forget_targets)
+        self.root = self.tmp.name
+        build_episode(self.root)
+        shutil.copy(os.path.join(FIXTURE, "series.json"), self.root)
+        self.base = TG.load_target("seedance_2_5", "video").spec
+
+    def proposed(self, model):
+        return AS.propose("atlas", model, "", base=self.base)
+
+    def inputs(self, model):
+        return self.proposed(model)["proposal"]["api"]["inputs"]
+
+    def test_every_one_proposes_and_previews_with_its_own_fields_placed(self):
+        from seriesmith import inspector as IN
+        for m in PR.catalog("atlas"):
+            with self.subTest(m["id"]):
+                got = self.proposed(m["id"])
+                spec = got["proposal"]
+                self.assertEqual(IN.validate_spec(spec), [])
+                self.assertEqual(got["form"], "catalog")
+                self.assertEqual(got["unplaced"], [])
+                self.assertEqual(spec["kind"], m["kind"])
+                view = PV.preview(self.root, spec["id"], shot="sh010", spec=spec) if m["kind"] == "video" \
+                    else PV.preview(self.root, spec["id"], spec=spec)
+                self.assertTrue(view["ok"], view.get("why"))
+
+    def test_the_last_frame_on_any_name(self):
+        self.assertEqual(self.inputs("google/veo3.1/image-to-video")["last"]["field"], "last_image")
+        self.assertEqual(self.inputs("alibaba/wan-3.0/image-to-video")["last"]["field"], "last_image")
+        self.assertEqual(self.inputs("kwaivgi/kling-v3.0-pro/image-to-video")["last"]["field"], "end_image")
+
+    def test_what_the_sound_is_called(self):
+        self.assertEqual(self.inputs("alibaba/wan-3.0/image-to-video")["audio"]["name"], "audio")
+        self.assertEqual(self.inputs("kwaivgi/kling-v3.0-pro/image-to-video")["audio"]["name"], "sound")
+
+    def test_a_size_as_the_api_writes_it(self):
+        from seriesmith.targets.generic.request_map import nearest_size
+        size = self.inputs("bytedance/seedream-v5.0-pro/text-to-image")["size"]
+        self.assertEqual(nearest_size(1024, 1024, size["values"]), "1024*1024")
+        self.assertEqual(nearest_size(1920, 1080, size["values"]), "2048*1152")
+        self.assertEqual(self.inputs("black-forest-labs/flux-2-pro/text-to-image")["size"]["format"], "{w}_{h}")
+        self.assertEqual(self.inputs("qwen-image-3.0/edit")["size"]["format"], "{w}_{h}")
+        self.assertIn("1536x1024", self.inputs("openai/gpt-image-2/text-to-image")["size"]["values"])
+
+    def test_an_edit_models_pictures(self):
+        self.assertIn("images", self.inputs("qwen-image-3.0/edit"))
+
+    def test_a_first_frame_model_says_it_needs_one(self):
+        spec = self.proposed("minimax/hailuo-2.3/i2v-pro")["proposal"]
+        self.assertIn("first", spec["recipe"].get("keyframe_required") or {})
+
+    def test_it_comes_from_the_docs_and_says_so(self):
+        got = self.proposed("bytedance/seedance-2.5/reference-to-video")
+        self.assertTrue(any("not yet proved" in w for w in got["warnings"]))
+        self.assertTrue(any("tiers" in w for w in got["warnings"]))
+
+    def test_seedance_goes_to_the_id_for_what_is_sent(self):
+        from seriesmith.targets.generic.router_video import model_for
+        spec = self.proposed("bytedance/seedance-2.5/reference-to-video")["proposal"]
+        block = spec["api"]
+        self.assertEqual(model_for(block, "references", ["pic"]), "bytedance/seedance-2.5/reference-to-video")
+        self.assertEqual(model_for(block, "frames", ["pic"]), "bytedance/seedance-2.5/image-to-video")
+        self.assertNotIn("keyframe_required", spec["recipe"])
+        self.assertEqual(model_for({"model": "one"}, "frames", ["pic"]), "one")
+        self.assertEqual(model_for({"model": "m", "models": {"text": "t"}}, "references", []), "t")
+
+    def test_a_first_frame_sends_the_frame_and_goes_to_its_id(self):
+        spec = self.proposed("bytedance/seedance-2.5/reference-to-video")["proposal"]
+        path = os.path.join(self.root, spec["recipe"]["keyframe_path"].format(shot="sh010", end="first"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as fh:
+            fh.write(b"\x89PNG")
+        view = PV.preview(self.root, spec["id"], shot="sh010", spec=spec)
+        self.assertEqual(view["model"], "bytedance/seedance-2.5/image-to-video")
+        self.assertIn("image", view["arguments"])
+        self.assertNotIn("reference_images", view["arguments"])
+
+    def test_an_answer_flat_or_wrapped(self):
+        defs = PR.definitions()["atlas"]
+        self.assertEqual(PR.problems(defs), [])
+        from seriesmith.backends.http import pick
+        until = defs["steps"][1]["until"]
+        self.assertEqual(pick({"status": "completed"}, until["status"]), "completed")
+        self.assertEqual(pick({"data": {"status": "failed"}}, until["status"]), "failed")
+        self.assertEqual(pick({"outputs": ["u"]}, defs["result"]["files"]), ["u"])
+
+    def test_a_listing_says_what_is_on_it(self):
+        row = next(r for r in PR.listing(S.Settings(), {}) if r["id"] == "atlas")
+        self.assertIn("qwen-image-3.0/edit", {m["id"] for m in row["catalog"]})
 
 
 class AModelOnAProvider(unittest.TestCase):
@@ -589,6 +686,407 @@ class Routes(ScratchSettings):
         saved = self.ok(A.put_targets_custom(self.ctx, {"ep": self.ep, "target": got["proposal"], "scope": "show"}))
         tid = saved["id"]
         self.err(A.put_targets_prompt(self.ctx, {"ep": self.ep, "id": tid, "inputs": {"seed": None}}), 400)
+
+
+class FromScratch(ScratchSettings):
+    """A provider never seen before, from what its docs show, to a finished take."""
+
+    CURL = ("curl -X POST https://api.newco.ai/v2/videos/create "
+            f"-H 'Authorization: Bearer {KEY}' -H 'Content-Type: application/json' "
+            "-d '{\"model_name\": \"newco-1\", \"text\": \"a cat\", \"prompt\": \"a cat\", \"image_url\": \"https://x/a.png\", "
+            "\"seconds\": 5, \"seed\": 1}'")
+
+    def setUp(self):
+        super().setUp()
+        self.fake = Fake()
+        self.addCleanup(self.fake.close)
+
+    def test_a_curl_alone(self):
+        from seriesmith import providerdraft as PD
+        got = PD.draft(self.CURL)
+        f = got["form"]
+        self.assertEqual((f["id"], f["base_url"], f["url"], f["auth_type"], f["model_field"]),
+                         ("newco", "https://api.newco.ai", "/v2/videos/create", "bearer", "model_name"))
+        self.assertEqual(got["model"], "newco-1")
+        self.assertNotIn(KEY, json.dumps(got))
+        self.assertTrue(PD.form_problems(f))         # how it answers is still to say
+
+    def test_its_answers_fill_in_how_it_comes_back(self):
+        from seriesmith import providerdraft as PD
+        got = PD.draft(self.CURL, answer='{"result": {"job_id": "abc", "state": "queued"}}',
+                       poll=f"curl https://api.newco.ai/v2/videos/abc -H 'Authorization: Bearer {KEY}'",
+                       poll_answer='{"result": {"state": "ready", "error": "", "files": ["https://cdn.newco.ai/a.mp4"]}}')
+        f = got["form"]
+        self.assertEqual((f["id_path"], f["poll_url"], f["status_path"], f["files_path"]),
+                         ("result.job_id", "/v2/videos/{task}", "result.state", "result.files"))
+        self.assertIn("ready", f["done"])
+        self.assertEqual(PD.form_problems(f), [])
+        d = PD.definition(f)
+        self.assertEqual(PR.problems(d), [])
+        self.assertEqual(d["steps"][0]["json"], {"model_name": "$model", "...": "$args"})
+        self.assertEqual(d["steps"][0]["take"], {"task": "result.job_id"})
+        self.assertNotIn(KEY, json.dumps(d))
+
+    def test_other_ways_of_sending_the_key(self):
+        from seriesmith import providerdraft as PD
+        f = PD.draft(f"curl -X POST 'https://a.example/go?key={KEY}&x=1' -d '{{\"prompt\":\"a\"}}'")["form"]
+        self.assertEqual((f["auth_type"], f["auth_name"]), ("query", "key"))
+        self.assertNotIn(KEY, json.dumps(f))
+        f = PD.draft(f"curl https://a.example/go -H 'xi-api-key: {KEY}' -d '{{\"text\":\"a\"}}'")["form"]
+        self.assertEqual((f["auth_type"], f["auth_name"]), ("header", "xi-api-key"))
+        f = PD.draft(f"curl https://a.example/go -H 'Authorization: Key {KEY}' -d '{{\"prompt\":\"a\"}}'")["form"]
+        self.assertEqual((f["auth_type"], f["auth_name"], f["auth_prefix"]), ("header", "Authorization", "Key "))
+
+    def test_a_model_in_the_address_as_fal_puts_it(self):
+        from seriesmith import providerdraft as PD
+        got = PD.draft(f"curl -X POST https://queue.fal.run/fal-ai/kling/v3 -H 'Authorization: Key {KEY}' -d '{{\"prompt\":\"a\"}}'",
+                       answer='{"request_id": "r1", "status_url": "https://queue.fal.run/fal-ai/kling/requests/r1/status", '
+                              '"response_url": "https://queue.fal.run/fal-ai/kling/requests/r1"}',
+                       poll_answer='{"status": "COMPLETED"}')
+        f = got["form"]
+        self.assertEqual(got["model"], "fal-ai/kling/v3")
+        self.assertEqual(f["url"], "/{model}")
+        self.assertEqual((f["poll_url"], f["fetch_url"]), ("$status_url", "$response_url"))
+        f["files_path"] = "video.url"
+        d = PD.definition(f)
+        self.assertEqual(d["steps"][0]["take"], {"task": "request_id", "status_url": "status_url", "response_url": "response_url"})
+        self.assertEqual(d["steps"][2]["url"], "$response_url")
+        self.assertEqual(PR.problems(d), [])
+
+    def test_an_answer_that_is_the_file_or_links(self):
+        from seriesmith import providerdraft as PD
+        f = PD.draft(self.CURL, answer='{"images": ["https://cdn.x/a.png"]}')["form"]
+        self.assertEqual((f["answer"], f["files_path"]), ("links", "images"))
+        self.assertEqual(PD.definition(f)["result"], {"files": "images"})
+        f = {**PD.draft(self.CURL)["form"], "answer": "file"}
+        self.assertEqual(PD.form_problems(f), [])
+        d = PD.definition(f)
+        self.assertEqual(d["steps"][0]["response"], "bytes")
+        self.assertEqual(PR.problems(d), [])
+
+    def test_an_openapi_document(self):
+        from seriesmith import providerdraft as PD
+        doc = AS.doc_from_example(ATLAS_EXAMPLE)
+        doc.update(openapi="3.0.0", servers=[{"url": "https://api.newco.ai/v1"}],
+                   components={"securitySchemes": {"k": {"type": "apiKey", "in": "header", "name": "X-Key"}}})
+        f = PD.draft(json.dumps(doc))["form"]
+        self.assertEqual((f["base_url"], f["url"], f["auth_type"], f["auth_name"], f["model_field"]),
+                         ("https://api.newco.ai/v1", "/generate", "header", "X-Key", "model"))
+
+    def test_what_it_can_not_read_says_what_to_do(self):
+        from seriesmith import providerdraft as PD
+        for text, says in (("", "paste"), ('{"prompt": "a"}', "cURL")):
+            with self.assertRaisesRegex(AS.SpecError, says):
+                PD.draft(text)
+        with self.assertRaisesRegex(AS.SpecError, "isn't JSON"):
+            PD.draft(self.CURL, answer="not json")
+
+    def provider(self, **form):
+        from seriesmith import api as A
+        got = self.ok(A.post_provider_draft(self.ctx, {
+            "text": self.CURL, "answer": '{"result": {"job_id": "abc", "state": "queued"}}',
+            "poll": "curl https://api.newco.ai/v2/videos/abc", "poll_answer": '{"result": {"state": "ready", "files": ["https://c/a.mp4"]}}'}))
+        f = {**got["form"], "base_url": self.fake.url, **form}
+        got = self.ok(A.post_provider_draft(self.ctx, {"form": f}))
+        self.assertEqual(got["problems"], [])
+        return got["definition"]
+
+    def test_the_check_is_one_read_that_starts_nothing(self):
+        from seriesmith import api as A
+        self.fake.routes[("GET", "/v2/videos/seriesmith-check-does-not-exist")] = (404, {"message": "no such job"}, {})
+        got = self.ok(A.post_provider_check(self.ctx, {"definition": self.provider(), "key": KEY}))
+        self.assertEqual((got["reached"], got["key_ok"], got["status"]), (True, True, 404))
+        self.assertEqual(len(self.fake.calls), 1)
+        self.assertEqual(self.fake.calls[0]["method"], "GET")
+        self.assertEqual(self.fake.calls[0]["headers"]["Authorization"], f"Bearer {KEY}")
+        self.fake.routes[("GET", "/v2/videos/seriesmith-check-does-not-exist")] = (401, {"message": "bad key"}, {})
+        self.assertFalse(self.ok(A.post_provider_check(self.ctx, {"definition": self.provider(), "key": "bad"}))["key_ok"])
+        self.assertFalse(os.path.exists(PR.user_dir()) and os.listdir(PR.user_dir()))
+
+    def test_an_openapi_documents_address(self):
+        from seriesmith import api as A
+        doc = AS.doc_from_example(ATLAS_EXAMPLE)
+        doc.update(openapi="3.0.0", servers=[{"url": "https://api.newco.ai/v1"}])
+        self.fake.routes[("GET", "/openapi.json")] = doc
+        got = self.ok(A.post_provider_draft(self.ctx, {"text": self.fake.url + "/openapi.json"}))
+        self.assertEqual(got["form"]["base_url"], "https://api.newco.ai/v1")
+        self.assertEqual(self.fake.calls[0]["headers"]["User-Agent"], "seriesmith")
+
+    def test_a_docs_page_at_that_address_says_what_to_do(self):
+        from seriesmith import api as A
+        self.fake.routes[("GET", "/docs")] = b"<html>docs</html>"
+        code, data = A.post_provider_draft(self.ctx, {"text": self.fake.url + "/docs"})
+        self.assertEqual(code, 400)
+        self.assertIn("example cURL", data["error"])
+
+    def test_no_key_nothing_to_check(self):
+        from seriesmith import api as A
+        self.err(A.post_provider_check(self.ctx, {"definition": self.provider()}), 400)
+
+    def test_from_a_curl_to_a_finished_take(self):
+        from seriesmith import api as A
+        from seriesmith import takes as T
+        from test_router_render import tiny_mp4
+        d = self.provider(id="newco", every=0.01)
+        self.ok(A.put_provider(self.ctx, {"definition": d}))
+        self.ok(A.put_provider_key(self.ctx, {"id": "newco", "key": KEY}))
+        got = self.ok(A.post_provider_read_spec(self.ctx, {"service": "newco", "model": "newco-1", "text": self.CURL}))
+        spec = {**got["proposal"], "draft": False}
+        self.assertNotIn("model_name", {f["path"] for f in spec["api"]["schema"]["fields"]})
+        self.assertNotIn(KEY, json.dumps(got))
+        view = self.ok(A.post_targets_prompt_preview(self.ctx, {"ep": self.ep, "target": spec, "shot": "sh010"}))
+        calls = view["calls"]
+        self.assertEqual([c["what"] for c in calls], ["generate", "wait", "download"])
+        self.assertEqual(calls[0]["url"], self.fake.url + "/v2/videos/create")
+        self.assertEqual(calls[0]["sends"]["model_name"], "newco-1")
+        self.assertIn("(your key)", calls[0]["key"])
+        self.assertNotIn(KEY, json.dumps(view))
+        self.assertEqual(self.fake.calls, [])        # nothing has gone anywhere yet
+        tid = self.ok(A.put_targets_custom(self.ctx, {"ep": self.ep, "target": spec, "scope": "show"}))["id"]
+        f = self.fake
+        f.routes[("POST", "/v2/videos/create")] = {"result": {"job_id": "abc", "state": "queued"}}
+        f.routes[("GET", "/v2/videos/abc")] = {"result": {"state": "ready", "files": [f.url + "/a.mp4"]}}
+        f.routes[("GET", "/a.mp4")] = tiny_mp4()
+        self.ok(A.post_render(self.ctx, {"ep": self.ep, "pass": "proxy", "shots": ["sh010"], "target": tid,
+                                         "allow_missing_refs": True, "redo": True}))
+        self.settle()
+        sc = T.list_takes(self.ep, "proxy", "sh010")[-1].sidecar
+        self.assertEqual(sc["status"], "ok", sc.get("save_notes"))
+        self.assertEqual(sc["backend"], "api:newco")
+        sent = json.loads(next(c for c in f.calls if c["method"] == "POST")["body"])
+        self.assertEqual(sent["model_name"], "newco-1")
+
+
+class AContentList(ScratchSettings):
+    """BytePlus's shape, from its docs' cURL and the answers its published schema gives
+    (tests/fixtures/router_schemas/byteplus__*): a prompt and pictures as typed items of one list,
+    a job with a status, the video in `content`."""
+
+    CURL = ("curl -X POST https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks "
+            "-H 'Content-Type: application/json' -H 'Authorization: Bearer $ARK_API_KEY' -d '"
+            + json.dumps({"model": "dreamina-seedance-2-5-260628", "content": [
+                {"type": "text", "text": "One continuous shot (refer to Image 1)."},
+                {"type": "image_url", "role": "reference_image", "image_url": {"url": "asset://asset-1"}},
+                {"type": "image_url", "role": "reference_image", "image_url": {"url": "https://x/2.png"}}],
+                "generate_audio": True, "ratio": "16:9", "duration": 30, "watermark": True}) + "'")
+    ANSWER = {"id": "cgt-1", "status": "succeeded", "error": None, "seed": 1,
+              "content": {"video_url": "https://x/v.mp4", "last_frame_url": "https://x/f.png"}}
+
+    def setUp(self):
+        super().setUp()
+        self.fake = Fake()
+        self.addCleanup(self.fake.close)
+
+    def draft(self):
+        from seriesmith import providerdraft as PD
+        return PD.draft(self.CURL, answer='{"id": "cgt-1"}',
+                        poll="curl https://ark.ap-southeast.bytepluses.com/api/v3/contents/generations/tasks/cgt-1",
+                        poll_answer=json.dumps(self.ANSWER))
+
+    def test_the_form(self):
+        got = self.draft()
+        f = got["form"]
+        self.assertEqual(got["model"], "dreamina-seedance-2-5-260628")
+        self.assertEqual((f["auth_type"], f["model_field"], f["id_path"], f["status_path"], f["files_path"]),
+                         ("bearer", "model", "id", "status", "content.video_url"))
+        self.assertEqual(f["poll_url"], "/api/v3/contents/generations/tasks/{task}")
+        self.assertNotIn("ARK_API_KEY", json.dumps(got))
+
+    def test_every_item_of_a_list_counts(self):
+        from seriesmith import api as A
+        d = PD_definition(self.draft()["form"], id="byteplus", base_url=self.fake.url)
+        self.ok(A.put_provider(self.ctx, {"definition": d}))
+        got = self.ok(A.post_provider_read_spec(self.ctx, {"service": "byteplus", "model": "dreamina-seedance-2-5-260628",
+                                                           "text": self.CURL}))
+        inp = got["proposal"]["api"]["inputs"]
+        self.assertEqual(inp["prompt"], {"list": "content", "item": {"type": "text", "text": "$prompt"}})
+        self.assertEqual(inp["references"], {"list": "content", "item": {
+            "type": "image_url", "image_url": {"url": "$url"}, "role": "reference_image"}})
+        self.assertNotIn("via", inp)                 # Comfy's way in: not this provider's
+
+    def test_a_size_with_no_values_says_so(self):
+        from seriesmith import api as A
+        d = PD_definition(self.draft()["form"], id="byteplus", base_url=self.fake.url)
+        self.ok(A.put_provider(self.ctx, {"definition": d}))
+        spec = self.ok(A.post_provider_read_spec(self.ctx, {"service": "byteplus", "model": "dreamina-seedance-2-5-260628",
+                                                            "text": self.CURL}))["proposal"]
+        spec["api"]["inputs"]["resolution"] = {"name": "resolution"}
+        code, data = A.post_targets_prompt_preview(self.ctx, {"ep": self.ep, "target": {**spec, "draft": False}, "shot": "sh010"})
+        self.assertIn("values", json.dumps(data))
+        self.assertNotIn("KeyError", json.dumps(data))
+        self.assertEqual(self.fake.calls, [])
+
+    def test_to_a_finished_take(self):
+        from seriesmith import api as A
+        from seriesmith import takes as T
+        from test_router_render import tiny_mp4
+        f = self.fake
+        path = "/api/v3/contents/generations/tasks"
+        d = PD_definition(self.draft()["form"], id="byteplus", base_url=f.url, every=0.01)
+        self.assertEqual(d["files"], {"via": "datauri"})       # its schema's "Base64": data:image/<format>;base64
+        self.ok(A.put_provider(self.ctx, {"definition": d}))
+        self.ok(A.put_provider_key(self.ctx, {"id": "byteplus", "key": KEY}))
+        spec = self.ok(A.post_provider_read_spec(self.ctx, {"service": "byteplus", "model": "dreamina-seedance-2-5-260628",
+                                                            "text": self.CURL}))["proposal"]
+        tid = self.ok(A.put_targets_custom(self.ctx, {"ep": self.ep, "target": {**spec, "draft": False}, "scope": "show"}))["id"]
+        f.routes[("POST", path)] = {"id": "cgt-1"}
+        f.routes[("GET", path + "/cgt-1")] = {**self.ANSWER, "content": {"video_url": f.url + "/v.mp4", "last_frame_url": f.url + "/f.png"}}
+        f.routes[("GET", "/v.mp4")] = tiny_mp4()
+        self.ok(A.post_render(self.ctx, {"ep": self.ep, "pass": "proxy", "shots": ["sh010"], "target": tid,
+                                         "allow_missing_refs": True, "redo": True}))
+        self.settle()
+        sc = T.list_takes(self.ep, "proxy", "sh010")[-1].sidecar
+        self.assertEqual(sc["status"], "ok", sc.get("save_notes"))
+        sent = json.loads(next(c for c in f.calls if c["method"] == "POST")["body"])
+        self.assertEqual(sent["model"], "dreamina-seedance-2-5-260628")
+        self.assertEqual(sent["content"][0]["type"], "text")
+        self.assertTrue(sent["content"][0]["text"])
+
+
+def PD_definition(form: dict, **more) -> dict:
+    from seriesmith import providerdraft as PD
+    return PD.definition({**form, **more})
+
+
+class ADocsPage(ScratchSettings):
+    """fal's model page: the cURLs in its HTML, a link to the model's OpenAPI document (the document as
+    read 2026-11-05), the video in the answer the status's response_url gives."""
+
+    MODEL = "blackforestlabs/flux-3-max/image-to-video"
+
+    def setUp(self):
+        super().setUp()
+        self.fake = Fake()
+        self.addCleanup(self.fake.close)
+        with open(os.path.join(os.path.dirname(__file__), "fixtures", "provider_docs", "fal_flux3max_i2v.json"), encoding="utf-8") as fh:
+            self.doc = json.load(fh)
+        q = "https://queue.fal.run/blackforestlabs/flux-3-max"
+        page = f"""<html><a href="/api/openapi.json?endpoint_id=x">schema</a><pre><code>response=$(curl --request POST \\
+  --url https://queue.fal.run/{self.MODEL} \\
+  --header &quot;Authorization: Key $FAL_KEY&quot; \\
+  --header &quot;Content-Type: application/json&quot; \\
+  --data &#x27;{{"prompt": "a \\"quoted\\" (b)", "image_url": "https://x/a.jpg"}}&#x27;)
+REQUEST_ID=$(echo &quot;$response&quot; | grep -o &#x27;&quot;request_id&quot;: *&quot;[^&quot;]*&quot;&#x27;)</code></pre>
+  <pre><code>curl --request GET \\
+  --url {q}/requests/$REQUEST_ID/status \\
+  --header &quot;Authorization: Key $FAL_KEY&quot;</code></pre>
+  <pre><code>curl --request GET \\
+  --url {q}/requests/$REQUEST_ID \\
+  --header &quot;Authorization: Key $FAL_KEY&quot;</code></pre></html>"""
+        self.fake.routes[("GET", "/models/flux/api")] = page.encode()
+        self.fake.routes[("GET", "/api/openapi.json")] = self.doc
+        self.page = self.fake.url + "/models/flux/api"
+
+    def read(self):
+        from seriesmith import api as A
+        return self.ok(A.post_provider_draft(self.ctx, {"text": self.page}))
+
+    def test_the_page_alone_fills_the_form(self):
+        got = self.read()
+        f = got["form"]
+        self.assertEqual(got["model"], self.MODEL)
+        self.assertEqual((f["base_url"], f["url"], f["auth_type"], f["auth_name"], f["auth_prefix"]),
+                         ("https://queue.fal.run", "/{model}", "header", "Authorization", "Key "))
+        self.assertEqual((f["id_path"], f["poll_url"], f["fetch_url"], f["status_path"], f["files_path"]),
+                         ("request_id", "$status_url", "$response_url", "status", "video.url"))
+        self.assertEqual(f["check_url"], "/blackforestlabs/flux-3-max/requests/{task}/status")
+        self.assertEqual(f["error_path"], "error")
+        self.assertEqual(got["problems"], [])
+        self.assertNotIn("IN_QUEUE", f["done"].upper())
+
+    def test_a_curl_inside_a_script(self):
+        for text, url in (("response=$(curl -X POST https://a.example/go -d '{\"a\": \"(b) | c\"}')\nID=$(echo x | grep y)", "https://a.example/go"),
+                          ("curl https://a.example/go \\\n  -d '{\"a\": 1}' | jq .", "https://a.example/go"),
+                          ("curl https://a.example/go\n  -H 'Authorization: Bearer x'\n  -d '{\"a\": 1}'\n\necho done", "https://a.example/go")):
+            with self.subTest(text=text):
+                got = AS.parse_curl(text)
+                self.assertEqual(got["url"], url)
+                self.assertTrue(got["body"])
+        self.assertIsNone(AS.curl_in('{"description": "use curl -X POST to start"}'))
+        self.assertIsNone(AS.curl_in("not one"))
+
+    def test_the_document_alone_says_what_it_can(self):
+        from seriesmith import providerdraft as PD
+        got = PD.draft(json.dumps(self.doc))
+        f = got["form"]
+        self.assertEqual((got["model"], f["url"], f["files_path"], f["poll_url"]),
+                         (self.MODEL, "/{model}", "video.url", "$status_url"))
+        self.assertEqual(f["auth_prefix"], "")       # it doesn't say: told, not guessed
+        self.assertTrue(any("before the key" in n for n in got["notes"]))
+        self.assertEqual(PD.form_problems(f), [])
+
+    def test_a_page_with_nothing_on_it(self):
+        from seriesmith import api as A
+        self.fake.routes[("GET", "/shell")] = b"<html><div id='root'></div></html>"
+        code, data = A.post_provider_draft(self.ctx, {"text": self.fake.url + "/shell"})
+        self.assertEqual(code, 400)
+        self.assertIn("example cURL", data["error"])
+
+    def test_the_model_from_the_same_address(self):
+        from seriesmith import api as A
+        d = {**self.read()["definition"], "base_url": self.fake.url}
+        self.ok(A.put_provider(self.ctx, {"definition": d}))
+        got = self.ok(A.post_provider_read_spec(self.ctx, {"service": "fal", "model": self.MODEL, "text": self.page}))
+        inp = got["proposal"]["api"]["inputs"]
+        self.assertEqual(inp["first"], {"field": "image_url"})
+        self.assertEqual(inp["last"], {"field": "end_image_url"})
+        self.assertEqual(inp["resolution"]["values"], ["720p", "1080p"])
+        self.assertEqual(inp["duration"]["values"], list(range(5, 21)))
+        self.assertIn("first", got["proposal"]["recipe"]["keyframe_required"])
+
+    def backend(self):
+        d = {**self.read()["definition"], "base_url": self.fake.url}
+        next(s for s in d["steps"] if s.get("until"))["until"]["every"] = 0.01
+        return d, HttpBackend(d, KEY)
+
+    def answers(self, status_doc=None):
+        f = self.fake
+        q = f.url + "/blackforestlabs/flux-3-max/requests/r1"
+        f.routes[("POST", "/" + self.MODEL)] = {"request_id": "r1", "status": "IN_QUEUE", "status_url": q + "/status",
+                                                "response_url": q, "cancel_url": q + "/cancel"}
+        f.routes[("GET", "/blackforestlabs/flux-3-max/requests/r1/status")] = status_doc or {"status": "COMPLETED", "request_id": "r1"}
+        f.routes[("GET", "/blackforestlabs/flux-3-max/requests/r1")] = {"video": {"url": f.url + "/v.mp4"}, "seed": 1}
+        f.routes[("GET", "/v.mp4")] = b"video bytes"
+
+    def test_a_picture_goes_inline_and_the_video_comes_back(self):
+        _, b = self.backend()
+        self.answers()
+        pic = os.path.join(self.tmp, "pic.png")
+        with open(pic, "wb") as fh:
+            fh.write(b"\x89PNG picture")
+        run = b.call(self.MODEL, {"prompt": "a", "image_url": File(pic)})
+        self.assertEqual(run.watch(), "succeeded")
+        sent = next(c for c in self.fake.calls if c["method"] == "POST")
+        self.assertEqual(sent["path"], "/" + self.MODEL)     # the slashes kept
+        self.assertEqual(sent["headers"]["Authorization"], f"Key {KEY}")
+        body = json.loads(sent["body"])
+        self.assertTrue(body["image_url"].startswith("data:image/png;base64,"))
+        self.assertNotIn("model", body)
+        (out,) = run.outputs()
+        self.assertTrue(out.save(os.path.join(self.tmp, "v.mp4")))
+        video = next(c for c in self.fake.calls if c["path"] == "/v.mp4")
+        self.assertIsNone(video["headers"].get("Authorization"))
+
+    def test_done_with_an_error_beside_it_is_a_failure(self):
+        _, b = self.backend()
+        self.answers({"status": "COMPLETED", "request_id": "r1", "error": "the model refused it"})
+        run = b.call(self.MODEL, {"prompt": "a"})
+        self.assertEqual(run.watch(), "failed")
+        self.assertFalse(any(c["path"] == "/v.mp4" for c in self.fake.calls))
+
+    def test_the_check_asks_the_address_the_page_showed(self):
+        from seriesmith.backends.http import check_key
+        d, _ = self.backend()
+        path = "/blackforestlabs/flux-3-max/requests/seriesmith-check-does-not-exist/status"
+        self.fake.routes[("GET", path)] = (401, {"detail": "bad key"}, {})
+        got = check_key(d, "bad")
+        self.assertEqual((got["key_ok"], got["proves_key"]), (False, True))
+
+    def test_a_check_with_no_address_says_it_proves_nothing(self):
+        from seriesmith.backends.http import check_key
+        d, _ = self.backend()
+        del d["check"]
+        self.assertFalse(check_key(d, KEY)["proves_key"])
 
 
 class AWholeTake(ScratchSettings):

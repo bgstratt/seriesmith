@@ -377,6 +377,13 @@ def _request(t: "TG.Target", job, out: dict) -> None:
             out["request_error"] = f"{e}" if isinstance(e, ValueError) else f"{e.__class__.__name__}: {e}"
             out["request_parts"] = _described(TP.REQUEST_PARTS, {"prompt": out["prompt"]})
             return
+    service = TG.service_of(t.spec)
+    if service:
+        from seriesmith import providers as PR
+        from seriesmith.backends.http import planned_calls
+        d = PR.definitions().get(service)
+        if d:
+            out["calls"] = planned_calls(d, model, args)
     routing = args.pop(ROUTING, None)
     out.update(model=model, arguments=plain(args), **({"routing": routing} if routing else {}))
     if seen:

@@ -53,7 +53,11 @@ models for now; sound follows.
    *untested*: they're written from each provider's docs and haven't been proved by a real render
    yet. The key stays on this machine, is never shown again, and goes only to that provider's own
    address. Settings lists the keys too. `SERIESMITH_KEY_<PROVIDER>` in the environment wins.
-2. **Type the model's id**, as the provider's docs give it.
+2. **Pick the model from its list, if it's there**, and skip the next step. Atlas's list holds the
+   models whose docs have been read: Seedance 2.5, Kling v3.0 Pro, Veo 3.1, Wan 3.0, Hailuo 2.3,
+   Seedream 5.0 Pro, FLUX.2 Pro, GPT Image 2, Nano Banana 2 and Qwen Image 3.0. Their fields, allowed
+   values and limits come from those docs, and only Seedance 2.5 reference-to-video has been proved
+   by a real take. Otherwise, type the model's id as the provider's docs give it.
 3. **Paste the API's reference**, whichever the provider gives you:
 
    | What the provider has | Paste | What seriesmith learns |
@@ -64,15 +68,35 @@ models for now; sound follows.
    A key in a pasted cURL isn't kept. An example can't say what's required or what the limits
    are, so those stay yours to check. With no reference at all, paste a small JSON of the field
    names you know, and fix the rest under **Fields**.
+   A provider can split one model into several ids, as Atlas does Seedance's reference-to-video
+   and image-to-video. **Different model ids by what's sent** says which goes where, so a shot with
+   a first frame and one with reference pictures can share one model.
 4. **Read it**, then look over **Prompt & mapping**: where each value goes, the prompt, and the
    exact request for a real shot. This is free: nothing is uploaded or sent.
 5. **Save it as a draft**, and probe one take. That's a paid render, and it's the only thing that
    proves the mapping, because no reference says everything a model will refuse.
 
-**A provider that isn't listed:** **Add a provider** takes its definition as JSON: its address, how
-it takes its key, the requests a job makes, and where the files are. An LLM can draft one from the
-provider's docs. An API that only reports through a webhook can't work, as nothing can call back to
-your machine, and is refused.
+**A provider that isn't listed:** choose **Add a provider** in the Provider menu.
+
+1. **Paste the request that starts a generation**: the address of its docs page, the example cURL
+   from it, its OpenAPI document, or that document's address. A docs page is read when its HTML has
+   the example or links the document (fal's does). One that draws itself in the browser can't be
+   (BytePlus's): copy its example.
+2. **Paste more if the docs show it**: an example answer, the cURL that checks on a job, and that
+   check's answer when finished. Each fills in more of the form.
+3. **Look over the form**: its address, how it takes its key, the generate call, how it answers
+   (the file itself, links, or a job to check on), and how pictures go in. A key in what you pasted
+   isn't kept, only how it was sent.
+4. **Add your key, and Check it.** That's one free read, asking after a job that doesn't exist. A
+   404 is what you want to see: it answered and didn't refuse the key.
+5. **Save it**, and its first model opens, from the same request. **The calls** in Prompt & mapping
+   then shows every call a take would make, in order, on a real shot, with your key hidden.
+
+A probe take is the only full proof. If an answer turns out different from the docs, the take's error
+shows what came back, and the fix is one field in the form or the definition.
+
+An API that only reports through a webhook can't work, as nothing can call back to your machine, and
+is refused. Signed logins aren't handled yet.
 
 A request that may have started a job is never sent twice. If it gets no answer, the take fails and
 says to check the provider's dashboard, because it may have been charged.

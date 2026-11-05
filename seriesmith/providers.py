@@ -76,6 +76,14 @@ def definitions() -> dict[str, dict]:
             **{k: {**v, "source": "yours"} for k, v in _read(user_dir()).items()}}
 
 
+def catalog(pid: str) -> list[dict]:
+    """The models a shipped provider has written down (presets/providers/<id>.models.json): each
+    {"id", "label", "kind", "fields": JSON Schema properties, "required"?, "inputs"?, "models"?,
+    "note"?}. Read from its docs, so what they state and no more; none proved unless said."""
+    got = F.read_json_or(os.path.join(SHIPPED, f"{pid}.models.json"), {}, want=dict)
+    return list(got.get("models") or [])
+
+
 def problems(d: dict) -> list[str]:
     """What's wrong with a definition ([]: nothing)."""
     out = []
@@ -164,5 +172,6 @@ def listing(settings=None, env=None) -> list[dict]:
                     "has_key": bool(key_of(pid, settings, env)),
                     "key_from_env": env_name(pid) if env.get(env_name(pid)) else None,
                     "env_name": env_name(pid), "endpoints": d.get("endpoints") or {},
+                    "catalog": [{k: m.get(k) for k in ("id", "label", "kind", "note") if m.get(k)} for m in catalog(pid)],
                     "docs": d.get("docs") or "", "definition": {k: v for k, v in d.items() if k != "source"}})
     return out

@@ -42,6 +42,7 @@ where it goes -- a field (a dotted path: "prompt", "parameters.seed",
                     # a field that says which: frames sent, else words alone (FLUX 3)
       },
       "draft": {"proxy": true, "resolution": "480p", "final_resolution": "1080p"},
+      "models": {"frames": "...", "references": "..."},   # ids by what's sent (else `model`)
       "provider": "fal",                            # another provider of the model
       "fallback": false                             # Router may not try another
     }
@@ -446,7 +447,11 @@ def router_call(target, job) -> tuple[str, dict]:
     if inp.get("duration"):
         put(args, field_name(inp["duration"]), seconds_for(job.frames, fps, inp["duration"]))
     if inp.get("resolution"):
-        put(args, res_name, nearest_resolution(w, h, inp["resolution"]["values"]))
+        values = inp["resolution"].get("values") if isinstance(inp["resolution"], dict) else None
+        if not values:
+            raise ValueError(f"the size goes in {res_name}, and its values aren't listed: "
+                             f"add them under Fields (\"values\": [\"480p\", \"720p\"])")
+        put(args, res_name, nearest_resolution(w, h, values))
     ratio = inp.get("ratio")
     if ratio:
         frames_mode = ratio.get("with_frames", "omit")
@@ -471,7 +476,15 @@ def router_call(target, job) -> tuple[str, dict]:
         args["draft"] = True
         if draft.get("resolution"):
             put(args, res_name, draft["resolution"])
-    return spec["model"], with_routing(args, spec)
+    return model_for(spec, mode, pics), with_routing(args, spec)
+
+
+def model_for(spec: dict, mode: str, pics: list) -> str:
+    """The model id a call goes to: one model can be several ids, by what it's sent (`models`:
+    {"frames": Atlas's image-to-video id, "references": its reference-to-video, "text": its
+    text-to-video}). Else `model`, for all of them."""
+    ids = spec.get("models") or {}
+    return ids.get(mode if pics else "text") or ids.get(mode) or spec["model"]
 
 
 def with_routing(args: dict, spec: dict) -> dict:

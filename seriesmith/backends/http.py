@@ -270,6 +270,10 @@ class HttpBackend(Backend):
             doc = patiently(lambda: self.run_step(step, values)[0])
             status = str(pick(doc, until["status"]) or "").lower()
             if status in done:
+                # a job can end as done with an error beside it (fal's queue has no failed status)
+                said = self._said(doc, until)
+                if said:
+                    raise ProviderFailed(said)
                 return doc
             if status in failed:
                 raise ProviderFailed(self._said(doc, until) or f"the provider says {status}")
@@ -314,6 +318,85 @@ class HttpBackend(Backend):
         except (urllib.error.URLError, OSError) as e:
             return f"{self.base}: {e}"
         return None
+
+
+def planned_calls(d: dict, model: str, arguments: dict) -> list[dict]:
+    """The calls a job on provider definition `d` would make, for the panel: nothing is sent, and
+    the key shows as what it's sent as. Values only an answer gives stay as {task}."""
+    args = copy.deepcopy(arguments)
+    how = args.pop(ROUTING, None) or {}
+    values = {"model": model, "args": args, **(how.get("values") or {})}
+    base = str(d.get("base_url") or "").rstrip("/")
+    auth = d.get("auth") or {}
+    key = ("Authorization: Bearer (your key)" if auth.get("type") == "bearer"
+           else f"{auth.get('name')}: {auth.get('prefix') or ''}(your key)" if auth.get("type") == "header"
+           else f"?{auth.get('name')}=(your key)")
+    out = []
+    has_files = bool(list(files_in(args)))
+    how_files = d.get("files") or {}
+    if has_files and how_files.get("via") == "upload":
+        for step in how_files.get("steps") or []:
+            out.append({"what": "upload, for each picture", "method": step.get("method") or "POST",
+                        "url": _full(base, step["url"]), "key": key,
+                        "sends": {k: "(the file)" for k in step.get("multipart") or {}}, "takes": step.get("take")})
+    for i, step in enumerate(d.get("steps") or []):
+        url = str(fill(step["url"], values, quote=True))
+        body = None
+        for kind in ("json", "multipart"):
+            if kind in step:
+                body = _shown(fill(step[kind], values))
+        waits = step.get("until")
+        out.append({"what": ("wait" if waits else "generate" if i == 0 else "fetch"),
+                    "method": step.get("method") or ("POST" if body is not None else "GET"),
+                    "url": _full(base, url), "key": key,
+                    **({"sends": body} if body is not None else {}),
+                    **({"takes": step["take"]} if step.get("take") else {}),
+                    **({"until": waits} if waits else {}),
+                    **({"answers": "the file itself"} if step.get("response") == "bytes" else {})})
+    result = d.get("result") or {}
+    if result.get("files"):
+        out.append({"what": "download", "method": "GET", "url": f"(the links at {result['files']})",
+                    "key": key if result.get("auth") else "no key"})
+    elif result.get("url"):
+        out.append({"what": "download", "method": "GET", "url": _full(base, str(fill(result["url"], values, quote=True))),
+                    "key": key if result.get("auth") else "no key"})
+    return out
+
+
+def _full(base: str, url: str) -> str:
+    return url if re.match(r"https?://|\$", url) else f"{base}/{url.lstrip('/')}"
+
+
+def _shown(v):
+    if isinstance(v, File):
+        return {"file": v.path}
+    if isinstance(v, dict):
+        return {k: _shown(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_shown(x) for x in v]
+    return v
+
+
+def check_key(d: dict, key: str) -> dict:
+    """Whether a provider can be reached with a key, by one read that starts nothing: asking after
+    a job that doesn't exist. {"reached", "key_ok", "proves_key", "status", "says"}. A 401 or 403 can
+    be the key or a firewall in front of it; the answer is shown either way. `proves_key` false: no
+    address to ask (its answers give the one that checks on a job, or it needs a model's id), so
+    only the provider's front door was asked, and a key it doesn't refuse there may still be wrong."""
+    b = HttpBackend(d, key)
+    wait = next((s for s in d.get("steps") or [] if s.get("until")), None)
+    target = d.get("check") or (str(wait["url"]) if wait else "")
+    proves = bool(target) and not target.startswith("$") and "{model}" not in target
+    url = fill(target if proves else b.base, {"task": "seriesmith-check-does-not-exist"}, quote=True)
+    try:
+        raw, _ = b.send("GET", url, timeout=20.0)
+        return {"reached": True, "key_ok": True, "proves_key": proves, "status": 200,
+                "says": b._clean(raw[:300].decode("utf-8", "replace"))}
+    except HTTPFailure as e:
+        return {"reached": True, "key_ok": e.status not in (401, 403), "proves_key": proves,
+                "status": e.status, "says": e.text[:300]}
+    except (urllib.error.URLError, OSError) as e:
+        return {"reached": False, "key_ok": False, "proves_key": proves, "status": None, "says": b._clean(str(e))[:300]}
 
 
 class ProviderFailed(RuntimeError):

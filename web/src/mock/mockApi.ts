@@ -2471,6 +2471,14 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(40);
       return { ok: true, id, providers: [] };
     },
+    async draftProvider(req) {
+      await wait(40);
+      return { form: req.form ?? { id: "mine", answer: "job" }, definition: { id: "mine" }, problems: [], notes: [], model: "m" };
+    },
+    async checkProvider() {
+      await wait(40);
+      return { reached: true, key_ok: true, status: 404, says: "not found" };
+    },
     async readProviderSpec() {
       await wait(40);
       return { form: "example", paths: ["/generate"], proposal: null };

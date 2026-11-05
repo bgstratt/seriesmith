@@ -32,6 +32,7 @@ export function withField(role: string, spec: unknown, field: string): unknown {
     if ("fields" in s) return { ...s, fields: f.split(",").map((x) => x.trim()).filter(Boolean) };
   }
   // a value that had no place yet: a list for pictures, a named field for the rest
+  if (role === "resolution") return { name: f, values: ["480p", "720p", "1080p"] };
   return ["references", "images", "voices"].includes(role) ? { list: f } : { name: f };
 }
 
@@ -453,7 +454,28 @@ export function PromptMapping({ id, kind = "video", spec, limits, onEdit, onBloc
           <pre className="h3-mono" style={PRE}>{JSON.stringify(view.entry, null, 2)}</pre>
         </details>
       )}
-      {view.arguments && (
+      {view.calls && (
+        <details open className="h3-small">
+          <summary style={{ cursor: "pointer" }}><b>The calls</b> <span className="h3-muted">what a take would do, in order; your key is hidden</span></summary>
+          <div className="h3-col" style={{ gap: 4 }}>
+            {view.calls.map((c, i) => (
+              <div key={i}>
+                <div className="h3-mono" style={{ wordBreak: "break-all" }}>
+                  <span className="h3-muted">{i + 1}. {c.what}:</span> {c.method} {c.url}
+                </div>
+                <div className="h3-muted" style={{ marginLeft: 12 }}>
+                  {c.key}{c.answers ? ` · answers with ${c.answers}` : ""}{c.takes ? ` · takes ${JSON.stringify(c.takes)}` : ""}
+                  {c.until ? ` · until ${JSON.stringify((c.until as { status?: unknown; done?: unknown }).status)} is ${JSON.stringify((c.until as { done?: unknown }).done)}` : ""}
+                </div>
+                {c.sends !== undefined && (
+                  <pre className="h3-mono" style={{ ...PRE, maxHeight: 180 }}>{JSON.stringify(c.sends, null, 2)}</pre>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+      {view.arguments && !view.calls && (
         <details open={tab === "fields"} className="h3-small">
           <summary style={{ cursor: "pointer" }}><b>Request</b> <span className="h3-muted">to {view.model}; pictures shown as local files</span></summary>
           <pre className="h3-mono" style={PRE}>{JSON.stringify(view.arguments, null, 2)}</pre>

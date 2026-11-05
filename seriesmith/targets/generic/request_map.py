@@ -120,7 +120,7 @@ def size_of(name: str) -> tuple[int | None, int]:
     """A size's (width or None, height): "1280x720" / "1280*720" -> (1280, 720),
     "720p" / "768P" -> (None, 720), "2K" -> (None, 1440)."""
     s = str(name).strip().lower()
-    m = re.fullmatch(r"(\d+)\s*[x*]\s*(\d+)", s)
+    m = re.fullmatch(r"(\d+)\s*[x*_]\s*(\d+)", s)
     if m:
         return int(m.group(1)), int(m.group(2))
     m = re.fullmatch(r"(\d+)p", s)
@@ -189,7 +189,7 @@ def fit_size(width: int, height: int, spec: dict) -> tuple[int, int]:
 def nearest_size(width: int, height: int, values: list[str]) -> str:
     """The listed size ("1536x1024", "1024*1024") nearest in shape, then area."""
     def dims(v):
-        m = re.fullmatch(r"(\d+)\s*[x*]\s*(\d+)", str(v).strip().lower())
+        m = re.fullmatch(r"(\d+)\s*[x*_]\s*(\d+)", str(v).strip().lower())
         return (int(m.group(1)), int(m.group(2))) if m else None
     sized = [(dims(v), v) for v in values if dims(v)]
     want = width / height

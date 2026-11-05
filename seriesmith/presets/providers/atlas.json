@@ -51,21 +51,30 @@
       "method": "GET",
       "url": "/model/prediction/{task}",
       "until": {
-        "status": "data.status",
+        "status": [
+          "data.status",
+          "status"
+        ],
         "done": [
           "completed"
         ],
         "failed": [
           "failed"
         ],
-        "error": "data.error",
+        "error": [
+          "data.error",
+          "error"
+        ],
         "every": 5,
         "timeout": 3600
       }
     }
   ],
   "result": {
-    "files": "data.outputs"
+    "files": [
+      "data.outputs",
+      "outputs"
+    ]
   },
   "proved": "Seedance 2.5 reference-to-video, one proxy take (2026-11-04). Other models and kinds aren't."
 }
