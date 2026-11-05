@@ -2488,6 +2488,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(40);
       return { queued: [], errors: [] };
     },
+    async characterLines() {
+      await wait(40);
+      return { job: {} };
+    },
     async pickLine() {
       await wait(40);
       return { ok: true };

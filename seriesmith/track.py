@@ -524,6 +524,27 @@ def check_align(ep: str, track: str | None = None, words: str | None = None,
                              else f"sound.whisper.{model}")
 
 
+def transcribe_file(path: str, cwd: str, prompt: str = "", model: str | None = None, stop=None,
+                    timeout: float | None = None, python: str | None = None) -> list:
+    """A file's words, as align hears a recording: read from `<file>.words.json` when that's there and
+    at least as new, else heard by Whisper in the Python that has it, and kept there. TrackError 500."""
+    from seriesmith.core import fileio as F
+    cache = E.words_cache(path)
+    if E.has_words(path):
+        got = F.read_json_or(cache, None, want=list)
+        if got:
+            return got
+    py = python or align_python()
+    args = [path, "--transcribe-only", cache, "--prompt", prompt]
+    if model:
+        args += ["--model", model]
+    rc, log = _stream(E.tool_cmd(ALIGN_SCRIPT, args, py), cwd, ALIGN_TIMEOUT if timeout is None else timeout, None, stop)
+    got = F.read_json_or(cache, None, want=list)
+    if rc != 0 or got is None:
+        raise TrackError(500, why(log, rc), log=log)
+    return got
+
+
 def align(ep: str, track: str | None = None, model: str | None = None, snap: bool = True,
           dry_run: bool = False, words: str | None = None, progress=None,
           timeout: float | None = None, python: str | None = None,

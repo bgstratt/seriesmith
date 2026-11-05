@@ -6,7 +6,7 @@ import { Fragment, memo, useEffect, useMemo, useRef, useState, type CSSPropertie
 import {
   clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, focusRef, generateMissing, generateRef, keyframeFromTake, loadRefs, loadRefsAfterShots, openBrowse,
   openFrameUse, openGallery, openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
-  saveOwnPreset,
+  openTrackPanel, saveOwnPreset,
 } from "../actions";
 import { CARD_KINDS, type CardKind } from "../lib/seriesForm";
 import { useView } from "../lib/viewPref";
@@ -1546,11 +1546,19 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
                     <span className="h3-chev">{isCollapsed ? "▶" : "▼"}</span>
                     <b>{g.label}</b>
                     <span className="h3-muted h3-small">{g.refs.length}{g.refs.length !== g.total ? ` of ${g.total}` : ""}</span>
-                    {g.id === "voices" && voicesMissing(g.refs).length > 0 && (
+                    {g.id === "voices" && (
                       <>
                         <span className="h3-grow" />
+                        <button className="h3-btn" title="The episode's dialogue: make each character's lines, bring a file of them, or attach a recording, then align"
+                          onClick={(e) => { e.stopPropagation(); openTrackPanel(); }}>
+                          <i className="pi pi-volume-up" /> Lines & recording…
+                        </button>
+                      </>
+                    )}
+                    {g.id === "voices" && voicesMissing(g.refs).length > 0 && (
+                      <>
                         <button className={`h3-btn ${voicesMissing(g.refs).some(paidVoice) ? "h3-paid" : "h3-primary"}`}
-                          title={`A voice sample for each character with none (what Clone speaks in): ${voicesMissing(g.refs).map((r) => r.name).join(", ")}. Each is a candidate to listen to and pick.`}
+                          title={`On ${[...new Set(voicesMissing(g.refs).map((r) => targetLabel(modelList, refTargetOf(r, modelDefaults).target)))].join(", ")}${voicesMissing(g.refs).some(paidVoice) ? " (paid)" : ""}. A voice sample for each character with none (what Clone speaks in): ${voicesMissing(g.refs).map((r) => r.name).join(", ")}. Each is a candidate to listen to and pick.`}
                           onClick={(e) => { e.stopPropagation(); generateMissingVoices(g.refs, voicesMissing(g.refs).some(paidVoice)); }}>
                           <i className="pi pi-microphone" /> Generate missing ({voicesMissing(g.refs).length})
                         </button>

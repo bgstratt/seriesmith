@@ -4597,6 +4597,13 @@ confirm_chars, target?, lines?, backend?}`: `confirm_chars` is the total shown, 
 character with no speaker is **400**. Nothing is sent in either case. Returns `{queued, errors}`;
 `seriesmith.lines` follows each.
 
+### `POST /seriesmith/lines/character`
+
+A character's whole file (multipart `file`, or `source_path`) kept in `audio/lines/sources/<who>.wav` and queued
+to be cut into a take per line, costing nothing. Body `{ep, who}`. Whisper hears it, unless `<file>.words.json`
+is beside it (**409**, as align's, when Whisper isn't here). Returns `{job}`; the plan's `characters[].source`
+follows it, with `{status, lines, cut, unheard, notes}`.
+
 ### `POST /seriesmith/lines/pick`
 
 Which finished take of a line is used. Body `{ep, line, take}`.

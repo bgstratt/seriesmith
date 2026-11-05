@@ -34,7 +34,18 @@ the **Recording** window, open **Or make the lines with a voice model**:
 4. **Align**, as below.
 
 If you change a line or its speaker, its take is marked as changed. Redoing a line can change its length, so
-lay and align again afterwards: the shots after it move.
+lay and align again afterwards: the shots after it move, though only the redone shot goes stale.
+
+### A file for each character
+
+If you have all of one character's lines in one file, from an actor or generated on a voice model's site, use
+**Use a file…** on that character's row. The file should hold one voice, nobody else, with the lines in script
+order. Whisper hears it and cuts it into a take per line, so it costs nothing. A line it can't hear gets no take
+and is listed on the character's row. Then lay and align as above, mixing files and generated lines as you like,
+and redo any single line.
+
+Everything comes together in one recording, because a video model lip-syncs a shot to one sound. Two people
+talking over each other isn't handled here: it's one line at a time.
 
 ## Recording
 

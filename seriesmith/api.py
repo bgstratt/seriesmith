@@ -4243,14 +4243,13 @@ def _lines_target(ep: str, asked):
 @handler
 def get_lines(ctx: Context, query):
     """What an episode's lines are, and what generating them would make, with a voice model on a
-    provider. Costs nothing. Query {ep, target?}. seriesmith.lines.plan's answer, or {available: false,
-    why} when the voice model isn't one that can."""
+    provider. Costs nothing. Query {ep, target?}. seriesmith.lines.plan's answer, and `available`: false
+    with `why` when the voice model can't make them (a character's file still can)."""
     from seriesmith import lines as LN
     ep = check_ep(ctx, query.get("ep"))
     t, why = _lines_target(ep, query.get("target"))
-    if t is None:
-        return 200, {"available": False, "why": why}
-    return 200, {"available": True, **LN.plan(ep, t)}
+    # with no model that can make them there are still lines to bring in a file
+    return 200, {"available": t is not None, **({"why": why} if t is None else {}), **LN.plan(ep, t)}
 
 
 @handler
@@ -4293,6 +4292,65 @@ def post_lines_generate(ctx: Context, body):
             out["errors"].append({"line": r["id"], "error": str(e)[:400]})
     episode_event(ctx, ep)
     return 200, out
+
+
+def _lines_file_task(ctx: Context, params: dict):
+    """A character's whole file heard and cut into a take per line (lines.cut_character)."""
+    from seriesmith import lines as LN
+    ep, who = params["ep"], params["who"]
+    title = f"{os.path.basename(os.path.normpath(ep))} {who}'s lines"
+
+    def work(qjob, report, stop) -> str:
+        cfg = LN._config(ep)
+        words_expected = " ".join(ln["text"] for s in LN.script_shots(ep) for ln in s["lines"]
+                                  if LN._base(cfg, ln["who"]) == who)
+        try:
+            words = K.transcribe_file(LN.source_path(ep, who), ep, words_expected, stop=stop)
+            got = LN.cut_character(ep, who, words)
+        except Exception as e:                           # noqa: BLE001  said on its character
+            why = "canceled" if qjob.cancel_asked else str(e)
+            LN._source_state(ep, who, status="failed", error=why[:800])
+            qjob.error = why
+            ctx.emit("seriesmith.lines", {"ep": ep, "who": who, "status": "failed"})
+            return "failed"
+        LN._source_state(ep, who, status="ok", **{k: got[k] for k in ("lines", "cut", "unheard", "notes")})
+        qjob.result.update(state="done", **got)
+        ctx.emit("seriesmith.lines", {"ep": ep, "who": who, "status": "ok"})
+        episode_event(ctx, ep)
+        return "succeeded"
+
+    return title, {"ep": ep, "who": who}, {"ep": ep, "who": who, "state": "running"}, work
+
+
+@handler
+def post_lines_character(ctx: Context, body):
+    """A character's whole file (multipart `file`, or `source_path` on this machine) kept and queued to
+    be cut into a take per line. Costs nothing but Whisper, which it needs unless `<file>.words.json` is
+    beside it. Body {ep, who}. **409** as align's when Whisper isn't here. Returns {job}."""
+    from seriesmith import lines as LN
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    who = _opt_str(body, "who") or ""
+    up, src = body.get("file"), body.get("source_path")
+    if isinstance(up, Upload):
+        if up.size > MAX_UPLOAD:
+            raise ApiError(413, f"the file is over {MAX_UPLOAD // (1024 * 1024)} MB")
+        source, name = up.path, up.filename or ""
+    elif isinstance(src, str) and src.strip():
+        source, name = src.strip(), ""
+    else:
+        raise ApiError(400, "send the file as multipart `file`, or its path on this machine as `source_path`")
+    try:
+        place = LN.place_source(ep, who, source, name)
+    except LN.LinesError as e:
+        raise ApiError(400, str(e))
+    try:
+        K.check_align(ep, place)
+    except K.TrackError:
+        LN._source_state(ep, who, status="failed", error="Whisper isn't ready to hear it: see Align below")
+        raise
+    qjob = _start_local(ctx, "lines_file", {"ep": ep, "who": who})
+    return 200, {"job": dict(qjob.result)}
 
 
 @handler
@@ -6119,7 +6177,7 @@ def _xmlmedia_task(ctx: Context, params: dict):
     return title, {"ep": ep, "index": index}, run, work
 
 
-LOCAL = {"master": _master_task, "align": _align_task, "xmlmedia": _xmlmedia_task}
+LOCAL = {"master": _master_task, "align": _align_task, "xmlmedia": _xmlmedia_task, "lines_file": _lines_file_task}
 
 
 # ---------------------------------------------------------------------------
@@ -6285,6 +6343,7 @@ ROUTES = [
     ("GET", "/seriesmith/providers/voices", get_provider_voices, "query"),
     ("GET", "/seriesmith/lines", get_lines, "query"),
     ("POST", "/seriesmith/lines/generate", post_lines_generate, "body"),
+    ("POST", "/seriesmith/lines/character", post_lines_character, "form"),
     ("POST", "/seriesmith/lines/pick", post_lines_pick, "body"),
     ("POST", "/seriesmith/lines/lay", post_lines_lay, "body"),
     ("PUT", "/seriesmith/refs/provider-voice", put_refs_provider_voice, "body"),

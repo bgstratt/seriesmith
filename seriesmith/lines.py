@@ -4,9 +4,14 @@ speaker, the words alone in the request, then laid in script order into the epis
 From there it's a recording like an actor's (docs/RECORDED_DIALOGUE.md): `align` windows the shots
 from it, using the timings the model gave in place of Whisper (`<recording>.words.json`).
 
+A character's whole file (all of Crane's lines, from a voice model's site or an actor) comes in the
+same way: heard, matched to that character's lines in script order, and cut into a take per line
+(`cut_character`), so it mixes with lines made here and one line can still be redone alone.
+
     <ep>/audio/lines/lines.json                  what was asked and what's picked
     <ep>/audio/lines/<shot>.<n>_t<take>.wav      a take of a line
     <ep>/audio/lines/lines_recording.wav         the recording, and .words.json beside it
+    <ep>/audio/lines/sources/<who>.wav           a character's whole file, and .words.json beside it
 
 Nothing is paid for here: `plan` says what a generate would make, the queue makes it
 (runner.enqueue_line), and a line is only asked for once its character has a speaker. A take whose
@@ -42,6 +47,8 @@ AROUND_SILENT = 0.55     # what a pause holds besides its silent shots' own leng
 ENDS = 0.50              # silence before the first line, and after the last
 SILENT_DEFAULT = 3.04    # a silent shot with no `dur:`, as align reads one
 SILENT = "silent"        # what a silent shot's window of the recording holds (laid_sound)
+MIN_HEARD = 0.5          # of a line's words, for its take to be cut from a character's file
+CUT_AIR = 0.12           # seconds kept either side of a line cut from a file, within the pause
 _WRITING = threading.Lock()   # takes end together on a provider's parallel lane: one edit of lines.json at a time
 
 
@@ -100,6 +107,18 @@ def _speaker(cfg: dict, who: str, service: str) -> dict | None:
     return speaker_of(base if isinstance(base, dict) else entry, service)
 
 
+def _base(cfg: dict, who: str) -> str:
+    """The character a variant is of: one character keeps one voice and one file."""
+    entry = (cfg.get("subjects") or {}).get(who)
+    return (entry.get("of") if isinstance(entry, dict) else None) or who
+
+
+def _config(ep: str) -> dict:
+    cfg_path, _ = P.episode_files(ep)
+    with open(cfg_path, encoding="utf-8-sig") as fh:
+        return json.load(fh)
+
+
 def _name(cfg: dict, who: str) -> str:
     entry = (cfg.get("subjects") or {}).get(who)
     return (entry.get("name") if isinstance(entry, dict) else None) or who
@@ -113,13 +132,12 @@ def plan(ep: str, target) -> dict:
     """What the episode's lines are, and what generating would make. Costs nothing.
     {"target", "service", "lines": [{"id", "shot", "who", "name", "text", "chars", "status": "missing" |
     "ok" | "changed", "speaker", "picked", "takes"}], "characters": [{"who", "name", "lines", "chars",
-    "speaker"}], "to_make": {"lines", "chars"}, "no_speaker": [names], "recording": path or None,
-    "can_lay": whether every line has a take}."""
+    "speaker", "source"}], "to_make": {"lines", "chars"}, "no_speaker": [names, of lines still to make],
+    "recording": path or None, "can_lay": whether every line has a take}. With no `target` (a voice
+    model that can't make lines), the same with nothing to make them with: files still can."""
     from seriesmith import targets as TG
-    cfg_path, _ = P.episode_files(ep)
-    with open(cfg_path, encoding="utf-8-sig") as fh:
-        cfg = json.load(fh)
-    service = TG.service_of(target.spec)
+    cfg = _config(ep)
+    service = TG.service_of(target.spec) if target is not None else ""
     record = load(ep)
     rows, people = [], {}
     for shot in script_shots(ep):
@@ -129,20 +147,23 @@ def plan(ep: str, target) -> dict:
             chosen = _picked(have)
             status = "missing"
             if chosen:
-                same = chosen.get("text") == ln["text"] and chosen.get("voice") == (speaker or {}).get("id")
+                # a take cut from a file is in that file's voice, whoever the speaker is now
+                same = chosen.get("text") == ln["text"] and (
+                    chosen.get("source") == "file" or chosen.get("voice") == (speaker or {}).get("id"))
                 status = "ok" if same else "changed"
             rows.append({**ln, "name": _name(cfg, ln["who"]), "chars": len(ln["text"]), "status": status,
                          "speaker": speaker, "picked": have.get("picked"), "takes": have.get("takes") or []})
-            p = people.setdefault(ln["who"], {"who": ln["who"], "name": _name(cfg, ln["who"]), "lines": 0,
-                                              "chars": 0, "speaker": speaker})
+            base = _base(cfg, ln["who"])
+            p = people.setdefault(base, {"who": base, "name": _name(cfg, base), "lines": 0, "chars": 0,
+                                         "speaker": speaker, "source": (record.get("sources") or {}).get(base)})
             p["lines"] += 1
             p["chars"] += len(ln["text"])
     todo = [r for r in rows if r["status"] != "ok"]
     recording = os.path.join(DIR, RECORDING).replace("\\", "/")
-    return {"target": target.id, "label": target.label, "service": service, "lines": rows,
-            "characters": list(people.values()),
+    return {"target": target.id if target is not None else None, "label": target.label if target is not None else "",
+            "service": service, "lines": rows, "characters": list(people.values()),
             "to_make": {"lines": len(todo), "chars": sum(r["chars"] for r in todo)},
-            "no_speaker": sorted(p["name"] for p in people.values() if not p["speaker"]),
+            "no_speaker": sorted({r["name"] for r in todo if not r["speaker"]}),
             "recording": recording if os.path.isfile(os.path.join(ep, recording)) else None,
             "can_lay": bool(rows) and all(_picked(record["lines"].get(r["id"]) or {}) for r in rows)}
 
@@ -286,6 +307,98 @@ def laid_sound(ep: str, shot: str | None) -> str | None:
     if not isinstance(got, dict):
         got = F.read_json_or(path, {}, want=dict)
     return (got.get("laid") or {}).get(shot)
+
+
+def source_path(ep: str, who: str) -> str:
+    return os.path.join(folder(ep), "sources", f"{who}.wav")
+
+
+def _source_state(ep: str, who: str, **state) -> None:
+    with _WRITING:
+        record = load(ep)
+        record.setdefault("sources", {})[who] = state
+        save(ep, record)
+
+
+def place_source(ep: str, who: str, source: str, name: str = "") -> str:
+    """A character's whole file kept for this episode, as what lines are cut from. LinesError for one
+    that isn't a character with lines here, or a file that can't be read. Word timings already beside
+    the file (`<file>.words.json`) come with it, so it needn't be heard again."""
+    cfg = _config(ep)
+    if not any(_base(cfg, ln["who"]) == who for s in script_shots(ep) for ln in s["lines"]):
+        raise LinesError(f"{who} has no lines in this script")
+    dest = source_path(ep, who)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    scratch = dest + ".tmp.wav"
+    try:
+        _to_wav(source, scratch)
+        F.replace(scratch, dest)
+    finally:
+        if os.path.exists(scratch):
+            os.remove(scratch)
+    cache = dest + ".words.json"
+    told = F.read_json_or(source + ".words.json", None, want=list)
+    if told:
+        F.write_json(cache, told)
+    elif os.path.exists(cache):
+        os.remove(cache)                               # another file's words
+    _source_state(ep, who, status="running", name=name or os.path.basename(source))
+    return dest
+
+
+def cut_character(ep: str, who: str, words: list[dict]) -> dict:
+    """A character's file cut into a take per line, from its words: matched to that character's lines
+    in script order, each cut at the pauses around it. A line that can't be heard in it gets no take, and
+    is said. {"who", "lines", "cut", "unheard": [ids], "notes"}."""
+    from seriesmith import align as A
+    cfg = _config(ep)
+    lines = [dict(ln) for s in script_shots(ep) for ln in s["lines"] if _base(cfg, ln["who"]) == who]
+    if not lines:
+        raise LinesError(f"{who} has no lines in this script")
+    if not words:
+        raise LinesError(f"nothing could be heard in {who}'s file")
+    A.align_lines(lines, words)
+    source = source_path(ep, who)
+    with wave.open(source, "rb") as w:
+        rate = w.getframerate()
+        pcm = w.readframes(w.getnframes())
+    total = len(pcm) / 2 / rate
+    cut, unheard, notes = 0, [], []
+    for i, ln in enumerate(lines):
+        if ln.get("estimated") or ln.get("coverage", 0) < MIN_HEARD:
+            unheard.append(ln["id"])
+            notes.append(f"{ln['id']}: couldn't hear \"{ln['text'][:50]}\" in the file")
+            continue
+        if ln["coverage"] < 0.85:
+            notes.append(f"{ln['id']}: only {ln['coverage']:.0%} of it matched (heard: \"{ln.get('heard', '')[:60]}\")")
+        # to the pause each side: halfway to the neighbours, with a little air
+        before = lines[i - 1].get("end", 0.0) if i else 0.0
+        after = lines[i + 1].get("start", total) if i + 1 < len(lines) else total
+        a = max((before + ln["start"]) / 2, ln["start"] - CUT_AIR, 0.0)
+        b = min((ln["end"] + after) / 2, ln["end"] + CUT_AIR, total)
+        data = pcm[int(a * rate) * 2:int(b * rate) * 2]
+        inside = [{"word": x["word"], "start": round(x["start"] - a, 3), "end": round(x["end"] - a, 3)}
+                  for x in words if a <= x["start"] and x["end"] <= b]
+        with _WRITING:
+            record = load(ep)
+            row = record["lines"].setdefault(ln["id"], {"takes": []})
+            n = max((t["take"] for t in row["takes"]), default=0) + 1
+            name = f"{ln['id']}_t{n:02d}.wav"
+            buf = io.BytesIO()
+            with wave.open(buf, "wb") as out:
+                out.setnchannels(1)
+                out.setsampwidth(2)
+                out.setframerate(rate)
+                out.writeframes(data)
+            F.write_bytes(os.path.join(folder(ep), name), buf.getvalue())
+            row["takes"].append({"take": n, "status": "ok", "source": "file", "text": ln["text"], "voice": f"file:{who}",
+                                 "voice_name": f"{_name(cfg, who)}'s file", "chars": len(ln["text"]),
+                                 "file": os.path.join(DIR, name).replace("\\", "/"), "seconds": round(b - a, 3),
+                                 **({"words": inside} if inside else {})})
+            row["picked"] = n
+            save(ep, record)
+        cut += 1
+    return {"who": who, "lines": len(lines), "cut": cut, "unheard": unheard, "notes": notes}
 
 
 def _silence(seconds: float) -> bytes:

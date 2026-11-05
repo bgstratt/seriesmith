@@ -2114,6 +2114,11 @@ download with the key). Reading the reference moved up from step 7 (decided with
 - [x] The API's own timings where it gives them (ElevenLabs `with-timestamps`, a definition's
       `timed` way) in place of Whisper (`<recording>.words.json`, which align reads). The mp3 they
       come in may start a few ms late of its timings: only a real take will say if that shows.
+- [x] A character's whole file (all of Crane's lines, from an actor or a site) cut into a take per
+      line and mixed with lines made here (2026-11-05, `lines.cut_character`; heard by Whisper, tested
+      on words beside the file: no real file yet). One recording, as a video model lip-syncs to one
+      sound. People talking over each other isn't handled: Demucs splits voice from music, not voice
+      from voice.
 - [ ] Text-to-dialogue (all the lines in one call, its segments per input) as an option for flow;
       one line can't be redone alone there. `previous_text` / `next_text` for flow between single
       lines. A script's delivery note as a v3/v4 tag ([whispers]): it's left out for now.

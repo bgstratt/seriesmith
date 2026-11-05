@@ -1874,6 +1874,113 @@ class Lines(ScratchSettings):
         got = self.ok(self.A.get_lines(self.ctx, {"ep": self.ep, "target": "ltx2_voice"}))
         self.assertFalse(got["available"])
         self.assertIn("provider", got["why"])
+        self.assertTrue(got["lines"])                    # the lines are still there to bring a file for
+
+    def mine(self, who, plan=None):
+        """A character's lines, its variants' with them: one character keeps one voice and one file."""
+        with open(self.series_path(), encoding="utf-8") as fh:
+            book = json.load(fh)["subjects"]
+        return [r for r in (plan or self.plan())["lines"] if (book[r["who"]].get("of") or r["who"]) == who]
+
+    def character_file(self, who, skip=(), extra=0.8):
+        """A file of one character's lines in script order, with its words beside it, as Whisper would
+        leave them: {path, rows}. A second of sound a line, and `extra` of quiet between."""
+        import wave
+        rows = self.mine(who)
+        words, t, pcm = [], 0.2, bytearray(b"\0\0" * int(44100 * 0.2))
+        for r in rows:
+            if r["id"] in skip:
+                continue
+            said = r["text"].split()
+            for i, w in enumerate(said):
+                words.append({"word": w, "start": round(t + i / len(said), 3), "end": round(t + (i + 1) / len(said), 3)})
+            pcm.extend(b"\x10\x00" * 44100)
+            pcm.extend(b"\0\0" * int(44100 * extra))
+            t += 1 + extra
+        path = os.path.join(self.tmp, f"{who}_all.wav")
+        with wave.open(path, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(44100)
+            w.writeframes(bytes(pcm))
+        with open(path + ".words.json", "w", encoding="utf-8") as fh:
+            json.dump(words, fh)
+        return path, rows
+
+    def bring(self, who, path):
+        got = self.ok(self.A.post_lines_character(self.ctx, {"ep": self.ep, "who": who, "source_path": path}))
+        self.settle()
+        return got
+
+    def test_a_characters_file_is_cut_into_a_take_per_line(self):
+        import wave
+        who = "ada"
+        path, rows = self.character_file(who)
+        self.bring(who, path)
+        plan = self.plan()
+        mine = self.mine(who, plan)
+        self.assertEqual({r["status"] for r in mine}, {"ok"})
+        self.assertEqual(self.posts(), [])                # nothing was paid for
+        char = next(c for c in plan["characters"] if c["who"] == who)
+        self.assertEqual((char["source"]["status"], char["source"]["cut"], char["source"]["unheard"]), ("ok", len(rows), []))
+        for r in mine:
+            take = next(t for t in r["takes"] if t["take"] == r["picked"])
+            self.assertEqual(take["source"], "file")
+            self.assertEqual(" ".join(w["word"] for w in take["words"]), r["text"])
+            with wave.open(os.path.join(self.ep, take["file"]), "rb") as w:
+                seconds = w.getnframes() / w.getframerate()
+            self.assertAlmostEqual(seconds, 1.0 + 2 * self.LN.CUT_AIR, delta=0.05)
+            self.assertLessEqual(take["words"][0]["start"], self.LN.CUT_AIR + 0.01)
+        # the others still want making, and only theirs count
+        others = [r for r in plan["lines"] if r not in mine]
+        self.assertEqual(plan["to_make"]["chars"], sum(r["chars"] for r in others))
+        self.assertNotIn(char["name"], plan["no_speaker"])
+
+    def test_a_line_not_in_the_file_is_said_and_gets_no_take(self):
+        who = "ada"
+        rows = self.mine(who)
+        missing = rows[-1]["id"]
+        path, _ = self.character_file(who, skip=(missing,))
+        self.bring(who, path)
+        plan = self.plan()
+        char = next(c for c in plan["characters"] if c["who"] == who)
+        self.assertEqual(char["source"]["unheard"], [missing])
+        self.assertIn("couldn't hear", " ".join(char["source"]["notes"]))
+        row = next(r for r in plan["lines"] if r["id"] == missing)
+        self.assertEqual(row["status"], "missing")
+
+    def test_every_characters_file_lays_and_aligns_with_no_whisper_or_key(self):
+        import subprocess
+        from test_render import ENV
+        with open(self.series_path(), encoding="utf-8") as fh:
+            book = json.load(fh)["subjects"]
+        for who in sorted({book[w].get("of") or w for w in self.people()}):
+            path, _ = self.character_file(who)
+            self.bring(who, path)
+        self.assertTrue(self.plan()["can_lay"])
+        got = self.ok(self.A.post_lines_lay(self.ctx, {"ep": self.ep}))
+        self.assertTrue(got["timed"])
+        ran = subprocess.run([sys.executable, "-m", "seriesmith.align", self.ep, "--dry-run"], capture_output=True, text=True, env=ENV)
+        self.assertEqual(ran.returncode, 0, ran.stderr[-600:] + ran.stdout[-600:])
+        self.assertEqual(self.posts(), [])
+
+    def test_a_file_for_someone_with_no_lines_is_refused(self):
+        path = os.path.join(self.tmp, "x.wav")
+        with open(path, "wb") as fh:
+            fh.write(fake_speech(0.1))
+        self.assertEqual(self.A.post_lines_character(self.ctx, {"ep": self.ep, "who": "nobody", "source_path": path})[0], 400)
+
+    def test_a_redo_on_a_cut_line_is_still_one_line(self):
+        self.speak_all()
+        who = "ada"
+        path, _ = self.character_file(who)
+        self.bring(who, path)
+        row = self.mine(who)[0]
+        self.ok(self.A.post_lines_generate(self.ctx, {"ep": self.ep, "target": self.tid, "lines": [row["id"]], "confirm_chars": row["chars"], "backend": "api:local_eleven"}))
+        self.settle()
+        again = next(r for r in self.plan()["lines"] if r["id"] == row["id"])
+        self.assertEqual(len(again["takes"]), 2)
+        self.assertEqual(len(self.posts()), 1)
 
     def test_the_plan_counts_what_it_would_cost_and_sends_nothing(self):
         plan = self.plan()

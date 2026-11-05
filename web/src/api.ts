@@ -115,6 +115,8 @@ export interface LineTake {
   take: number;
   status: "running" | "ok" | "failed";
   text: string;
+  source?: string;
+  voice_name?: string;
   file?: string;
   seconds?: number;
   error?: string;
@@ -137,11 +139,12 @@ export interface LineRow {
 export interface LinesPlan {
   available: boolean;
   why?: string;
-  target: string;
+  target: string | null;
   label: string;
   service: string;
   lines: LineRow[];
-  characters: { who: string; name: string; lines: number; chars: number; speaker: LineRow["speaker"] }[];
+  characters: { who: string; name: string; lines: number; chars: number; speaker: LineRow["speaker"];
+    source?: { status: "running" | "ok" | "failed"; name?: string; error?: string; lines?: number; cut?: number; unheard?: string[]; notes?: string[] } | null }[];
   to_make: { lines: number; chars: number };
   no_speaker: string[];
   recording: string | null;
@@ -580,6 +583,8 @@ export interface Api {
   lines(ep: string): Promise<LinesPlan>;
   /** Paid: `confirm_chars` is the total the person was shown. */
   generateLines(req: { ep: string; confirm_chars: number; lines?: string[] }): Promise<{ queued: { line: string; take: number; job: string }[]; errors: { line: string; error: string }[] }>;
+  /** A character's whole file, cut into a take per line: costs nothing but Whisper. */
+  characterLines(ep: string, who: string, file: File): Promise<{ job: unknown }>;
   pickLine(ep: string, line: string, take: number): Promise<{ ok: boolean }>;
   layLines(ep: string): Promise<{ path: string; seconds: number; lines: number; timed: boolean; notes: string[] }>;
   /** A provider's speakers: one read that costs nothing. */
@@ -1138,6 +1143,13 @@ export function createHttpApi(t: Transport): Api {
     putProviderVoice: (req) => call("PUT", "/seriesmith/refs/provider-voice", req),
     lines: (ep) => call("GET", `/seriesmith/lines?ep=${encodeURIComponent(ep)}`),
     generateLines: (req) => call("POST", "/seriesmith/lines/generate", req),
+    characterLines: (ep, who, file) => {
+      const form = new FormData();
+      form.append("ep", ep);
+      form.append("who", who);
+      form.append("file", file, file.name);
+      return postForm("/seriesmith/lines/character", form);
+    },
     pickLine: (ep, line, take) => call("POST", "/seriesmith/lines/pick", { ep, line, take }),
     layLines: (ep) => call("POST", "/seriesmith/lines/lay", { ep }),
     draftProvider: (req) => call("POST", "/seriesmith/providers/draft", req),
