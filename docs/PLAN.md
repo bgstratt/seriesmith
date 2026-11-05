@@ -1989,11 +1989,18 @@ is asked for first.
   the job and says why (`job.error`); checking one as it's saved comes with the tool (step 3).
 
 **3. The mapping tool, on Router models** (no new connections)
-- [ ] The Models window: a job's values with the chosen shot's real ones, the API's fields,
+- [x] The Models window: a job's values with the chosen shot's real ones, the API's fields,
       the prompt template below, a live dry run with the key hidden, several test shots
       (dialogue, several subjects, no keyframe); saving refused while a required field is
-      unmapped. The same screen edits a model already added.
-- [ ] Overrides in the show (`<show>/targets/`), **Back to shipped**; the `mapping` stale reason.
+      unmapped. The same screen adds a model and edits one, video and hosted image alike.
+- [x] Overrides in the show (`<show>/targets/overrides.json`: only the fields changed, only the
+      ones `targets.SHOW_FIELDS` allows, so a shared show can't repoint a model), **Back to
+      shipped**; the `mapping` stale reason (a prompt that differs only by its template is
+      `mapping`, not `script`; a take with no template stays as its sidecar was).
+- [x] First cut for a look: the **Prompt & mapping** panel (`components/PromptMapping.tsx`,
+      `seriesmith/promptview.py`), every video model, adding and editing alike: the templates, the
+      parts with the shot's values, the prompt as sent, the shotlist entry, the request.
+      A model with a writer of its own (H3, the reference-sheet LTX-2s) shows it read-only.
 
 **4. Providers and the step engine** (`backends/http.py`, stdlib only: nothing new for
 `requirements.txt`). Proved on the hardest first: Atlas Seedance (upload first), ElevenLabs

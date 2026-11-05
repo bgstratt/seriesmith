@@ -87,6 +87,7 @@ Stdlib only.
 """
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import copy
 import functools
@@ -465,6 +466,10 @@ class Target:
         # a built-in's target.json as shipped, when this machine overrides its
         # limits (settings target_limits; _load_folder)
         self.shipped_spec: dict | None = None
+        # what a show changes of it (<show>/targets/overrides.json), and the target without
+        # them (_with_fields)
+        self.show_fields: dict = {}
+        self.before_overrides: "Target | None" = None
         self.id: str = spec["id"]
         self.kind: str = spec["kind"]
         self.label: str = spec.get("label", self.id)
@@ -997,6 +1002,8 @@ class Target:
                 # (seriesmith.limits), changed on this machine or as shipped
                 "scope": scope_of(self.folder),
                 **({"limits": _limits_json(self)} if self.kind in ("video", "image") else {}),
+                # this show has changed how its prompt is written
+                **({"show_fields": sorted(self.show_fields)} if self.show_fields else {}),
                 "capabilities": self.capabilities(),
                 "models": {k: {"family": v["family"], "label": modelid.family_label(v["family"]),
                                "patterns": list(v["patterns"]), "folder": v["folder"],
@@ -1254,6 +1261,9 @@ def load_target(target_id: str, kind: str | None = None, root: str | None = None
 
 
 def _load_target(target_id: str, kind: str | None, root: str | None) -> Target:
+    tried = _TRYING.get()
+    if tried and tried["id"] == target_id and tried["spec"] is not None:
+        return _with_fields(_unsaved(tried), tried["fields"])
     folders = _folders(root)
     repo_ids = {(k, n) for k, n, f in folders if not is_custom(f)}
     for k, name, folder in folders:
@@ -1264,7 +1274,7 @@ def _load_target(target_id: str, kind: str | None, root: str | None) -> Target:
         # shadowed_custom() finds any that got there another way.
         if is_custom(folder) and (k, name) in repo_ids:
             continue
-        return _load_folder(k, name, folder)
+        return _with_show_fields(_load_folder(k, name, folder), root)
     known = ", ".join(t.id for t in list_targets(kind, root)) or "none"
     raise TargetError(f"no {kind + ' ' if kind else ''}target called {target_id!r} "
                       f"(known: {known})")
@@ -1307,6 +1317,128 @@ def _load_folder(kind: str, name: str, folder: str) -> Target:
     return t
 
 
+# ---------------------------------------------------------------------------
+# what a show changes of a model: <show>/targets/overrides.json
+# ---------------------------------------------------------------------------
+
+OVERRIDES_FILE = "overrides.json"
+# what a show may change of a model it doesn't own, by its place in the target.json: how its
+# prompt is written, and where a hosted model's values go. Only these are read: a shared show
+# can't repoint a model at another model or host.
+SHOW_FIELDS = ("recipe.prompt_template", "recipe.prompt_request", "router.arguments")
+SHOW_FIELD_PREFIX = "router.inputs."
+
+
+def is_show_field(place: str) -> bool:
+    return place in SHOW_FIELDS or place.startswith(SHOW_FIELD_PREFIX)
+_OVERRIDES: dict[str, tuple[float, dict]] = {}            # show folder -> (monotonic time, its file)
+_OVERLAID: dict[tuple, tuple] = {}                        # (folder, fields) -> (base Target, Target)
+_TRYING: contextvars.ContextVar[dict | None] = contextvars.ContextVar("targets_trying", default=None)
+
+
+def overrides_path(root: str) -> str:
+    return os.path.join(show_folder(root), CUSTOM_DIR, OVERRIDES_FILE)
+
+
+def show_overrides(root: str) -> dict[str, dict]:
+    """{target id: {field: value}}: what this show changes of models it doesn't own. Read again
+    after FOLDERS_TTL; a save here clears it at once (forget_targets)."""
+    now = time.monotonic()
+    hit = _OVERRIDES.get(root)
+    if hit and now - hit[0] < FOLDERS_TTL:
+        return hit[1]
+    got = F.read_json_or(overrides_path(root), {}, want=dict)
+    got = {str(k): {f: x for f, x in v.items() if is_show_field(f)}
+           for k, v in got.items() if isinstance(v, dict)}
+    _OVERRIDES[root] = (now, got)
+    return got
+
+
+def save_show_overrides(root: str, target_id: str, fields: dict) -> str:
+    """This show's changes to one model, replaced; empty values go, none at all removes it.
+    Only is_show_field's are kept; a mapping's null stays (that value isn't sent). The path
+    written."""
+    path = overrides_path(root)
+    all_ = dict(F.read_json_or(path, {}, want=dict))
+    kept = {f: v for f, v in fields.items() if is_show_field(f)
+            and (v or (v is None and f.startswith(SHOW_FIELD_PREFIX)))}
+    if kept:
+        all_[target_id] = kept
+    else:
+        all_.pop(target_id, None)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    F.write_json(path, all_)
+    forget_targets()
+    return path
+
+
+@contextlib.contextmanager
+def trying(target_id: str, fields: dict | None = None, spec: dict | None = None):
+    """While it is open, `target_id` loads with `fields` over what is saved (and, given `spec`,
+    as that target.json, not saved yet), as a render would see it: how a change is previewed
+    before it is saved."""
+    token = _TRYING.set({"id": target_id, "fields": dict(fields or {}), "spec": spec})
+    scope = _SCOPE.set({})
+    try:
+        yield
+    finally:
+        _SCOPE.reset(scope)
+        _TRYING.reset(token)
+
+
+def _unsaved(tried: dict) -> Target:
+    """A target.json not saved yet, as a target: it has no folder of its own, so it loads from
+    a hosted model's (its code is a builtin's)."""
+    if "target" not in tried:
+        spec = tried["spec"]
+        base = _load_folder("video", "seedance_2_5", os.path.join(HERE, "video", "seedance_2_5"))
+        tried["target"] = Target(base.folder, spec)
+    return tried["target"]
+
+
+def _with_show_fields(t: Target, root: str | None) -> Target:
+    """`t` with what the show changes of it: `root`'s, else the first show in force that does.
+    A show's own target has it in its target.json, so it has none here."""
+    fields = {}
+    if not (t.custom and scope_of(t.folder) == "show"):
+        for r in ((root,) if root else ()) + thread_roots():
+            fields = show_overrides(r).get(t.id) or {}
+            if fields:
+                break
+    tried = _TRYING.get()
+    if tried and tried["id"] == t.id:
+        fields = {**fields, **tried["fields"]}
+    return _with_fields(t, fields)
+
+
+def _with_fields(t: Target, fields: dict) -> Target:
+    """A copy of `t` with `fields` (dotted places in its target.json) set; `t` for none."""
+    if not fields:
+        return t
+    key = (t.folder, t.id, json.dumps(fields, sort_keys=True))
+    hit = _OVERLAID.get(key)
+    if hit and hit[0] is t:
+        return hit[1]
+    spec = copy.deepcopy(t.spec)
+    for place, value in fields.items():
+        at = spec
+        *path, last = place.split(".")
+        for name in path:
+            at = at.setdefault(name, {})
+        if value is None:
+            at.pop(last, None)
+        else:
+            at[last] = value
+    made = Target(t.folder, spec)
+    made.shipped_spec = t.shipped_spec
+    made.show_fields = dict(fields)
+    made.before_overrides = t
+    if len(_OVERLAID) > 256:
+        _OVERLAID.clear()
+    _OVERLAID[key] = (t, made)
+    return made
+
+
 def list_targets(kind: str | None = None, root: str | None = None) -> list[Target]:
     """Every target, the repo's first, then the custom ones of `root`'s show and
     of the shows this thread has open. A custom target that takes a built-in's
@@ -1325,7 +1457,7 @@ def _list_targets(kind: str | None, root: str | None) -> list[Target]:
         if is_custom(folder) and (k, name) in repo_ids:
             continue
         try:
-            out.append(_load_folder(k, name, folder))
+            out.append(_with_show_fields(_load_folder(k, name, folder), root))
         except (TargetError, OSError, ValueError, KeyError):
             continue
     return out
@@ -1353,6 +1485,8 @@ def forget_targets() -> None:
     """Drop the cache (a custom target.json was written or deleted)."""
     _CACHE.clear()
     _FOLDERS.clear()
+    _OVERRIDES.clear()
+    _OVERLAID.clear()
 
 
 def machine_default(kind: str) -> str:

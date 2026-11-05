@@ -79,6 +79,7 @@ from seriesmith import takes as T
 from seriesmith import targets as TG
 from seriesmith.core import fileio as F
 from seriesmith.core import paths as P
+from seriesmith.targets import prompt_template as TP
 from seriesmith.targets.graph import abs_path as _abs, consumers as _consumers  # noqa: F401
 
 # The default video target's binding, under the names render and the routes
@@ -1090,16 +1091,38 @@ def preset_hash(doc: dict, shot: dict) -> str:
     return T.content_hash({"defaults": dd, "shot": part})
 
 
+def bare_hash(shot: dict) -> str:
+    """story_hash without the prompt: whether a shot changed other than in how it's worded."""
+    return story_hash({k: v for k, v in shot.items() if k != "prompt"})
+
+
+def mapping_changed(root: str, doc: dict, sidecar: dict) -> bool:
+    """Whether the model's prompt is written otherwise than when the take was made."""
+    tid = sidecar.get("target") or doc.get("target")
+    if not tid:
+        return False
+    try:
+        now = TP.signature(TG.load_target(tid, "video", root=root))
+    except (TG.TargetError, OSError, ValueError):
+        return False
+    return (sidecar.get("mapping_hash") or "") != now
+
+
 def stale_reasons(root: str, doc: dict, shot: dict, sidecar: dict | None) -> list[str]:
     """Why a take no longer matches what rendering this shot now would use:
     'script' (the shot changed), 'ref' (a reference file changed), 'preset'
-    (model/LoRA/steps/size defaults changed). Empty: current. A take with no
-    sidecar has no provenance and is reported as ['unknown']."""
+    (model/LoRA/steps/size defaults changed), 'mapping' (the model's prompt template changed).
+    Empty: current. A take with no sidecar has no provenance and is reported as ['unknown'].
+    A prompt that differs only because its template did is 'mapping', not 'script'; a take made
+    before it had a template can't say what else changed, and is 'mapping' alone."""
     if not sidecar:
         return ["unknown"]
     out = []
+    mapping = mapping_changed(root, doc, sidecar)
     if sidecar.get("shot_hash") and sidecar["shot_hash"] != story_hash(shot):
-        out.append("script")
+        bare = sidecar.get("shot_bare_hash")
+        if not mapping or (bare and bare != bare_hash(shot)):
+            out.append("script")
     for r in sidecar.get("refs") or []:
         p = r.get("path")
         if not p or not (r.get("sha1") or r.get("optional")):
@@ -1113,6 +1136,8 @@ def stale_reasons(root: str, doc: dict, shot: dict, sidecar: dict | None) -> lis
             break
     if sidecar.get("preset_hash") and sidecar["preset_hash"] != preset_hash(doc, shot):
         out.append("preset")
+    if mapping:
+        out.append("mapping")
     return out
 
 
@@ -2008,6 +2033,12 @@ def ref_files(job: Job) -> list[dict]:
     return out
 
 
+def _mapping_fields(job: Job) -> dict:
+    """What a take remembers of its prompt's template, when the model has one of its own."""
+    now = TP.signature(job_target(job))
+    return {"mapping_hash": now, "shot_bare_hash": bare_hash(job.shot)} if now else {}
+
+
 def sidecar_for(job: Job) -> dict:
     d = job.doc.get("defaults", {})
     notes = list(job.notes)
@@ -2040,6 +2071,8 @@ def sidecar_for(job: Job) -> dict:
         **({"missing_note": job.missing_why} if job.missing_why else {}),
         # only when there is something to say, likewise
         **({"built_target": job.built_target} if job.retargeted else {}),
+        # the model's prompt is written its own way
+        **_mapping_fields(job),
         **({"inputs": dict(job.inputs)} if job.inputs else {}),
         # its first frame is cut again when it starts (the node fills in `continuity`)
         **({"continuity_after": dict(job.continuity)} if job.continuity else {}),

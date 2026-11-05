@@ -53,6 +53,40 @@ def fetch_schema(model: str, api_key: str, timeout: float = 30.0) -> dict:
         raise RouterInspectError(f"Router's schema for {model} couldn't be read: {e}") from None
 
 
+_SCHEMAS: dict[str, tuple[float, dict]] = {}
+SCHEMA_TTL = 3600.0
+
+
+def schema_fields(doc: dict) -> dict:
+    """What a model's schema asks for, for the mapping panel: {"required": [top-level names],
+    "fields": [{"path", "type", "required", "values"?, "min"?, "max"?, "about"?}]}."""
+    body = request_schema(doc)
+    required = list(body.get("required") or [])
+    out = []
+    for path, v in fields(doc, body):
+        one = {"path": path, "type": v.get("type") or "", "required": path in required}
+        if v.get("enum"):
+            one["values"] = list(v["enum"])
+        for key, name in (("minimum", "min"), ("maximum", "max")):
+            if v.get(key) is not None:
+                one[name] = v[key]
+        if v.get("description"):
+            one["about"] = str(v["description"])[:300]
+        out.append(one)
+    return {"required": required, "fields": out}
+
+
+def cached_schema_fields(model: str, api_key: str) -> dict:
+    """schema_fields of Router's schema for `model`, kept an hour (reading one is free)."""
+    import time
+    hit = _SCHEMAS.get(model)
+    if hit and time.monotonic() - hit[0] < SCHEMA_TTL:
+        return hit[1]
+    got = schema_fields(fetch_schema(model, api_key))
+    _SCHEMAS[model] = (time.monotonic(), got)
+    return got
+
+
 # -- the catalog ---------------------------------------------------------------------
 
 # what a Router model makes, from its id (the catalog doesn't say): "video" in

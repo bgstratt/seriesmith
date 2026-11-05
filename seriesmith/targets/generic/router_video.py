@@ -71,6 +71,7 @@ from seriesmith.targets.generic.request_map import (  # noqa: F401
     NAMED, append, field_name, fill, fit, max_chars, nearest_ratio, nearest_resolution, place,
     put, put_seed, seconds_for, size_of)
 from seriesmith.targets.generic import video_prose as G
+from seriesmith.targets.generic.video_prose import prompt_parts  # noqa: F401
 
 compile_episode = G.compile_episode
 compile_shot = G.compile_shot

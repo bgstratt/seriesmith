@@ -103,6 +103,13 @@ def written(ctx: "Ctx", shot: ir.Shot, sq: ir.Sequence, series_cfg: dict) -> str
     return ctx.style.build_prompt(shot, sq, series_cfg)
 
 
+def prompt_parts(target, shot: ir.Shot, sq: ir.Sequence, series_cfg: dict, style=None) -> dict:
+    """What a shot's template has to work with on this target, as compile_entry gives it.
+    A target whose code has this takes a prompt template (promptview.editable)."""
+    told = MOD.moderated_config(series_cfg) if target.moderated else series_cfg
+    return style_for(target, style).parts(shot, sq, told)
+
+
 def style_for(target, style: "Style | None" = None) -> Style:
     """`style`, else the one the target's own data asks for. A target that makes
     no sound gets the silent writer whatever else it says (a soundscape and

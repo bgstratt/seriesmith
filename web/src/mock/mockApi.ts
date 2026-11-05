@@ -2442,6 +2442,27 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       return { ok: true, shot: req.shot || "sh010", pass: req.pass || "proxy", model: "mock/model",
                arguments: { prompt: "(the shot's prompt)" }, prompt_chars: { written: 18 } };
     },
+    async promptPreview(req) {
+      await wait(40);
+      const template = req.template ?? "{style} {action}";
+      const request = req.request ?? "{prompt}";
+      const parts = [{ name: "style", about: "The look", value: "Style: flat." }, { name: "action", about: "What happens", value: "She waits." }];
+      const sent = template.replace("{style}", parts[0].value).replace("{action}", parts[1].value);
+      return { ok: true, id: req.id ?? "mock", label: "Mock model", scope: "builtin", hosted: true, shot: req.shot || "sh010",
+               pass: req.pass || "proxy", editable: true, changed: false, template, request,
+               shipped: { template: "{style} {action}", request: "{prompt}" }, problems: { template: [], request: [] },
+               parts, request_parts: [{ name: "prompt", about: "The shot's prompt", value: sent }], prompt: sent, sent,
+               entry: { id: req.shot || "sh010", prompt: sent }, model: "mock/model", arguments: { prompt: sent },
+               ...(req.count ? { takes_on_model: 3 } : {}) };
+    },
+    async putTargetPrompt(_ep, id, template, request, inputs, args) {
+      await wait(40);
+      return { ok: true, id, path: "targets/overrides.json", changed: !!(template || request || inputs || args) };
+    },
+    async modelSchema() {
+      await wait(40);
+      return { available: true, required: ["prompt"], fields: [{ path: "prompt", type: "string", required: true }, { path: "seed", type: "integer", required: false }] };
+    },
     async drafts() {
       await wait(40);
       return { drafts: [] };

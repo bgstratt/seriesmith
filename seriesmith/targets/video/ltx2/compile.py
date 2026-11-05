@@ -112,6 +112,11 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
 
 
+def prompt_parts(target, shot, sq, series_cfg: dict) -> dict:
+    """What a shot's template has to work with (promptview.editable)."""
+    return shot_parts(shot, sq, series_cfg)
+
+
 def compile_episode(target, story: ir.Episode, series_cfg: dict, pass_: str,
                     only: set[str] | None = None) -> tuple[dict, dict]:
     ctx = Ctx(target, series_cfg, pass_)

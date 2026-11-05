@@ -83,6 +83,70 @@ export interface RouterDryRun {
   prompt_chars?: { written: number };
 }
 
+/** One value a prompt template can use, as it is on the shot being looked at. */
+export interface PromptPart {
+  name: string;
+  about: string;
+  value: string;
+}
+
+/** One value a hosted model takes, where it goes, and what it comes to on the shot. */
+export interface MappingRow {
+  role: string;
+  what: string;
+  spec: unknown;
+  field: string;
+  now: unknown;
+}
+
+/** POST /seriesmith/targets/schema: the fields a Router model's schema has. */
+export interface ModelSchema {
+  available: boolean;
+  why?: string;
+  required: string[];
+  fields: { path: string; type: string; required: boolean; values?: unknown[]; min?: number; max?: number; about?: string }[];
+}
+
+/** POST /seriesmith/targets/prompt-preview: a model's prompt on one shot, or ref. */
+export interface PromptPreview {
+  ok: boolean;
+  why?: string;
+  id: string;
+  kind?: string;
+  label: string;
+  scope: string;
+  hosted: boolean;
+  shot: string;
+  pass: string;
+  /** false: the model writes its own prompt (H3's fields), shown and not edited */
+  editable: boolean;
+  /** this show has saved a change to it */
+  changed: boolean;
+  template: string;
+  request: string;
+  shipped: { template: string; request: string; inputs?: Record<string, unknown>; arguments?: Record<string, unknown> };
+  problems: { template: string[]; request: string[] };
+  rows?: MappingRow[];
+  inputs?: Record<string, unknown>;
+  fixed_arguments?: Record<string, unknown>;
+  /** what the model's schema requires and nothing fills */
+  unfilled?: string[];
+  /** a shot of each kind to try it on */
+  samples?: Record<string, string>;
+  parts: PromptPart[];
+  request_parts: PromptPart[];
+  prompt?: string;
+  sent?: string;
+  limit?: number | null;
+  overridden?: boolean;
+  entry?: Record<string, unknown>;
+  model?: string;
+  arguments?: Record<string, unknown>;
+  routing?: Record<string, unknown>;
+  request_error?: string;
+  takes_on_model?: number;
+}
+
 /** A Seedance draft its shot's final can be made from (GET /seriesmith/drafts). */
 export interface DraftItem {
   shot: string;
@@ -394,6 +458,12 @@ export interface Api {
   putTargetLimits(ep: string | null, id: string, limits: Partial<Limits> | null): Promise<{ ok: boolean; id: string; path: string; target: Target }>;
   routerModels(ep: string | null): Promise<{ models: RouterCatalogModel[] }>;
   routerDryRun(req: { ep: string; target: Record<string, unknown> | string; limits?: Partial<Limits> | null; shot?: string | null; pass?: string; ref?: string | null; view?: string | null }): Promise<RouterDryRun>;
+  /** What a model's prompt comes to on a shot, with the templates as they stand. Nothing is saved or sent. */
+  promptPreview(req: { ep: string; id?: string; target?: Record<string, unknown>; limits?: Record<string, unknown>; shot?: string | null; ref?: string | null; pass?: string; template?: string; request?: string; inputs?: Record<string, unknown>; arguments?: Record<string, unknown>; required?: string[]; count?: boolean }): Promise<PromptPreview>;
+  /** Save how a model's prompt is written and where its values go, for this show; empty goes back to the model's own. */
+  putTargetPrompt(ep: string, id: string, template: string, request: string, inputs?: Record<string, unknown>, args?: Record<string, unknown>): Promise<{ ok: boolean; id: string; path: string; changed: boolean }>;
+  /** The fields a Router model's schema has (free, kept an hour). */
+  modelSchema(model: string): Promise<ModelSchema>;
   /** Phase 12b: remove one. */
   deleteCustomTarget(ep: string, id: string): Promise<CustomTargetResult>;
   /** Phase 12c: stop being a draft (a probe render proved it), or go back to one. */
@@ -931,6 +1001,11 @@ export function createHttpApi(t: Transport): Api {
     }),
     putTargetLimits: (ep, id, limits) => call("PUT", "/seriesmith/targets/limits", { ...(ep ? { ep } : {}), id, limits }),
     routerDryRun: (req) => call("POST", "/seriesmith/targets/router-dryrun", req),
+    promptPreview: (req) => call("POST", "/seriesmith/targets/prompt-preview", req),
+    putTargetPrompt: (ep, id, template, request, inputs, args) => call("PUT", "/seriesmith/targets/prompt", {
+      ep, id, template, request, ...(inputs ? { inputs } : {}), ...(args ? { arguments: args } : {}),
+    }),
+    modelSchema: (model) => call("POST", "/seriesmith/targets/schema", { model }),
     routerModels: (ep) => get(`/seriesmith/router/models?${qs({ ep: ep || undefined })}`),
     deleteCustomTarget: (ep, id) => call("DELETE", `/seriesmith/targets/custom?${qs({ ep, id })}`),
     setTargetDraft: (ep, id, draft) => call("PUT", "/seriesmith/targets/custom", { ep, id, draft }),

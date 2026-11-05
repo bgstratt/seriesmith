@@ -471,7 +471,7 @@ seriesmith discard  Shows\ep05 sh020 2          # take 2 goes to renders\_trash\
 
 - `takes` marks a take **stale** when rendering the shot now would differ: `script` (the
   shot changed in the script or series config), `ref` (a reference image or voice changed) or
-  `preset` (model, LoRA, steps or size defaults changed). Stale is a hint, not an error.
+  `preset` (model, LoRA, steps or size defaults changed), `mapping` (the model's prompt template changed). Stale is a hint, not an error.
 - `overrides.json` is how you tweak one shot without touching the script: the exact prompt,
   a seed, model, LoRAs, steps. Prompt, model, LoRAs and steps are per pass (final unless
   `--proxy`; `--both` sets both), because the proxy's prompt differs when it generates its

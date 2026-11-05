@@ -3954,6 +3954,136 @@ def post_targets_router_dryrun(ctx: Context, body):
 
 
 @handler
+def post_targets_prompt_preview(ctx: Context, body):
+    """What the Prompt & mapping panel shows for a model and a shot, with the templates as they
+    stand in the panel (seriesmith.promptview). Nothing is saved, uploaded or paid for. Body
+    {ep, id, shot?, ref?, view?, pass?, template?, request?, inputs?, arguments?, required?,
+    target?: a target.json not saved yet, limits?, count?}."""
+    from seriesmith import promptview as PV
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"), "proxy")
+    spec = body.get("target")
+    if spec is not None and not (isinstance(spec, dict) and TG.is_hosted(spec) and spec.get("id")):
+        raise ApiError(400, "target must be a hosted model's target.json")
+    if spec is not None:
+        spec = _with_limits(spec, body.get("limits"))
+    tid = spec["id"] if spec else (_opt_str(body, "id") or "")
+    inputs, arguments = body.get("inputs"), body.get("arguments")
+    if inputs is not None and not isinstance(inputs, dict):
+        raise ApiError(400, "inputs must be an object: {value: where it goes, or null}")
+    if arguments is not None and not isinstance(arguments, dict):
+        raise ApiError(400, "arguments must be an object")
+    try:
+        return 200, PV.preview(ep, tid, pass_, _opt_str(body, "shot"), body.get("template"),
+                               body.get("request"), spec, bool(body.get("count")), inputs=inputs,
+                               arguments=arguments, required=body.get("required"),
+                               ref=_opt_str(body, "ref"), view=_opt_str(body, "view"))
+    except PV.PreviewError as e:
+        raise ApiError(404, str(e))
+    except TG.TargetError as e:
+        raise ApiError(404, str(e))
+
+
+@handler
+def put_targets_prompt(ctx: Context, body):
+    """Change how a model's prompt is written and where a hosted model's values go, for this
+    show: a built-in's or an every-show model's in `<show>/targets/overrides.json`, the show's
+    own in its target.json. An empty template, or no `inputs` and `arguments`, goes back to the
+    model's own. Refused while a template is wrong or, when the model's schema can be read, while
+    it requires a field nothing fills. Body {ep, id, template?, request?, inputs?: {value: where
+    it goes, or null to send none}, arguments?}."""
+    from seriesmith import promptview as PV
+    from seriesmith.targets import prompt_template as TP
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    try:
+        t = TG.load_target(_opt_str(body, "id") or "", root=ep)
+    except TG.TargetError as e:
+        raise ApiError(404, str(e))
+    template, request = body.get("template") or "", body.get("request") or ""
+    if not isinstance(template, str) or not isinstance(request, str):
+        raise ApiError(400, "template and request are text")
+    hosted = TG.is_hosted(t.spec)
+    if template and not PV.editable(t):
+        raise ApiError(400, f"{t.short} writes its own prompt: it has no template to change")
+    if not PV.editable(t) and not hosted:
+        raise ApiError(400, f"{t.short} writes its own prompt: it has no template to change")
+    inputs, arguments = body.get("inputs") or {}, body.get("arguments")
+    if not isinstance(inputs, dict) or not (arguments is None or isinstance(arguments, dict)):
+        raise ApiError(400, "inputs and arguments are objects")
+    if (inputs or arguments is not None) and not hosted:
+        raise ApiError(400, f"{t.short} is a local workflow: its binding says where values go")
+    wrong = TP.problems(template, list(TP.PARTS)) + TP.problems(request, list(TP.REQUEST_PARTS))
+    if wrong:
+        raise ApiError(400, "that template can't be saved: " + wrong[0], problems=wrong)
+    fields = {PV.TEMPLATE: template, PV.REQUEST: request,
+              **{TG.SHOW_FIELD_PREFIX + k: v for k, v in inputs.items()},
+              **({"router.arguments": arguments} if arguments is not None else {})}
+    lacking = PV.unfilled_after(t, fields, _required_of(t))
+    if lacking:
+        raise ApiError(400, f"{t.short} requires {', '.join(lacking)}, and nothing fills it",
+                       problems=[f"nothing fills {x}" for x in lacking])
+    mapped = bool(inputs or arguments is not None)
+    if TG.scope_of(t.folder) == "show":
+        import copy
+        spec = copy.deepcopy(t.spec)
+        recipe = spec.setdefault("recipe", {})
+        for name, value in (("prompt_template", template), ("prompt_request", request)):
+            if value:
+                recipe[name] = value
+            else:
+                recipe.pop(name, None)
+        if mapped:
+            recipe["mapping_edited"] = True
+            router = spec.setdefault("router", {})
+            for k, v in inputs.items():
+                if v is None:
+                    router.setdefault("inputs", {}).pop(k, None)
+                else:
+                    router.setdefault("inputs", {})[k] = v
+            if arguments is not None:
+                router["arguments"] = arguments
+        path = IN.save_spec(ep, spec, base=os.path.dirname(t.folder))
+    else:
+        path = TG.save_show_overrides(ep, t.id, fields)
+    TG.forget_targets()
+    episode_event(ctx, ep)
+    return 200, {"ok": True, "id": t.id, "path": path, "changed": bool(template or request or mapped)}
+
+
+def _required_of(t) -> list[str]:
+    """What a hosted model's schema requires; [] when it can't be read (no key, no network): the
+    panel says so, and a save isn't held up by it."""
+    from seriesmith import router_inspect as RI
+    from seriesmith.settings import load_settings
+    model = TG.hosted_block(t.spec).get("model")
+    key = load_settings().api_key
+    if not model or not key:
+        return []
+    try:
+        return RI.cached_schema_fields(model, key)["required"]
+    except RI.RouterInspectError:
+        return []
+
+
+@handler
+def post_targets_schema(ctx: Context, body):
+    """The fields a Router model's schema has, for the mapping panel, read with the account's key
+    and kept an hour (free). Body {model}. {"available": false, "why"} when it can't be read."""
+    from seriesmith import router_inspect as RI
+    from seriesmith.settings import load_settings
+    model = (_opt_str(body_dict(body), "model") or "").strip()
+    key = load_settings().api_key
+    if not key:
+        return 200, {"available": False, "why": "needs your Comfy API key (Settings)", "required": [], "fields": []}
+    try:
+        return 200, {"available": True, **RI.cached_schema_fields(model, key)}
+    except RI.RouterInspectError as e:
+        return 200, {"available": False, "why": str(e), "required": [], "fields": []}
+
+
+@handler
 def delete_targets_custom(ctx: Context, query: dict):
     """Remove a show's own target."""
     ep = check_ep(ctx, query.get("ep"))
@@ -5785,6 +5915,9 @@ ROUTES = [
     ("PUT", "/seriesmith/targets/custom", put_targets_custom, "body"),
     ("POST", "/seriesmith/targets/router-inspect", post_targets_router_inspect, "body"),
     ("POST", "/seriesmith/targets/router-dryrun", post_targets_router_dryrun, "body"),
+    ("POST", "/seriesmith/targets/prompt-preview", post_targets_prompt_preview, "body"),
+    ("PUT", "/seriesmith/targets/prompt", put_targets_prompt, "body"),
+    ("POST", "/seriesmith/targets/schema", post_targets_schema, "body"),
     ("GET", "/seriesmith/router/models", get_router_models, "query"),
     ("PUT", "/seriesmith/targets/limits", put_targets_limits, "body"),
     ("DELETE", "/seriesmith/targets/custom", delete_targets_custom, "query"),

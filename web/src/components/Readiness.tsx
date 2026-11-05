@@ -3,7 +3,7 @@
 // episode's Model control in the Shots tab, the What's missing window, and
 // the notes a take's `resolved` gives.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { closeMissing, copyText, installWorkflow, openFeatures, openMissing, refreshReadiness, revertWorkflow, setEpisodeTarget } from "../actions";
 import { host } from "../host";
 import { startInstall, type InstallAsk } from "../lib/features";
@@ -14,6 +14,7 @@ import {
 } from "../lib/readiness";
 import { byWhere, isHosted, findTarget, listDefaultTarget, seriesDefaultTarget, targetLabel } from "../lib/targets";
 import { LimitsCard } from "./Limits";
+import { PromptMapping } from "./PromptMapping";
 import { useApp } from "../store";
 import type { MissingFile, Readiness, Resolution, Target, TargetList } from "../types";
 import { CustomTargets } from "./CustomTarget";
@@ -265,8 +266,14 @@ export function MissingWindow() {
   const panel = useApp((s) => s.missingPanel);
   const loading = useApp((s) => s.readinessLoading);
   const { list, video, error } = useTargets();
+  const sel = panel?.target ?? null;
+  // back from a model's details, the list is where it was left
+  const scroller = useRef<HTMLDivElement>(null);
+  const listTop = useRef(0);
+  useLayoutEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = sel ? 0 : listTop.current;
+  }, [sel, !!list]);  // eslint-disable-line react-hooks/exhaustive-deps
   if (!panel) return null;
-  const sel = panel.target;
   const head = (
     <>
       <i className="pi pi-download h3-muted" />
@@ -293,8 +300,18 @@ export function MissingWindow() {
   );
   return (
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultMissingRect} head={head} className="h3-missing-win" minW={320}>
-      <div className="h3-scroll h3-pad h3-col">
+      <div ref={scroller} className="h3-scroll h3-pad h3-col"
+        onScroll={(e) => { if (!sel) listTop.current = e.currentTarget.scrollTop; }}>
         {!list && (error ? <div className="h3-note h3-note-err">Can't list the targets: {error}</div> : <div className="h3-muted">Loading…</div>)}
+        {list && sel && (
+          <div className="h3-row h3-small" style={{ gap: 4 }}>
+            <button className="h3-link" title="Back to the list, where you left it" onClick={() => openMissing(null)}>
+              <i className="pi pi-arrow-left" /> All models
+            </button>
+            <span className="h3-muted">/</span>
+            <b className="h3-ell">{targetLabel(list, sel)}</b>
+          </div>
+        )}
         {list && (sel ? <TargetMissing list={list} id={sel} /> : <AllTargets video={video} list={list} />)}
       </div>
     </FloatingWindow>
@@ -369,6 +386,20 @@ function statusLine(label: string, r: Readiness): string {
   }
 }
 
+/** The panel inside a <details>: fetched only once it's opened. */
+function PromptPanelWhenOpen({ id }: { id: string }) {
+  const [open, setOpen] = useState(false);
+  const here = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const box = here.current?.closest("details");
+    if (!box) return;
+    const seen = () => setOpen(box.open);
+    box.addEventListener("toggle", seen);
+    return () => box.removeEventListener("toggle", seen);
+  }, []);
+  return <div ref={here}>{open && <PromptMapping key={id} id={id} />}</div>;
+}
+
 function TargetMissing({ list, id }: { list: TargetList; id: string }) {
   const t = findTarget(list, id);
   const label = targetLabel(list, id);
@@ -390,6 +421,17 @@ function TargetMissing({ list, id }: { list: TargetList; id: string }) {
       {/* a hosted model has no workflow: Router runs it */}
       {!isHosted(t) && <GraphCard t={t} />}
       {t.kind === "video" && <LimitsCard t={t} />}
+      {t.kind === "video" && (
+        <details className="h3-col" style={{ gap: 4 }}>
+          <summary className="h3-h" style={{ cursor: "pointer" }}>
+            Prompt &amp; mapping{" "}
+            <span className="h3-muted h3-small" style={{ textTransform: "none", fontWeight: 400 }}>
+              how a shot becomes what this model is sent{t.show_fields?.length ? " (changed for this show)" : ""}
+            </span>
+          </summary>
+          <PromptPanelWhenOpen id={t.id} />
+        </details>
+      )}
       {groups.map((g) => (
         <div key={g.tier} className="h3-col" style={{ gap: 4 }}>
           <div className="h3-h">{g.label} <span className="h3-muted h3-small" style={{ textTransform: "none", fontWeight: 400 }}>{g.blurb}</span></div>

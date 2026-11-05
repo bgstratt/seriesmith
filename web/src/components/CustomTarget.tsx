@@ -4,12 +4,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  deleteCustomTarget, enableCustomTarget, generateRef, inspectTarget, loadWorkflows, probeTarget,
+  deleteCustomTarget, enableCustomTarget, generateRef, inspectTarget, loadWorkflows, openMissing, probeTarget,
   saveCustomTarget,
 } from "../actions";
 import { customTargets, isHosted } from "../lib/targets";
-import type { RouterCatalogModel, RouterDryRun, RouterProposal } from "../api";
+import type { PromptPreview, RouterCatalogModel, RouterProposal } from "../api";
 import { ImageLimitsForm, LimitsCard, LimitsForm, changedImageLimits, changedLimits } from "./Limits";
+import { PromptMapping, type PanelEdits } from "./PromptMapping";
 import { api } from "../host";
 import { useRefs, useStatus } from "./hooks";
 import { useApp } from "../store";
@@ -168,6 +169,7 @@ function MineRow({ t, builtin = false }: { t: Target; builtin?: boolean }) {
   const st = useStatus();
   const [shot, setShot] = useState("");
   const [showLimits, setShowLimits] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
   const hosted = isHosted(t);
   const image = t.kind === "image";
   const probeRefs = useProbeRefs();
@@ -237,6 +239,16 @@ function MineRow({ t, builtin = false }: { t: Target; builtin?: boolean }) {
             <i className="pi pi-undo" /> Back to draft
           </button>
         )}
+        {!image && (
+          <button className="h3-btn" onClick={() => openMissing(t.id)} title="How a shot becomes what this model is sent: open its details, then Prompt & mapping">
+            <i className="pi pi-pencil" /> Prompt
+          </button>
+        )}
+        {image && hosted && (
+          <button className="h3-btn" onClick={() => setShowPrompt(!showPrompt)} title="How a ref becomes what this model is sent">
+            <i className="pi pi-pencil" /> Prompt &amp; fields
+          </button>
+        )}
         {hosted && t.limits && (
           <button className="h3-btn" onClick={() => setShowLimits(!showLimits)} title="What it takes: sizes, prompt, pictures">
             <i className="pi pi-sliders-h" /> Limits
@@ -250,6 +262,7 @@ function MineRow({ t, builtin = false }: { t: Target; builtin?: boolean }) {
         )}
       </div>
       {showLimits && <LimitsCard t={t} />}
+      {showPrompt && <PromptMapping key={t.id} id={t.id} kind="image" />}
     </div>
   );
 }
@@ -277,10 +290,8 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
   const [limits, setLimits] = useState<Limits | ImageLimits | null>(null);
   // every show's (beside the settings), or this show's own
   const [scope, setScope] = useState<"user" | "show">("user");
-  const st = useStatus();
-  const [dryShot, setDryShot] = useState("");
-  const [dry, setDry] = useState<RouterDryRun | null>(null);
-  const [dryBusy, setDryBusy] = useState(false);
+  // the panel says it can't be saved as it stands
+  const [blocked, setBlocked] = useState(false);
 
   async function read(which?: string) {
     const target = (which ?? model).trim();
@@ -294,7 +305,6 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
       setLabel(got.proposal.label);
       setJson(JSON.stringify(got.proposal, null, 2));
       setLimits(got.limits ?? null);
-      setDry(null);
     } catch (e) {
       setErr((e as Error).message);
       setR(null);
@@ -326,39 +336,40 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
       ? changedImageLimits(limits as ImageLimits, r.limits as ImageLimits)
       : changedLimits(limits as Limits, r.limits as Limits))
     : {}) as Partial<Limits>;
-  const probeRefs = useProbeRefs();
-
-  async function dryRun() {
-    const spec = current();
-    if (!spec || !ep) return;
-    setDryBusy(true);
-    setErr(null);
-    try {
-      setDry(await api().routerDryRun(image
-        ? { ep, target: spec, limits: changes(), ref: dryShot || null }
-        : { ep, target: spec, limits: changes(), shot: dryShot || null }));
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setDryBusy(false);
-    }
-  }
-
   async function save() {
     const spec = current();
     if (spec && await saveCustomTarget(spec, { scope, limits: changes() })) onClose();
   }
 
   const image = r?.proposal.kind === "image";
-  const WHAT: Record<string, string> = image ? {
-    prompt: "the prompt", negative: "what to avoid", images: "the pictures (an edit, references)",
-    ratio: "the shape", resolution: "the size (1K, 2K…)", size: "the size (WxH)", width: "the width",
-    height: "the height", seed: "the seed",
-  } : {
-    prompt: "the prompt", negative: "what to avoid", duration: "the length", resolution: "the size",
-    ratio: "the shape", seed: "the seed", audio: "the sound", references: "the reference pictures",
-    first: "the first frame", last: "the last frame",
-  };
+  // the wizard's target.json as it stands, for the prompt panel (null while the box isn't JSON)
+  const draftSpec = useMemo(() => {
+    try {
+      return { ...(JSON.parse(json) as Record<string, unknown>), id: id || "new_model" };
+    } catch {
+      return null;
+    }
+  }, [json, id]);
+
+  /** The panel's edits into the target.json; what's left as the model's own isn't written. */
+  function setEdits(edits: PanelEdits, own: PromptPreview["shipped"]) {
+    setJson((was) => {
+      const spec = JSON.parse(was) as { recipe?: Record<string, unknown>; router?: Record<string, unknown> };
+      const recipe = { ...spec.recipe };
+      delete recipe.prompt_template;
+      delete recipe.prompt_request;
+      if (edits.template !== own.template) recipe.prompt_template = edits.template;
+      if (edits.request !== own.request) recipe.prompt_request = edits.request;
+      const inputs: Record<string, unknown> = { ...own.inputs };
+      for (const [k, v] of Object.entries(edits.inputs)) {
+        if (v === null) delete inputs[k];
+        else inputs[k] = v;
+      }
+      const router = { ...spec.router, inputs, arguments: edits.arguments ?? own.arguments ?? {} };
+      return JSON.stringify({ ...spec, recipe, router }, null, 2);
+    });
+  }
+
   return (
     <div className="h3-col h3-mfile" style={{ gap: 6 }}>
       <RouterModelPicker value={model} onChange={setModel} onPick={(m) => void read(m)}
@@ -372,17 +383,6 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
             <label className="h3-small h3-row h3-grow" style={{ gap: 4 }}>name
               <input className="h3-in h3-grow" value={label} onChange={(e) => setLabel(e.target.value)} /></label>
           </div>
-          <table className="h3-table h3-small">
-            <thead><tr><th>{image ? "A ref's" : "A shot's"}</th><th>goes in the model's</th></tr></thead>
-            <tbody>
-              {Object.keys(WHAT).filter((k) => !image || r.mapped[k] || ["prompt", "images", "seed"].includes(k)).map((k) => (
-                <tr key={k}>
-                  <td>{WHAT[k]}</td>
-                  <td className="h3-mono">{r.mapped[k] ?? <span className="h3-muted">— (the model doesn't take it, or it wasn't found)</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
           <div className="h3-row h3-wrap h3-small" style={{ gap: 8 }}>
             <label className="h3-row" style={{ gap: 4 }}
               title="Who runs the model: its own provider, or another that serves it (Router translates the request). Prices and limits differ.">
@@ -411,37 +411,15 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
                     resolutionChoices={(r.limits as Limits | undefined)?.size.resolutions} />}
             </div>
           )}
-          <div className="h3-row h3-wrap h3-small" style={{ gap: 6 }}>
-            <span>Try it on</span>
-            {image ? (
-              <select className="h3-in" value={dryShot} onChange={(e) => setDryShot(e.target.value)} style={{ maxWidth: 200 }}
-                title="A keyframe shows its pictures going in; a character's view is drawn from text">
-                <option value="">the first character</option>
-                {probeRefs.map((x) => <option key={x.id} value={x.id}>{x.name || x.id}</option>)}
-              </select>
-            ) : (
-              <select className="h3-in" value={dryShot} onChange={(e) => setDryShot(e.target.value)} style={{ maxWidth: 140 }}>
-                <option value="">the first shot with a subject</option>
-                {(st?.shots ?? []).map((x) => <option key={x.shot} value={x.shot}>{x.shot}</option>)}
-              </select>
-            )}
-            <button className="h3-btn" disabled={dryBusy} title="What it would send for that shot (proxy): nothing is uploaded or paid for"
-              onClick={() => void dryRun()}>
-              <i className={dryBusy ? "pi pi-spin pi-spinner" : "pi pi-eye"} /> Dry run (free)
-            </button>
-          </div>
-          {dry && (dry.ok ? (
-            <details open className="h3-small">
-              <summary style={{ cursor: "pointer" }}>
-                {dry.shot}: the request to {dry.model} ({dry.prompt_chars?.written ?? "?"} characters of prompt written)
-              </summary>
-              <pre className="h3-mono" style={{ whiteSpace: "pre-wrap", fontSize: 10, maxHeight: 260, overflow: "auto", margin: "4px 0 0" }}>
-                {JSON.stringify(dry.arguments, null, 2)}
-              </pre>
-            </details>
-          ) : <div className="h3-small h3-err">{dry.shot}: {dry.why}</div>)}
+          {draftSpec && (
+            <div className="h3-col" style={{ gap: 4 }}>
+              <div className="h3-h">Prompt &amp; mapping</div>
+              <PromptMapping key={r.proposal.id} kind={image ? "image" : "video"} spec={draftSpec}
+                limits={changes() as Record<string, unknown>} onEdit={setEdits} onBlocked={setBlocked} />
+            </div>
+          )}
           {r.unplaced.length > 0 && (
-            <div className="h3-small h3-err">It requires {r.unplaced.join(", ")}, which nothing was placed in: set it in the target.json below.</div>
+            <div className="h3-small h3-warn">As first read, it requires {r.unplaced.join(", ")}, which nothing was placed in: map it under Fields.</div>
           )}
           {r.warnings.map((w) => <div key={w} className="h3-small h3-warn">{w}</div>)}
           <button className="h3-link h3-small" style={{ alignSelf: "flex-start" }} onClick={() => setShowJson(!showJson)}>
@@ -458,7 +436,8 @@ function RouterWizard({ onClose }: { onClose: () => void }) {
               <option value="user">for every show</option>
               <option value="show">for this show only</option>
             </select>
-            <button className="h3-btn h3-primary" disabled={saving || !id} onClick={() => void save()}>
+            <button className="h3-btn h3-primary" disabled={saving || !id || blocked}
+              title={blocked ? "A template is wrong, or a required field is unfilled: see above" : undefined} onClick={() => void save()}>
               <i className={saving ? "pi pi-spin pi-spinner" : "pi pi-save"} /> Save as draft
             </button>
           </div>

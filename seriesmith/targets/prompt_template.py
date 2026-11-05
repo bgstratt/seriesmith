@@ -28,6 +28,9 @@ Stdlib only: the build uses it.
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
+import hashlib
 import json
 import os
 import re
@@ -66,6 +69,7 @@ _PART = re.compile(r"\{([a-z_][a-z0-9_]*)\}")
 _SECTION = re.compile(r"\[\[(.*?)\]\]", re.S)
 
 _PROFILES: dict | None = None
+_WATCH: contextvars.ContextVar[dict | None] = contextvars.ContextVar("prompt_watch", default=None)
 
 
 def problems(template: str, known) -> list[str]:
@@ -191,4 +195,36 @@ def request_prompt(template: str, text: str, limit, fit, **values) -> str:
     if limit:
         room = len(render(template, {**values, "prompt": "x"})) - 1
         text = fit(text, limit - room)
-    return render(template, {**values, "prompt": text})
+    sent = render(template, {**values, "prompt": text})
+    seen = _WATCH.get()
+    if seen is not None:
+        seen.update(values=values, text=text, sent=sent, limit=limit)
+    return sent
+
+
+@contextlib.contextmanager
+def watching():
+    """A dict that, once a request's prompt is made inside this, says what it was made of:
+    {"values", "text", "sent", "limit"}. How a preview shows the real thing without a second
+    idea of how a model's request is put together."""
+    seen: dict = {}
+    token = _WATCH.set(seen)
+    try:
+        yield seen
+    finally:
+        _WATCH.reset(token)
+
+
+def signature(target) -> str:
+    """What says a target's prompt or request is made its own way ("" when it's the default): a
+    take remembers it, so a change to it reads as the reason the take is stale."""
+    recipe = _recipe(target)
+    both = [recipe.get("prompt_template") or "", recipe.get("prompt_request") or ""]
+    mapped = {k: v for k, v in (getattr(target, "show_fields", None) or {}).items()
+              if k.startswith("router.")}
+    if recipe.get("mapping_edited"):            # a show's own model, changed in its target.json
+        from seriesmith.targets import hosted_block
+        mapped["router"] = {k: hosted_block(target.spec).get(k) for k in ("inputs", "arguments")}
+    if not any(both) and not mapped:
+        return ""
+    return hashlib.sha1(json.dumps([both, mapped], sort_keys=True).encode("utf-8")).hexdigest()[:16]

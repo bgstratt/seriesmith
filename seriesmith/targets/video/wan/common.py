@@ -31,6 +31,10 @@ STYLE = Style(build_prompt,
               parts=shot_parts)
 
 
+def prompt_parts(target, shot, sq, series_cfg: dict) -> dict:
+    return G.prompt_parts(target, shot, sq, series_cfg, STYLE)
+
+
 def compile_episode(target, story, series_cfg: dict, pass_: str,
                     only: "set[str] | None" = None, absent=None) -> tuple[dict, dict]:
     return G.compile_episode(target, story, series_cfg, pass_, only, absent, STYLE)

@@ -262,6 +262,25 @@ export async function saveCustomTarget(target: Record<string, unknown>,
   });
 }
 
+/** Save how a model's prompt is written and where its values go, for this show, then build: the
+ * episode's shots hold their prompts, so they're compiled again. Empty goes back to the model's own. */
+export async function savePromptTemplates(id: string, template: string, request: string,
+  inputs?: Record<string, unknown>, args?: Record<string, unknown>): Promise<boolean> {
+  const ep = get().ep;
+  if (!ep) return false;
+  return withBusy("prompt-save", async () => {
+    try {
+      await api().putTargetPrompt(ep, id, template, request, inputs, args);
+      await loadTargets(true);
+    } catch (e) {
+      report("That template can't be saved", e);
+      return false;
+    }
+    await build();
+    return true;
+  });
+}
+
 /** Change a video target's limits (PUT /seriesmith/targets/limits): a built-in's
  * on this machine, `null` putting it back as shipped; your own in its target.json. */
 export async function saveTargetLimits(id: string, limits: Partial<Limits> | null): Promise<boolean> {

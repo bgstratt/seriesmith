@@ -242,7 +242,7 @@ Two buttons beside Build ask for work in bulk:
 | Button | What it queues |
 |---|---|
 | **Generate missing (n)** | every shot with no finished take and nothing queued — the first pass, and anything that failed |
-| **Re-render stale (n)** | every shot whose newest take is out of date: the script, a reference, the preset or the target changed since it rendered |
+| **Re-render stale (n)** | every shot whose newest take is out of date: the script, a reference, the preset, the model's prompt template or the target changed since it rendered |
 
 **Re-render stale** is the other half of the edit loop: change a line, rebuild, and the takes
 that no longer match are badged `stale` — this queues exactly those. It renders each shot at

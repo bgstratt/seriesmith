@@ -2055,6 +2055,8 @@ export interface Target {
   id: string;
   kind: TargetKind;
   label: string;
+  /** what this show changes of the model (<show>/targets/overrides.json) */
+  show_fields?: string[];
   default?: boolean;
   presets?: Partial<Record<Pass, TargetPreset>>;
   widgets?: {

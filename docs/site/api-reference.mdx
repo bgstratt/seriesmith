@@ -67,7 +67,7 @@ section and search for the path for its later additions.
 | `POST /seriesmith/audio/import` | Phase 9d |
 | `POST` / `DELETE /seriesmith/workflow/install` | Phase 11 |
 | `GET /seriesmith/workflows`, `POST /seriesmith/targets/inspect`, `PUT` / `DELETE /seriesmith/targets/custom` | Phase 12 |
-| `GET /seriesmith/router/models`, `POST /seriesmith/targets/router-inspect`, `POST /seriesmith/targets/router-dryrun`, `PUT /seriesmith/targets/limits` | Hosted models, limits and your own workflows |
+| `GET /seriesmith/router/models`, `POST /seriesmith/targets/router-inspect`, `POST /seriesmith/targets/router-dryrun`, `POST /seriesmith/targets/prompt-preview`, `PUT /seriesmith/targets/prompt`, `POST /seriesmith/targets/schema`, `PUT /seriesmith/targets/limits` | Hosted models, limits and your own workflows |
 
 Not seriesmith's own: the page's websocket `/ws` (Live updates) and, under `seriesmith serve`, ComfyUI's `/models`, `/object_info/{node}` and `/queue` (Models). The `api.py`
 routes and `server/stop` also answer under `/api/seriesmith/...` (inside ComfyUI, every
@@ -184,7 +184,7 @@ queue, with `as_of` taken *before* reading it (see below). Shots come in **cut o
 - `comfy_prompt_id` is set only while the take is queued (null after), and `save_notes`
   only when it failed (`""` otherwise): a finished take's are in `GET /seriesmith/take`.
   The same holds for its `upscale` and `post`.
-- `stale` holds any of `script`, `ref`, `preset` (and `target`, `chain`: a
+- `stale` holds any of `script`, `ref`, `preset`, `mapping` (the model's prompt template changed) (and `target`, `chain`: a
   `continuous: latent` take whose previous shot in the cut now uses another take, or that
   take was rendered again, or the cut puts another shot before it); `unknown` means a
   take from before sidecars.
@@ -4327,6 +4327,35 @@ target would send, nothing uploaded or paid: `{ok: true, shot, model, arguments,
 shot (default the first with a subject); an image target on a ref (default the first
 character; a keyframe shows its pictures going in), planned as a hosted edit model plans it.
 `limits` are written in first (the wizard's changes).
+
+### `POST /seriesmith/targets/prompt-preview`
+
+What a video model's prompt comes to on one shot, with the templates as they stand in the editor.
+Nothing is saved, uploaded or paid for. Body `{ep, id, shot?, ref?, view?, pass?, template?, request?, inputs?, arguments?, required?, target?, limits?, count?}`: `template` and `request` stand in for the
+saved ones (`""` is the model's own), `inputs` (`{value: where it goes, or null}`) and `arguments` for
+a hosted model's mapping, `target` is a hosted model's target.json not saved yet, in place of `id`,
+and `limits` the limit changes to apply to it. `required` (the schema's) adds `unfilled`, and `count`
+adds `takes_on_model` and `samples` (a shot of each kind to try: dialogue, voiceover, several
+subjects, silent, with a first frame, without one). An image model takes `ref` and `view` in place
+of `shot`.
+
+Returns `{ok, why?, id, label, scope, hosted, shot, pass, editable, changed, template, request, shipped: {template, request, inputs, arguments}, problems: {template, request}, parts, request_parts, prompt, sent, limit, overridden, entry, model, arguments, routing, request_error, inputs, fixed_arguments, rows, unfilled, takes_on_model, samples}`. `rows` is one per value a hosted model takes:
+`{role, what, spec, field, now}`. `editable` is
+false for a model that writes its own prompt. A wrong template is listed in `problems`, and the
+rest is worked out without it. 404: no such model or shot, or no build yet.
+
+### `PUT /seriesmith/targets/prompt`
+
+How a model's prompt is written and where a hosted model's values go, for this show. Body `{ep, id, template?, request?, inputs?, arguments?}`; empty or left out is the model's own, so all empty is Back
+to shipped. A built-in or every-show model's change goes in `<show>/targets/overrides.json`, a show's
+own model's in its target.json. Build the episode afterwards: its shots hold their prompts. 400: a
+wrong template (`problems`), a required field nothing fills (when the schema can be read), or a model
+that writes its own prompt. Returns `{ok, id, path, changed}`.
+
+### `POST /seriesmith/targets/schema`
+
+The fields a Router model's schema has, read with the account's key and kept an hour; reading one is
+free. Body `{model}`. Returns `{available, why?, required, fields: [{path, type, required, values?, min?, max?, about?}]}`.
 
 ### `PUT /seriesmith/targets/limits`
 
