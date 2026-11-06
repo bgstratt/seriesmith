@@ -619,11 +619,8 @@ export function shuttle(key: "j" | "k" | "l") {
   set({ cutPlay: { ...now.cutPlay, playing: true, rate: next } });
 }
 
-/** What the cut plays, and exports: kept for the episode. */
 export function setCutAudio(cutAudio: CutAudio) {
   set({ cutAudio });
-  const ep = get().ep;
-  if (ep) void api().setCutAudio(ep, cutAudio).catch((e) => report("Couldn't change what the cut plays", e));
 }
 
 // ---------------------------------------------------------------------------

@@ -62,9 +62,8 @@ though without one they gave Viggle two different characters.
 **Most renders didn't keep the dough over the lens.** At frames 145 to 153 of the source, the dough fills most of the
 frame. Viggle's baseline and FLUX.3's two mascot renders follow that. The other renders drop the dough and show the figure
 instead: seen directly on FLUX.3's two recasts and on both Qwen 2.1 renders and FLUX.2's mascot, and in the frame scan on the
-rest, which is seven mascot renders and all nine recasts. The recast's cause isn't known: it could be its prompt, which
-was written for this test where the mascot's is Viggle's, or the one seed. So FLUX.3's lead on a person-to-person
-swap rests on the stills and the pin, and the recast still has this fault to solve.
+rest, which is seven mascot renders and all nine recasts. On one render each, it looks to come from the invented paintings, not the recast's prompt or the
+seed: FLUX.3 Klein turbo painting her from a character picture kept the dough with that same prompt and seed (below).
 
 **In the table above, each model invented its own character from the instruction.** None of them saw a picture of the
 mascot, so none could match Viggle's. Four more renders on the same source and seed started from a character picture,
@@ -79,8 +78,31 @@ Viggle's mascot cut out of its own painted frame (with Qwen-Image-Edit Rapid). T
 | Qwen-Image 2.1 paints frames 12 and 184 from the picture, pinned | Lost | 2 / 16 | Right mascot, but the figure shrinks to a whole-body view at the pin |
 
 So the source video carries the motion even with no painted frame at all, and a painted frame buys likeness and
-consistency. With a real picture to work from, FLUX.3 Klein turbo still leads and Qwen 2.1 still jumps. A person hasn't been
-run this way yet.
+consistency. With a real picture to work from, FLUX.3 Klein turbo still leads and Qwen 2.1 still jumps.
+
+The woman, on the same source, from a full-length picture of her and in one run a close-up too. Both pictures were made
+from FLUX.3's painted frame 12 with Qwen-Image 2.1:
+
+| Run | Seed | Dough over the lens | Jumps, near the pin / elsewhere | Likeness and look |
+|---|---|---|---|---|
+| Full-length and close-up pictures, no pins | 0 | Kept | 0 / 0 | The freckles come through. Jacket paler than the picture. Follows the source's expressions |
+| Full-length picture, no pins | 0 | Kept | 0 / 0 | Few freckles, and the jacket paler |
+| Full-length picture, no pins | 1 | Kept | 0 / 1 | As seed 0, a slightly different face |
+| FLUX.3 Klein turbo paints frames 12 and 184 from the picture, pinned | 0 | Kept | 0 / 7 | Colours closest to the picture, but it drifts from the source's framing around frame 120, and her expression at the start is flatter |
+| Earlier: FLUX.3 Klein turbo's own invented woman, pinned | 0 | Lost | 0 / 16 | For comparison |
+
+For a person as for the mascot, then: the pictures alone hold the motion best, and a painted frame holds the look best.
+
+**The face doesn't hold in any of the four new renders.** Watched through, it melts several times over the run. The sampled
+frames and the jump scan didn't show this. Resolution is the main cause: the same pictures, prompt, seed and 124 frames
+were clearly better watched at 1280x736 than at 832x480, the size Viggle's own tool treats as a draft. That took 260 s for
+124 frames on the int8 weights. So render faces at 1280x736. The talking close-ups after frame 124 haven't been run at that size.
+
+**H3 Ref2VA with a character LoRA looked better than Viggle at that size.** With
+[H3 Character Swap V1.5](https://huggingface.co/akatz-ai/MiniMax-H3-Character-Swap-LoRA) at strength 1, on the same pictures,
+frames, size and seed, both the Turbo render (8 steps, 217 s) and the full one (20 steps, 462 s) were preferred to Viggle's when
+watched. Viggle stayed closer to the source's scene and motion (20.0 dB, against 16.4 and 16.6), and it keeps the source's
+sound, where these generate their own. These ran on ComfyUI's own nodes, without the SAM mask of the author's full recipe.
 
 ## Reading the numbers
 
@@ -132,8 +154,8 @@ The instructions, as typed:
   frames plus strips around the pin, and scanned frame by frame for jumps, but not watched through, so subtler flicker
   wouldn't show. The edit renders were judged from 3 frames each.
 - **One clip per mode.** Swap is one handheld single take; edit is one drone shot.
-- **One seed per model through Viggle.** Whether the dough fault is the prompt or the seed needs more seeds on the
-  recast. It's the first thing to add, since person-to-person is the most common use.
+- **One seed per model through Viggle**, and two on the woman from her picture.
+- **The character-picture runs are few:** one clip at 832x480, one invented woman and one mascot.
 - **Local models only.** Hosted ones, such as GPT Image 2 (which Viggle paints with) and Nano Banana, weren't run.
 - **Each model on its target's defaults**, with one wording. A model could do better with a prompt written for it.
 

@@ -142,6 +142,8 @@ export interface CutInfo {
   audio_file?: string | null;
   /** Phase 9d: short text for the speaker badge ("sh020 t01", "line.wav"). */
   audio_why?: string | null;
+  /** `audio` is the shot's dub, which its take wasn't rendered to: not set by hand */
+  audio_dub?: boolean;
 }
 
 /** One script shot of a multishot group (ShotStatus.multishot). */
@@ -155,8 +157,9 @@ export interface MultishotPart {
 /** Where a dub's track comes from (overrides.json `sound.dub`). */
 export type DubSource =
   | { from: "track" }
-  | { from: "take"; pass: Pass; take: number }
-  | { from: "dub"; take: number };
+  | { from: "take"; pass: Pass; take: number; shot?: string }
+  | { from: "dub"; take: number }
+  | { from: "line" };
 
 /** A shot's sound as the editor sets it (overrides.json `sound`); none: the script's. */
 export interface ShotSound {
@@ -192,6 +195,15 @@ export interface DubSources {
   track: { file: string; in: number; out: number } | null;
   dubs: DubOption[];
   takes: DubOption[];
+  /** the shot's lines (lines.py), each with its finished takes */
+  lines?: { id: string; who: string; name: string; text: string; picked?: number | null;
+    takes: { take: number; file: string; seconds?: number; voice_name?: string; source?: string }[] }[];
+  /** how far its dub is slid in the cut, in seconds */
+  offset?: number;
+  /** the takes whose mouths follow its dub */
+  lips?: number[];
+  /** a take rendered to its dub plays what the model gave back, not the dub */
+  model_sound?: boolean;
 }
 
 export interface ShotStatus {
@@ -277,8 +289,6 @@ export interface MissingRef {
 }
 
 export interface EpisodeStatus {
-  /** what the cut plays and exports: the recording, or each clip's own sound */
-  cut_audio?: "clips" | "recording";
   episode: string;
   title: string;
   pass: Pass;

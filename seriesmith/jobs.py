@@ -2075,6 +2075,14 @@ def ref_files(job: Job) -> list[dict]:
     return out
 
 
+def _dub_lines_field(job: Job) -> dict:
+    """Which takes of its lines a take dubbed to its lines was rendered to."""
+    if ((job.sound or {}).get("dub") or {}).get("from") != "line":
+        return {}
+    from seriesmith import lines as LN
+    return {"dub_lines": LN.shot_sound_id(job.root, job.id)}
+
+
 def _mapping_fields(job: Job) -> dict:
     """What a take remembers of its prompt's template, when the model has one of its own."""
     now = TP.signature(job_target(job))
@@ -2140,6 +2148,7 @@ def sidecar_for(job: Job) -> dict:
         # take is stale against when it changes
         **({"dub_track": True} if job.dub_track else {}),
         **({"sound": dict(job.sound)} if job.sound else {}),
+        **_dub_lines_field(job),
     }
 
 
@@ -2256,8 +2265,8 @@ def collect_take(take: T.Take, run, saver: str, status: str) -> str:
         fields.update(status="failed",
                       save_notes=f"{fields.get('save_notes', '')}; the mp4 didn't come back")
     sc = T.read_sidecar(take.paths.sidecar) or {}
-    if fields.get("status") == "ok" and ((sc.get("sound") or {}).get("dub") or {}).get("from") \
-            in ("take", "dub"):
+    # any dub chosen for this shot: the take carries what the model gave back
+    if fields.get("status") == "ok" and (sc.get("sound") or {}).get("mode") == "dub":
         note = remux_dub(take)
         if note:
             fields["save_notes"] = f"{fields.get('save_notes', '')}; {note}"
@@ -3275,6 +3284,7 @@ def stage_inputs(job: Job, comfy=None, probe=None) -> dict:
 
 
 POLICY_OF = {"generate": "generate", "clone": "clone"}
+DUB_AIR = 0.3         # seconds a shot runs past the line it follows (trimmed in the cut if it's too long)
 
 
 def apply_sound(job: Job, sound: dict) -> None:
@@ -3309,18 +3319,23 @@ def apply_sound(job: Job, sound: dict) -> None:
             raise ValueError(f"its dub track, {label}, isn't a finished take with sound")
         from seriesmith import audiocut as AC
         level = AC.levelled(sound_file)
-        recompile_sound(job, dub, os.path.relpath(level, job.root).replace(os.sep, "/"))
+        # a line, or another shot's sound, wasn't made to this shot's length: the shot follows it
+        follows = src["from"] == "line" or (src.get("shot") or job.id) != job.id
+        long = AC.duration(level) if follows else None
+        recompile_sound(job, dub, os.path.relpath(level, job.root).replace(os.sep, "/"),
+                        seconds=long + DUB_AIR if long else None)
         job.dub_label = label
         job.notes.append(f"dubbed to {label}")
     except Exception as e:                                # noqa: BLE001  said on the job
         job.action, job.error = "error", f"can't render {job.id}'s sound as set: {e}"
 
 
-def recompile_sound(job: Job, policy: str, audio_file: str | None = None) -> None:
+def recompile_sound(job: Job, policy: str, audio_file: str | None = None,
+                    seconds: float | None = None) -> None:
     """job.shot compiled again from the build's script IR with `policy`; with
     `audio_file` (relative to the episode) a dub of that file: its window the
-    shot's own length and the file the shot's recording (and, for the compile,
-    the track it is in). Replaces job.shot, and job.prompt unless overridden."""
+    shot's own length, or `seconds`, and the file the shot's recording (and, for
+    the compile, the track it is in). Replaces job.shot, and job.prompt unless overridden."""
     import copy as _copy
     t = job_target(job)
     story, series_cfg = episode_story(job.root)
@@ -3331,8 +3346,8 @@ def recompile_sound(job: Job, policy: str, audio_file: str | None = None) -> Non
     sh.audio = policy
     if audio_file:
         shot = job.recompiled or job.shot
-        seconds = (float(shot["audio_out"]) - float(shot["audio_in"]) if "audio_in" in shot
-                   else float(shot.get("duration") or job.frames / (job.fps or 24.0)))
+        seconds = seconds or (float(shot["audio_out"]) - float(shot["audio_in"]) if "audio_in" in shot
+                              else float(shot.get("duration") or job.frames / (job.fps or 24.0)))
         sh.timing = {"audio_in": 0.0, "audio_out": round(seconds, 3)}
         # a window wants a recorded track to be in: the file is this shot's,
         # so it is the track for this compile (a series with none: Ballroom)

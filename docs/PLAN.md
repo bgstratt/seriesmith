@@ -2125,11 +2125,18 @@ download with the key). Reading the reference moved up from step 7 (decided with
       Measured on Dean Stories ep10 through refs, by hand the same way: Whisper heard 11 of 14 whole,
       one word-only line lost ("Goodnight."), two with words dropped or changed. A real run of this
       button hasn't been: those were voice takes by hand.
-- [x] What the cut plays is kept for the episode (`cut_audio`), switched to the recording by laying it,
-      and Export follows it (`--audio recording`: the recording as the mix's dialogue track, with its
-      effects, ambience and music; `master` stays the recording alone, to check sync): before, only Play
-      all's toggle knew, for a session, and Export never used a recording. One button sets the speaking
-      shots' next takes to dub.
+- [x] One choice for a shot's dialogue (decided 2026-11-05, after four unconnected places: Next take, Dub to,
+      In the cut, an episode switch): on Generate or Clone the cut plays the take's own sound; on Dub the next
+      take and the cut both play the dub (`takes.cut_dub_spec`). A take rendered to it also keeps what the model
+      gave back (`_h3.wav`: the line copied, what it made around that; the saver muxes it into the mp4, ComfyUI's
+      assets too, and `remux_dub` for a take from an older node pack), heard in the take's preview, and in the cut
+      if asked for that shot (`dub_model_sound`, no render). Proved on Dean Stories ep10 sh020 t04, local H3: the mouth matched its
+      line, from a whole-character file, 2026-11-05. Sources: its lines (`from: line`), the recording,
+      a dub track, any take's sound, another shot's too. A cut entry's own `audio` still overrides. A shot on
+      its lines or another shot's sound takes that length on its next render, with a little air. **Line up
+      with the take** (Whisper, both first words; `dub_offset`) cheats a line under a good render, free.
+      `assemble --audio recording` stays for the command line. Lay and align stay, for whole recordings and
+      to lay lines end to end. Tested on local servers and the stand-in for ComfyUI: no real dub render yet.
 - [ ] Text-to-dialogue (all the lines in one call, its segments per input) as an option for flow;
       one line can't be redone alone there. `previous_text` / `next_text` for flow between single
       lines. A script's delivery note as a v3/v4 tag ([whispers]): it's left out for now.

@@ -732,8 +732,7 @@ export function refreshEpisode(ep = get().ep, pass = get().pass): Promise<Episod
       set((s) => {
         const statusError = { ...s.statusError };
         delete statusError[key];
-        return { status: { ...s.status, [key]: st }, statusError,
-                 ...(st.cut_audio && ep === s.ep ? { cutAudio: st.cut_audio } : {}) };
+        return { status: { ...s.status, [key]: st }, statusError };
       });
       const picks = (shownPicks.get(key) ?? []).filter((p) => p.at > started);
       if (picks.length) shownPicks.set(key, picks);

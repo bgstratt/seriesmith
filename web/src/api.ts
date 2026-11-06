@@ -587,8 +587,12 @@ export interface Api {
   /** A character's whole file, cut into a take per line: costs nothing but Whisper. */
   characterLines(ep: string, who: string, file: File): Promise<{ job: unknown }>;
   pickLine(ep: string, line: string, take: number): Promise<{ ok: boolean }>;
-  /** What the cut plays and exports, kept for the episode. */
-  setCutAudio(ep: string, audio: "clips" | "recording"): Promise<{ ok: boolean; cut_audio: string }>;
+  /** Line a shot's dub up with the take the cut plays: Whisper hears both, nothing is rendered. */
+  lineUpSound(ep: string, pass: Pass, shot: string): Promise<{ job: unknown }>;
+  /** A take rendered to its dub: the cut plays the dub, or what the model gave back. */
+  setDubModelSound(ep: string, shot: string, on: boolean): Promise<{ ok: boolean; on: boolean }>;
+  /** How far a shot's dub is slid in the cut, in seconds. */
+  setSoundOffset(ep: string, shot: string, offset: number): Promise<{ ok: boolean; offset: number }>;
   layLines(ep: string): Promise<{ path: string; seconds: number; lines: number; timed: boolean; notes: string[] }>;
   /** A provider's speakers: one read that costs nothing. */
   providerVoices(req: { service: string; list?: string; search?: string; after?: string }): Promise<{ voices: ProviderVoice[]; next: string }>;
@@ -1154,7 +1158,9 @@ export function createHttpApi(t: Transport): Api {
       return postForm("/seriesmith/lines/character", form);
     },
     pickLine: (ep, line, take) => call("POST", "/seriesmith/lines/pick", { ep, line, take }),
-    setCutAudio: (ep, audio) => call("POST", "/seriesmith/cut/audio", { ep, audio }),
+    lineUpSound: (ep, pass, shot) => call("POST", "/seriesmith/sound/line_up", { ep, pass, shot }),
+    setSoundOffset: (ep, shot, offset) => call("PUT", "/seriesmith/sound/offset", { ep, shot, offset }),
+    setDubModelSound: (ep, shot, on) => call("PUT", "/seriesmith/sound/model", { ep, shot, on }),
     layLines: (ep) => call("POST", "/seriesmith/lines/lay", { ep }),
     draftProvider: (req) => call("POST", "/seriesmith/providers/draft", req),
     checkProvider: (definition, key) => call("POST", "/seriesmith/providers/check", { definition, key }),

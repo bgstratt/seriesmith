@@ -2236,23 +2236,104 @@ class Lines(ScratchSettings):
         from seriesmith import edit as E
         self.assertTrue(E.has_words(path))
 
-    def test_laying_makes_it_what_the_cut_plays_and_exports(self):
-        from unittest import mock
-        from seriesmith import edit as E
-        self.make_them()
-        self.assertEqual(self.ok(self.A.get_episode(self.ctx, {"ep": self.ep, "pass": "proxy"}))["cut_audio"], "clips")
-        self.assertEqual(self.ok(self.A.post_lines_lay(self.ctx, {"ep": self.ep}))["cut_audio"], "recording")
-        self.assertEqual(self.ok(self.A.get_episode(self.ctx, {"ep": self.ep, "pass": "proxy"}))["cut_audio"], "recording")
+    def shot_row(self, shot, pass_="proxy"):
+        return next(x for x in self.ok(self.A.get_episode(self.ctx, {"ep": self.ep, "pass": pass_}))["shots"] if x["shot"] == shot)
 
-        def asked():
-            with mock.patch.object(E, "run_tool", return_value=(1, "", "stopped here")) as run:
-                E.assemble_episode(self.ep, "proxy", True)
-            return run.call_args[0][1]
-        self.assertIn("recording", asked())
-        self.ok(self.A.post_cut_audio(self.ctx, {"ep": self.ep, "audio": "clips"}))
-        self.assertEqual(self.ok(self.A.get_episode(self.ctx, {"ep": self.ep, "pass": "proxy"}))["cut_audio"], "clips")
-        self.assertNotIn("recording", asked())
-        self.assertEqual(self.A.post_cut_audio(self.ctx, {"ep": self.ep, "audio": "x"})[0], 400)
+    def set_dub(self, shot, **dub):
+        self.ok(self.A.put_sound(self.ctx, {"ep": self.ep, "shots": [shot], "sound": {"mode": "dub", "dub": dub}}))
+
+    def test_one_choice_a_dub_plays_in_the_cut_and_generate_plays_the_take(self):
+        self.make_them()
+        shot = self.plan()["lines"][0]["shot"]
+        self.assertFalse(self.shot_row(shot)["cut"].get("audio_dub"))
+        self.set_dub(shot, **{"from": "line"})
+        cut = self.shot_row(shot)["cut"]
+        self.assertTrue(cut["audio_dub"])
+        self.assertTrue(cut["audio_file"].endswith(".wav"))
+        self.assertIn(os.path.join("audio", "lines", "shots").replace(os.sep, "/"), cut["audio_file"])
+        self.assertIn("dub:", cut["audio_why"])
+        # generate: the take's own, whatever was chosen before
+        self.ok(self.A.put_sound(self.ctx, {"ep": self.ep, "shots": [shot], "sound": {"mode": "generate"}}))
+        self.assertFalse(self.shot_row(shot)["cut"].get("audio_dub"))
+        self.assertIsNone(self.shot_row(shot)["cut"]["audio"])
+
+    def test_a_take_rendered_to_the_dub_can_play_what_the_model_gave_back(self):
+        from seriesmith import takes as T
+        self.make_them()
+        shot = self.plan()["lines"][0]["shot"]
+        self.set_dub(shot, **{"from": "line"})
+        sound = T.shot_sound(T.load_overrides(self.ep), shot)
+        made = {"sound": sound, "dub_lines": self.LN.shot_sound_id(self.ep, shot)}
+        self.assertTrue(T.rendered_to_dub(self.ep, sound, shot, made))
+        self.assertIsNotNone(T.cut_dub_spec(self.ep, shot, sound, made, {}))        # the dub, by default
+        self.assertIsNone(T.cut_dub_spec(self.ep, shot, sound, made, {}, model_sound=True))
+        # another take of the line picked: that render no longer matches
+        lid = self.plan()["lines"][0]["id"]
+        record = self.LN.load(self.ep)
+        take = dict(record["lines"][lid]["takes"][0], take=2)
+        record["lines"][lid]["takes"].append(take)
+        record["lines"][lid]["picked"] = 2
+        self.LN.save(self.ep, record)
+        self.assertFalse(T.rendered_to_dub(self.ep, sound, shot, made))
+        self.assertIsNotNone(T.cut_dub_spec(self.ep, shot, sound, made, {}))
+
+    def test_a_source_set_by_hand_wins_over_the_dub(self):
+        from types import SimpleNamespace as NS
+        from seriesmith import edit as E
+        sound = {"mode": "dub", "dub": {"from": "take", "shot": "sh020", "pass": "proxy", "take": 1}}
+        got = E.effective_cut_audio(self.ep, NS(audio={"source": "none"}, shot="sh010"), "proxy", sound, None, {}, 0.0)
+        self.assertEqual(got["audio"], {"source": "none"})
+        self.assertNotIn("audio_dub", got)
+        got = E.effective_cut_audio(self.ep, NS(audio=None, shot="sh010"), "proxy", sound, None, {}, 0.0)
+        self.assertTrue(got["audio_dub"])
+
+    def test_a_shots_two_lines_join_into_one_sound(self):
+        import wave
+        self.make_them()
+        rows = self.plan()["lines"]
+        two = next(s for s in {r["shot"] for r in rows} if sum(r["shot"] == s for r in rows) > 1)
+        path = self.LN.shot_sound_file(self.ep, two)
+        with wave.open(path, "rb") as w:
+            seconds = w.getnframes() / w.getframerate()
+        n = sum(r["shot"] == two for r in rows)
+        self.assertAlmostEqual(seconds, n + (n - 1) * self.LN.WITHIN_SHOT, delta=0.05)
+        self.assertEqual(self.LN.shot_sound_file(self.ep, two), path)
+        self.assertEqual(len(self.ok(self.A.get_dubs(self.ctx, {"ep": self.ep, "shot": two}))["lines"]), n)
+
+    def test_a_dub_slid_in_the_cut_changes_no_render(self):
+        from seriesmith import takes as T
+        self.make_them()
+        shot = self.plan()["lines"][0]["shot"]
+        self.set_dub(shot, **{"from": "line"})
+        before = T.shot_sound(T.load_overrides(self.ep), shot)
+        self.ok(self.A.put_sound_offset(self.ctx, {"ep": self.ep, "shot": shot, "offset": 0.4}))
+        self.assertEqual(T.shot_sound(T.load_overrides(self.ep), shot), before)
+        self.assertEqual(self.shot_row(shot)["cut"]["audio"]["offset"], 0.4)
+        self.ok(self.A.put_sound_offset(self.ctx, {"ep": self.ep, "shot": shot, "offset": 0}))
+        self.assertNotIn("offset", self.shot_row(shot)["cut"]["audio"])
+        self.assertEqual(self.A.put_sound_offset(self.ctx, {"ep": self.ep, "shot": shot, "offset": "x"})[0], 400)
+
+    def test_the_models_sound_in_the_cut_changes_no_render(self):
+        from seriesmith import takes as T
+        self.make_them()
+        shot = self.plan()["lines"][0]["shot"]
+        self.set_dub(shot, **{"from": "line"})
+        before = T.shot_sound(T.load_overrides(self.ep), shot)
+        self.ok(self.A.put_sound_model(self.ctx, {"ep": self.ep, "shot": shot, "on": True}))
+        self.assertEqual(T.shot_sound(T.load_overrides(self.ep), shot), before)
+        self.assertTrue(self.ok(self.A.get_dubs(self.ctx, {"ep": self.ep, "shot": shot}))["model_sound"])
+        self.ok(self.A.put_sound_model(self.ctx, {"ep": self.ep, "shot": shot, "on": False}))
+        self.assertFalse(self.ok(self.A.get_dubs(self.ctx, {"ep": self.ep, "shot": shot}))["model_sound"])
+        self.assertEqual(self.A.put_sound_model(self.ctx, {"ep": self.ep, "shot": shot, "on": "x"})[0], 400)
+
+    def test_another_shots_take_is_a_source(self):
+        from seriesmith import takes as T
+        got = T.check_sound({"mode": "dub", "dub": {"from": "take", "shot": "sh020", "pass": "proxy", "take": 1}})
+        self.assertEqual(got["dub"]["shot"], "sh020")
+        spec = T.cut_dub_spec(self.ep, "sh010", got, None, {})
+        self.assertEqual(spec, {"source": "take", "shot": "sh020", "take": 1, "pass": "proxy"})
+        with self.assertRaises(ValueError):
+            T.check_sound({"mode": "dub", "dub": {"from": "take", "shot": 5, "pass": "proxy", "take": 1}})
 
     def test_laying_refuses_while_a_line_has_no_take(self):
         code, data = self.A.post_lines_lay(self.ctx, {"ep": self.ep})

@@ -21,7 +21,9 @@ import { Progress } from "./Thumb";
 import { UploadStatus } from "./Upload";
 
 /** The h3 Shots header button; it badges the recording's state. */
+import { api } from "../host";
 import { LinesSection } from "./Lines";
+import { WindowPlayer } from "./WindowPlayer";
 
 export function TrackButton() {
   const ep = useApp((s) => s.ep);
@@ -191,7 +193,12 @@ function AlignReport() {
         <div className="h3-kv h3-small h3-align-changes">
           {changed.slice(0, 200).map((c) => [
             <span key={`${c.shot}k`} className="h3-mono">{c.shot}</span>,
-            <span key={`${c.shot}v`} title={c.note ?? ""}>{windowText(c)}</span>,
+            <span key={`${c.shot}v`} className="h3-row" style={{ gap: 6 }} title={c.note ?? ""}>
+              {windowText(c)}
+              {ep && r.recording && c.audio_in != null && c.audio_out != null && (
+                <WindowPlayer url={api().fileUrl(ep, r.recording)} from={c.audio_in} to={c.audio_out} title={`Hear ${c.shot}'s stretch of the recording`} />
+              )}
+            </span>,
           ])}
         </div>
       )}

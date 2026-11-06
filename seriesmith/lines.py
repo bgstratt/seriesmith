@@ -343,6 +343,78 @@ def pick(ep: str, line_id: str, n: int) -> None:
         save(ep, record)
 
 
+def _shot_takes(ep: str, shot: str) -> list[tuple[str, dict]]:
+    """A shot's lines that have a picked take, in order, read from lines.json alone: the status asks
+    this for every shot on dub, so the script isn't parsed for it."""
+    path = record_path(ep)
+    if not os.path.isfile(path):
+        return []
+    lines = (T.read_json_kept(path) or {}).get("lines") or {}
+    ids = sorted((k for k in lines if k.rsplit(".", 1)[0] == shot), key=lambda k: int(k.rsplit(".", 1)[1]))
+    out = []
+    for lid in ids:
+        take = _picked(lines[lid])
+        if take:
+            out.append((lid, take))
+    return out
+
+
+def shot_sound_id(ep: str, shot: str) -> str | None:
+    """Which line takes a shot's lines are now: two the same mean the same sound."""
+    got = _shot_takes(ep, shot)
+    return hashlib.sha1(json.dumps([[lid, t["take"]] for lid, t in got]).encode("utf-8")).hexdigest()[:12] if got else None
+
+
+def shot_sound_file(ep: str, shot: str) -> str | None:
+    """A shot's lines as one file: its picked takes in order, a short breath between, so a shot with two
+    speakers is one sound a model can lip-sync to. Named for what's in it, and made once. None with no
+    takes."""
+    got = _shot_takes(ep, shot)
+    if not got:
+        return None
+    path = os.path.join(folder(ep), "shots", f"{shot}_{shot_sound_id(ep, shot)}.wav")
+    if os.path.isfile(path):
+        return path
+    pcm = bytearray()
+    for i, (_, take) in enumerate(got):
+        if i:
+            pcm.extend(_silence(WITHIN_SHOT))
+        with wave.open(os.path.join(ep, take["file"]), "rb") as w:
+            pcm.extend(w.readframes(w.getnframes()))
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(RATE)
+        w.writeframes(bytes(pcm))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    F.write_bytes(path, buf.getvalue())
+    return path
+
+
+def shot_lines(ep: str, shot: str) -> list[dict]:
+    """A shot's lines and their finished takes, for its Sound card: [{id, who, name, text, picked, takes}]."""
+    cfg = _config(ep)
+    record = load(ep)
+    out = []
+    for s in script_shots(ep):
+        if s["id"] != shot:
+            continue
+        for ln in s["lines"]:
+            row = record["lines"].get(ln["id"]) or {}
+            out.append({**ln, "name": _name(cfg, ln["who"]), "picked": row.get("picked"),
+                        "takes": [{k: t.get(k) for k in ("take", "file", "seconds", "voice_name", "source")}
+                                  for t in row.get("takes") or [] if t.get("status") == "ok"]})
+    return out
+
+
+def first_word(ep: str, shot: str) -> float | None:
+    """When a shot's joined lines start speaking, in seconds, from their takes' timings; None without."""
+    got = _shot_takes(ep, shot)
+    words = got[0][1].get("words") if got else None
+    return float(words[0]["start"]) if words else None
+
+
 def is_recording(path: str | None) -> bool:
     """Whether a path is the recording lines are laid into."""
     return bool(path) and os.path.normpath(path).endswith(os.path.join(DIR, RECORDING))

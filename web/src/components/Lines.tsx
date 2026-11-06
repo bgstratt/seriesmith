@@ -6,8 +6,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { LineRow, LinesPlan } from "../api";
 import { api } from "../host";
 import { refreshEpisode, runAlign, setSound } from "../actions";
-import { setCutAudio } from "../cutActions";
-import { useApp } from "../store";
 import { HearSpeaker } from "./ProviderVoices";
 
 export function LinesSection({ ep }: { ep: string }) {
@@ -16,7 +14,6 @@ export function LinesSection({ ep }: { ep: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [laid, setLaid] = useState<string | null>(null);
-  const cutAudio = useApp((s) => s.cutAudio);
   const [dubbed, setDubbed] = useState<string | null>(null);
   const live = useRef(true);
   useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
@@ -89,12 +86,12 @@ export function LinesSection({ ep }: { ep: string }) {
     }
   }
 
-  // the shots that speak: their next take lip-syncs to their window of the recording
-  async function dubThem() {
+  // the shots that speak, all on one source: each its own choice on its Sound card after that
+  async function dubThem(from: "line" | "track") {
     const shots = [...new Set((plan?.lines ?? []).map((l) => l.shot))];
-    if (shots.length && await setSound(shots, { mode: "dub", dub: { from: "track" } })) {
-      setDubbed(`${shots.length} speaking ${shots.length === 1 ? "shot" : "shots"} will lip-sync on the next take. Their takes show stale: sound, so Re-render stale on the Shots tab makes them. Try one first: it's a render each.`);
-    }
+    let n = 0;
+    for (const shot of shots) if (await setSound([shot], { mode: "dub", dub: { from } })) n += 1;
+    if (n) setDubbed(`${n} speaking ${n === 1 ? "shot" : "shots"} now dub to ${from === "line" ? "their lines" : "the recording"}: the cut plays it, and each next take lip-syncs to it. Their takes show stale: sound, so Re-render stale on the Shots tab makes them. Try one first: it's a render each.`);
   }
 
   async function pick(l: LineRow, take: number) {
@@ -161,22 +158,21 @@ export function LinesSection({ ep }: { ep: string }) {
               ) : null;
             })()}
             {laid && <div className="h3-note h3-note-info h3-small">{laid}</div>}
-            {plan.recording && (
-              <div className="h3-col" style={{ gap: 4 }}>
-                <div className="h3-h">Use it</div>
-                <label className="h3-row h3-small" style={{ gap: 6 }} title="Play all and Export use this recording as the dialogue, under the effects, ambience and music. Each clip's own sound is left out while it's on">
-                  <input type="checkbox" checked={cutAudio === "recording"} onChange={(e) => setCutAudio(e.target.checked ? "recording" : "clips")} />
-                  The cut's dialogue is this recording, in Play all and Export
-                </label>
-                <span className="h3-small h3-muted">That's the voices in time, right away. The mouths still move as each take was rendered, until it's rendered again:</span>
-                <div className="h3-row h3-wrap" style={{ gap: 6 }}>
-                  <button className="h3-btn" disabled={busy} title="Sets each speaking shot's next take to dub to its window of this recording. Renders nothing yet" onClick={() => void dubThem()}>
-                    <i className="pi pi-comments" /> Lip-sync the speaking shots' next takes
+            <div className="h3-col" style={{ gap: 4 }}>
+              <div className="h3-h">Use them</div>
+              <span className="h3-small h3-muted">Sets every speaking shot to dub: the cut plays it right away, and each next take lip-syncs to it. A shot's own Sound card changes it for that shot.</span>
+              <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+                <button className="h3-btn" disabled={busy || !plan.can_lay} title="Each speaking shot dubs to its own lines, and takes their length on its next render" onClick={() => void dubThem("line")}>
+                  <i className="pi pi-comments" /> Dub each shot to its lines
+                </button>
+                {plan.recording && (
+                  <button className="h3-btn" disabled={busy} title="Each speaking shot dubs to its aligned window of the recording" onClick={() => void dubThem("track")}>
+                    <i className="pi pi-comments" /> Dub each shot to the recording
                   </button>
-                </div>
-                {dubbed && <div className="h3-note h3-note-info h3-small">{dubbed}</div>}
+                )}
               </div>
-            )}
+              {dubbed && <div className="h3-note h3-note-info h3-small">{dubbed}</div>}
+            </div>
             <div className="h3-col" style={{ gap: 3, maxHeight: 320, overflow: "auto" }}>
               {plan.lines.map((l) => {
                 const take = l.takes.find((t) => t.take === l.picked);

@@ -4386,30 +4386,107 @@ def post_lines_lay(ctx: Context, body):
         got = LN.lay(ep)
     except LN.LinesError as e:
         raise ApiError(400, str(e))
-    _set_cut_audio(ep, "recording")                       # you laid it to use it
     episode_event(ctx, ep)
-    return 200, {**got, "cut_audio": "recording"}
+    return 200, got
 
 
-def _set_cut_audio(ep: str, value: str) -> None:
-    data = T.load_overrides(ep)
-    name = os.path.basename(os.path.normpath(ep))
-    T.save_overrides(ep, T.set_episode_field(data, "cut_audio", None if value == "clips" else value, name))
+def _line_up_task(ctx: Context, params: dict):
+    """Slide a shot's dub in the cut so its first word lands on the first word of the take the cut plays:
+    close enough, for a good render, without rendering it again. Whisper hears both."""
+    ep, pass_, shot = params["ep"], params["pass"], params["shot"]
+    title = f"{os.path.basename(os.path.normpath(ep))} {shot} line up"
+
+    def work(qjob, report, stop) -> str:
+        import shutil
+        import subprocess
+        import tempfile
+        from seriesmith import ff as FF
+        from seriesmith import lines as LN
+
+        def heard(path: str, tmp: str, name: str, at: float = 0.0) -> float:
+            """When a sound's first word starts, in seconds."""
+            wav = os.path.join(tmp, name + ".wav")
+            subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", path, "-ss", f"{at:.3f}", "-vn", "-ac", "1", "-ar", "16000", wav], check=True)
+            words = K.transcribe_file(wav, tmp, " ".join(x["text"] for x in LN.shot_lines(ep, shot)), stop=stop)
+            if not words:
+                raise ValueError(f"no words could be heard in {os.path.basename(path)}")
+            return float(words[0]["start"])
+
+        tmp = tempfile.mkdtemp(prefix="smlineup_")
+        try:
+            row = next((s for s in E.episode_status(ep, pass_)["shots"] if s["shot"] == shot), None)
+            ov = T.load_overrides(ep)
+            sound = T.shot_sound(ov, shot)
+            if not sound or sound.get("mode") != "dub":
+                raise ValueError(f"{shot} isn't on dub")
+            take = T.get_take(ep, pass_, shot, int(row["cut"]["take"])) if row and row["cut"].get("take") else None
+            own = T.take_sound(take) if take else None
+            if not own:
+                raise ValueError(f"{shot}'s take in the cut has no sound of its own to line up with")
+            doc, at = J.find_shot(ep, pass_, shot)
+            spec = T.cut_dub_spec(ep, shot, sound, None, {**doc["shots"][at], "_defaults": doc.get("defaults", {})})
+            f = T.audio_source_file(ep, spec, pass_) if spec else None
+            if not f:
+                raise ValueError(f"{shot}'s dub isn't there yet")
+            mine = heard(own, tmp, "take")
+            start = float(spec.get("start") or 0.0)
+            theirs = LN.first_word(ep, shot) if sound["dub"]["from"] == "line" else None
+            theirs = heard(f, tmp, "dub", start) if theirs is None else theirs
+        except Exception as e:                           # noqa: BLE001  said on the job
+            qjob.error = "canceled" if qjob.cancel_asked else str(e)
+            ctx.emit("seriesmith.episode", {"ep": ep})
+            return "failed"
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        offset = round(mine - theirs, 3)
+        T.save_overrides(ep, T.set_dub_offset(T.load_overrides(ep), shot, offset))
+        qjob.result.update(state="done", offset=offset)
+        episode_event(ctx, ep)
+        return "succeeded"
+
+    return title, {"ep": ep, "shot": shot}, {"ep": ep, "shot": shot, "state": "running"}, work
 
 
 @handler
-def post_cut_audio(ctx: Context, body):
-    """What the episode's cut plays and exports as its dialogue: "recording" (the dialogue recording) or
-    "clips" (each clip's own sound). The mix's other tracks play under either. Kept in overrides.json.
-    Body {ep, audio}."""
+def post_sound_line_up(ctx: Context, body):
+    """Queue lining a shot's dub up with the take the cut plays: Whisper hears both's first word, and the
+    dub slides that far in the cut. Changes no render. Body {ep, pass, shot}. Returns {job}."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
-    value = body.get("audio")
-    if value not in ("clips", "recording"):
-        raise ApiError(400, 'audio must be "clips" or "recording"')
-    _set_cut_audio(ep, value)
+    pass_ = check_pass(body.get("pass"))
+    shot = _opt_str(body, "shot")
+    if not shot:
+        raise ApiError(400, "shot says which shot")
+    K.check_align(ep, None)
+    qjob = _start_local(ctx, "line_up", {"ep": ep, "pass": pass_, "shot": shot})
+    return 200, {"job": dict(qjob.result)}
+
+
+@handler
+def put_sound_model(ctx: Context, body):
+    """What the cut plays for a take rendered to its shot's dub: the dub, or (`on` true) what the model gave
+    back with it, voice and all it made around that. Changes no render. Body {ep, shot, on}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    shot, on = _opt_str(body, "shot"), body.get("on")
+    if not shot or not isinstance(on, bool):
+        raise ApiError(400, "shot and on (true or false) say which and how")
+    T.save_overrides(ep, T.set_dub_model_sound(T.load_overrides(ep), shot, on))
     episode_event(ctx, ep)
-    return 200, {"ok": True, "cut_audio": value}
+    return 200, {"ok": True, "on": on}
+
+
+@handler
+def put_sound_offset(ctx: Context, body):
+    """Set how far a shot's dub is slid in the cut, in seconds, or 0 to put it back. Body {ep, shot, offset}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    shot, offset = _opt_str(body, "shot"), body.get("offset")
+    if not shot or isinstance(offset, bool) or not isinstance(offset, (int, float)) or abs(offset) > 600:
+        raise ApiError(400, "shot and offset (seconds) say which and how far")
+    T.save_overrides(ep, T.set_dub_offset(T.load_overrides(ep), shot, offset))
+    episode_event(ctx, ep)
+    return 200, {"ok": True, "offset": offset}
 
 
 @handler
@@ -6207,7 +6284,7 @@ def _xmlmedia_task(ctx: Context, params: dict):
     return title, {"ep": ep, "index": index}, run, work
 
 
-LOCAL = {"master": _master_task, "align": _align_task, "xmlmedia": _xmlmedia_task, "lines_file": _lines_file_task}
+LOCAL = {"master": _master_task, "align": _align_task, "xmlmedia": _xmlmedia_task, "lines_file": _lines_file_task, "line_up": _line_up_task}
 
 
 # ---------------------------------------------------------------------------
@@ -6376,7 +6453,9 @@ ROUTES = [
     ("POST", "/seriesmith/lines/character", post_lines_character, "form"),
     ("POST", "/seriesmith/lines/pick", post_lines_pick, "body"),
     ("POST", "/seriesmith/lines/lay", post_lines_lay, "body"),
-    ("POST", "/seriesmith/cut/audio", post_cut_audio, "body"),
+    ("POST", "/seriesmith/sound/line_up", post_sound_line_up, "body"),
+    ("PUT", "/seriesmith/sound/offset", put_sound_offset, "body"),
+    ("PUT", "/seriesmith/sound/model", put_sound_model, "body"),
     ("PUT", "/seriesmith/refs/provider-voice", put_refs_provider_voice, "body"),
     ("POST", "/seriesmith/providers/read-spec", post_provider_read_spec, "body"),
     ("POST", "/seriesmith/providers/draft", post_provider_draft, "body"),

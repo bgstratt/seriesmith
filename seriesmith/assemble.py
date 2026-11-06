@@ -981,9 +981,14 @@ def main(argv: list[str] | None = None) -> int:
             missing.append((e.shot, why))
             rows.append(("missing", e, why))
             continue
-        # where this clip's sound comes from (cut.json's `audio`): the file it
-        # plays, or None when there is nothing to play (it goes silent)
-        audio_src = T.audio_source_file(root, e.audio, pass_)
+        # where this clip's sound comes from (cut.json's `audio`; else a dub its take wasn't
+        # rendered to: takes.cut_dub_spec): the file it plays, or None when there is nothing
+        # to play (it goes silent)
+        ov_sound = T.load_overrides(root)
+        audio_spec = e.audio or T.cut_dub_spec(root, e.shot, T.shot_sound(ov_sound, e.shot), sc,
+                                               {**s, "_defaults": doc.get("defaults", {})}, T.dub_offset(ov_sound, e.shot),
+                                               t.paths.h3_wav, T.dub_model_sound(ov_sound, e.shot))
+        audio_src = T.audio_source_file(root, audio_spec, pass_)
         if audio_src and not PK.has_audio(audio_src):
             audio_src = None
         p = {"id": e.shot, "take": t.take, "src": e.pass_, "path": clip, "base": t.paths.mp4,
@@ -994,7 +999,7 @@ def main(argv: list[str] | None = None) -> int:
              "frames": n, "used": used, "audio_in": s.get("audio_in"),
              # this clip's audio source (cut.json's `audio`), and the file it
              # plays: None for silence, or for a source that isn't there
-             "audio_spec": e.audio, "audio_src": audio_src,
+             "audio_spec": audio_spec, "audio_src": audio_src,
              # a still on purpose (the `hold` target): the export's checks don't call it frozen
              "held": held_take(sc),
              "wav": t.paths.h3_wav if os.path.isfile(t.paths.h3_wav) else None,

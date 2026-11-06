@@ -2492,9 +2492,17 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(40);
       return { job: {} };
     },
-    async setCutAudio(_ep, audio) {
+    async lineUpSound() {
       await wait(40);
-      return { ok: true, cut_audio: audio };
+      return { job: {} };
+    },
+    async setDubModelSound(_ep, _shot, on) {
+      await wait(40);
+      return { ok: true, on };
+    },
+    async setSoundOffset(_ep, _shot, offset) {
+      await wait(40);
+      return { ok: true, offset };
     },
     async pickLine() {
       await wait(40);

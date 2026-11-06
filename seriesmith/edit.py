@@ -255,7 +255,8 @@ def take_stale(root: str, pass_: str, doc: dict, shot: dict, sidecar: dict | Non
     out = J.stale_reasons(root, cur[0], cur[1], sidecar) if cur else []
     if tt != target:
         out.append("target")
-    if (sidecar.get("sound") or None) != (sound or None):
+    if (sidecar.get("sound") or None) != (sound or None) or (
+            sound and sound.get("mode") == "dub" and not T.rendered_to_dub(root, sound, shot.get("id"), sidecar)):
         out.append("sound")
     if sidecar.get("continued_from") and chain_changed(root, pass_, shot["id"],
                                                        sidecar["continued_from"], cache):
@@ -316,8 +317,18 @@ def dub_sources(root: str, shot_id: str) -> dict:
     dubs = [one(t) for t in T.dub_tracks(root, shot_id)]
     takes = [one(t, **{"pass": ps}) for ps in T.PASSES for t in T.list_takes(root, ps, shot_id)
              if t.usable and T.take_sound(t)]
-    return {"shot": shot_id, "sound": T.shot_sound(T.load_overrides(root), shot_id),
-            "track": track, "dubs": dubs, "takes": takes}
+    ov = T.load_overrides(root)
+    sound = T.shot_sound(ov, shot_id)
+    from seriesmith import lines as LN
+    try:
+        lines = LN.shot_lines(root, shot_id)
+    except (OSError, ValueError):
+        lines = []
+    return {"shot": shot_id, "sound": sound, "track": track, "dubs": dubs, "takes": takes, "lines": lines,
+            "offset": T.dub_offset(ov, shot_id), "model_sound": T.dub_model_sound(ov, shot_id),
+            # which of this shot's takes have mouths that follow its dub
+            "lips": [t.take for ps in T.PASSES for t in T.list_takes(root, ps, shot_id)
+                     if T.rendered_to_dub(root, sound, shot_id, t.sidecar)]}
 
 
 def set_sound(root: str, shots: list[str], sound: dict | None) -> dict:
@@ -650,7 +661,10 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                     "out_of_order": moved[order],
                     # where this clip's sound comes from (Phase 9d): the
                     # stored source, the file that will play, the badge
-                    "audio": e.audio, **cut_audio(root, e, pass_)},
+                    **effective_cut_audio(root, e, pass_, T.shot_sound(ov, e.shot), chosen.sidecar if chosen_ok else None,
+                                          {**rshot, "_defaults": doc0.get("defaults", {})} if rshot else None,
+                                          T.dub_offset(ov, e.shot), chosen.paths.h3_wav if chosen_ok else None,
+                                          T.dub_model_sound(ov, e.shot))},
             # the shot's dialogue window on the recording (`track`), seconds
             **({"audio_in": shot["audio_in"], "audio_out": shot["audio_out"]}
                if shot and "audio_in" in shot and "audio_out" in shot else {}),
@@ -715,8 +729,23 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
             **episode_target_info(root, ov, J.shotlist_target(doc0).id),
             "fps": fps, "width": d.get("width"),
             "height": d.get("height"), "folder": folder or T.pass_subfolder(pass_),
-            "track": track, "cut_audio": T.episode_field(ov or {}, "cut_audio") or "clips",
+            "track": track,
             "shots": out}
+
+
+def effective_cut_audio(root: str, e: T.CutEntry, pass_: str, sound: dict | None, sidecar: dict | None,
+                        entry: dict | None, offset: float, take_wav: str | None = None, model_sound: bool = False) -> dict:
+    """What a cut entry's clip plays: its own `audio` if it has one (on purpose), else a dub the take
+    wasn't rendered to (takes.cut_dub_spec, `audio_dub` true), else the take's own sound."""
+    if e.audio:
+        return {"audio": e.audio, **cut_audio(root, e, pass_)}
+    spec = T.cut_dub_spec(root, e.shot, sound, sidecar, entry, offset, take_wav, model_sound)
+    if not spec:
+        return {"audio": None, **cut_audio(root, e, pass_)}
+    f = T.audio_source_file(root, spec, pass_)
+    return {"audio": spec, "audio_dub": True, "audio_file": rel(root, f) if f else None,
+            "audio_why": ("the model's sound" if model_sound and T.rendered_to_dub(root, sound, e.shot, sidecar)
+                          else f"dub: {T.audio_label(spec, pass_)}") + ("" if f else " (missing)")}
 
 
 def cut_audio(root: str, e: T.CutEntry, pass_: str) -> dict:
@@ -2739,9 +2768,6 @@ def assemble_episode(root: str, pass_: str, partial: bool = True,
         args += ["--size", size]
     if xml:
         args.append("--xml")
-    # the episode's cut plays its recording: so does what's exported, under its mix
-    if T.episode_field(T.load_overrides(root), "cut_audio") == "recording" and episode_track(root) is not None:
-        args += ["--audio", "recording"]
     rc, out, err = run_tool("assemble.py", args, root, timeout)
     output = None
     for line in out.splitlines():

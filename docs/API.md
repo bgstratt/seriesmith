@@ -4614,14 +4614,21 @@ Which finished take of a line is used. Body `{ep, line, take}`.
 
 Costs nothing. Lays each line's picked take in script order, with the pauses silent shots give, into
 `audio/lines/lines_recording.wav`, writes its timings beside it, and attaches it as the dialogue track. Body
-`{ep}`. Returns `{path, seconds, lines, timed, guessed, notes, cut_audio}`, and the cut now plays it. Then
-`POST /seriesmith/align` as for any recording.
+`{ep}`. Returns `{path, seconds, lines, timed, guessed, notes}`. Then `POST /seriesmith/align` as for any recording.
 
-### `POST /seriesmith/cut/audio`
+### `POST /seriesmith/sound/line_up`
 
-What the episode's cut plays and exports as its dialogue: `"recording"` (the dialogue recording, as `assemble --audio
-recording`) or `"clips"` (each clip's own sound). The mix's other tracks play under either. Body `{ep, audio}`. Kept in `overrides.json`; `GET /seriesmith/episode` says
-it as `cut_audio`.
+Queues sliding a shot's dub so its first word lands on the first word of the take the cut plays. Whisper hears both, and
+nothing is rendered. Body `{ep, pass, shot}`. Returns `{job}`. The slide is `GET /seriesmith/dubs`' `offset`.
+
+### `PUT /seriesmith/sound/model`
+
+For a take rendered to its shot's dub: whether the cut plays what the model gave back with it (`on` true), not the dub.
+Body `{ep, shot, on}`. Changes no render.
+
+### `PUT /seriesmith/sound/offset`
+
+Sets that slide by hand, in seconds, or 0 to put it back. Body `{ep, shot, offset}`. Changes no render, so nothing goes stale.
 
 ### `GET /seriesmith/providers/voices`
 
