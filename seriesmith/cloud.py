@@ -53,7 +53,7 @@ OUT_NUMBERS = {9: "width", 10: "height", 11: "length", 12: "steps", 13: "seed"}
 OUT_POLICY, OUT_INFO, OUT_COUNT = 14, 15, 16
 OUT_MORE_PICTURES = (17, 18, 19, 20, 21)     # ref_4..ref_8 (subjects 4-8)
 
-CHAIN_NODES = ("SeriesmithChainLatent", "SeriesmithChainTrim")
+CHAIN_NODES = ("SeriesmithChainLatent", "SeriesmithChainTrim", "SeriesmithRangeLatent", "SeriesmithRangeFinish")
 CRF = 16                                     # the saver's (comfy_nodes/shot.py _encode)
 VIDEO, AUDIO = "seriesmith_video", "seriesmith_audio"
 CLOUD = "Comfy Cloud"

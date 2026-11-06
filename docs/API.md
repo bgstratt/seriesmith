@@ -446,6 +446,15 @@ renders every shot of the request there.
   - `redo: false` skips shots that already have a usable or queued take, as the CLI does.
   - `null` means "not set in this request", so the built value and `overrides.json`
     apply.
+  - `redo_range: {take, first, last, prompt?, via?}` makes frames `first`-`last` of a take again
+    as a new take: the whole clip is sampled, everything outside the range held by a noise mask, so
+    pixels change a little past the range (the VAE). The new frames ask `prompt` (a job's shape), else what that take
+    asked (its frozen shotlist), not today's script; send `redo: true` and `seed_mode: "new"` too. The
+    new take has the source's own sound over it and its frame count. A take with no latent on `target`
+    (another model's, an import) is encoded from its video through `target`'s VAEs, or any take with
+    `via: "frames"`: its size fitted to `target`, its frames rounded up to `target`'s grid for sampling and
+    trimmed back after, at the same frame rate or refused. Only a target with `continuous.latent` can do
+    this (H3's family), on local ComfyUI.
   - `dub_track: true` makes a **dub track**: the shot rendered for its sound only, on
     `minimax_h3_ref2va` at 64x64 unless `target` / `size` say otherwise (another H3, or
     `ltx2`: any model that clones), cloning, its prompt's sound fields asking for the

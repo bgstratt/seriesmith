@@ -1970,6 +1970,21 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       as it says (`defaults.subject_slots`).
 - [x] Each job's picture sockets are set from the loader (`compile.wire_pictures`): a saved `H3_Ref2VA_Shotlist_v1.json` wins over the
       repo's graph, and its four sockets sent four pictures on an eight-subject shot, seen in ComfyUI's history on a live render.
+- [x] Decided, measured live 2026-11-06: frames of a take are made again by sampling the whole clip with the rest held by a noise
+      mask (`SeriesmithRangeLatent`), at any length. No slice with breathing room: the held frames are a first-generation decode, so a
+      splice would add a join and save nothing. Outside the range the video latent holds to rounding (2.4e-07) and the
+      sound to rounding; pixels change a little beyond the range (asked 74-123: 70 on; asked 52-87: about 47-104).
+- [x] The wording goes with it (`redo_range.prompt`; else what the source take asked, its frozen shotlist, not today's script). On
+      sh110 three new seeds alone kept the same exaggerated yawn; new wording (t14-t16) changed it, the seed the details.
+- [x] A take with no latent on this model is held from its frames through the model's VAEs (`via: "frames"`). A 124-frame encode ran
+      fine. Held frames: 36 dB against the source (42 with the kept latent). Sound through the audio VAE: correlation 0.91 on H3's own,
+      1.5-3.5 dB less above 1 kHz. LTX-2 and FLUX.3 takes joined without a visible jump in stills (not yet watched).
+- [x] Every range take has the source's own sound over the picture (`SeriesmithRangeFinish`; the held audio latent only guides the
+      new frames). An encoded take keeps the source's size and frame count as near as the model's grids allow: frames rounded up to
+      the grid for sampling, trimmed back after. A different frame rate is refused.
+- [x] Tests (`tests/test_range_render.py`), `docs/API.md`.
+- [ ] The editor: a range on a take, the prompt ready to edit, a new seed. `docs/EDITOR.md`.
+- [ ] Then LTX-2's own masked re-render: its kept latent is the full-size second stage, so how its two stages fit is the question.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 

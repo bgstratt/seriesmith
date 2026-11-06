@@ -364,3 +364,21 @@ def info_text(plan: dict, sizes: list[tuple[int, int] | None]) -> str:
         *[f"  {n}" for n in ref_notes(plan, sizes)],
         f"seed: {plan['seed']}",
     ])
+
+
+# ---- a range of a take's frames made again (chain.py's SeriesmithRangeLatent) ----
+
+def frame_step(frame: float) -> float:
+    """Where a frame falls on H3's video latent steps: the first 5 frames are 2
+    steps, each 17 after them 5 (frames_to_latents)."""
+    return frame * 2 / 5 if frame < 5 else 2 + (frame - 5) * 5 / 17
+
+
+def range_steps(first: int, last: int, steps: int) -> tuple[int, int]:
+    """The latent steps [start, end) that hold frames first..last, rounded
+    outward so the whole range is made again."""
+    start = max(0, math.floor(frame_step(int(first))))
+    end = min(int(steps), math.ceil(frame_step(int(last) + 1)))
+    if start >= end:
+        raise ValueError(f"frames {first}-{last} are outside this take's {steps} latent steps")
+    return start, end
