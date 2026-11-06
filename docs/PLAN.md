@@ -1126,6 +1126,10 @@ collide with the package.
       (Ref2VA and FL2VA, six steps); without a ComfyUI, the Features window's guide to ComfyUI's
       own installs and Find my ComfyUI; startup checks naming what a ComfyUI update renamed or
       dropped. Published by the merge's version bump.
+- [x] **0.1.16** (2026-11-05, `release-0.1.16`): Export's dialogue (#96): Export, 2x Export and
+      Master follow Play all's audio switch, on recording the recording as the dialogue under the
+      mix; a take dubbed to the recording with its effects kept no longer exports with no line (the
+      model's whole mix in its video, an older take's `_h3.wav`). Published by the merge's version bump.
 - [x] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render. Done by the user.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
@@ -1944,6 +1948,18 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       1344x768 in 47 s.
 - [x] **No ComfyUI yet**: the Features window shows ComfyUI's own installs for this system and
       finds one that's running (`seriesmith/comfysetup.py`, `POST /seriesmith/comfyui/find`).
+
+## Export's dialogue (hotfix, 2026-11-05)
+
+- [x] Export, 2x Export and Master follow Play all's audio switch: on **recording**, the recording as the mix's
+      dialogue track, with effects, ambience and music (`assemble --audio recording`; `master` stays the recording
+      alone, to check sync). They never used it.
+- [x] A take dubbed to the recording with its effects kept had only those in its mp4 (the voice taken out by
+      Demucs), so with Demucs installed its export had no voice. The saver now puts H3's whole mix in the mp4, a
+      dub of any source gets it back on a backend without that, and a take already saved that way plays its
+      `_h3.wav` (`peaks.clip_audio`). Those old takes still play effects alone in Play all, which plays the mp4.
+- On this branch, each shot's Sound card says what the cut and export play (below), so Export no longer follows
+  the switch, which is for listening. `POST /seriesmith/assemble` and `/master` still take `audio`.
 
 ## Step 15 — models behind other APIs (designed 2026-11-04; docs/DESIGN.md, section 9)
 

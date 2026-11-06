@@ -1089,6 +1089,8 @@ export interface AssembleOptions {
   publish?: boolean;
   /** the cut as an FCP7 XML timeline (<cut>.xml), nothing encoded */
   xml?: boolean;
+  /** "recording": the episode's recording as the dialogue, under the mix (as Play all plays it) */
+  audio?: "recording";
 }
 
 /** Phase 13: a final take's upscale (<stem>.up.mp4), as GET /seriesmith/episode says it. */

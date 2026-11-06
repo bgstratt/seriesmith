@@ -665,19 +665,19 @@ def prores_only(root: str, by: str = "seriesmith master") -> dict:
 
 def assemble_master(plan: Plan, allow_gaps: bool = False, prores: bool = False,
                     timeout: int = 3600, progress=None, by: str = "seriesmith master",
-                    stop=None) -> dict:
+                    stop=None, audio: str | None = None) -> dict:
     """The cut from its upscales at the master size into <episode>/master/, and
     the report beside it. Refused while anything is still to upscale or on its
     way, and with gaps unless `allow_gaps`; MasterBusy while another run is
     assembling this episode's master. `progress(event)` hears each step:
     {"step": "assemble" | "titles", "stage", "done", "total", "text"} (the
     stages are assemble's and publish's progress lines). `stop(kill)` is
-    handed what kills the tool running (a queue job's cancel).
+    handed what kills the tool running (a queue job's cancel). `audio`: assemble's --audio.
     {"ok", "output", "mov", "report", "error"}."""
     check_assemble(plan, allow_gaps)
     lock = take_lock(plan.root, by)
     try:
-        return _assemble(plan, plan.of("gap"), prores, timeout, progress, stop)
+        return _assemble(plan, plan.of("gap"), prores, timeout, progress, stop, audio)
     finally:
         release_lock(lock)
 
@@ -707,7 +707,7 @@ def _tell(progress, step: str):
 
 
 def _assemble(plan: Plan, gaps: list, prores: bool, timeout: int, progress,
-              stop=None) -> dict:
+              stop=None, audio: str | None = None) -> dict:
     from seriesmith import edit as E
     name = master_name(plan.root, plan.size)
     sub = "renders_proxy" if plan.pass_ == "proxy" else "renders"
@@ -719,6 +719,8 @@ def _assemble(plan: Plan, gaps: list, prores: bool, timeout: int, progress,
         args += ["--shotlist", "shotlist/shotlist_proxy.json", "--subfolder", sub]
     if gaps:
         args.append("--partial")
+    if audio:
+        args += ["--audio", audio]
     # the .mov is made from the finished master: by assemble when nothing is
     # laid around the cut, else once, after the titles (add_titles) -- not
     # encoded from the untitled cut only to be made again

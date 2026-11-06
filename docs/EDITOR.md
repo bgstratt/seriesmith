@@ -1259,6 +1259,8 @@ The cut as an editable track, along the bottom of the page.
 - **Ctrl + wheel** over the track zooms (or the slider).
 - **Sound** unfolds the waveforms under the cut: each clip's own sound on the dialogue lane (the
   recording's, with Play all on it), and the mix's lanes (below).
+- **What's exported** is what each shot's **Sound…** says: a shot on Dub plays its dub, Generate and Clone the clip's own sound, under
+  the effects, ambience and music. Play all's **clips** / **recording** switch is for listening, and doesn't change it.
 - **Export ▾** (the menu in the header) holds every way out of the cut: **Export**,
   **Titles** and **Premiere / Resolve XML**, each also **2x**, and **Master…**. The button
   says what's running (Assembling…, Adding titles…, Writing the XML…).

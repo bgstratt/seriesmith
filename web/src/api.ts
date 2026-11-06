@@ -417,7 +417,7 @@ export interface Api {
   /** Phase 13e: POST /seriesmith/master: plan, queue the upscales, or assemble the master */
   master(req: { ep: string; pass?: Pass; action: "plan" | "queue" | "assemble" | "prores"; conform?: boolean;
                 allow_gaps?: boolean; prores?: boolean; order?: "cut" | "target";
-                post?: boolean | "off" | "present" | "recipe" }): Promise<MasterResult>;
+                post?: boolean | "off" | "present" | "recipe"; audio?: "recording" }): Promise<MasterResult>;
   /** POST /seriesmith/post: queue posts (each take's fresh upscale finished: enhance, motion blur) */
   post(req: PostRequest): Promise<PostResult>;
   /** GET /seriesmith/post/options: the tiers, the blur, readiness, the episode's post recipe */
@@ -948,6 +948,7 @@ export function createHttpApi(t: Transport): Api {
       ...(opts?.size ? { size: opts.size } : {}),
       ...(opts?.publish ? { publish: true } : {}),
       ...(opts?.xml ? { xml: true } : {}),
+      ...(opts?.audio ? { audio: opts.audio } : {}),
     }),
     upscale: (req) => call("POST", "/seriesmith/upscale", req),
     upscaleOptions: (ep) => get(`/seriesmith/upscale/options${ep ? `?${qs({ ep })}` : ""}`),

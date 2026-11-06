@@ -80,9 +80,16 @@ talking over each other isn't handled here: it's one line at a time.
 - **Transcript cache:** saves the transcript as `<recording>.words.json`, so re-running is instant. Use `--retranscribe` after you replace the recording.
 - **Cut points:** cuts land at the quietest point of each pause. Speaking shots are lengthened to the frame grid of the target they render on (H3's 17k+5, LTX's 8k+1) when the pause has room.
 
+## Export and Master
+
+**Export**, **2x Export** and **Master** play what each shot's Sound card says (above): a shot on Dub plays its dub, and Generate and
+Clone play the clip's own sound, with the mix's effects, ambience and music under either. **Play all**'s clips/recording switch is for
+listening to the whole recording, and doesn't change them. On the command line, `--audio recording` lays the recording under the mix
+for the whole cut, and `--audio master` lays it alone, to check sync.
+
 ## Audio policy and retention
 
-A speaking shot defaults to `dub_keep_foley`: H3 lip-syncs to your line, and the saver keeps H3's sound effects with the voice removed, as `_foley.wav`.
+A speaking shot defaults to `dub_keep_foley`: H3 lip-syncs to your line, and the saver keeps H3's sound effects with the voice removed, as `_foley.wav`. The take's video has H3's whole mix, your line in it.
 
 | Retention | What H3 does with your line | Default for |
 |---|---|---|

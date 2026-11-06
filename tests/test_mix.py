@@ -361,6 +361,15 @@ class AssembleMixTest(unittest.TestCase):
     def exported(self):
         self.assemble()
         return MX.decode(self.out)
+    def test_a_take_with_only_effects_in_its_video_plays_with_its_voice(self):
+        # dub_keep_foley's mp4 holds the effects with the voice taken out: here sh020's, loud
+        t = T.get_take(self.root, "final", "sh020", 1)
+        tone_wav(t.paths.h3_wav, 1.0, amp=1)             # what the model gave back, told apart by level
+        self.assemble()
+        self.assertGreater(self.level(MX.decode(self.out), 1.1, 1.9), -40)      # no foley beside it: the mp4
+        shutil.copy(t.paths.h3_wav, t.paths.dir + os.sep + "sh020_t01_foley.wav")
+        self.assemble()
+        self.assertLess(self.level(MX.decode(self.out), 1.1, 1.9), -60)         # now the _h3.wav
 
     def test_no_mix_leaves_the_cut_alone(self):
         self.assemble()

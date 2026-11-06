@@ -1072,8 +1072,8 @@ section's own; a change inside a section can't be followed, so the strongest lev
 ## Assemble
 
 ### `POST /seriesmith/assemble`
-Body `{"ep", "pass", "partial": true}`. Runs `assemble` off the loop and returns
-when it's done (can take minutes).
+Body `{"ep", "pass", "partial": true, "audio"?: "recording"}`. Runs `assemble` off the loop and returns
+when it's done (can take minutes). `audio`: the episode's recording as the dialogue, under the mix.
 ```json
 {"ok": true, "output": "renders_proxy/ep05_proxy.mp4", "report": "…stdout…",
  "loudness": {"integrated_lufs": -16.1, "range_lu": 13.7, "true_peak_dbtp": -4.5,
@@ -1239,7 +1239,7 @@ H.264 8-bit so the editor plays it; the `.up.json` records `quality`.
 
 ### `POST /seriesmith/master`
 Body `{"ep", "pass"?, "action": "plan" | "queue" | "assemble" | "prores", "conform"?, "allow_gaps"?,
-"prores"?, "order"?, "post"?}` (master). `post` is the dialog's **Post-process**: `false`
+"prores"?, "order"?, "post"?, "audio"?}` (master). `audio`: `"recording"`, as for assemble. `post` is the dialog's **Post-process**: `false`
 / `"off"` (the upscales), `"present"` (each shot's fresh post where it has one, its upscale
 otherwise; nothing queued) or `true` / `"recipe"` (see **Post-process** below). `order` (queue only): `"cut"` (the default: the cut's
 order) or `"target"` (grouped by what ComfyUI loads: a re-sample's target model, else the

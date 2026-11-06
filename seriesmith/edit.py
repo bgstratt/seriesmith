@@ -2751,8 +2751,8 @@ def build_episode(root: str, timeout: int = 600) -> dict:
 
 def assemble_episode(root: str, pass_: str, partial: bool = True,
                      timeout: int = 3600, upscaled: bool = False,
-                     size: str | None = None, xml: bool = False) -> dict:
-    """assemble for one pass, as `seriesmith assemble` runs it. `output` is the
+                     size: str | None = None, xml: bool = False, audio: str | None = None) -> dict:
+    """assemble for one pass, as `seriesmith assemble` runs it. `audio`: its --audio. `output` is the
     cut's path relative to the episode (forward slashes), or None. `upscaled`
     (either pass): each clip from its fresh upscale, as <cut>_up.mp4; `size`
     ("1920x1080"): the cut's size; `xml`: the cut as an FCP7 XML timeline
@@ -2768,6 +2768,8 @@ def assemble_episode(root: str, pass_: str, partial: bool = True,
         args += ["--size", size]
     if xml:
         args.append("--xml")
+    if audio:
+        args += ["--audio", audio]
     rc, out, err = run_tool("assemble.py", args, root, timeout)
     output = None
     for line in out.splitlines():

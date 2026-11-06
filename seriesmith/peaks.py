@@ -194,7 +194,10 @@ def has_audio(path: str) -> bool:
 def clip_audio(mp4: str, wav: str | None) -> str | None:
     """The file whose sound a take plays in the cut: the mp4 if it has an audio
     stream, else the take's `_h3.wav` if it exists, else None (silence).
-    assemble's `--audio auto`."""
+    assemble's `--audio auto`. A take saved with a `_foley.wav` beside it has only
+    that in its mp4, the voice taken out, so its `_h3.wav` plays: the voice is in it."""
+    if wav and wav.endswith("_h3.wav") and os.path.isfile(wav) and os.path.isfile(wav[:-len("_h3.wav")] + "_foley.wav"):
+        return wav
     if mp4 and os.path.isfile(mp4) and has_audio(mp4):
         return mp4
     if wav and os.path.isfile(wav):
