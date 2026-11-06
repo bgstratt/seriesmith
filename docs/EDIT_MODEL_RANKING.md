@@ -113,15 +113,23 @@ straight after. Watched on the frames with the dough and the talking close-ups, 
 **Two people, one clip, seed 0, 124 frames at 1280x736.** The pink jacket became the woman and the white suit the mascot, with no mix-up
 in any run, and SAM 3.1 kept a mask on each man in every frame:
 
-| Run | Scene outside the two people, against the source | What it did |
-|---|---|---|
-| Viggle Remake, one pass, three pictures | 24.6 dB (lowest 23.9) | Both characters whole, no clipping. The rest of the frame is redrawn |
-| Character Swap, woman's pass alone | 24.3 dB (lowest 21.7) | Whole frame redrawn |
-| Character Swap, mascot's pass alone | 20.9 dB (lowest 12.9) | Whole frame redrawn, and the camera drifts at points |
-| Those two passes, each from the source, composited through the SAM masks | 78.3 dB (lowest 72.2) | The scene is effectively the source. But the mascot's crown is cut off, because the mask is the man's shape |
+| Run | Time | Scene outside the two men, against the source | What it did |
+|---|---|---|---|
+| Viggle Remake, one pass, three pictures | 264 s | 24.6 dB (lowest 23.9) | Both characters whole, no clipping. The rest of the frame is redrawn |
+| IV Studio Replace Advanced, one pass, one picture each | 315 s | 30.0 dB (lowest 28.4) | **The mascot never appeared:** the white suit stayed a man, redrawn, and the woman kept a hat. The tracks and the prompt were right, so this was H3 on this pass, on one seed |
+| Character Swap, unmasked, woman's pass alone | 386 s | 24.3 dB (lowest 21.7) | Whole frame redrawn |
+| Character Swap, unmasked, mascot's pass alone | 380 s | 20.9 dB (lowest 12.9) | Whole frame redrawn, and the camera drifts at points |
+| Those two composited through the men's SAM masks | | 42.9 dB (lowest 42.6) | Scene unchanged but for the encode. The mascot's crown is cut off, because the mask is the man's shape |
+| Character Swap, masked as in Comfy's OpenJutsu, woman's pass alone | | 34.7 dB (lowest 33.5) | Only the area round her is redrawn |
+| Character Swap, masked, mascot's pass alone | | 30.5 dB (lowest 28.3) | The same, on the mascot |
+| Those two masked passes composited | about 4 min each | 32.2 dB (lowest 29.0) | Both characters whole, with the crown intact. The score counts the 64 px margin round each man that was redrawn; beyond it, the picture is the source but for the encode |
 
-So compositing side by side from the source keeps the scene, and an unmasked pass doesn't fit a figure of another shape. These
-Character Swap passes weren't masked while generating; the author's recipe, IV Studio's graphs and a stacked two-pass run are still untested.
+The composites were scored after encoding to H.264, so 43 dB is about what the encode itself costs here.
+
+So one masked Character Swap pass per person, each from the source and composited, gave both characters in full with the
+scene kept, without stacking one pass on another. Viggle's one pass is the simpler way to two whole characters, and redraws more of the
+frame. These are stills and scores of one clip on one seed, with a mascot, and IV Studio's result may differ with two people. Nobody has
+tested stacked passes or Fix faces here.
 
 ## Reading the numbers
 
@@ -188,5 +196,52 @@ Earlier, smaller tests of the same models on other work, which came out differen
 - **Relighting** (2026-10-19, one seed per model): FLUX.2 Klein edit best and fastest; Qwen-Image 2.1 the most faithful
   but timid; H3 still cinematic but it invents things; Kontext grades the whole frame and loses identity; FLUX.3
   Klein weak.
+- **Cutting a character out of a frame, and clearing a frame to its plate** (2026-11-05): see below. These supersede the
+  smaller notes on the same jobs.
 - **Cutting a character out of a frame** (2026-10-11): Qwen-Image-Edit Rapid gave a clean, whole figure; FLUX.2 Klein
   edit left a ghost of the scene and kept the frame's crop. Removing people from a place, Klein was clean.
+
+## Extraction
+
+Tested 2026-11-05 on one frame each of a Ballroom take (ep03 sh040 t02, a FastH3 Omni render at 1344x768), through seriesmith's
+Edit, the 10 local models, seeds 111 and 222. The pictures stay out of the repo.
+
+**Cutting a character out** of a three-shot at 3.63 s, the one on frame left, whose neighbour's arm overlaps her. It asks for her in
+place on plain grey. The scores are her area against the frame, where a figure that moved scores low, and InsightFace's match of her
+face against the frame's.
+
+| # | Model | Time | Her area | Face | What it did |
+|---|---|---|---|---|---|
+| 1 | FLUX.3 Klein | 22 s | 16.5 dB | 0.96 | In place, the neighbour gone, a little more colour. Start here |
+| 2 | Qwen-Image 2.1 | 7 s | 12.9 dB | 0.93 | In place and clean on both seeds, but lifts the picture, and one seed is pale |
+| 3 | Fibo 2.0 Edit Turbo | 4 s | 19.6 dB | 0.97 | The most faithful figure, but keeps the neighbour's sleeve on both seeds. Non-commercial |
+| 4 | FastH3 Omni still | 10 s | 18.9 dB | 0.74 | Exactly in place on clean white, but darkens the skin and changes the face |
+| 5 | FLUX.2 Klein edit | 3 s | 11.4 dB | 0.92 | Clean, but the colour and hair are oversaturated |
+| 6 | Fibo 2.0 Dev | 83 s | 12.8 dB | 0.94 | Moves her right and crops her. Non-commercial |
+| 7 | Qwen-Image-Edit Rapid | 5 s | 16.5 dB | 0.88 | Fine on one seed; the other keeps the sleeve and draws an outline |
+| 8 | FLUX.3 Klein turbo | 8 s | 11.9 dB | 0.92 | Moves her right and crops her |
+| 9 | MiniMax H3 still | 9 s | 12.7 dB | 0.77 | Good on one seed; on the other she fades to a ghost |
+| 10 | FLUX Kontext | 20 s | 6.5 dB | 0.71 | Loses her head and most of her body on both seeds. Don't use |
+
+This doesn't repeat the 2026-10-11 result, where Rapid was the clean one; there the job was a whole figure, here a close, overlapped one.
+
+**Clearing a frame to its plate** at 0.21 s, one woman walking through the room. The take's plate turned out not to be the frame's
+view, since H3 reframed the room when it rendered: straight against the plate every model scores about 17 dB, so that says nothing.
+So the first score is the room outside her against the frame, from SAM 3.1's mask. Aligning the plate on 29 matched points gives a second
+score over the 60% of her area it reaches, from 19 to 22.5 dB, too close to rank on.
+
+| # | Model | Room kept | What it painted where she stood |
+|---|---|---|---|
+| 1 | Qwen-Image 2.1 | 31.7 dB | Clean floor and rug on both seeds, framing and colour held |
+| 2 | Fibo 2.0 Edit Turbo | 33.4 dB | Clean on one seed, invents chairs on the other. Non-commercial |
+| 3 | MiniMax H3 still | 31.9 dB | Armchairs on both seeds. The real plate has one about there, not these |
+| 4 | Fibo 2.0 Dev | 31.6 dB | One seed clean, the other a chair; 36 and 27 dB. Non-commercial |
+| 5 | FastH3 Omni still | 29.2 dB | Armchairs and a table on both seeds |
+| 6 | FLUX.3 Klein | 26.6 dB | Clean on both seeds, with a slight regrade |
+| 7 | FLUX.3 Klein turbo | 24.8 dB | Clean on both seeds, with a stronger regrade |
+| 8 | Qwen-Image-Edit Rapid | 23.4 dB | A chair on one seed, a notch in the rug on the other |
+| 9 | FLUX.2 Klein edit | 23.6 dB | Invents a chair or a table, and brightens |
+| 10 | FLUX Kontext | 20.1 dB | Clean, but moves the camera and reshapes the rug |
+
+Both agree with the swap and edit tables above: FLUX.3 Klein for a person, Qwen-Image 2.1 for a scene. One frame each, two seeds, and the
+orders are a reading of the pictures with the numbers beside them.
