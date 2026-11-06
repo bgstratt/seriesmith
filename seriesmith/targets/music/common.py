@@ -69,6 +69,26 @@ def notes(cue: dict) -> str:
     return "; ".join(n.strip(" .;") for n in cue.get("notes") or [] if n and n.strip(" .;"))
 
 
+def tagged_lyrics(cue: dict) -> str:
+    """A song's lyrics: its sections' lines under their tags ("[Verse]"). "" for score."""
+    if cue.get("kind") != "song":
+        return ""
+    out = []
+    for s in cue.get("sections") or []:
+        lines = [ln.strip() for ln in (s.get("lyrics") or "").splitlines() if ln.strip()]
+        if lines:
+            name = " ".join((s.get("name") or "section").split()).title()
+            out.append("\n".join([f"[{name}]"] + lines))
+    return "\n\n".join(out)
+
+
+def described(cue: dict) -> str:
+    """The cue as one paragraph, for a model that takes a description: its head with the tempo in
+    words, the script's music: notes as its mood, the sections told as a story."""
+    mood = notes(cue)
+    return " ".join(x for x in (head(cue, bpm_in_text=True), f"Mood: {mood}." if mood else "", story(cue)) if x)
+
+
 def story(cue: dict) -> str:
     """The sections as one story, in order: "Opens with ..., then ... build in a long
     crescendo to ..., then a sudden drop to ..., ending with ...". A fall of two levels or

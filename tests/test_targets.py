@@ -51,7 +51,7 @@ class LoadingTest(unittest.TestCase):
                                ("video", "minimax_h3_fl2va"), ("video", "pika_h3_flex"), ("video", "pika_h3_flex_fl2va"), ("video", "wan22_i2v"),
                                ("video", "seedance_2_5"),
                                ("video", "wan22_ti2v"), ("video", "wan22_vace"), ("image", "krea2"),
-                               ("music", "stable_audio3"), ("music", "ace_step15"), ("music", "yue2"), ("music", "minimax_music3"), ("music", "minimax_music3_cloud"), ("music", "mrt2"), ("music", "pika_music"),
+                               ("music", "stable_audio3"), ("music", "ace_step15"), ("music", "yue2"), ("music", "minimax_music3"), ("music", "minimax_music3_cloud"), ("music", "suno_chirp_v6"), ("music", "elevenlabs_music"), ("music", "mrt2"), ("music", "pika_music"),
                                ("ambience", "mmaudio_ambience"), ("ambience", "sa3_sfx_ambience"),
                                ("foley", "h3_foley"), ("foley", "ltx23_foley"), ("foley", "hunyuan_xl_foley"),
                                ("image", "z_image_turbo"), ("image", "flux2_klein"),
@@ -433,7 +433,7 @@ class TargetsRouteTest(ApiTest):
         by = {t["id"]: t for t in data["targets"]}
         self.assertEqual(set(by) - ROUTER, {H3, "hold", "h3_singularity", "h3_singularity_fl2va", "fasth3_fl2va", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", "pika_h3_flex", "pika_h3_flex_fl2va", "krea2",
                                    "wan22_i2v", "wan22_ti2v", "wan22_vace", "z_image_turbo",
-                                   "stable_audio3", "ace_step15", "yue2", "minimax_music3", "minimax_music3_cloud", "mrt2", "pika_music", "mmaudio_ambience", "sa3_sfx_ambience",
+                                   "stable_audio3", "ace_step15", "yue2", "minimax_music3", "minimax_music3_cloud", "mrt2", "pika_music", "suno_chirp_v6", "elevenlabs_music", "mmaudio_ambience", "sa3_sfx_ambience",
                                    "h3_foley", "ltx23_foley", "hunyuan_xl_foley",
                                    "flux2_klein", "flux2_klein_edit", "flux_kontext",
                                    "flux3_klein", "flux3_klein_turbo",

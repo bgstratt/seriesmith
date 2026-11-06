@@ -1504,20 +1504,20 @@ def backend_choice(overrides: dict | None, shot_id: str, target: "TG.Target",
         if name == "deployment":
             name = f"deployment:{target.id}"
         if name == "api":
-            name = _own_backend(target)
+            name = own_backend(target)
         if backend_kind(name) in target.backends and (backend_kind(name) != "api"
-                                                      or name == _own_backend(target)):
+                                                      or name == own_backend(target)):
             return name, source, ""
         if source in ("request", "override"):
             raise ValueError(f"{target.short} can't render on {name}: it runs on "
                              f"{', '.join(target.backends)}")
-        own = _own_backend(target)
+        own = own_backend(target)
         return own, "target", (f"{target.short} doesn't run on {name} (the {source}'s "
                                f"backend), so it renders on {own}")
-    return _own_backend(target), "target", ""
+    return own_backend(target), "target", ""
 
 
-def _own_backend(target: "TG.Target") -> str:
+def own_backend(target: "TG.Target") -> str:
     """The name of the backend a target runs on when nothing says otherwise."""
     own = target.backends[0]
     if own == "deployment":

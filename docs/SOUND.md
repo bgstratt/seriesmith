@@ -335,7 +335,10 @@ default**, LTX-2.3 Foley and Hunyuan XL the choices beside it (phase 4).
 Paid music models: MiniMax Music 3 on Comfy Cloud is a target (`minimax_music3_cloud`, a
 partner node on your own ComfyUI: the backend sends the Comfy API key with the job and the
 take counts against the paid limit), and Pika Music on Comfy Router (`pika_music`, a draft:
-Router lists it but doesn't serve it yet). Sonilo video-to-music and ByteDance Seed Audio are
+Router lists it but doesn't serve it yet). On a provider of the user's own, with its key:
+Eleven Music (`elevenlabs_music`) and Suno v6 on Atlas Cloud (`suno_chirp_v6`), for score and songs,
+one call a take (`cue.hosted_call`); Suno returns two tracks and both are kept as takes
+(`cue.another_track`). Suno's score proved by a paid take (one run, `docs/PLAN.md`); its songs and Eleven Music not yet. Sonilo video-to-music and ByteDance Seed Audio are
 left out; they fit as targets of the same kinds.
 
 Licences (read 2026-11-01): **MiniMax Music 3**'s community licence is free for commercial use

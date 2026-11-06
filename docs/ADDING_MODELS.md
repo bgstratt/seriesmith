@@ -47,7 +47,8 @@ model…**:
 ### A model on another API
 
 For a model on a provider you have your own account with, such as Atlas Cloud. Video, image and
-voice models for now; other sound follows. A voice model on ElevenLabs takes a speaker per character:
+voice models. Music on a provider comes built in rather than added here: Eleven Music and Suno v6 are in the cue
+window's model list, and only need the provider's key. A voice model on ElevenLabs takes a speaker per character:
 choose it on the character's voice row, hear each one's free preview, and generating is refused
 until there is one. Picking the provider here also lets you **listen to its voices** before you have
 a key: its own voices play with none, and its whole library takes the key, or browse it on its site.

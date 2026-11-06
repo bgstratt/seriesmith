@@ -2756,7 +2756,8 @@ def get_cues(ctx: Context, query: dict):
     pass's mix plays, or null), `stale` (what has moved under that take since it was
     rendered, in words; [] when nothing has or none is in the mix), `stale_takes` (the
     finished takes something has moved under) and `plan_error` (its anchors aren't in
-    the cut: null otherwise)."""
+    the cut: null otherwise). `unreadable`: the cues left out because their spec doesn't
+    check, [{"id", "error"}]."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query["pass"]) if query.get("pass") is not None else None
     items = {}
@@ -2774,7 +2775,7 @@ def get_cues(ctx: Context, query: dict):
         if pass_:
             row.update(_cue_state(ep, pass_, spec, takes, items.get(spec["id"])))
         out.append(row)
-    return 200, {"cues": out}
+    return 200, {"cues": out, "unreadable": CU.unreadable_cues(ep)}
 
 
 def _cue_state(ep: str, pass_: str, spec: dict, takes: list[dict], item: dict | None) -> dict:
@@ -2959,11 +2960,16 @@ def post_cue_render(ctx: Context, body):
     if n is not None and (isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= CU.TAKES_MAX):
         raise ApiError(400, f"takes is 1 to {CU.TAKES_MAX}")
     count = n or CU.takes_wanted(target, pass_, spec)
-    # a hosted model (target.json `router`: Pika Music) is a Router call, whatever backend
-    # the body names
+    # a hosted model is a call on its own backend (Router, or a provider of the user's), whatever
+    # backend the body names
     hosted = TG.is_hosted(target.spec)
-    backend = "router" if hosted else finish_backend(ctx, body)
+    backend = J.own_backend(target) if hosted else finish_backend(ctx, body)
     if hosted and ctx.runner.backend(backend) is None:
+        service = TG.service_of(target.spec)
+        if service:
+            from seriesmith import providers as PR
+            who = (PR.definitions().get(service) or {}).get("label") or service
+            raise ApiError(409, f"{target.short or target.label} runs on {who}: add its key in Settings")
         raise ApiError(409, f"{target.label} runs on Comfy Router: set a Comfy API key in Settings")
     if (p.get("theme") or {}).get("use") == "audio":
         # the theme reshaped to this cue once, for every take; its melody score when this
@@ -2983,7 +2989,8 @@ def post_cue_render(ctx: Context, body):
                                                                  "seconds", "ask_seconds")},
                                         **({"theme": CU.theme_record(p["theme"])} if p.get("theme") else {})})
         job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend,
-                                     call=CU.hosted_call(target, p, seed) if hosted else None)
+                                     call=CU.hosted_call(target, p, seed) if hosted else None,
+                                     tracks=int(TG.hosted_block(target.spec).get("tracks") or 1))
         queued.append({"take": k, "job": job, "seed": seed})
     episode_event(ctx, ep)
     return 200, {"queued": queued, "plan": _plan_summary(p)}

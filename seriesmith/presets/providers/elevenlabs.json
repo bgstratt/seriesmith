@@ -40,6 +40,24 @@
       "type": "audio"
     }
   },
+  "ways": {
+    "music": {
+      "steps": [
+        {
+          "method": "POST",
+          "url": "/v1/music",
+          "json": {
+            "model_id": "$model",
+            "...": "$args"
+          },
+          "response": "bytes"
+        }
+      ],
+      "result": {
+        "type": "audio"
+      }
+    }
+  },
   "check": "/v1/models",
   "key_url": "https://elevenlabs.io/app/settings/api-keys",
   "voices": {

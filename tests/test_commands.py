@@ -31,6 +31,17 @@ def run(*argv):
     return code, out.getvalue(), err.getvalue()
 
 
+class OutputTest(unittest.TestCase):
+    def test_a_character_the_code_page_lacks_doesnt_stop_a_command(self):
+        raw = io.BytesIO()
+        out = io.TextIOWrapper(raw, encoding="cp1252", newline="")
+        with mock.patch.object(sys, "stdout", out), mock.patch.object(sys, "stderr", out):
+            C._printable_output()
+            print("2\u21923", end="")
+            out.flush()
+        self.assertEqual(raw.getvalue(), b"2?3")
+
+
 class TableTest(unittest.TestCase):
     def test_every_command_is_in_the_help_once(self):
         code, out, _ = run()

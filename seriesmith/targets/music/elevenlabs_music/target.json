@@ -1,0 +1,43 @@
+{
+  "id": "elevenlabs_music",
+  "kind": "music",
+  "label": "Eleven Music (hosted, ElevenLabs)",
+  "short": "Eleven Music",
+  "code": "prompt.py",
+  "_note": "ElevenLabs' own music API (read 2026-11-06, https://elevenlabs.io/docs/api-reference/music/compose.md): POST /v1/music answers with the file. A prompt, a length in ms (3,000 to 600,000), force_instrumental; a seed can't go with a prompt. Its docs say the model holds a stated BPM and key, and that its music is cleared for nearly all commercial uses by plan (https://elevenlabs.io/music-terms). A composition plan would place lyrics and section lengths exactly; not used until a prompt's words are heard to fall short. No proof by a paid take yet.",
+
+  "capabilities": {
+    "_note": "Songs with the lyrics in the prompt, score with force_instrumental; the tempo, key and arc in the words.",
+    "backends": ["api"],
+    "mode": "t2m",
+    "tempo": "text",
+    "structure": "story",
+    "lyrics": true,
+    "needs_lyrics": true,
+    "max_seconds": 600
+  },
+
+  "template": {
+    "_note": "The request's music_length_ms: 3 to 600 s.",
+    "default_seconds": 30.0,
+    "min_seconds": 3.0,
+    "max_seconds": 600.0
+  },
+
+  "api": {
+    "service": "elevenlabs",
+    "model": "music_v2_5",
+    "values": {"use": "music", "type": "audio"},
+    "arguments": {},
+    "inputs": {
+      "prompt": "prompt",
+      "seconds": {"name": "music_length_ms", "min": 3, "max": 600, "scale": 1000},
+      "instrumental": "force_instrumental"
+    }
+  },
+
+  "presets": {
+    "final": {"model": "music_v2_5", "takes": 2},
+    "proxy": {"model": "music_v2_5", "takes": 1}
+  }
+}

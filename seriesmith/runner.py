@@ -629,10 +629,11 @@ class Runner:
         return n, qjob.id
 
     def enqueue_cue(self, root: str, cid: str, n: int, graph: dict | None, p: dict,
-                    backend_name: str, call: tuple | None = None) -> str:
+                    backend_name: str, call: tuple | None = None, tracks: int = 1) -> str:
         """A music cue's take (cue.py: its sidecar reserved, its graph, the cue's plan)
         queued: the audio that comes back is kept, stretched to the cue's tempo and
-        measured (cue.finish_take). Returns the queue's job id."""
+        measured (cue.finish_take). A model that returns `tracks` for one call has each
+        further one kept as a take of its own: it was paid for. Returns the queue's job id."""
         import os
         import tempfile
 
@@ -642,14 +643,38 @@ class Runner:
         self.reserve(backend, root, "cue", graph)
         sidecar = CU.take_paths(root, cid, n)["sidecar"]
 
-        def event(status: str) -> None:
-            self._emit("seriesmith.cue", {"ep": root, "cue": cid, "take": n, "status": status})
+        def event(status: str, take: int = n) -> None:
+            self._emit("seriesmith.cue", {"ep": root, "cue": cid, "take": take, "status": status})
             self._emit("seriesmith.episode", {"ep": root})
+
+        def kept(out, take: int, plans: dict) -> dict:
+            fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(out.name)[1] or ".flac")
+            os.close(fd)
+            try:
+                out.save(tmp)
+                return CU.finish_take(root, cid, take, tmp, p, plans)
+            finally:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+
+        def further_track(out, track: int, report) -> None:
+            """Never the job's failure: its first take is already good."""
+            take = None
+            try:
+                take = CU.another_track(root, cid, n, track)
+                kept(out, take, {})
+                report(line=f"track {track} kept as take {take}")
+                event("ok", take)
+            except Exception as e:                       # noqa: BLE001  said; the first stands
+                report(line=f"track {track} wasn't kept: {e}")
+                if take is not None:
+                    CU.update(root, cid, take, status="failed", finished=T.now(), error=str(e)[:800])
+                    event("failed", take)
 
         def work(qjob: QJob, report) -> str:
             progress = progress_to(report)
             try:
-                # a hosted model's take is one call (Router: `call` is (model, arguments))
+                # a hosted model's take is one call (`call` is (model, arguments))
                 run = backend.call(*call) if call else backend.submit(graph)
                 self.started(qjob, run, backend, report)
                 CU.update(root, cid, n, backend_job=run.id)
@@ -673,16 +698,11 @@ class Runner:
                         finally:
                             if os.path.exists(txt):
                                 os.remove(txt)
-                fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1] or ".flac")
-                os.close(fd)
-                try:
-                    outs[0].save(tmp)
-                    sc = CU.finish_take(root, cid, n, tmp, p, plans)
-                finally:
-                    if os.path.exists(tmp):
-                        os.remove(tmp)
+                sc = kept(outs[0], n, plans)
                 m = sc.get("measured") or {}
                 report(line=f"take ok: shape {m.get('shape_error')}, worst hit {m.get('worst_must')} fr")
+                for i, out in enumerate(outs[1:tracks], 2):
+                    further_track(out, i, report)
                 result = "succeeded"
             except Exception as e:                       # noqa: BLE001  the take fails
                 qjob.error = str(e)[:800]

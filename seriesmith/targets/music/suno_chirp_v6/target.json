@@ -1,0 +1,45 @@
+{
+  "id": "suno_chirp_v6",
+  "kind": "music",
+  "label": "Suno v6 (hosted, Atlas Cloud; licence unverified)",
+  "short": "Suno v6",
+  "code": "prompt.py",
+  "_note": "Suno chirp-v6 on Atlas Cloud (read 2026-11-06, https://www.atlascloud.ai/models/suno/chirp-v6/llms.txt; 'via APIMart'): $0.132 a generation, each returning two tracks, both kept as takes. In custom mode the description is `style`, the lyrics `prompt`, the length `duration` (10 to 360 s, 'may differ slightly'). Licence unverified: Suno had no public API of its own that we could find, and its commercial terms are written for its own plans, so check before releasing anything made with this. Score proved by a paid take on 2026-11-06 (docs/PLAN.md); songs not yet.",
+
+  "capabilities": {
+    "_note": "Songs from lyrics, score with the instrumental switch; no bpm, key or section input, so the tempo and the arc are in the words. No seed.",
+    "backends": ["api"],
+    "mode": "t2m",
+    "tempo": "text",
+    "structure": "story",
+    "lyrics": true,
+    "needs_lyrics": true,
+    "max_seconds": 360
+  },
+
+  "template": {
+    "_note": "The request's duration: whole seconds, 10 to 360.",
+    "default_seconds": 30.0,
+    "min_seconds": 10.0,
+    "max_seconds": 360.0
+  },
+
+  "api": {
+    "service": "atlas",
+    "model": "suno/chirp-v6",
+    "tracks": 2,
+    "values": {"endpoint": "generateAudio", "type": "audio"},
+    "arguments": {"custom": true},
+    "inputs": {
+      "prompt": "style",
+      "lyrics": "prompt",
+      "seconds": {"name": "duration", "min": 10, "max": 360},
+      "instrumental": "instrumental"
+    }
+  },
+
+  "presets": {
+    "final": {"model": "suno/chirp-v6", "takes": 1},
+    "proxy": {"model": "suno/chirp-v6", "takes": 1}
+  }
+}

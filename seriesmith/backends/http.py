@@ -135,6 +135,14 @@ def file_type(path: str) -> str:
     return mimetypes.guess_type(path)[0] or mime_of(path)
 
 
+def way_of(d: dict, values: dict) -> dict:
+    """What a job follows on provider definition `d`: its `timed` way (a voice with its timings) or
+    a named one of its `ways` (ElevenLabs' music) when the job's values ask, else the definition."""
+    use = values.get("use")
+    how = d.get("timed") if use == "timed" else (d.get("ways") or {}).get(use)
+    return how if isinstance(how, dict) else d
+
+
 class HttpBackend(Backend):
     kind = "api"
 
@@ -358,8 +366,7 @@ def planned_calls(d: dict, model: str, arguments: dict) -> list[dict]:
     out = []
     has_files = bool(list(files_in(args)))
     how_files = d.get("files") or {}
-    if values.get("use") == "timed" and isinstance(d.get("timed"), dict):
-        d = {**d, **d["timed"]}
+    d = {**d, **way_of(d, values)}
     if has_files and how_files.get("via") == "upload":
         for step in how_files.get("steps") or []:
             sends = ({"body": "(the file)"} if "body" in step else
@@ -521,10 +528,8 @@ class HttpRun(Run):
         self.id = json.dumps({"model": self.model, "step": self.step, "values": keep})
 
     def _how(self) -> dict:
-        """What this run follows: the definition's, or its `timed` way when it was asked for and
-        the provider has one (a voice with its timings)."""
-        d = self.backend_obj.d
-        return (d.get("timed") if self.values.get("use") == "timed" and isinstance(d.get("timed"), dict) else None) or d
+        """What this run follows: the definition's, or the way it was asked for (way_of)."""
+        return way_of(self.backend_obj.d, self.values)
 
     def _steps(self) -> list[dict]:
         return self._how().get("steps") or []

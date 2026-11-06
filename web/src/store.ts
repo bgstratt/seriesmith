@@ -487,6 +487,8 @@ export interface AppState {
   cueError: Record<string, string>;
   /** the cues planned against a pass (GET /seriesmith/cues?pass=: the spotting sheet's), by statusKey(ep, pass) */
   cueStates: Record<string, CueSummary[]>;
+  /** the cues the server left out of that list, their spec not checking, by statusKey(ep, pass) */
+  cueUnreadable: Record<string, { id: string; error: string }[]>;
   /** a take auditioned under the picture in place of its cue's (null: the mix as it is) */
   audition: Audition | null;
   /** Phase 9b: what Ctrl+Z / Ctrl+Shift+Z would undo / redo, by statusKey */
@@ -668,6 +670,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     cue: {},
     cueError: {},
     cueStates: {},
+    cueUnreadable: {},
     audition: null,
     cutUndo: {},
     cutMenu: null,

@@ -2080,8 +2080,9 @@ download with the key). Reading the reference moved up from step 7 (decided with
 - [x] Results by data: the status field, its done and failed values, where the files are,
       failure read from the result too (fal says `COMPLETED` for a failure), links saved when the
       take is collected.
-- [ ] Several outputs as several takes (Suno's two tracks): a run's outputs are all there; what
-      collecting does with a second isn't decided.
+- [x] Several outputs as several takes (Suno's two tracks), music only for now: `api.tracks` in a target
+      says how many; each further one is its own take, recording `track` and `track_of`. One that fails
+      leaves the first standing. Video and pictures still keep the first.
 - [x] Authentication: a header, bearer or query key by data. The key goes only to the provider's
       own host and port, a redirect elsewhere drops it, an echoed one is cut from errors.
 - [ ] Signed ways of authenticating (a JWT for Kling's old keys, then others as wanted) as named
@@ -2149,10 +2150,21 @@ download with the key). Reading the reference moved up from step 7 (decided with
       providers do).
 
 **5. Sound on hosted models**: each kind's job as a call as well as a graph.
-- [ ] Ambience first (text in, audio back; beds already loop), then effects (a model that
-      can't see the take works from the shot's words), then music (Atlas's Suno,
-      `instrumental` for score; check its licensing before commercial use: Suno itself had no
-      public self-serve API as of 2026-11-04).
+- [x] Music, songs and score (2026-11-06): `suno_chirp_v6` on Atlas (`instrumental` for score) and
+      `elevenlabs_music` (`force_instrumental`), one call a take, tested against a local server only. Shipped
+      rather than added in the wizard, as a cue model needs its prompt writer. ElevenLabs' music is a
+      way of its provider definition (`ways.music`), its address not being speech's. Suno's label says
+      its licence is unverified: Atlas runs it "via APIMart", and sources say Suno has no public API.
+- [x] Suno score, live (2026-11-06, `porchlights/ep02` cue d03, one run, listed at $0.132): asked 32 s at
+      100 BPM with a 169-character `style`; two tracks back in about 30 s, 31.96 and 32.40 s, heard at 100.1 and
+      100.19 BPM, both kept as takes, one paid run counted. One run at one tempo.
+- [ ] Still to prove live: Suno singing lyrics as written (waits for a real song), a much longer `style`
+      (Atlas states no limit), and all of Eleven Music (needs a key on this machine: the BPM in its words, a
+      prompt's lyrics sung as written).
+- [ ] Only if a prompt's words fall short: Eleven Music's composition plan (chunks with their lyrics and
+      enforced lengths), which could also carry a cue's sections.
+- Decided with the user 2026-11-06, not doing: ambience and effects on hosted models. A text-to-sound model
+  makes effects from words, not foley matched to the picture, which is what the effects track needs.
 
 **6. Voices, then lines**
 - [x] A voice per character: a provider's speaker (an id per provider, on the subject in the

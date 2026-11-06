@@ -369,7 +369,7 @@ export interface Api {
   pickFx?(req: { ep: string; pass: Pass; shot: string; take: number | null }): Promise<{ mix: Mix }>;
   /** GET /seriesmith/cues: the episode's music cues, each its spec and take counts; with
    * `pass`, each planned against that pass's cut too (its tempo, the take in the mix, what's stale). */
-  cues(ep: string, pass?: Pass): Promise<{ cues: CueSummary[] }>;
+  cues(ep: string, pass?: Pass): Promise<{ cues: CueSummary[]; unreadable?: { id: string; error: string }[] }>;
   /** GET /seriesmith/cue: a cue's spec, its plan against the pass's cut, its takes best first. */
   getCue(ep: string, pass: Pass, cue: string): Promise<CueResult>;
   /** PUT /seriesmith/cue: write a cue's spec; answers it as stored. */
@@ -895,8 +895,8 @@ export function createHttpApi(t: Transport): Api {
       return { items: Array.isArray(r?.items) ? r.items : [], recording: r?.recording ?? null };
     },
     cues: async (ep, pass) => {
-      const r = await get<Partial<{ cues: CueSummary[] }>>(`/seriesmith/cues?${qs(pass ? { ep, pass } : { ep })}`);
-      return { cues: Array.isArray(r?.cues) ? r.cues : [] };
+      const r = await get<Partial<{ cues: CueSummary[]; unreadable: { id: string; error: string }[] }>>(`/seriesmith/cues?${qs(pass ? { ep, pass } : { ep })}`);
+      return { cues: Array.isArray(r?.cues) ? r.cues : [], unreadable: Array.isArray(r?.unreadable) ? r.unreadable : [] };
     },
     getCue: async (ep, pass, cue) => {
       const r = await get<Partial<CueResult> & { spec: CueSpec }>(`/seriesmith/cue?${qs({ ep, pass, cue })}`);

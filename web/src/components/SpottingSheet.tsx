@@ -41,6 +41,7 @@ import { onScreen } from "./SoundLanes";
 /** its help strip, open or closed, kept in this browser */
 export const SPOT_HELP_KEY = "seriesmith.spotting.help";
 const EMPTY_CUES: CueSummary[] = [];
+const NO_UNREADABLE: { id: string; error: string }[] = [];
 
 
 const HELP_STEPS = [
@@ -96,6 +97,7 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
   useEffect(() => () => stopAudition(), []);
 
   const cues = states ?? plain;
+  const unreadable = useApp((s) => s.cueUnreadable[statusKey(ep, pass)]) ?? NO_UNREADABLE;
   const seqOf = useMemo(() => {
     const m = new Map((st?.shots ?? []).map((s) => [s.shot, s.sequence]));
     return (shot: string) => m.get(shot) ?? null;
@@ -118,6 +120,8 @@ export function SpottingSheet({ ep, v }: { ep: string; v: ViewerState }) {
       <b>Scoring</b>
       <ScoringTabs active="spot" cue={tabCue} />
       <span className="h3-muted h3-small">{pass} · {cues.length} cue{cues.length === 1 ? "" : "s"} · {hits.length} hit{hits.length === 1 ? "" : "s"} · {fmtClock(total)}</span>
+      {unreadable.length > 0 && <span className="h3-err h3-small" title={unreadable.map((u) => u.error).join("\n")}>
+        {unreadable.length} cue{unreadable.length === 1 ? "" : "s"} can't be read: {unreadable.map((u) => u.id).join(", ")}</span>}
       <button className="h3-btn" title="A first-pass score from the script's structure and beat lines (// structure:, // beat:): draft cues to shape, nothing rendered"
         onClick={() => setDrafting(true)}><i className="pi pi-sparkles" /> Draft…</button>
       <button className={`h3-btn h3-icon${help ? " h3-on" : ""}`} title="How to use the spotting sheet" aria-label="How to use the spotting sheet" aria-pressed={help}

@@ -31,7 +31,8 @@ export async function loadCueStates(ep = get().ep, pass: Pass = get().pass): Pro
   if (!ep) return;
   try {
     const r = await api().cues(ep, pass);
-    set((s) => ({ cueStates: { ...s.cueStates, [statusKey(ep, pass)]: r.cues } }));
+    const key = statusKey(ep, pass);
+    set((s) => ({ cueStates: { ...s.cueStates, [key]: r.cues }, cueUnreadable: { ...s.cueUnreadable, [key]: r.unreadable ?? [] } }));
   } catch (e) {
     report("Couldn't list the cues", e);
   }

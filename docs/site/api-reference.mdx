@@ -858,7 +858,8 @@ is also planned against that pass's cut: `bpm` (the fitted tempo), `in_mix` (the
 in the pass's mix plays, null: none), `stale` (what has moved under that take since it was
 rendered, in words; `[]` when nothing has or none is in the mix), `stale_takes` (the finished
 takes something has moved under) and `plan_error` (null, or why its anchors aren't in the
-cut; `bpm` is then null). 400 for a pass that isn't one.
+cut; `bpm` is then null). `unreadable` lists the cues left out because their spec doesn't check
+(`[{"id", "error"}]`: a model this version doesn't have, say). 400 for a pass that isn't one.
 
 ### `GET /seriesmith/cue?ep=…&pass=…&cue=…`
 `{"spec", "plan", "plan_error", "takes"}`. `plan` is what it would be asked now: `target`,
@@ -923,7 +924,10 @@ measured tempo says when that is within 3 % of the asked, else by the plan's str
 is one job of two stages: the plan (YuE2GenerateABC, or the theme's plan, or SheetSage2's
 transcription of the theme), its `Q:` line set to the plan's whole `ask_bpm` (of the meter's
 note), then the song sung to it; both plans come back as text files and the sung one is kept as
-`tNN.abc`. A Stable Audio 3 take with a theme renders from it: the theme is fitted to the cue
+`tNN.abc`. A model on a provider is one call a take on that provider's backend, whatever `backend`
+says, 409 without its key; one that returns several tracks for a call (`api.tracks`, Suno) keeps each
+further one as a take of its own, with `track` and `track_of` in its record, so `takes` counts calls
+and `queued` lists only the first of each. A Stable Audio 3 take with a theme renders from it: the theme is fitted to the cue
 once for the render (`sound/<cue>/theme_<hash>.wav`), encoded, and sampled from at its strength
 (8 even steps of the schedule from it); with SheetSage2 in this machine's ComfyUI
 (`models/audio_encoders`) and the `local` backend, the take and the fitted theme are transcribed
