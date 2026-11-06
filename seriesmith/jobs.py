@@ -2180,8 +2180,8 @@ def collect_take(take: T.Take, run, saver: str, status: str) -> str:
         fields.update(status="failed",
                       save_notes=f"{fields.get('save_notes', '')}; the mp4 didn't come back")
     sc = T.read_sidecar(take.paths.sidecar) or {}
-    if fields.get("status") == "ok" and ((sc.get("sound") or {}).get("dub") or {}).get("from") \
-            in ("take", "dub"):
+    # any dub chosen for this shot: the take carries what the model gave back
+    if fields.get("status") == "ok" and (sc.get("sound") or {}).get("mode") == "dub":
         note = remux_dub(take)
         if note:
             fields["save_notes"] = f"{fields.get('save_notes', '')}; {note}"

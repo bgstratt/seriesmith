@@ -1705,7 +1705,8 @@ export async function assemble(partial = true, opts?: AssembleOptions) {
   const xml = !!opts?.xml;
   set({ assemble: { busy: true, output: null, report: null, error: null, publish: pub, xml } });
   try {
-    const r = await api().assemble(s.ep, s.pass, partial, opts);
+    // the export is the cut as Play all plays it
+    const r = await api().assemble(s.ep, s.pass, partial, s.cutAudio === "recording" && !xml ? { ...opts, audio: "recording" } : opts);
     set({ assemble: { busy: false, output: r.output, report: r.report, error: r.ok ? null : r.report } });
     if (r.ok && xml) {
       host().toast("success", "Timeline written", `${absPath(s.ep, r.output)}

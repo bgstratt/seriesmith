@@ -784,12 +784,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--name", default=None, help="output filename (default from shotlist)")
     ap.add_argument("--take", type=int, default=None,
                     help="force a specific take number for every shot (beats cut.json)")
-    ap.add_argument("--audio", choices=["auto", "mp4", "h3", "none", "master"], default="auto",
+    ap.add_argument("--audio", choices=["auto", "mp4", "h3", "none", "master", "recording"], default="auto",
                     help="auto: the mp4's own audio, falling back to the shot's "
                          "_h3.wav when the mp4 is mute. master: the recorded dialogue "
-                         "track from the shotlist, laid under the whole cut. A clip "
-                         "with its own audio source in cut.json keeps it, except "
-                         "under none and master")
+                         "track from the shotlist, laid under the whole cut, alone, to check "
+                         "sync. recording: the same as the dialogue track of the episode's "
+                         "mix, with its effects, ambience and music. A clip with its own "
+                         "audio source in cut.json keeps it, except under none, master and "
+                         "recording")
     ap.add_argument("--no-trim", action="store_true",
                     help="keep the grid padding on shots that have an audio window")
     ap.add_argument("--partial", action="store_true",
@@ -1076,8 +1078,8 @@ def main(argv: list[str] | None = None) -> int:
     if joined["count"]:
         print(f"  {joined['count']} transition(s): {', '.join(joined['said'][:8])}"
               + (" ..." if len(joined["said"]) > 8 else ""))
-        if args.audio == "master" and any(p["dissolve_in"] for p in plan):
-            print("  ! --audio master with dissolves: the recording runs ahead of the picture "
+        if args.audio in ("master", "recording") and any(p["dissolve_in"] for p in plan):
+            print(f"  ! --audio {args.audio} with dissolves: the recording runs ahead of the picture "
                   "after each one (a dissolve shortens the cut)")
     if windowed:
         print(f"  trimming {len(windowed)} shot(s) to their dialogue "
@@ -1104,7 +1106,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {len(resized)} clip(s) at another size, scaled to {width}x{height}: "
               + ", ".join(f"{p['id']} {p['size'][0]}x{p['size'][1]}" for p in resized[:8]))
     sourced = [p for p in plan if p["audio_spec"]]
-    if sourced and args.audio not in ("none", "master"):
+    if sourced and args.audio not in ("none", "master", "recording"):
         print(f"  {len(sourced)} clip(s) take their sound from elsewhere: "
               + ", ".join(f"{p['id']} <- {T.audio_label(p['audio_spec'], pass_)}"
                           for p in sourced[:8]))
@@ -1118,17 +1120,17 @@ def main(argv: list[str] | None = None) -> int:
         for b in bad:
             print(f"    ! {b}")
         print()
-    if args.audio == "master":
+    if args.audio in ("master", "recording"):
         if sourced:
-            print(f"  ! --audio master: the recorded track overrides the audio source on "
+            print(f"  ! --audio {args.audio}: the recorded track overrides the audio source on "
                   f"{', '.join(p['id'] for p in sourced)}")
         drift = [p["id"] for p in trimmed if p["audio_in"] is not None]
         if drift:
-            print(f"  ! --audio master: {', '.join(drift)} have a dialogue window and a "
+            print(f"  ! --audio {args.audio}: {', '.join(drift)} have a dialogue window and a "
                   f"cut.json trim; the master track will drift from there on")
         order = [p["id"] for p in plan]
         if order != [s["id"] for s in shots if s["id"] in set(order)]:
-            print("  ! --audio master: the cut is not in script order; the master "
+            print(f"  ! --audio {args.audio}: the cut is not in script order; the master "
                   "track only lines up with script order")
 
     # the episode's mix (mix.json, docs/SOUND.md); none, or one that changes nothing,
@@ -1160,7 +1162,7 @@ def main(argv: list[str] | None = None) -> int:
         if sound is not None and args.audio in ("none", "master"):
             print(f"  ! --audio {args.audio}: the mix in {MX.MIX_FILE} is left out")
             sound, beds, fx = None, [], []
-        if sound is not None and MX.voices_any(sound):
+        if sound is not None and MX.voices_any(sound) and args.audio != "recording":
             # voices only (voices.py): each clip's take's voice stem in place of its whole
             # sound, where it's there and fresh; the rest play whole and are named
             from seriesmith import voices as VO
@@ -1257,7 +1259,7 @@ def main(argv: list[str] | None = None) -> int:
     # audio source (Phase 9d) beats --audio auto/mp4/h3, and `none`/`master`
     # beat everything.
     for p in plan:
-        if args.audio in ("none", "master"):
+        if args.audio in ("none", "master", "recording"):
             p["sound"], p["sourced"] = None, False
         elif p["audio_spec"]:
             p["sound"], p["sourced"] = p["audio_src"], True
@@ -1420,15 +1422,16 @@ def main(argv: list[str] | None = None) -> int:
             n = len(needs) if selective is not None else len(plan)
             print(f"  re-encoded {n} clip(s)"
                   + (f", copied {len(plan) - n}" if selective is not None else ""))
-        if r.returncode == 0 and args.audio == "master":
+        if r.returncode == 0 and args.audio in ("master", "recording"):
+            # under `recording` the mix below then takes this as its dialogue track
             track = doc.get("defaults", {}).get("master_track", "")
             track = track if os.path.isabs(track) else os.path.join(root, track)
             if not track or not os.path.isfile(track):
-                print(f"  ! --audio master: no recorded track at {track or '<unset>'}; "
+                print(f"  ! --audio {args.audio}: no recorded track at {track or '<unset>'}; "
                       f"cut left silent")
             else:
                 if missing:
-                    print("  ! --audio master with missing shots: the recording will run "
+                    print(f"  ! --audio {args.audio} with missing shots: the recording will run "
                           "out of sync after the first gap")
                 start = plan[0]["audio_in"] if plan[0]["audio_in"] is not None else base_in
                 start += plan[0]["trim_in"] / fps
