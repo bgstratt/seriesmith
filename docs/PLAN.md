@@ -1126,6 +1126,10 @@ collide with the package.
       (Ref2VA and FL2VA, six steps); without a ComfyUI, the Features window's guide to ComfyUI's
       own installs and Find my ComfyUI; startup checks naming what a ComfyUI update renamed or
       dropped. Published by the merge's version bump.
+- [x] **0.1.16** (2026-11-05, `release-0.1.16`): Export's dialogue (#96): Export, 2x Export and
+      Master follow Play all's audio switch, on recording the recording as the dialogue under the
+      mix; a take dubbed to the recording with its effects kept no longer exports with no line (the
+      model's whole mix in its video, an older take's `_h3.wav`). Published by the merge's version bump.
 - [x] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render. Done by the user.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
