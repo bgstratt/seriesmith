@@ -357,6 +357,7 @@ groups that open beside the menu when you hover them.
 | **Compare with…** | Compare two takes side by side or with a wipe |
 | **Use this take** | Put it in the cut |
 | **New take like this one…** | Re-render from *this* take's exact settings, with a new seed by default. The one you will reach for most |
+| **Re-render part of this take…** | Make a stretch of the take again as a new take, keeping the rest and its sound (see **Re-rendering part of a take**) |
 | **Make final from draft (1080p)…** | A Seedance proxy draft's final, exactly as drawn (paid; see **Finals from drafts**) |
 | **Cancel this render** | Stop a queued or running take |
 | **Upscale and post ›** | **Upscale (2x)…**, **Keep upscale**, **Remove upscale**: the take's upscale (see **Finishing**; a kept one is left alone by Master). **Post-process…**, **Remove post**: finish the upscale |
@@ -611,6 +612,22 @@ like: the shot form's **Save as profile…** (beside its Profile) keeps that sho
 model, model file, LoRAs, steps and `sla:` as a profile under the name you give, saves the
 series config, and puts the shot on it (its own lines for those go, or they'd still win); Save
 the shot to keep that. Other shots and sequences then take it with `profile:`.
+
+### Re-rendering part of a take
+
+Right for a take that's good except for a stretch: a hand, a yawn, the last two seconds. **Re-render part
+of this take…** (a take's right-click menu, or the button under the shot's viewer) opens the take in a player. Scrub to where it goes wrong and
+press **Start here**, then **End here** or **To the end**, or type the times. It works at any length.
+
+**Change the prompt as well.** It opens with the prompt this take used. A new seed alone changes details such as the
+background and hands and usually keeps the same action, so describe what should happen in those frames ("a small tired yawn, then he blinks and settles back").
+Every run takes a new seed, and the result is a new take: the one you started from stays, and the cut only changes if it follows the newest take.
+
+- **What stays:** the whole clip is sampled, with everything outside the range held, so there's no join. A few frames either side
+  of the range change slightly. The new take has the original's frame count and sound.
+- **Dialogue:** the sound is the original's, so a mouth that changes can drift from the words. Check the lip sync.
+- **A flaw outside the range stays.** Held frames also steer the new ones, so a flaw all through the clip needs a full new take.
+- **Which models:** H3 Ref2VA, Singularity, Pika H3 Flex and FastH3, on local ComfyUI. A take from any other model can be brought in: it's encoded from its video into the H3 model you pick, at its own size as near as that model allows, which softens the kept frames slightly and adds about 40 seconds. A take at another frame rate than 24 is refused. A take kept without a latent (usually a proxy) is encoded the same way.
 
 ### Keeping a take's frames
 

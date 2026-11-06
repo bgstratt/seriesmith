@@ -126,6 +126,13 @@ class Plan(Episode):
         self.assertEqual(job.prompt, built)              # its prompt was written for Seedance
         self.assertEqual(self.doc["shots"][self.index]["length"], self.shot["length"])
 
+    def test_a_model_that_cant_hold_a_take_is_refused(self):
+        t = self.take()
+        job = self.plan(t.take)
+        job.target = "ltx2"
+        J.plan_range(job, {"take": t.take, "first": 10, "last": 20}, T.list_takes(self.root, "final", self.shot["id"]))
+        self.assertIn("can't make frames", job.error)
+
     def test_another_frame_rate_is_refused(self):
         job = self.plan(self.take(target="wan22_i2v", frames=85, length=85, fps=16.0).take)
         self.assertIn("16 fps", job.error)

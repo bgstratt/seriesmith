@@ -2087,6 +2087,9 @@ def plan_range(job: Job, asked: dict, takes: list) -> None:
     if src is None or not src.usable:
         job.error = f"no usable take {asked['take']} of {job.shot['id']} to re-render frames of"
         return
+    if not (job_target(job).spec.get("continuous") or {}).get("latent"):
+        job.error = f"{job.target} can't make frames of a take again"
+        return
     made_on = (src.sidecar or {}).get("target") or job.built_target
     same_model = made_on == job.target
     via_frames = asked.get("via") == "frames" or not same_model or not os.path.isfile(src.paths.latent)

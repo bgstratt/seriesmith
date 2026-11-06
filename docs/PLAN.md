@@ -1983,7 +1983,7 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       new frames). An encoded take keeps the source's size and frame count as near as the model's grids allow: frames rounded up to
       the grid for sampling, trimmed back after. A different frame rate is refused.
 - [x] Tests (`tests/test_range_render.py`), `docs/API.md`.
-- [ ] The editor: a range on a take, the prompt ready to edit, a new seed. `docs/EDITOR.md`.
+- [x] The editor: **Re-render part of this take…**: the range picked on the take's video, the prompt ready to edit, a new seed. `docs/EDITOR.md`.
 - [ ] Then LTX-2's own masked re-render: its kept latent is the full-size second stage, so how its two stages fit is the question.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
