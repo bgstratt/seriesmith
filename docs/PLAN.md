@@ -1959,6 +1959,18 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       dub of any source gets it back on a backend without that, and a take already saved that way plays its
       `_h3.wav` (`peaks.clip_audio`). Those old takes still play effects alone in Play all, which plays the mp4.
 
+## H3 re-render of a frame range (branch `h3-rerender`, 2026-11-05)
+
+- [x] H3 Ref2VA, H3 Singularity and Pika H3 Flex take eight subjects, as the node's nine sockets allow: `<Picture 1>`-`<Picture 3>`, the
+      plate still `<Picture 4>`, then `<Picture 5>`-`<Picture 9>` (`recipe.subject_slots`, the graphs, `shotplan.MOST_SUBJECTS`
+      and `plate_at`, `cloud._lower_loader`, `prompt.subject_pictures`). A shot of three or fewer is unchanged: same prompt,
+      same pictures, no stale takes, no new placeholders. Pika H3 Flex too.
+- [x] FastH3 Omni the same, its plate moved from `<Picture 9>` to `<Picture 4>`: one layout for the family (FL2VA aside), and no
+      placeholders past the last subject. Its existing takes read as stale, since their prompt changed; a shotlist built before renders
+      as it says (`defaults.subject_slots`).
+- [x] Each job's picture sockets are set from the loader (`compile.wire_pictures`): a saved `H3_Ref2VA_Shotlist_v1.json` wins over the
+      repo's graph, and its four sockets sent four pictures on an eight-subject shot, seen in ComfyUI's history on a live render.
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

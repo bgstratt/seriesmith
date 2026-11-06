@@ -22,6 +22,7 @@ Stdlib only.
 """
 from __future__ import annotations
 
+import json
 import re
 
 from seriesmith import targets as TG
@@ -55,9 +56,9 @@ GENERATE_MODES = ("generate", "generated", "generated_audio")
 
 
 def slots(target) -> tuple[list[str], str, list[str]]:
-    """A target's (subject slots, plate slot, voice slots): Ref2VA's three
-    subjects and <Picture 4>, or another H3 target's own (FastH3 Omni: eight
-    and <Picture 9>). The plate is always the slot after the last subject's."""
+    """A target's (subject slots, plate slot, voice slots). The H3 family's are
+    eight subjects round <Picture 4> (1-3, then 5-9), so on Ref2VA a shot of three
+    or fewer sends what it always did."""
     r = target.recipe
     return list(r["subject_slots"]), r["plate_slot"], list(r["voice_slots"])
 
@@ -364,7 +365,7 @@ def _compile_shot(ctx: Ctx, seq: dict, i: int, shot: dict, seq_loc: dict) -> dic
         over = len(subjects) - n_slots
         raise ValueError(
             f"shot {shot['id']}: {len(subjects)} subjects ({', '.join(subjects)}) but "
-            f"only {n_slots} slots — slot {n_slots + 1} is the background. Drop {over} from "
+            f"{ctx.target.short} takes {n_slots} and the plate. Drop {over} from "
             f"`with:`, or describe {over} in the action text instead of referencing "
             f"{'them' if over > 1 else 'it'}.")
     if ctx.absent:
@@ -700,9 +701,9 @@ def compile_legacy(target, ep: dict, series_cfg: dict, pass_: str,
         "defaults": {
             "width": width, "height": height, "steps": steps,
             "model": model, "lora": lora, "sheet_panels": int(target.recipe["sheet_panels"]),
-            # the loader's subject sockets when not Ref2VA's three (the plate
-            # is the one after them: comfy_nodes/shotplan.py)
-            **({"subject_slots": len(ctx.subject_slots)} if len(ctx.subject_slots) != 3 else {}),
+            # the pictures before the plate when it isn't <Picture 4>
+            # (comfy_nodes/shotplan.py: a target of the user's own)
+            **({"subject_slots": len(ctx.subject_slots)} if ctx.plate_slot != "Picture 4" else {}),
             # How big H3 encodes each reference: `match` puts it on the render's
             # own latent grid, `max` scales it toward 2048 on the short side.
             # It is a per-pass cost, measured 2026-09-22: at 1344x768 the two
@@ -878,6 +879,35 @@ def ref_slots(target, doc: dict, shot: dict) -> list[dict]:
     return out + FF.keyframe_slots(shot)
 
 
+# the Shot Loader's picture outputs (comfy_nodes/shot.py): subjects 1-8, the plate
+SUBJECT_OUTPUTS = (2, 3, 4, 17, 18, 19, 20, 21)
+PLATE_OUTPUT = 5
+
+
+def wire_pictures(g: dict) -> None:
+    """Every picture socket from the loader, in the order the prompt numbers them.
+    A workflow saved in ComfyUI wins over the repo's and may be older than it: one
+    with four sockets dropped subjects 4-8 while the prompt still named them. A
+    shotlist saying `defaults.subject_slots` (FastH3 Omni's before 2026-11-05) has
+    that many pictures before the plate."""
+    # (a job's graph has the binding's name for it until jobs.make_portable)
+    loaders = [k for k, v in g.items()
+               if v["class_type"] in ("H3ShotListLoader", "SeriesmithShotLoader")]
+    refs = [k for k, v in g.items() if v["class_type"] == "MiniMaxH3ReferenceToVideo"]
+    if len(loaders) != 1 or len(refs) != 1:
+        return
+    try:
+        doc = json.loads(g[loaders[0]]["inputs"].get("shotlist") or "{}")
+    except (TypeError, ValueError):
+        doc = {}
+    before = int((doc.get("defaults") or {}).get("subject_slots") or 3)
+    outs = [*SUBJECT_OUTPUTS[:before], PLATE_OUTPUT, *SUBJECT_OUTPUTS[before:]]
+    for i, out in enumerate(outs):
+        g[refs[0]]["inputs"][f"ref_images.ref_image_{i}"] = [loaders[0], out]
+
+
 def patch_graph(target, g: dict, job, inputs: dict) -> None:
-    """A first frame, when the shot has one (first_frame.patch_first)."""
+    """The pictures' sockets (wire_pictures); a first frame, when the shot has one
+    (first_frame.patch_first)."""
+    wire_pictures(g)
     FF.patch_first(g, inputs)

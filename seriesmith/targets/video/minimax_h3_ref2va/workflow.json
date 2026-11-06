@@ -2,7 +2,7 @@
   "id": "8a9c7219-5c5d-408a-afeb-b3e017250a2b",
   "revision": 0,
   "last_node_id": 91,
-  "last_link_id": 40,
+  "last_link_id": 45,
   "nodes": [
     {
       "id": 5,
@@ -242,7 +242,35 @@
           "name": "ref_images.ref_image_4",
           "shape": 7,
           "type": "IMAGE",
-          "link": null
+          "link": 41
+        },
+        {
+          "localized_name": "ref_image_5",
+          "name": "ref_images.ref_image_5",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 42
+        },
+        {
+          "localized_name": "ref_image_6",
+          "name": "ref_images.ref_image_6",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 43
+        },
+        {
+          "localized_name": "ref_image_7",
+          "name": "ref_images.ref_image_7",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 44
+        },
+        {
+          "localized_name": "ref_image_8",
+          "name": "ref_images.ref_image_8",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 45
         },
         {
           "label": "ref_video_0",
@@ -1259,6 +1287,46 @@
           "name": "shot_count",
           "type": "INT",
           "links": []
+        },
+        {
+          "localized_name": "ref_4",
+          "name": "ref_4",
+          "type": "IMAGE",
+          "links": [
+            41
+          ]
+        },
+        {
+          "localized_name": "ref_5",
+          "name": "ref_5",
+          "type": "IMAGE",
+          "links": [
+            42
+          ]
+        },
+        {
+          "localized_name": "ref_6",
+          "name": "ref_6",
+          "type": "IMAGE",
+          "links": [
+            43
+          ]
+        },
+        {
+          "localized_name": "ref_7",
+          "name": "ref_7",
+          "type": "IMAGE",
+          "links": [
+            44
+          ]
+        },
+        {
+          "localized_name": "ref_8",
+          "name": "ref_8",
+          "type": "IMAGE",
+          "links": [
+            45
+          ]
         }
       ],
       "title": "Shot Loader (seriesmith)",
@@ -1929,7 +1997,7 @@
       11,
       6,
       20,
-      10,
+      14,
       "AUDIO"
     ],
     [
@@ -1937,7 +2005,7 @@
       11,
       7,
       20,
-      11,
+      15,
       "AUDIO"
     ],
     [
@@ -1945,7 +2013,7 @@
       11,
       8,
       20,
-      12,
+      16,
       "AUDIO"
     ],
     [
@@ -1953,7 +2021,7 @@
       11,
       1,
       20,
-      13,
+      17,
       "STRING"
     ],
     [
@@ -1961,7 +2029,7 @@
       11,
       9,
       20,
-      14,
+      18,
       "INT"
     ],
     [
@@ -1969,7 +2037,7 @@
       11,
       10,
       20,
-      15,
+      19,
       "INT"
     ],
     [
@@ -1977,7 +2045,7 @@
       11,
       11,
       20,
-      16,
+      20,
       "INT"
     ],
     [
@@ -2123,6 +2191,46 @@
       33,
       2,
       "INT"
+    ],
+    [
+      41,
+      11,
+      17,
+      20,
+      7,
+      "IMAGE"
+    ],
+    [
+      42,
+      11,
+      18,
+      20,
+      8,
+      "IMAGE"
+    ],
+    [
+      43,
+      11,
+      19,
+      20,
+      9,
+      "IMAGE"
+    ],
+    [
+      44,
+      11,
+      20,
+      20,
+      10,
+      "IMAGE"
+    ],
+    [
+      45,
+      11,
+      21,
+      20,
+      11,
+      "IMAGE"
     ]
   ],
   "groups": [

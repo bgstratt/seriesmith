@@ -133,14 +133,17 @@ class CheckTest(unittest.TestCase):
         self.assertEqual(self.check(THREE), [])
 
     def test_more_subjects_than_slots_is_refused(self):
-        # Ref2VA takes three subjects a generation; the group names four
+        # H3 takes eight subjects a generation; the group names nine, then eight
         c = cfg(target="minimax_h3_ref2va")
-        text = THREE.replace("who: ada\nsize: ws", "who: cy, di\nsize: ws")
+        extra = ["e1", "e2", "e3", "e4", "e5"]
+        for name in extra:
+            c["subjects"][name] = dict(c["subjects"]["di"], name=name.upper())
+        text = THREE.replace("who: ada\nsize: ws", f"who: cy, di, {', '.join(extra)}\nsize: ws")
         with self.assertRaises(ValueError) as cm:
             self.check(text, c)
-        self.assertIn("4 (Ada, Bo, Cy, Di)", str(cm.exception))
+        self.assertIn("9 (Ada, Bo, Cy, Di, E1", str(cm.exception))
         self.assertIn("`members`", str(cm.exception))     # background people as one group subject
-        self.assertEqual(self.check(text), [])      # Omni takes eight
+        self.assertEqual(self.check(text.replace("e5", "").replace(", \n", "\n"), c), [])
 
     def test_a_second_picture_of_one_person_warns(self):
         w = self.check(THREE.replace("who: ada\nsize: ws", "who: ada_wet\nsize: ws"))

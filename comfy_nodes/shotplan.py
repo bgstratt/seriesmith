@@ -25,6 +25,7 @@ PANEL_MODES = ["auto", "full", "pair", "face", "body"]
 # An unused subject socket's picture (H3's smallest canvas): it holds the
 # socket's number so the plate stays <Picture 4> (see plan_shot).
 PLACEHOLDER_SIZE = 32
+MOST_SUBJECTS = 8           # the node's nine pictures, less the plate
 
 
 def snap_up(frames: int) -> int:
@@ -128,9 +129,10 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
 
     # ---- references ------------------------------------------------------
     # Slots 1-3 are the shot's subjects (characters first, then props and
-    # vehicles). Slot 4 is ALWAYS the location plate. (A target with more
-    # subject sockets says how many, `defaults.subject_slots`: FastH3 Omni's
-    # eight, its plate <Picture 9>; the rest of this reads 3 and 4.) There is no style
+    # vehicles). Slot 4 is ALWAYS the location plate, and subjects 4-8 go after
+    # it, 5-9, only when a shot has them. (A target whose plate is later says how
+    # many pictures come before it, `defaults.subject_slots`: FastH3 Omni's
+    # eight, in a shotlist built before 2026-11-05; the rest of this reads 3 and 4.) There is no style
     # reference: the style is already carried by every sheet and plate,
     # which are all drawn in it, and by the text prefix. Spending slot 4 on
     # the background instead buys concrete layout, palette, lighting
@@ -179,7 +181,7 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
         mode_used, keep = panels_for("auto", len(subject_ids), size)
 
     refs: list[dict] = []
-    for sid in subject_ids[:n_slots]:
+    for sid in subject_ids[:MOST_SUBJECTS]:
         entry = book.get(sid, {})
         kind = entry.get("kind", "character")
         path = resolve(entry.get("sheet", ""))
@@ -191,7 +193,7 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
                 )
             refs.append({"neutral": [1024, 1024],
                          "note": f"{sid} ({kind}) MISSING -> flat grey"})
-            blanked.append(f"Picture {len(refs)}")
+            blanked.append(f"Picture {len(refs) if len(refs) <= n_slots else len(refs) + 1}")
             continue
         label = f"{sid} ({kind}) {os.path.basename(path)}"
         if kind == "character":
@@ -203,10 +205,10 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
         else:
             refs.append({"path": path, "panels": 1, "keep": [], "label": label, "how": "whole"})
 
-    if len(subject_ids) > n_slots:
+    if len(subject_ids) > MOST_SUBJECTS:
         raise ValueError(
-            f"shot {shot.get('id')}: {len(subject_ids)} subjects but only {n_slots} slots "
-            f"-- slot {n_slots + 1} is the background. Drop {len(subject_ids) - n_slots}."
+            f"shot {shot.get('id')}: {len(subject_ids)} subjects but only {MOST_SUBJECTS} "
+            f"slots and the background. Drop {len(subject_ids) - MOST_SUBJECTS}."
         )
 
     # A shot with fewer than three subjects fills those sockets with a 32x32
@@ -218,6 +220,7 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
     # node's smallest canvas and it never enlarges a reference, so each
     # placeholder costs a 2x2 latent and a few vision tokens, not the plate's
     # thousands (padding with the plate itself, before 2026-09-22, did).
+    # Sockets after the last subject stay empty: nothing after them to renumber.
     n_sub = len(refs)
     while len(refs) < n_slots:
         refs.append({"neutral": [PLACEHOLDER_SIZE, PLACEHOLDER_SIZE], "placeholder": True})
@@ -316,7 +319,7 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
         "pad": length - hold - round(duration * fps),
         "pos": index % len(shots), "count": len(shots),
         "subject_ids": list(subject_ids), "size": size, "voices": list(shot.get("voices", [])),
-        "refs": refs, "bg": bg, "bg_note": bg_note, "audio": audio, "audio_note": audio_note,
+        "refs": refs, "bg": bg, "plate_at": n_slots, "bg_note": bg_note, "audio": audio, "audio_note": audio_note,
         "blanked": blanked,
     }
 

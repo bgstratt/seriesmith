@@ -263,13 +263,20 @@ def dialogue_lines(shot: dict, speaker_label, subj: dict, copying: bool) -> list
     return desc
 
 
+def subject_pictures(subjects: list[str], plate_slot: str) -> dict[str, str]:
+    """Each subject's <Picture N>, in order, past the plate's number: with the
+    plate <Picture 4>, the fourth subject is <Picture 5>."""
+    plate = int(plate_slot.split()[-1])
+    return {s: f"<Picture {i + 1 if i + 1 < plate else i + 2}>" for i, s in enumerate(subjects)}
+
+
 def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
                  panel_view: str = "body", plate_slot: str = "Picture 4") -> list[str]:
     """Ref2VA six-section prompt.
 
-    The subject slots (1-3 on Ref2VA, 1-8 on FastH3 Omni) carry the shot's
-    subjects -- characters first, then props and vehicles, in script order.
-    The slot after them (`plate_slot`) always carries the location plate. The
+    The subject slots (1-3 and 5-9) carry the shot's subjects -- characters
+    first, then props and vehicles, in script order. `plate_slot` (4) always
+    carries the location plate. The
     background is written as a proper <Subject> sourced from that <Picture>,
     because H3's spec lists scenes and environments as Subject content; a bare
     <Picture N> means "use this exact frame as a keyframe", which is not what a
@@ -282,7 +289,7 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
 
     subjects = shot["_subjects"]                      # ordered, <= the subject slots
     subj = {s: f"<Subject {i + 1}>" for i, s in enumerate(subjects)}
-    pic = {s: f"<Picture {i + 1}>" for i, s in enumerate(subjects)}
+    pic = subject_pictures(subjects, plate_slot)
     bg_subj = f"<Subject {len(subjects) + 1}>"
     unref = list(shot.get("_unreferenced") or [])     # render anyway only
     no_plate = bool(shot.get("_no_plate"))            # render anyway only
@@ -515,7 +522,7 @@ def build_multishot_prompt(group: dict, shots: list[dict], seq: dict, series_cfg
     subjects = group["_subjects"]
     sent_of = group.get("_sent_of") or {}
     subj = {s: f"<Subject {i + 1}>" for i, s in enumerate(subjects)}
-    pic = {s: f"<Picture {i + 1}>" for i, s in enumerate(subjects)}
+    pic = subject_pictures(subjects, plate_slot)
     bg_subj = f"<Subject {len(subjects) + 1}>"
     unref = list(group.get("_unreferenced") or [])
     no_plate = bool(group.get("_no_plate"))

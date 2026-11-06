@@ -1,10 +1,9 @@
 """
 FastH3 Omni (targets/video/fasth3_omni, image/fasth3_omni_still): FastVideo's
-8-step H3, compiled as Ref2VA is but with the node's nine picture sockets --
-eight subjects and the plate as <Picture 9> -- where Ref2VA keeps three and
-<Picture 4>. What matters: the slots follow the target (compile, prompt, the
-shot plan, Cloud's lowering), Ref2VA's shotlists don't change, and the
-workflow wires the loader's last outputs into the extra sockets.
+8-step H3, compiled as Ref2VA is: eight subjects round the plate, <Picture 4>, like
+the rest of the H3 family. What matters: the slots follow the target (compile,
+prompt, the shot plan, Cloud's lowering), a job sets every socket whatever workflow
+is in force, and a shotlist from before (the plate <Picture 9>) renders as it says.
 """
 from __future__ import annotations
 
@@ -27,7 +26,9 @@ from seriesmith import targets as TG  # noqa: E402
 from seriesmith.backends import File  # noqa: E402
 from seriesmith.targets import modelid as M  # noqa: E402
 from test_cloud import write_png  # noqa: E402
-from test_ltx_ingredients import kitchen_sink  # noqa: E402
+from test_ltx_ingredients import (  # noqa: E402
+    character_ids, kitchen_sink, parse_story, series_info, subject_ids, variant_of,
+)
 
 OMNI, H3 = "fasth3_omni", "minimax_h3_ref2va"
 
@@ -50,20 +51,17 @@ class CompileTest(unittest.TestCase):
     def compile(self, tid):
         return TG.load_target(tid, "video").compile_episode(self.story, self.cfg, "final")
 
-    def test_the_plate_is_picture_9(self):
+    def test_the_plate_is_picture_4_as_on_ref2va(self):
         doc, _ = self.compile(OMNI)
-        self.assertEqual(doc["defaults"]["subject_slots"], 8)
+        self.assertNotIn("subject_slots", doc["defaults"])
         t = TG.load_target(OMNI)
         for sh in doc["shots"]:
             slots = {r["slot"] for r in t.ref_slots(doc, sh) if r["kind"] == "image"}
             if not sh.get("text_place"):
-                self.assertIn("Picture 9", slots, sh["id"])
-            self.assertNotIn("Picture 4", slots - {f"Picture {i}" for i in
-                                                   range(1, len(sh["subjects"]) + 1)})
+                self.assertIn("Picture 4", slots, sh["id"])
             if sh["background"]:
-                self.assertIn("<Picture 9>", pictures(sh["prompt"]), sh["id"])
-                self.assertNotIn("<Picture 4>", pictures(sh["prompt"]) if len(sh["subjects"]) < 4
-                                 else set(), sh["id"])
+                self.assertIn("<Picture 4>", pictures(sh["prompt"]), sh["id"])
+                self.assertNotIn("<Picture 9>", pictures(sh["prompt"]), sh["id"])
 
     def test_its_shotlist_says_whose_it_is(self):
         """A shotlist without `target` is read as Ref2VA's (jobs.shotlist_target),
@@ -80,6 +78,45 @@ class CompileTest(unittest.TestCase):
             if sh["background"]:
                 self.assertIn("<Picture 4>", pictures(sh["prompt"]), sh["id"])
 
+    def test_the_h3_family_takes_eight_round_picture_4(self):
+        for tid in (H3, "h3_singularity", "pika_h3_flex", OMNI):
+            t = TG.load_target(tid)
+            self.assertEqual(t.recipe["plate_slot"], "Picture 4")
+            self.assertEqual(t.recipe["subject_slots"],
+                             [f"Picture {i}" for i in (1, 2, 3, 5, 6, 7, 8, 9)])
+            h3 = next(v for v in api_graph(tid).values()
+                      if v["class_type"] == "MiniMaxH3ReferenceToVideo")
+            self.assertEqual([h3["inputs"][f"ref_images.ref_image_{i}"][1] for i in range(9)],
+                             [2, 3, 4, 5, 17, 18, 19, 20, 21], tid)
+
+    def test_a_ninth_subject_is_refused(self):
+        """(tests/fixtures/errors can't reach it: kitchen_sink has seven people and things.)"""
+        for n, refused in ((8, False), (9, True)):
+            cfg, _ = kitchen_sink()
+            names = [f"thing{i}" for i in range(n)]
+            for name in names:
+                cfg["subjects"][name] = {"kind": "prop", "name": name, "design": "a thing",
+                                         "sheet": f"refs/{name}.png"}
+            script = ("= ks99  Too many\n# sq01  kitchen\n## sh010\nwith: " + ", ".join(names)
+                      + "\ndur: 3.04\nThey all sit there.\n")
+            story = parse_story(script, subject_ids(cfg), character_ids(cfg),
+                                series_info(cfg), variant_of(cfg))
+            t = TG.load_target(H3, "video")
+            if refused:
+                with self.assertRaises(ValueError) as cm:
+                    t.compile_episode(story, cfg, "final")
+                self.assertIn("takes 8 and the plate", str(cm.exception))
+            else:
+                doc, _ = t.compile_episode(story, cfg, "final")
+                self.assertIn("<Picture 9>", pictures(doc["shots"][0]["prompt"]))
+
+    def test_a_fourth_subject_is_picture_5(self):
+        from seriesmith.targets.video.minimax_h3_ref2va.prompt import subject_pictures
+        self.assertEqual(subject_pictures(["a", "b", "c", "d", "e"], "Picture 4"),
+                         {"a": "<Picture 1>", "b": "<Picture 2>", "c": "<Picture 3>",
+                          "d": "<Picture 5>", "e": "<Picture 6>"})
+        self.assertEqual(subject_pictures(list("abcd"), "Picture 9")["d"], "<Picture 4>")
+
     def test_its_own_model_and_no_lora(self):
         doc, _ = self.compile(OMNI)
         d = doc["defaults"]
@@ -89,7 +126,7 @@ class CompileTest(unittest.TestCase):
     def test_eight_subjects_fit_and_nine_do_not(self):
         t = TG.load_target(OMNI)
         self.assertEqual(len(t.recipe["subject_slots"]), 8)
-        self.assertEqual(t.recipe["plate_slot"], "Picture 9")
+        self.assertEqual(t.recipe["plate_slot"], "Picture 4")
 
 
 class ShotPlanTest(unittest.TestCase):
@@ -119,9 +156,26 @@ class ShotPlanTest(unittest.TestCase):
     def test_ref2va_keeps_three_sockets(self):
         p = self.plan(self.doc(1, None))
         self.assertEqual(len(p["refs"]), 3)
+        self.assertEqual(p["plate_at"], 3)
         self.assertIn("<Picture 4>", p["bg_note"])
 
-    def test_omni_fills_eight_sockets_and_the_plate_is_picture_9(self):
+    def test_ref2va_takes_eight_round_the_plate(self):
+        p = self.plan(self.doc(5, None))
+        self.assertEqual(len(p["refs"]), 5)
+        self.assertEqual(p["plate_at"], 3)
+        self.assertFalse(any(r.get("placeholder") for r in p["refs"]))
+        self.assertIn("<Picture 4>", p["bg_note"])
+        self.assertEqual(len(self.plan(self.doc(8, None))["refs"]), 8)
+        with self.assertRaises(ValueError):
+            self.plan(self.doc(9, None))
+
+    def test_a_missing_fourth_subject_is_picture_5(self):
+        doc = self.doc(4, None)
+        doc["shots"][0]["missing_refs"] = "blank"
+        self.files.pop("s4.png", None)
+        self.assertEqual(self.plan(doc)["blanked"], ["Picture 5"])
+
+    def test_an_old_omni_shotlist_keeps_its_plate_at_picture_9(self):
         p = self.plan(self.doc(2, 8))
         self.assertEqual(len(p["refs"]), 8)
         self.assertEqual(sum(1 for r in p["refs"] if r.get("placeholder")), 6)
@@ -131,7 +185,7 @@ class ShotPlanTest(unittest.TestCase):
         self.assertEqual(len(self.plan(self.doc(8, 8))["refs"]), 8)
         with self.assertRaises(ValueError) as cm:
             self.plan(self.doc(9, 8))
-        self.assertIn("slot 9 is the background", str(cm.exception))
+        self.assertIn("only 8 slots", str(cm.exception))
 
 
 class WorkflowTest(unittest.TestCase):
@@ -143,7 +197,7 @@ class WorkflowTest(unittest.TestCase):
     def test_the_loader_feeds_all_nine_sockets(self):
         got = {k: self.h3["inputs"][k] for k in self.h3["inputs"] if k.startswith("ref_images.")}
         want = {f"ref_images.ref_image_{i}": [self.loader, o]
-                for i, o in enumerate([2, 3, 4, 17, 18, 19, 20, 21, 5])}
+                for i, o in enumerate([2, 3, 4, 5, 17, 18, 19, 20, 21])}
         self.assertEqual(got, want)
 
     def test_the_model_chain_is_fasth3s(self):
@@ -207,7 +261,7 @@ class CloudLowerTest(unittest.TestCase):
     def source(self, g, k):
         return g[g["H"]["inputs"][k][0]]["_meta"]["title"]
 
-    def test_omni_sends_nine_pictures_the_plate_last(self):
+    def test_an_old_omni_shotlist_sends_the_plate_last(self):
         g = self.lowered(8)
         ins = g["H"]["inputs"]
         self.assertEqual(len([k for k in ins if k.startswith("ref_images.")]), 9)
@@ -215,6 +269,50 @@ class CloudLowerTest(unittest.TestCase):
                          [f"<Picture {i}>" for i in range(1, 10)])
         plate = g[ins["ref_images.ref_image_8"][0]]["inputs"]["image"]
         self.assertEqual(plate.path, self.paths["plate.png"])
+
+    def test_ref2va_sends_a_fifth_subject_after_the_plate(self):
+        doc = {"defaults": {"width": 512, "height": 288},
+               "subjects": {s: {"kind": "prop", "sheet": "a.png"} for s in "abcd"},
+               "shots": [{"id": "sh010", "subjects": list("abcd"), "background": "plate.png",
+                          "duration": 3.0, "prompt": "p", "seed": 1, "steps": 8}]}
+        files = ["a.png", "plate.png"]
+        li = {"shotlist": json.dumps(doc), "files": json.dumps(files), "index": 0,
+              "panel_mode": "auto", "fps": 24.0,
+              **{SN.file_input(i): File(self.paths[f]) for i, f in enumerate(files)}}
+        outs = [2, 3, 4, 5, 17, 18, 19, 20, 21]
+        g = {"L": {"class_type": "SeriesmithShotLoader", "inputs": li},
+             "H": {"class_type": "MiniMaxH3ReferenceToVideo",
+                   "inputs": {f"ref_images.ref_image_{i}": ["L", o] for i, o in enumerate(outs)}}}
+        C._lower_loader(g, "L", self.staging)
+        ins = g["H"]["inputs"]
+        self.assertEqual([self.source(g, f"ref_images.ref_image_{i}") for i in range(5)],
+                         [f"<Picture {i}>" for i in range(1, 6)])
+        self.assertEqual(g[ins["ref_images.ref_image_3"][0]]["inputs"]["image"].path,
+                         self.paths["plate.png"])
+        self.assertEqual(g[ins["ref_images.ref_image_4"][0]]["inputs"]["image"].path,
+                         self.paths["a.png"])
+        self.assertIsNone(ins.get("ref_images.ref_image_5"))
+
+    def test_a_job_sets_every_socket_on_an_old_saved_graph(self):
+        from seriesmith.targets.video.minimax_h3_ref2va.compile import wire_pictures
+
+        def g(defaults):
+            return {"L": {"class_type": "SeriesmithShotLoader",
+                          "inputs": {"shotlist": json.dumps({"defaults": defaults})}},
+                    "H": {"class_type": "MiniMaxH3ReferenceToVideo",
+                          "inputs": {f"ref_images.ref_image_{i}": ["L", o]
+                                     for i, o in enumerate((2, 3, 4, 5))}}}
+
+        def outs(graph):
+            ins = graph["H"]["inputs"]
+            return [ins[f"ref_images.ref_image_{i}"][1] for i in range(9)]
+
+        new, old = g({}), g({"subject_slots": 8})
+        new["L"]["class_type"] = "H3ShotListLoader"     # as graph_for has it
+        wire_pictures(new)
+        wire_pictures(old)
+        self.assertEqual(outs(new), [2, 3, 4, 5, 17, 18, 19, 20, 21])
+        self.assertEqual(outs(old), [2, 3, 4, 17, 18, 19, 20, 21, 5])
 
     def test_ref2va_sends_four(self):
         g = self.lowered(None)
