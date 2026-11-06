@@ -1232,7 +1232,7 @@ no recipe at all is 409.
 ```
 
 A section's fields: `method`, `scale`, `detail`, `start_step`, `vae`, `pixel_model`,
-`seedvr2_model`, `then` (an upscale model file, or `"seedvr2"`), `then_scale`, `precision`,
+`seedvr2_model`, `upscaler` and `windowing` (`"pack"`: the node pack's in place of ComfyUI's own), `then` (an upscale model file, or `"seedvr2"`), `then_scale`, `precision`,
 `frequency_split`, `keep_soft`, `grain`. `quality` (`review` | `master`) is read by Phase
 13e3. The build warns about anything else (upscale.check_recipe).
 

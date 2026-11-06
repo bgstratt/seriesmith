@@ -2000,6 +2000,38 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
 - [x] Decided, encoded edge darkening stays: minor, hard to see unless looked for (took the user a few viewings), and a crossfade or encoding with extended edges would add more complication than it saves. Part of the price of re-rendering a portion; a full new take avoids it.
 - [x] A range re-render uses the take's own size and length, kept latent or not, rather than refusing when the shot has moved.
 
+## H3 upscale on ComfyUI's own nodes (branch `h3-core-upscale`, 2026-11-06)
+
+ComfyUI 0.44 has H3's latent upscaler (`MiniMaxH3LatentUpscaleWithModel`, `LatentUpscaleModelLoader`) and
+context windows (`MiniMaxH3ContextWindows`), so the H3 targets use those by default, even with the packs
+installed. The target's `fallback` is the pack: LBH's or its Plus (the same node id) and obvpm's windows. It's
+used on an older ComfyUI, or when the recipe's `upscaler` / `windowing` (or `--upscaler pack`, `--windowing pack`)
+asks for it. With neither, the upscale doesn't run and says what to do: update ComfyUI, or install a pack.
+`upscale.not_ready` settles the nodes (`choose_nodes`) before a graph is built, by the node classes, not a version
+number. The Plus refusal is gone, as is the user-facing wording on which pack is better: results are the user's to
+judge. The editor has no picker yet (series config, CLI and API only).
+
+The A/B behind it (local ComfyUI, real graph with one node swapped, against the original take):
+
+- **Upscaler**, LBH vs core: 40.9-44.2 dB at the default start, 41.1-44.2 dB at `--detail` 1 and 2. Core is LBH
+  with chunking off (0.00% on the same latent, on CPU); LBH only chunks above 32 latent frames. Colour against
+  the original: core equal or slightly closer on the four takes at the default start. No sparkles or marks in
+  the crops checked. A two-take sample at `--detail`, plain prompts and a plate from the take.
+- **Windows**, obvpm's vs core's at 124 frames / 39 overlap, pyramid, FreeNoise off (`window_frames`: the length
+  rounds down, the overlap up): pixel-identical on two windows; on a 15 s stitched latent identical to about 60%,
+  then ~43 dB; the same speed. The classic (non-dynamic-VRAM) loader wasn't tried: core skips its clamp for packed
+  latents, which didn't crawl on the dynamic loader.
+- **Open:** core's windows drop a first-frame keyframe from any window not containing it. With a first frame in
+  the re-sample, obvpm's stayed closer to a no-window reference at the shot's end (34.4 vs 31.8 dB). It matters for
+  a continuity shot longer than a window, and `continuity_source` needs `inputs.first`, which none of 128 render
+  records here has, so that upscale doesn't start from the upscaled frame at all today: test a real pair of shots.
+- **The floor:** on the short control take, the same graph on ComfyUI 0.44 with PyTorch 2.15 is 43.6 dB from itself on
+  0.43 with 2.14, for LBH and for core alike, and LBH vs core is 43.6 dB on either. A repeat on one setup is
+  frame-identical. So a short take's LBH-vs-core gap is no bigger than what that software update moves; only the
+  long takes (40.9-42 dB, LBH chunking) go below it. Live on the branch: the graphs match the A/B's, four cases.
+
+- `--detail` 1 and 2, on the two takes: softer and further from the original than the default, on both upscalers.
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

@@ -221,9 +221,9 @@ def block() -> str:
     if ups or own:
         lines += ["### For upscaling (optional)", "",
                   "Only to upscale takes (`seriesmith upscale`), never to render. H3's "
-                  "MinimaxH3LatentUpscaler3D comes from the Comfyui_Minimax_h3_latent_Upscaler "
-                  "pack (LBH-123-AI) — not its \"Plus\" fork, which has the same node without "
-                  "temporal chunking; LTX's LTXVLatentUpsampler is ComfyUI's own. "
+                  "MiniMaxH3LatentUpscaleWithModel is ComfyUI's own from 0.44; an older ComfyUI uses "
+                  "MinimaxH3LatentUpscaler3D, from the Comfyui_Minimax_h3_latent_Upscaler pack "
+                  "(LBH-123-AI) or its Plus version. LTX's LTXVLatentUpsampler is ComfyUI's own. "
                   "`seriesmith targets` says whether this ComfyUI can upscale.", ""]
         for name, u in ups.items():
             dl = u["dl"]

@@ -1737,7 +1737,8 @@ def post_upscale(ctx: Context, body):
                                 from_upscale=from_upscale, encoder=encoder, precision=precision,
                                 frequency_split=frequency_split, keep_soft=keep_soft, grain=grain,
                                 seedvr2_model=seedvr2_model, deliver=deliver, fit=fit,
-                                quality=quality)
+                                quality=quality, upscaler=body.get("upscaler"),
+                                windowing=body.get("windowing"))
         if up.action == "skip":
             skipped.append({"shot": shot, "take": t.take, "reason": up.why})
         elif up.action == "error":
