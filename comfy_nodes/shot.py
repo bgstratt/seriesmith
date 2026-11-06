@@ -683,16 +683,14 @@ class SeriesmithSaveTake:
             t0 = clock()
             save_audio(audio, h3_wav)
             notes.append("H3 mix -> _h3.wav")
-            # 'clone' speaks the written lines in the sampled voice: H3's mix is
-            # the shot's real sound, as it is for 'generate'
-            if audio_policy in ("generate", "clone"):
-                mux_audio = h3_wav
-            elif audio_policy == "dub_keep_foley":
+            # H3's mix is the shot's real sound: the lines it spoke, or on a dub the voice it
+            # was given with whatever it made around that, so a take plays wherever it's
+            # heard, ComfyUI's own assets too. A recording laid in at conform replaces it there.
+            mux_audio = h3_wav
+            if audio_policy == "dub_keep_foley":
+                # the effects alone as well, voice taken out: a stem for the mix
                 foley = os.path.join(shot_dir, f"{stem}_foley.wav")
                 notes.append(self._strip_vocals(h3_wav, foley))
-                mux_audio = foley if os.path.isfile(foley) else None
-            # 'dub' leaves the mp4 mute: the real vocal is laid in at conform,
-            # and muxing H3's competing vocal only gets in the way.
             ms["audio"] = round((clock() - t0) * 1000)
         if lines is not None:
             try:

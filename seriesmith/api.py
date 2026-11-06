@@ -1961,6 +1961,9 @@ def post_master(ctx: Context, body):
         raise ApiError(400, "conform, allow_gaps and prores must be true or false")
     # post: false / "off", "present" (posts where there are fresh ones), true / "recipe"
     flags["post"] = body.get("post", False)
+    flags["audio"] = body.get("audio")
+    if flags["audio"] not in (None, "recording"):
+        raise ApiError(400, 'audio must be "recording" or left out')
     try:
         M.post_mode(flags["post"])
     except M.MasterError:
@@ -2133,7 +2136,7 @@ def _master_task(ctx: Context, params: dict):
                 return "succeeded"
             plan = M.plan_master(ep, pass_, flags["conform"], flags["post"])
             res = M.assemble_master(plan, flags["allow_gaps"], flags["prores"], progress=progress,
-                                    by="the editor", stop=stop)
+                                    by="the editor", stop=stop, audio=flags.get("audio"))
         except M.MasterError as e:                       # busy, nothing to master, not ready
             return failed(str(e))
         except Exception as e:                           # noqa: BLE001  the job fails
@@ -4369,8 +4372,12 @@ def post_assemble(ctx: Context, body):
         raise ApiError(400, "xml must be true or false")
     if xml and publish:
         raise ApiError(400, "xml and publish don't go together")
+    # the cut as Play all plays it: on the recording, that's the dialogue under the mix
+    audio = body.get("audio")
+    if audio not in (None, "recording"):
+        raise ApiError(400, 'audio must be "recording" or left out')
     J.load_shotlist(ep, pass_)
-    res = E.assemble_episode(ep, pass_, partial or xml, upscaled=upscaled, size=size, xml=xml)
+    res = E.assemble_episode(ep, pass_, partial or xml, upscaled=upscaled, size=size, xml=xml, audio=audio)
     if not publish or not res["ok"]:
         return 200, res
     pub = E.publish_episode(ep, res["output"])

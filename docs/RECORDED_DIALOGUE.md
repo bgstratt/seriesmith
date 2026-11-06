@@ -33,9 +33,16 @@ Put the recording inside the episode folder (for example `ep05\audio\`) so the s
 - **Transcript cache:** saves the transcript as `<recording>.words.json`, so re-running is instant. Use `--retranscribe` after you replace the recording.
 - **Cut points:** cuts land at the quietest point of each pause. Speaking shots are lengthened to the frame grid of the target they render on (H3's 17k+5, LTX's 8k+1) when the pause has room.
 
+## Export and Master
+
+**Play all**'s audio switch says what the cut's dialogue is, and **Export**, **2x Export** and **Master** use the same: **clips**,
+each clip's own sound, or **recording**, the episode's recording, with the mix's effects, ambience and music under it either way.
+Each clip's own sound is left out while it's on recording. On the command line that's `--audio recording`, and `--audio master` is
+the recording alone, to check sync.
+
 ## Audio policy and retention
 
-A speaking shot defaults to `dub_keep_foley`: H3 lip-syncs to your line, and the saver keeps H3's sound effects with the voice removed, as `_foley.wav`.
+A speaking shot defaults to `dub_keep_foley`: H3 lip-syncs to your line, and the saver keeps H3's sound effects with the voice removed, as `_foley.wav`. The take's video has H3's whole mix, your line in it.
 
 | Retention | What H3 does with your line | Default for |
 |---|---|---|

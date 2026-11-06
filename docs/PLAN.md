@@ -1945,6 +1945,16 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
 - [x] **No ComfyUI yet**: the Features window shows ComfyUI's own installs for this system and
       finds one that's running (`seriesmith/comfysetup.py`, `POST /seriesmith/comfyui/find`).
 
+## Export's dialogue (hotfix, 2026-11-05)
+
+- [x] Export, 2x Export and Master follow Play all's audio switch: on **recording**, the recording as the mix's
+      dialogue track, with effects, ambience and music (`assemble --audio recording`; `master` stays the recording
+      alone, to check sync). They never used it.
+- [x] A take dubbed to the recording with its effects kept had only those in its mp4 (the voice taken out by
+      Demucs), so with Demucs installed its export had no voice. The saver now puts H3's whole mix in the mp4, a
+      dub of any source gets it back on a backend without that, and a take already saved that way plays its
+      `_h3.wav` (`peaks.clip_audio`). Those old takes still play effects alone in Play all, which plays the mp4.
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

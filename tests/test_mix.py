@@ -292,6 +292,54 @@ class AssembleMixTest(unittest.TestCase):
         return {"id": "m01", "track": "music", "path": "sound/score.wav",
                 "in": anchor("sh010"), "out": anchor("sh020", 24), **kw}
 
+    def recording(self):
+        """A recording with sound in its first second alone, set as the episode's."""
+        path = os.path.join(self.root, "sound", "lines.wav")
+        tone_wav(path, 1.0, amp=20000)
+        doc = T.read_json(os.path.join(self.root, "shotlist", "shotlist.json"))
+        doc["defaults"]["master_track"] = "sound/lines.wav"
+        T.write_json(os.path.join(self.root, "shotlist", "shotlist.json"), doc)
+
+    def test_the_recording_is_the_dialogue_track_under_the_mix(self):
+        self.recording()
+        MX.save(self.root, {"final": {"items": [self.music()]}})
+        out = self.assemble("--audio", "recording")
+        self.assertNotIn("left out", out)
+        dialogue, music = self.stem("dialogue"), self.stem("music")
+        # the recording in its place, in sh010; sh020's own loud sound isn't heard
+        self.assertGreater(self.level(dialogue, 0.1, 0.9), -40)
+        self.assertLess(self.level(dialogue, 1.1, 1.9), -60)
+        # the music is still there, in the export, dipping under the recording's speech
+        self.assertGreater(self.level(music, 1.1, 1.9), -55)
+        self.assertLess(self.level(music, 0.1, 0.9), self.level(music, 1.1, 1.9) - 3)
+        self.assertGreater(self.level(MX.decode(self.out), 1.1, 1.9), -50)
+        self.assertEqual(probe_frames(self.out), 48)
+
+    def test_the_recording_with_no_mix_is_just_the_recording(self):
+        self.recording()
+        self.assemble("--audio", "recording")
+        got = MX.decode(self.out)
+        self.assertGreater(self.level(got, 0.1, 0.9), -40)
+        self.assertLess(self.level(got, 1.1, 1.9), -60)
+        self.assertFalse(os.path.isdir(os.path.join(self.root, "renders", "ep01_stems")))
+
+    def test_master_still_leaves_the_mix_out(self):
+        self.recording()
+        MX.save(self.root, {"final": {"items": [self.music()]}})
+        out = self.assemble("--audio", "master")
+        self.assertIn("left out", out)
+        self.assertLess(self.level(MX.decode(self.out), 1.1, 1.9), -60)
+
+    def test_a_take_with_only_effects_in_its_video_plays_with_its_voice(self):
+        # dub_keep_foley's mp4 holds the effects with the voice taken out: here sh020's, loud
+        t = T.get_take(self.root, "final", "sh020", 1)
+        tone_wav(t.paths.h3_wav, 1.0, amp=1)             # what the model gave back, told apart by level
+        self.assemble()
+        self.assertGreater(self.level(MX.decode(self.out), 1.1, 1.9), -40)      # no foley beside it: the mp4
+        shutil.copy(t.paths.h3_wav, t.paths.dir + os.sep + "sh020_t01_foley.wav")
+        self.assemble()
+        self.assertLess(self.level(MX.decode(self.out), 1.1, 1.9), -60)         # now the _h3.wav
+
     def test_no_mix_leaves_the_cut_alone(self):
         self.assemble()
         self.assertFalse(os.path.isdir(os.path.join(self.root, "renders", "ep01_stems")))
