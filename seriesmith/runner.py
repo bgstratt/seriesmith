@@ -567,28 +567,49 @@ class Runner:
         self._submit(qjob)
         return n, qjob.id
 
-    def enqueue_line(self, ep: str, line: dict, target, backend_name: str) -> tuple[int, str]:
-        """One take of a line of dialogue (lines.py) queued on its provider: its words alone, in its
-        character's speaker. Returns (the take's number, the queue's job id)."""
+    def enqueue_line(self, ep: str, line: dict, target, backend_name: str, local: dict | None = None) -> tuple[int, str]:
+        """One take of a line of dialogue (lines.py) queued: on a provider, its words alone, in its
+        character's speaker; on a local model (`local`: {"base": its workflow, "listing", "resolve", "cache"}),
+        from the description, its graph made as it starts, so a line after the character's first can
+        continue it. Returns (the take's number, the queue's job id)."""
         from seriesmith import lines as LN
+        from seriesmith import targets as TG
 
         backend = self.backend_for(backend_name)
         self.reserve(backend, ep, "line")
         n = LN.reserve(ep, line, target)
         lid = line["id"]
-        call = LN.call_for(ep, line, n, target)
+        hosted = TG.is_hosted(target.spec)
+        call = LN.call_for(ep, line, n, target) if hosted else None
+
+        def local_graph() -> tuple[dict, list]:
+            import os
+
+            from seriesmith import refs as R
+            job = LN.local_job(ep, line, n, target)
+            local_ = local or {}
+            blocked = R.resolve_job_models(job, local_.get("listing"), local_.get("resolve"), local_.get("cache"), {})
+            if blocked:
+                raise RuntimeError("model files not installed: " + "; ".join(TG.missing_message(m) for m in blocked))
+            s = R.load_series(ep)
+            collector = J.InputCollector(keep_dir=os.path.join(LN.folder(ep), "_staged"))
+            R.stage_voice_reference(s, job, collector)
+            g = R.graph_for(local_.get("base"), job, None, portable=True)
+            J.files_as_uploads(g, collector.files)
+            return g, [k for k, v in g.items() if v["class_type"] == "SaveAudio"]
 
         def event(status: str) -> None:
             self._emit("seriesmith.lines", {"ep": ep, "line": lid, "take": n, "status": status})
 
         def work(qjob: QJob, report) -> str:
             try:
-                run = backend.call(*call)
+                g, savers = (None, []) if hosted else local_graph()
+                run = backend.call(*call) if hosted else backend.submit(g)
                 self.started(qjob, run, backend, report)
                 status = run.watch(on_progress=progress_to(report))
                 if status != "succeeded":
                     raise RuntimeError(run.error or f"the job ended {status}")
-                LN.finish(ep, lid, n, run)
+                LN.finish(ep, lid, n, run, savers)
                 result = "succeeded"
             except Exception as e:                       # noqa: BLE001  the take fails
                 qjob.error = str(e)[:800]

@@ -5,7 +5,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LineRow, LinesPlan } from "../api";
 import { api } from "../host";
-import { refreshEpisode } from "../actions";
+import { refreshEpisode, runAlign, setSound } from "../actions";
+import { setCutAudio } from "../cutActions";
+import { useApp } from "../store";
 import { HearSpeaker } from "./ProviderVoices";
 
 export function LinesSection({ ep }: { ep: string }) {
@@ -14,6 +16,8 @@ export function LinesSection({ ep }: { ep: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [laid, setLaid] = useState<string | null>(null);
+  const cutAudio = useApp((s) => s.cutAudio);
+  const [dubbed, setDubbed] = useState<string | null>(null);
   const live = useRef(true);
   useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
 
@@ -61,9 +65,10 @@ export function LinesSection({ ep }: { ep: string }) {
     setLaid(null);
     try {
       const got = await api().layLines(ep);
-      setLaid(`Laid ${got.lines} lines into ${got.path} (${got.seconds.toFixed(1)} s).${got.notes.length ? ` ${got.notes.join(" ")}` : ""} Now align it below.`);
+      setLaid(`Laid ${got.lines} lines into ${got.path} (${got.seconds.toFixed(1)} s), and aligning it: follow it below.${got.notes.length ? ` ${got.notes.join(" ")}` : ""}`);
       await refreshEpisode(ep);
       await read();
+      await runAlign();
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -81,6 +86,14 @@ export function LinesSection({ ep }: { ep: string }) {
       setErr((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  // the shots that speak: their next take lip-syncs to their window of the recording
+  async function dubThem() {
+    const shots = [...new Set((plan?.lines ?? []).map((l) => l.shot))];
+    if (shots.length && await setSound(shots, { mode: "dub", dub: { from: "track" } })) {
+      setDubbed(`${shots.length} speaking ${shots.length === 1 ? "shot" : "shots"} will lip-sync on the next take. Their takes show stale: sound, so Re-render stale on the Shots tab makes them. Try one first: it's a render each.`);
     }
   }
 
@@ -128,18 +141,42 @@ export function LinesSection({ ep }: { ep: string }) {
               <div className="h3-note h3-small">Pick a speaker for {plan.no_speaker.join(", ")} on the Refs tab's voice rows first: no line is made in a voice nobody chose.</div>
             )}
             <div className="h3-row h3-wrap" style={{ gap: 6 }}>
-              {plan.available && <button className="h3-btn h3-paid" disabled={busy || !plan.to_make.lines || plan.no_speaker.length > 0}
-                title={`Sends ${plan.to_make.lines} requests to ${plan.service}, billed to your account by the character`}
+              {plan.available && <button className={`h3-btn ${plan.paid ? "h3-paid" : "h3-primary"}`} disabled={busy || !plan.to_make.lines || plan.no_speaker.length > 0}
+                title={plan.paid ? `Sends ${plan.to_make.lines} requests to ${plan.service}, billed to your account by the character` : `Queues ${plan.to_make.lines} on your own GPU, from each character's description, continuing their voice`}
                 onClick={() => void make(null, plan.to_make.chars)}>
                 <i className="pi pi-sparkles" /> {plan.to_make.lines
-                  ? `Generate ${plan.to_make.lines} ${plan.to_make.lines === 1 ? "line" : "lines"} (paid: ${plan.to_make.chars.toLocaleString()} characters)`
+                  ? `Generate ${plan.to_make.lines} ${plan.to_make.lines === 1 ? "line" : "lines"}${plan.paid ? ` (paid: ${plan.to_make.chars.toLocaleString()} characters)` : ""}`
                   : "Every line has a take"}
               </button>}
-              <button className="h3-btn" disabled={busy || !plan.can_lay || out} title="Costs nothing: joins the takes picked, with the script's pauses" onClick={() => void lay()}>
-                <i className="pi pi-align-justify" /> Lay them into the recording
+              <button className="h3-btn" disabled={busy || !plan.can_lay || out} title="Costs nothing: joins the takes picked into the episode's recording, with the script's pauses, then aligns the shots to it" onClick={() => void lay()}>
+                <i className="pi pi-align-justify" /> Lay and align
               </button>
             </div>
+            {!plan.can_lay && !out && (() => {
+              const left = plan.lines.filter((l) => !l.takes.some((t) => t.take === l.picked && t.status === "ok"));
+              return left.length > 0 && left.length < plan.lines.length ? (
+                <div className="h3-note h3-small">
+                  Takes are saved as they're made. To lay and align, every line needs one: {left.length === 1 ? "this one still doesn't" : `these ${left.length} still don't`} ({left.slice(0, 4).map((l) => `${l.name}: “${l.text.slice(0, 40)}”`).join(", ")}{left.length > 4 ? ", …" : ""}). Use <b>Make</b> on its row below, or bring a file with it in.
+                </div>
+              ) : null;
+            })()}
             {laid && <div className="h3-note h3-note-info h3-small">{laid}</div>}
+            {plan.recording && (
+              <div className="h3-col" style={{ gap: 4 }}>
+                <div className="h3-h">Use it</div>
+                <label className="h3-row h3-small" style={{ gap: 6 }} title="Play all and Export use this recording as the dialogue, under the effects, ambience and music. Each clip's own sound is left out while it's on">
+                  <input type="checkbox" checked={cutAudio === "recording"} onChange={(e) => setCutAudio(e.target.checked ? "recording" : "clips")} />
+                  The cut's dialogue is this recording, in Play all and Export
+                </label>
+                <span className="h3-small h3-muted">That's the voices in time, right away. The mouths still move as each take was rendered, until it's rendered again:</span>
+                <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+                  <button className="h3-btn" disabled={busy} title="Sets each speaking shot's next take to dub to its window of this recording. Renders nothing yet" onClick={() => void dubThem()}>
+                    <i className="pi pi-comments" /> Lip-sync the speaking shots' next takes
+                  </button>
+                </div>
+                {dubbed && <div className="h3-note h3-note-info h3-small">{dubbed}</div>}
+              </div>
+            )}
             <div className="h3-col" style={{ gap: 3, maxHeight: 320, overflow: "auto" }}>
               {plan.lines.map((l) => {
                 const take = l.takes.find((t) => t.take === l.picked);
@@ -163,7 +200,7 @@ export function LinesSection({ ep }: { ep: string }) {
                     {take?.file && <audio controls preload="none" src={api().refFileUrl(ep, take.file, String(take.take))} style={{ height: 26, width: 150 }} />}
                     {take?.source === "file" && <span className="h3-muted" title={take.voice_name}>file</span>}
                     {plan.available && <button className="h3-btn" disabled={busy || running || !l.speaker}
-                      title={`${take ? "Redo" : "Make"} this line (paid: ${l.chars} characters)`}
+                      title={`${take ? "Redo" : "Make"} this line${plan.paid ? ` (paid: ${l.chars} characters)` : ""}`}
                       onClick={() => void make([l.id], l.chars)}>{take ? "Redo" : "Make"}</button>}
                   </div>
                 );

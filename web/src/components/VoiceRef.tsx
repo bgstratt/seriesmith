@@ -156,6 +156,47 @@ function ProviderSpeaker({ r, service, label }: { r: Ref; service: string; label
   );
 }
 
+/** Every line this character has, as a take each, on the model its voice row is set to. Paid says
+ *  how much first; the lines appear in the Recording window, to lay and align. */
+function GenerateAllLines({ r, target, blocked }: { r: Ref; target?: string; blocked: boolean }) {
+  const ep = useApp((s) => s.ep);
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<{ ok: boolean; text: string } | null>(null);
+  if (!ep || !r.subject) return null;
+  async function go() {
+    if (!ep || !r.subject) return;
+    setBusy(true);
+    setSaid(null);
+    try {
+      const plan = await api().lines(ep, target);
+      const mine = plan.characters?.find((c) => c.who === r.subject);
+      const todo = mine?.to_make ?? { lines: 0, chars: 0 };
+      if (!mine?.lines) {
+        setSaid({ ok: false, text: `${r.name} has no lines in this script.` });
+      } else if (!todo.lines) {
+        setSaid({ ok: true, text: `Every line has a take. Open Lines & recording to hear them or redo one.` });
+      } else if (!plan.paid || confirm(`This makes ${todo.lines} paid ${todo.lines === 1 ? "line" : "lines"} (${todo.chars.toLocaleString()} characters), billed to your account. Go ahead?`)) {
+        const got = await api().generateLines({ ep, who: r.subject, confirm_chars: todo.chars, ...(target ? { target } : {}) });
+        setSaid(got.errors.length
+          ? { ok: false, text: got.errors.map((e) => `${e.line}: ${e.error}`).join("\n") }
+          : { ok: true, text: `${got.queued.length} ${got.queued.length === 1 ? "line" : "lines"} queued. They'll be in Lines & recording.` });
+      }
+    } catch (e) {
+      setSaid({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <button className="h3-btn" disabled={busy || blocked} title={blocked ? "Pick a speaker first" : `A take of each of ${r.name}'s lines in the script, one at a time, so one can be redone alone`} onClick={() => void go()}>
+        <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-list"} /> Generate all {r.name}'s lines
+      </button>
+      {said && <span className={`h3-small ${said.ok ? "h3-muted" : "h3-err"}`} style={{ whiteSpace: "pre-wrap" }}>{said.text}</span>}
+    </>
+  );
+}
+
 export function VoiceGenerateBar({ r }: { r: Ref }) {
   const busy = useApp((s) => !!s.busy[`refgen|${r.id}`] || !!s.busy[`refimport|${r.id}`]);
   const { list } = useTargets();
@@ -200,6 +241,7 @@ export function VoiceGenerateBar({ r }: { r: Ref }) {
         >
           <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-sparkles"} /> Generate {count > 1 ? `${count} samples` : "a sample"}
         </button>
+        <GenerateAllLines r={r} target={eff?.target ?? undefined} blocked={noSpeaker} />
         <button
           className="h3-btn"
           title="Cut a line this character already speaks in a take out of its sound, and use that as the sample (no model runs)"

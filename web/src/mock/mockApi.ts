@@ -2492,6 +2492,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       await wait(40);
       return { job: {} };
     },
+    async setCutAudio(_ep, audio) {
+      await wait(40);
+      return { ok: true, cut_audio: audio };
+    },
     async pickLine() {
       await wait(40);
       return { ok: true };

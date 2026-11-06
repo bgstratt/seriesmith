@@ -808,7 +808,7 @@ def set_episode_target(data: dict, target: str | None, name: str = "") -> dict:
 
 
 EPISODE_FIELDS = ("target", "refs_target", "keyframe_target", "edit_target", "turn_target",
-                  "voice_target", "backend")
+                  "voice_target", "backend", "cut_audio")
 
 
 def shot_backend(data: dict, shot_id: str) -> str | None:
@@ -836,7 +836,8 @@ def episode_field(data: dict, key: str) -> str | None:
     `keyframe_target` (the image targets of series refs and of keyframes),
     `edit_target` (the image target that edits a picture), `turn_target` (the one
     a character's view is turned on),
-    `voice_target` (the audio target of voice refs).
+    `voice_target` (the audio target of voice refs), `cut_audio` ("recording": the cut plays and exports
+    the episode's recording, not each clip's own sound).
     None when unset (or "episode" is only the episode's name)."""
     ep = data.get("episode")
     v = ep.get(key) if isinstance(ep, dict) else None

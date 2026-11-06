@@ -4585,15 +4585,17 @@ doesn't exist. Body `{definition, key?}`: `key`, else the one saved. The key isn
 
 ### `GET /seriesmith/lines`
 
-An episode's lines from a voice model on a provider (`seriesmith/lines.py`), costing nothing. Query `ep`,
-`target?` (default: the voice model). Returns `{available, label, service, lines: [{id, shot, who, name, text,
-chars, status: missing | ok | changed, speaker, picked, takes}], characters, to_make: {lines, chars}, no_speaker,
-recording, can_lay}`, or `{available: false, why}`.
+An episode's lines from a voice model (`seriesmith/lines.py`), costing nothing. Query `ep`, `target?` (default:
+the voice model). Returns `{available, why?, label, service, paid, lines: [{id, shot, who, name, text, chars,
+status: missing | ok | changed, speaker, picked, takes}], characters: [{who, name, lines, chars, speaker, source,
+to_make}], to_make: {lines, chars}, no_speaker, recording, can_lay}`.
 
 ### `POST /seriesmith/lines/generate`
 
-Paid. Queues a take of each line in `lines`, else of each without one matching the script. Body `{ep,
-confirm_chars, target?, lines?, backend?}`: `confirm_chars` is the total shown, and any other is **409**. A
+Queues a take of each line in `lines`, else of each without one matching the script, of one character with
+`who`. Paid on a provider; on a local voice model (LTX's) it's your GPU, from the character's description,
+continuing its sample if it has one, else its first line. Body `{ep, confirm_chars, target?, lines?, who?,
+backend?}`: `confirm_chars` is the total shown, and any other is **409**. A
 character with no speaker is **400**. Nothing is sent in either case. Returns `{queued, errors}`;
 `seriesmith.lines` follows each.
 
@@ -4612,7 +4614,14 @@ Which finished take of a line is used. Body `{ep, line, take}`.
 
 Costs nothing. Lays each line's picked take in script order, with the pauses silent shots give, into
 `audio/lines/lines_recording.wav`, writes its timings beside it, and attaches it as the dialogue track. Body
-`{ep}`. Returns `{path, seconds, lines, timed, notes}`. Then `POST /seriesmith/align` as for any recording.
+`{ep}`. Returns `{path, seconds, lines, timed, guessed, notes, cut_audio}`, and the cut now plays it. Then
+`POST /seriesmith/align` as for any recording.
+
+### `POST /seriesmith/cut/audio`
+
+What the episode's cut plays and exports as its dialogue: `"recording"` (the dialogue recording, as `assemble --audio
+recording`) or `"clips"` (each clip's own sound). The mix's other tracks play under either. Body `{ep, audio}`. Kept in `overrides.json`; `GET /seriesmith/episode` says
+it as `cut_audio`.
 
 ### `GET /seriesmith/providers/voices`
 

@@ -21,27 +21,40 @@ Put the recording inside the episode folder (for example `ep05\audio\`) so the s
 
 ## Lines from a voice model
 
-You don't need to record anything if a voice model on a provider speaks the lines. Choose one, such as
-ElevenLabs, under **Voices with:** on the Refs tab, and pick a speaker on each character's voice row. Then, in
-the **Recording** window, open **Or make the lines with a voice model**:
+You don't need to record anything if a voice model speaks the lines. Under **Voices with:** on the Refs tab,
+choose ElevenLabs and pick a speaker on each character's voice row, or keep LTX, which runs on your GPU and makes
+each line from the character's description. On LTX a character's lines continue its voice sample if it has one,
+else the first line made for it. **Generate all [name]'s lines** on a voice row does one character. For everyone,
+open **Or build it from each character's lines** in the **Recording** window:
 
 1. **Look at the total.** Every line and character is counted before anything is sent, and a character with
    no speaker stops it.
-2. **Generate them.** That's paid, one call per line. Each line is its own take, so you can redo one alone and
-   choose between its takes.
-3. **Lay them into the recording.** That's free. It joins the takes in script order, leaving each silent shot's
-   `dur:` as a pause, and attaches the result. The model's own timings go beside it, so no Whisper is needed.
-4. **Align**, as below.
+2. **Generate them.** That's paid on a provider, one call per line, and free on your GPU. Each line is its own
+   take, so you can redo one alone and choose between its takes.
+3. **Lay and align.** That's free. It joins the takes in script order, leaving each silent shot's `dur:` as a
+   pause, attaches the result, and aligns the shots to it. No Whisper is needed: each line is placed where it was
+   laid, using the provider's timings or, from a local model, where its take makes sound. Your script's old `dur:`
+   lines become comments, as with any align.
 
 If you change a line or its speaker, its take is marked as changed. Redoing a line can change its length, so
 lay and align again afterwards: the shots after it move, though only the redone shot goes stale.
+
+### Using it
+
+Once it's laid, **Use it** in the same section has two parts:
+
+- **The cut's dialogue is this recording** is switched on by laying it. **Play all** and **Export** then use the recording
+  as the dialogue, under the mix's effects, ambience and music, so the voices are in time right away. Each clip's own sound
+  is left out while it's on, including any effects baked into a take. The mouths still move as each take was rendered.
+- **Lip-sync the speaking shots' next takes** sets each speaking shot to dub to its window of the recording. It renders
+  nothing: their takes go stale, so **Re-render stale** on the Shots tab makes them. Each is a render, so try one first.
 
 ### A file for each character
 
 If you have all of one character's lines in one file, from an actor or generated on a voice model's site, use
 **Use a file…** on that character's row. The file should hold one voice, nobody else, with the lines in script
 order. Whisper hears it and cuts it into a take per line, so it costs nothing. A line it can't hear gets no take
-and is listed on the character's row. Then lay and align as above, mixing files and generated lines as you like,
+and is listed on the character's row. Then **Lay and align** as above, mixing files and generated lines as you like,
 and redo any single line.
 
 Everything comes together in one recording, because a video model lip-syncs a shot to one sound. Two people

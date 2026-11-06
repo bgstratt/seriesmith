@@ -4,6 +4,10 @@ speaker, the words alone in the request, then laid in script order into the epis
 From there it's a recording like an actor's (docs/RECORDED_DIALOGUE.md): `align` windows the shots
 from it, using the timings the model gave in place of Whisper (`<recording>.words.json`).
 
+The model can be a provider's, in a speaker the character was given, or a local one (LTX's voice), which
+makes each line from the character's description, continuing the character's sample if it has one, else
+the first line made for it, so one character keeps one voice (`local_job`).
+
 A character's whole file (all of Crane's lines, from a voice model's site or an actor) comes in the
 same way: heard, matched to that character's lines in script order, and cut into a take per line
 (`cut_character`), so it mixes with lines made here and one line can still be redone alone.
@@ -98,8 +102,11 @@ def script_shots(ep: str) -> list[dict]:
     return out
 
 
-def _speaker(cfg: dict, who: str, service: str) -> dict | None:
+def _speaker(cfg: dict, who: str, service: str, target=None) -> dict | None:
     from seriesmith.targets.generic.router_audio import speaker_of
+    if target is not None and not service:
+        # a local model has no speakers to choose from: its voice is the model's, from the description
+        return {"id": f"model:{target.id}", "name": target.short or target.label}
     book = cfg.get("subjects") or {}
     entry = book.get(who) if isinstance(book.get(who), dict) else {}
     # a variant shares its base's voice
@@ -142,26 +149,32 @@ def plan(ep: str, target) -> dict:
     rows, people = [], {}
     for shot in script_shots(ep):
         for ln in shot["lines"]:
-            speaker = _speaker(cfg, ln["who"], service)
+            speaker = _speaker(cfg, ln["who"], service, target)
             have = record["lines"].get(ln["id"]) or {}
             chosen = _picked(have)
             status = "missing"
             if chosen:
-                # a take cut from a file is in that file's voice, whoever the speaker is now
+                # a take cut from a file is in that file's voice, whoever the speaker is now, and one
+                # from another model was chosen as it is: only this model's speaker changing says so
                 same = chosen.get("text") == ln["text"] and (
-                    chosen.get("source") == "file" or chosen.get("voice") == (speaker or {}).get("id"))
+                    chosen.get("source") == "file" or chosen.get("target") != (target.id if target is not None else None)
+                    or chosen.get("voice") == (speaker or {}).get("id"))
                 status = "ok" if same else "changed"
             rows.append({**ln, "name": _name(cfg, ln["who"]), "chars": len(ln["text"]), "status": status,
                          "speaker": speaker, "picked": have.get("picked"), "takes": have.get("takes") or []})
             base = _base(cfg, ln["who"])
             p = people.setdefault(base, {"who": base, "name": _name(cfg, base), "lines": 0, "chars": 0,
-                                         "speaker": speaker, "source": (record.get("sources") or {}).get(base)})
+                                         "speaker": speaker, "source": (record.get("sources") or {}).get(base),
+                                         "to_make": {"lines": 0, "chars": 0}})
             p["lines"] += 1
             p["chars"] += len(ln["text"])
+            if status != "ok":
+                p["to_make"]["lines"] += 1
+                p["to_make"]["chars"] += len(ln["text"])
     todo = [r for r in rows if r["status"] != "ok"]
     recording = os.path.join(DIR, RECORDING).replace("\\", "/")
     return {"target": target.id if target is not None else None, "label": target.label if target is not None else "",
-            "service": service, "lines": rows, "characters": list(people.values()),
+            "service": service, "paid": bool(service), "lines": rows, "characters": list(people.values()),
             "to_make": {"lines": len(todo), "chars": sum(r["chars"] for r in todo)},
             "no_speaker": sorted({r["name"] for r in todo if not r["speaker"]}),
             "recording": recording if os.path.isfile(os.path.join(ep, recording)) else None,
@@ -203,6 +216,42 @@ def call_for(ep: str, line: dict, n: int, target) -> tuple[str, dict]:
     return model, args
 
 
+def held_voice(ep: str, who: str, line_id: str) -> str:
+    """The file a character's other lines continue when it has no sample of its own: the first of its
+    lines made with a local model, in script order. "" for the first line itself."""
+    cfg = _config(ep)
+    base = _base(cfg, who)
+    record = load(ep)
+    for shot in script_shots(ep):
+        for ln in shot["lines"]:
+            if _base(cfg, ln["who"]) != base or ln["id"] == line_id:
+                continue
+            take = _picked(record["lines"].get(ln["id"]) or {})
+            if take and str(take.get("voice") or "").startswith("model:"):
+                return os.path.join(ep, take["file"])
+    return ""
+
+
+def local_job(ep: str, line: dict, n: int, target):
+    """The voice job for take `n` of a line on a local model: only the character's own words to say,
+    about as long as they take, continuing the character's voice. Nothing of the ref's changes: its
+    takes and its sample stay as they are. RefError as planning a voice ref's."""
+    from seriesmith import refs as R
+    from seriesmith.targets.audio.common import spoken_seconds
+    s = R.load_series(ep)
+    base = _base(s.series_cfg, line["who"])
+    entry = (s.series_cfg.get("subjects") or {}).get(base) or {}
+    lo, hi = target.seconds_range()[2], target.seconds_range()[1]
+    secs = max(lo, min(hi, float(round(spoken_seconds(line["text"]) + 1))))
+    brief = target.voice_prompt(entry.get("name", base), entry.get("voice", ""), entry.get("design", ""), line["text"], secs)
+    job = R.plan_generate(s, R.GenRequest(ref=f"voice:{base}", prompt=brief, seconds=secs, target=target.id, note=line["id"],
+                                          seed=stable_seed(os.path.basename(os.path.abspath(ep)), line["id"], str(n)) % (2 ** 31)))[0]
+    job.line = line["text"]
+    if not (job.ref.file and os.path.isfile(job.ref.file)):
+        job.held_sample = held_voice(ep, line["who"], line["id"])
+    return job
+
+
 def words_from(alignment: dict | None) -> list[dict] | None:
     """Character timings ({"characters", "character_start_times_seconds", "character_end_times_seconds"})
     as words, as Whisper's transcript gives them: [{"word", "start", "end"}]."""
@@ -240,10 +289,12 @@ def _to_wav(source: str, dest: str) -> None:
         raise LinesError(f"that take's sound couldn't be read: {(got.stderr or '').strip()[:300]}")
 
 
-def finish(ep: str, line_id: str, n: int, run) -> dict:
+def finish(ep: str, line_id: str, n: int, run, savers: list | None = None) -> dict:
     """A finished run's sound kept as take `n` of the line, with its timings; picked when the line
-    has no take picked, or the one picked no longer matches its words."""
+    has no take picked, or the one picked no longer matches its words. `savers`: the graph's save nodes,
+    what a local run's sound comes from."""
     outs = [o for o in run.outputs() if o.type in ("audio", "file")]
+    outs = [o for o in outs if o.node in (savers or [])] or outs
     if not outs:
         raise LinesError("the job finished but returned no sound")
     fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1] or ".mp3")
@@ -401,6 +452,30 @@ def cut_character(ep: str, who: str, words: list[dict]) -> dict:
     return {"who": who, "lines": len(lines), "cut": cut, "unheard": unheard, "notes": notes}
 
 
+def _guessed_words(text: str, data: bytes, rate: int) -> list[dict]:
+    """A take with no timings of its own: its words spread by length across where it makes sound. We
+    know what it says and where it was laid, and align only asks each line's start and end. Whisper
+    hearing the recording instead lost a one-word line and the silent shot before it (ep10, 2026-11-05)."""
+    n = len(data) // 2
+    window = max(1, rate // 100)
+    levels = []
+    for at in range(0, n, window):
+        chunk = data[at * 2:(at + window) * 2]
+        levels.append(max((abs(int.from_bytes(chunk[i:i + 2], "little", signed=True)) for i in range(0, len(chunk) - 1, 8)), default=0))
+    loud = max(levels, default=0) * 0.1
+    heard = [i for i, x in enumerate(levels) if x > loud] if loud else []
+    a = heard[0] * window / rate if heard else 0.0
+    b = (heard[-1] + 1) * window / rate if heard else n / rate
+    said = text.split()
+    total = sum(len(w) for w in said) or 1
+    out, t = [], a
+    for w in said:
+        end = t + (b - a) * len(w) / total
+        out.append({"word": w, "start": round(t, 3), "end": round(end, 3)})
+        t = end
+    return out
+
+
 def _silence(seconds: float) -> bytes:
     return b"\0\0" * int(round(seconds * RATE))
 
@@ -419,7 +494,7 @@ def lay(ep: str) -> dict:
     pauses = record["pauses"]
     laid = {}
     audio, words, notes = bytearray(), [], []
-    untimed = 0
+    guessed = 0
     at = 0.0
 
     def add(data: bytes) -> None:
@@ -453,11 +528,10 @@ def lay(ep: str) -> dict:
                 add(_silence(WITHIN_SHOT))
             with wave.open(os.path.join(ep, take["file"]), "rb") as w:
                 data = w.readframes(w.getnframes())
-            if take.get("words"):
-                words += [{"word": x["word"], "start": round(x["start"] + at, 3), "end": round(x["end"] + at, 3)}
-                          for x in take["words"]]
-            else:
-                untimed += 1
+            if not take.get("words"):
+                guessed += 1
+            words += [{"word": x["word"], "start": round(x["start"] + at, 3), "end": round(x["end"] + at, 3)}
+                      for x in (take.get("words") or _guessed_words(ln["text"], data, RATE))]
             add(data)
         laid[shot["id"]] = hashlib.sha1(json.dumps(said).encode("utf-8")).hexdigest()
         spoke_last = True
@@ -472,17 +546,10 @@ def lay(ep: str) -> dict:
     os.makedirs(folder(ep), exist_ok=True)
     path = os.path.join(folder(ep), RECORDING)
     F.write_bytes(path, buf.getvalue())
-    cache = path + ".words.json"
-    if untimed:
-        # a line with no timings: Whisper hears the whole recording, as for an actor's
-        if os.path.exists(cache):
-            os.remove(cache)
-        notes.append(f"{untimed} line(s) came back with no timings, so align will transcribe the recording")
-    else:
-        F.write_json(cache, words)                     # after the recording: align wants it the newer
+    F.write_json(path + ".words.json", words)          # after the recording: align wants it the newer
     record["laid"] = laid
     save(ep, record)
     from seriesmith import track as K
     K.set_track(ep, os.path.join(DIR, RECORDING).replace("\\", "/"))
     return {"path": os.path.join(DIR, RECORDING).replace("\\", "/"), "seconds": round(at, 3),
-            "lines": sum(len(s["lines"]) for s in shots), "timed": not untimed, "notes": notes}
+            "lines": sum(len(s["lines"]) for s in shots), "timed": True, "guessed": guessed, "notes": notes}

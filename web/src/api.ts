@@ -143,7 +143,8 @@ export interface LinesPlan {
   label: string;
   service: string;
   lines: LineRow[];
-  characters: { who: string; name: string; lines: number; chars: number; speaker: LineRow["speaker"];
+  paid?: boolean;
+  characters: { who: string; name: string; lines: number; chars: number; speaker: LineRow["speaker"]; to_make?: { lines: number; chars: number };
     source?: { status: "running" | "ok" | "failed"; name?: string; error?: string; lines?: number; cut?: number; unheard?: string[]; notes?: string[] } | null }[];
   to_make: { lines: number; chars: number };
   no_speaker: string[];
@@ -580,12 +581,14 @@ export interface Api {
   checkProvider(definition: Record<string, unknown>, key: string): Promise<{ reached: boolean; key_ok: boolean; proves_key?: boolean; status: number | null; says: string }>;
   readProviderSpec(req: { service: string; model: string; kind?: string; text: string; path?: string }): Promise<ProviderSpecRead>;
   /** What an episode's lines are, and what generating them would make: costs nothing. */
-  lines(ep: string): Promise<LinesPlan>;
+  lines(ep: string, target?: string | null): Promise<LinesPlan>;
   /** Paid: `confirm_chars` is the total the person was shown. */
-  generateLines(req: { ep: string; confirm_chars: number; lines?: string[] }): Promise<{ queued: { line: string; take: number; job: string }[]; errors: { line: string; error: string }[] }>;
+  generateLines(req: { ep: string; confirm_chars: number; lines?: string[]; who?: string; target?: string }): Promise<{ queued: { line: string; take: number; job: string }[]; errors: { line: string; error: string }[] }>;
   /** A character's whole file, cut into a take per line: costs nothing but Whisper. */
   characterLines(ep: string, who: string, file: File): Promise<{ job: unknown }>;
   pickLine(ep: string, line: string, take: number): Promise<{ ok: boolean }>;
+  /** What the cut plays and exports, kept for the episode. */
+  setCutAudio(ep: string, audio: "clips" | "recording"): Promise<{ ok: boolean; cut_audio: string }>;
   layLines(ep: string): Promise<{ path: string; seconds: number; lines: number; timed: boolean; notes: string[] }>;
   /** A provider's speakers: one read that costs nothing. */
   providerVoices(req: { service: string; list?: string; search?: string; after?: string }): Promise<{ voices: ProviderVoice[]; next: string }>;
@@ -1141,7 +1144,7 @@ export function createHttpApi(t: Transport): Api {
     readProviderSpec: (req) => call("POST", "/seriesmith/providers/read-spec", req),
     providerVoices: ({ service, list, search, after }) => call("GET", `/seriesmith/providers/voices?service=${encodeURIComponent(service)}${list ? `&list=${encodeURIComponent(list)}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}${after ? `&after=${encodeURIComponent(after)}` : ""}`),
     putProviderVoice: (req) => call("PUT", "/seriesmith/refs/provider-voice", req),
-    lines: (ep) => call("GET", `/seriesmith/lines?ep=${encodeURIComponent(ep)}`),
+    lines: (ep, target) => call("GET", `/seriesmith/lines?ep=${encodeURIComponent(ep)}${target ? `&target=${encodeURIComponent(target)}` : ""}`),
     generateLines: (req) => call("POST", "/seriesmith/lines/generate", req),
     characterLines: (ep, who, file) => {
       const form = new FormData();
@@ -1151,6 +1154,7 @@ export function createHttpApi(t: Transport): Api {
       return postForm("/seriesmith/lines/character", form);
     },
     pickLine: (ep, line, take) => call("POST", "/seriesmith/lines/pick", { ep, line, take }),
+    setCutAudio: (ep, audio) => call("POST", "/seriesmith/cut/audio", { ep, audio }),
     layLines: (ep) => call("POST", "/seriesmith/lines/lay", { ep }),
     draftProvider: (req) => call("POST", "/seriesmith/providers/draft", req),
     checkProvider: (definition, key) => call("POST", "/seriesmith/providers/check", { definition, key }),

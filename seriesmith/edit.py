@@ -715,7 +715,7 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
             **episode_target_info(root, ov, J.shotlist_target(doc0).id),
             "fps": fps, "width": d.get("width"),
             "height": d.get("height"), "folder": folder or T.pass_subfolder(pass_),
-            "track": track,
+            "track": track, "cut_audio": T.episode_field(ov or {}, "cut_audio") or "clips",
             "shots": out}
 
 
@@ -2739,6 +2739,9 @@ def assemble_episode(root: str, pass_: str, partial: bool = True,
         args += ["--size", size]
     if xml:
         args.append("--xml")
+    # the episode's cut plays its recording: so does what's exported, under its mix
+    if T.episode_field(T.load_overrides(root), "cut_audio") == "recording" and episode_track(root) is not None:
+        args += ["--audio", "recording"]
     rc, out, err = run_tool("assemble.py", args, root, timeout)
     output = None
     for line in out.splitlines():

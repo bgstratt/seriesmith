@@ -2119,6 +2119,17 @@ download with the key). Reading the reference moved up from step 7 (decided with
       on words beside the file: no real file yet). One recording, as a video model lip-syncs to one
       sound. People talking over each other isn't handled: Demucs splits voice from music, not voice
       from voice.
+- [x] Generate all of a character's lines, on its voice row, as a take per line rather than one
+      file to cut (2026-11-05). A local model too (LTX's voice): from the description, continuing the
+      character's sample, else the first line made for it, leaving the ref's takes and sample alone.
+      Measured on Dean Stories ep10 through refs, by hand the same way: Whisper heard 11 of 14 whole,
+      one word-only line lost ("Goodnight."), two with words dropped or changed. A real run of this
+      button hasn't been: those were voice takes by hand.
+- [x] What the cut plays is kept for the episode (`cut_audio`), switched to the recording by laying it,
+      and Export follows it (`--audio recording`: the recording as the mix's dialogue track, with its
+      effects, ambience and music; `master` stays the recording alone, to check sync): before, only Play
+      all's toggle knew, for a session, and Export never used a recording. One button sets the speaking
+      shots' next takes to dub.
 - [ ] Text-to-dialogue (all the lines in one call, its segments per input) as an option for flow;
       one line can't be redone alone there. `previous_text` / `next_text` for flow between single
       lines. A script's delivery note as a v3/v4 tag ([whispers]): it's left out for now.

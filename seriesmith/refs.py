@@ -2724,6 +2724,7 @@ class GenJob:
     frames: int | None = None
     fps: float | None = None
     line: str = ""
+    held_sample: str = ""            # continue this file's voice, not the ref's live one (lines.py)
     line_source: str = ""            # script | neutral | request
     edit: dict = field(default_factory=dict)     # an edit: what it started from (plan_edit)
 
@@ -3777,7 +3778,7 @@ def stage_voice_reference(s: Series, job: GenJob, comfy=None) -> dict:
     from seriesmith import audiocut as AC
     if not job.is_audio or not job.target.capabilities().get("reference_audio"):
         return job.inputs
-    path = job.ref.file
+    path = job.held_sample or job.ref.file
     if not path or not os.path.isfile(path):
         return job.inputs
     try:

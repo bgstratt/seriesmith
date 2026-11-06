@@ -277,6 +277,8 @@ export interface MissingRef {
 }
 
 export interface EpisodeStatus {
+  /** what the cut plays and exports: the recording, or each clip's own sound */
+  cut_audio?: "clips" | "recording";
   episode: string;
   title: string;
   pass: Pass;

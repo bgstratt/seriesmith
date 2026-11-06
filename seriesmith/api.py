@@ -4227,16 +4227,15 @@ def post_provider_draft(ctx: Context, body):
 
 def _lines_target(ep: str, asked):
     """The voice model an episode's lines are made with: `asked`, else its voice model. None and why
-    when that one can't make them: lines go to a provider, one call a line."""
+    when that one can't make them."""
     from seriesmith import refs as R
     tid = asked if isinstance(asked, str) and asked else R.image_defaults(R.load_series(ep)).get("voice_target")
     try:
         t = TG.load_target(tid, "audio", root=ep)
     except (TG.TargetError, TypeError):
         return None, f"there's no voice model called {tid}"
-    if not TG.service_of(t.spec) or t.spec.get("code") != "builtin:router_audio":
-        return None, (f"{t.label} makes a sample to clone, not a line in a speaker's voice. Choose a voice model "
-                      f"on a provider under \"Voices with:\" on the Refs tab.")
+    if TG.is_hosted(t.spec) and t.spec.get("code") != "builtin:router_audio":
+        return None, f"{t.label} can't make a line in a character's voice"
     return t, ""
 
 
@@ -4254,10 +4253,11 @@ def get_lines(ctx: Context, query):
 
 @handler
 def post_lines_generate(ctx: Context, body):
-    """Queue a take of each line asked (`lines`: ids), else each with none that matches the script.
-    Paid. Body {ep, confirm_chars, target?, lines?, backend?}: `confirm_chars` is the total the person
-    was shown, and a different total is **409**, so what's sent is what was agreed. **400** naming the
-    characters with no speaker, and nothing is sent. Returns {queued: [{line, take, job}], errors}."""
+    """Queue a take of each line asked (`lines`: ids), else each with none that matches the script, of
+    one character with `who`. Paid on a provider. Body {ep, confirm_chars, target?, lines?, who?, backend?}:
+    `confirm_chars` is the total the person was shown, and a different total is **409**, so what's sent
+    is what was agreed. **400** naming the characters with no speaker, and nothing is sent. Returns
+    {queued: [{line, take, job}], errors}."""
     from seriesmith import jobs as J
     from seriesmith import lines as LN
     body = body_dict(body)
@@ -4276,6 +4276,10 @@ def post_lines_generate(ctx: Context, body):
     if unknown:
         raise ApiError(404, f"this script has no line {unknown[0]}")
     rows = [known[x] for x in asked] if asked else [r for r in plan["lines"] if r["status"] != "ok"]
+    who = _opt_str(body, "who")
+    if who:
+        cfg = LN._config(ep)
+        rows = [r for r in rows if LN._base(cfg, r["who"]) == who]
     silent = sorted({r["name"] for r in rows if not r["speaker"]})
     if silent:
         raise ApiError(400, f"pick a speaker first for {', '.join(silent)}: nothing was sent")
@@ -4283,10 +4287,14 @@ def post_lines_generate(ctx: Context, body):
     if body.get("confirm_chars") != chars:
         raise ApiError(409, f"that's {chars} characters now, not {body.get('confirm_chars')}: look again, nothing was sent", chars=chars)
     out = {"queued": [], "errors": []}
+    local = None
+    if not TG.is_hosted(t.spec):
+        local = {"base": R.resolve_workflow(getattr(ctx.comfy, "base", None), None, t)[0],
+                 "listing": J.model_lister(ctx.comfy, ctx.model_choices), "resolve": ctx.model_resolve, "cache": ctx.model_cache}
     for r in rows:
         try:
             name = J.backend_choice({}, r["id"], t, _opt_str(body, "backend"), ep)[0]
-            n, qid = ctx.runner.enqueue_line(ep, r, t, name)
+            n, qid = ctx.runner.enqueue_line(ep, r, t, name, local)
             out["queued"].append({"line": r["id"], "take": n, "job": qid})
         except Exception as e:                            # noqa: BLE001  said, and the rest still go
             out["errors"].append({"line": r["id"], "error": str(e)[:400]})
@@ -4378,8 +4386,30 @@ def post_lines_lay(ctx: Context, body):
         got = LN.lay(ep)
     except LN.LinesError as e:
         raise ApiError(400, str(e))
+    _set_cut_audio(ep, "recording")                       # you laid it to use it
     episode_event(ctx, ep)
-    return 200, got
+    return 200, {**got, "cut_audio": "recording"}
+
+
+def _set_cut_audio(ep: str, value: str) -> None:
+    data = T.load_overrides(ep)
+    name = os.path.basename(os.path.normpath(ep))
+    T.save_overrides(ep, T.set_episode_field(data, "cut_audio", None if value == "clips" else value, name))
+
+
+@handler
+def post_cut_audio(ctx: Context, body):
+    """What the episode's cut plays and exports as its dialogue: "recording" (the dialogue recording) or
+    "clips" (each clip's own sound). The mix's other tracks play under either. Kept in overrides.json.
+    Body {ep, audio}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    value = body.get("audio")
+    if value not in ("clips", "recording"):
+        raise ApiError(400, 'audio must be "clips" or "recording"')
+    _set_cut_audio(ep, value)
+    episode_event(ctx, ep)
+    return 200, {"ok": True, "cut_audio": value}
 
 
 @handler
@@ -6346,6 +6376,7 @@ ROUTES = [
     ("POST", "/seriesmith/lines/character", post_lines_character, "form"),
     ("POST", "/seriesmith/lines/pick", post_lines_pick, "body"),
     ("POST", "/seriesmith/lines/lay", post_lines_lay, "body"),
+    ("POST", "/seriesmith/cut/audio", post_cut_audio, "body"),
     ("PUT", "/seriesmith/refs/provider-voice", put_refs_provider_voice, "body"),
     ("POST", "/seriesmith/providers/read-spec", post_provider_read_spec, "body"),
     ("POST", "/seriesmith/providers/draft", post_provider_draft, "body"),

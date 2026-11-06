@@ -1870,11 +1870,76 @@ class Lines(ScratchSettings):
     def posts(self):
         return [c for c in self.fake.calls if c["method"] == "POST"]
 
-    def test_a_voice_model_that_cant_says_so(self):
-        got = self.ok(self.A.get_lines(self.ctx, {"ep": self.ep, "target": "ltx2_voice"}))
+    def test_an_unknown_voice_model_says_so(self):
+        got = self.ok(self.A.get_lines(self.ctx, {"ep": self.ep, "target": "nobody"}))
         self.assertFalse(got["available"])
-        self.assertIn("provider", got["why"])
+        self.assertIn("no voice model", got["why"])
         self.assertTrue(got["lines"])                    # the lines are still there to bring a file for
+
+    def test_a_local_model_needs_no_speaker_and_says_nothing_is_paid(self):
+        got = self.ok(self.A.get_lines(self.ctx, {"ep": self.ep, "target": "ltx2_voice"}))
+        self.assertTrue(got["available"])
+        self.assertFalse(got["paid"])
+        self.assertEqual(got["no_speaker"], [])
+        self.assertEqual(got["characters"][0]["to_make"]["lines"], got["characters"][0]["lines"])
+        hosted = self.plan()
+        self.assertTrue(hosted["paid"])
+
+    def test_one_characters_lines_alone(self):
+        self.speak_all()
+        mine = self.mine("ada")
+        chars = sum(r["chars"] for r in mine)
+        got = self.ok(self.A.post_lines_generate(self.ctx, {"ep": self.ep, "target": self.tid, "who": "ada", "confirm_chars": chars, "backend": "api:local_eleven"}))
+        self.assertEqual(sorted(q["line"] for q in got["queued"]), sorted(r["id"] for r in mine))
+        self.settle()
+        plan = self.plan()
+        char = next(c for c in plan["characters"] if c["who"] == "ada")
+        self.assertEqual(char["to_make"], {"lines": 0, "chars": 0})
+        self.assertGreater(plan["to_make"]["lines"], 0)   # the others are still to make
+
+    def test_one_characters_lines_on_a_local_model_continue_one_voice(self):
+        from seriesmith import refs as R
+        self.ctx.model_choices = None
+        mine = self.mine("bo")
+        s = R.load_series(self.ep)
+        ref = R.find_ref(s, "voice:bo")
+        had_takes = R.list_takes(ref, None)
+        with open(ref.file, "wb") as fh:                  # the fixture's sample, as a real sound
+            fh.write(fake_speech(4.0))
+        had_config = open(self.series_path(), encoding="utf-8").read()
+        chars = sum(r["chars"] for r in mine)
+        got = self.ok(self.A.post_lines_generate(self.ctx, {"ep": self.ep, "target": "ltx2_voice", "who": "bo", "confirm_chars": chars}))
+        self.assertEqual(got["errors"], [])
+        self.settle()
+        plan = self.ok(self.A.get_lines(self.ctx, {"ep": self.ep, "target": "ltx2_voice"}))
+        rows = self.mine("bo", plan)
+        failed = [t.get("error") for r in rows for t in r["takes"] if t["status"] == "failed"]
+        self.assertEqual(failed, [])
+        self.assertEqual({r["status"] for r in rows}, {"ok"})
+        for r in rows:
+            self.assertEqual(r["takes"][0]["voice"], "model:ltx2_voice")
+        self.assertEqual(self.posts(), [])                # nothing went to a provider
+        # the character's ref and the series config are left as they were
+        self.assertEqual(len(R.list_takes(R.find_ref(R.load_series(self.ep), "voice:bo"), None)), len(had_takes))
+        self.assertEqual(open(self.series_path(), encoding="utf-8").read(), had_config)
+
+    def test_a_later_line_continues_the_first_when_there_is_no_sample(self):
+        self.ctx.model_choices = None
+        t = TG.load_target("ltx2_voice", "audio", root=self.ep)
+        mine = self.mine("rex") or self.mine("bo")
+        first, second = mine[0], (mine[1] if len(mine) > 1 else mine[0])
+        self.assertEqual(self.LN.held_voice(self.ep, first["who"], first["id"]), "")
+        n = self.LN.reserve(self.ep, {**first, "speaker": {"id": "model:ltx2_voice"}}, t)
+        path = os.path.join(self.LN.folder(self.ep), "first.wav")
+        with open(path, "wb") as fh:
+            fh.write(fake_speech(1.0))
+        record = self.LN.load(self.ep)
+        record["lines"][first["id"]]["takes"][0].update(status="ok", file=os.path.relpath(path, self.ep))
+        record["lines"][first["id"]]["picked"] = n
+        self.LN.save(self.ep, record)
+        if second is not first:
+            self.assertEqual(os.path.normpath(self.LN.held_voice(self.ep, second["who"], second["id"])), os.path.normpath(path))
+        self.assertEqual(self.LN.held_voice(self.ep, first["who"], first["id"]), "")
 
     def mine(self, who, plan=None):
         """A character's lines, its variants' with them: one character keeps one voice and one file."""
@@ -2145,6 +2210,49 @@ class Lines(ScratchSettings):
         side.update(lines_sound="different", place_free_hash=J.place_free_hash(shot))
         self.assertIn("ref", J.stale_reasons(self.ep, doc, shot, side))
         self.assertTrue(T.file_sha1(path))
+
+    def test_a_line_with_no_timings_is_placed_where_it_was_laid_with_no_whisper(self):
+        import wave
+        self.make_them()
+        record = self.LN.load(self.ep)
+        rows = self.plan()["lines"]
+        last = rows[-1]["id"]
+        take = next(t for t in record["lines"][last]["takes"] if t["take"] == record["lines"][last]["picked"])
+        del take["words"]                                # as a local model's take has none
+        self.LN.save(self.ep, record)
+        got = self.ok(self.A.post_lines_lay(self.ctx, {"ep": self.ep}))
+        self.assertEqual(got["guessed"], 1)
+        path = os.path.join(self.ep, got["path"])
+        with open(path + ".words.json", encoding="utf-8") as fh:
+            words = json.load(fh)
+        said = rows[-1]["text"].split()
+        tail = words[-len(said):]
+        self.assertEqual([w["word"] for w in tail], said)
+        with wave.open(path, "rb") as w:
+            seconds = w.getnframes() / w.getframerate()
+        # the take is a second of sound, right at the end of the recording before its silence
+        self.assertAlmostEqual(tail[-1]["end"] - tail[0]["start"], 1.0, delta=0.05)
+        self.assertLess(tail[-1]["end"], seconds)
+        from seriesmith import edit as E
+        self.assertTrue(E.has_words(path))
+
+    def test_laying_makes_it_what_the_cut_plays_and_exports(self):
+        from unittest import mock
+        from seriesmith import edit as E
+        self.make_them()
+        self.assertEqual(self.ok(self.A.get_episode(self.ctx, {"ep": self.ep, "pass": "proxy"}))["cut_audio"], "clips")
+        self.assertEqual(self.ok(self.A.post_lines_lay(self.ctx, {"ep": self.ep}))["cut_audio"], "recording")
+        self.assertEqual(self.ok(self.A.get_episode(self.ctx, {"ep": self.ep, "pass": "proxy"}))["cut_audio"], "recording")
+
+        def asked():
+            with mock.patch.object(E, "run_tool", return_value=(1, "", "stopped here")) as run:
+                E.assemble_episode(self.ep, "proxy", True)
+            return run.call_args[0][1]
+        self.assertIn("recording", asked())
+        self.ok(self.A.post_cut_audio(self.ctx, {"ep": self.ep, "audio": "clips"}))
+        self.assertEqual(self.ok(self.A.get_episode(self.ctx, {"ep": self.ep, "pass": "proxy"}))["cut_audio"], "clips")
+        self.assertNotIn("recording", asked())
+        self.assertEqual(self.A.post_cut_audio(self.ctx, {"ep": self.ep, "audio": "x"})[0], 400)
 
     def test_laying_refuses_while_a_line_has_no_take(self):
         code, data = self.A.post_lines_lay(self.ctx, {"ep": self.ep})
