@@ -51,9 +51,9 @@ OUT_PICTURES = (2, 3, 4, 5)                  # ref_1..ref_3, ref_bg
 OUT_SOUNDS = (6, 7, 8)                       # ref_audio_1..3
 OUT_NUMBERS = {9: "width", 10: "height", 11: "length", 12: "steps", 13: "seed"}
 OUT_POLICY, OUT_INFO, OUT_COUNT = 14, 15, 16
-OUT_MORE_PICTURES = (17, 18, 19, 20, 21)     # ref_4..ref_8 (FastH3 Omni's subjects 4-8)
+OUT_MORE_PICTURES = (17, 18, 19, 20, 21)     # ref_4..ref_8 (subjects 4-8)
 
-CHAIN_NODES = ("SeriesmithChainLatent", "SeriesmithChainTrim")
+CHAIN_NODES = ("SeriesmithChainLatent", "SeriesmithChainTrim", "SeriesmithRangeLatent", "SeriesmithRangeRefine", "SeriesmithRangeFinish")
 CRF = 16                                     # the saver's (comfy_nodes/shot.py _encode)
 VIDEO, AUDIO = "seriesmith_video", "seriesmith_audio"
 CLOUD = "Comfy Cloud"
@@ -197,10 +197,11 @@ def _lower_loader(g: dict, nid: str, staging: str) -> dict:
     out.update({k: plan[name] for k, name in OUT_NUMBERS.items()})
     sizes = []
     n_sub = len(plan["refs"])
-    # the plan's pictures in <Picture N> order (subjects, then the plate),
-    # each with the output it was read from
-    outs = [*OUT_PICTURES[:3], *OUT_MORE_PICTURES][:n_sub] + [OUT_PICTURES[3]]
-    for i, (k, spec) in enumerate(zip(outs, [*plan["refs"], plan["bg"]])):
+    # the plan's pictures in <Picture N> order (the plate where the plan puts
+    # it), each with the output it was read from
+    pictures = list(zip([*OUT_PICTURES[:3], *OUT_MORE_PICTURES], plan["refs"]))
+    pictures.insert(plan["plate_at"], (OUT_PICTURES[3], plan["bg"]))
+    for i, (k, spec) in enumerate(pictures):
         path, wh = picture(sp, spec, os.path.join(staging, f"picture_{i + 1}.png"))
         sizes.append(None if "neutral" in spec else wh)
         node = f"{nid}_picture_{i + 1}"
@@ -218,12 +219,13 @@ def _lower_loader(g: dict, nid: str, staging: str) -> dict:
         out[k] = [node, 0]
     for k in [*OUT_PICTURES[:3], *OUT_MORE_PICTURES][n_sub:]:
         out[k] = None
-    out[OUT_INFO] = sp.info_text(plan, sizes[:n_sub])
+    del sizes[plan["plate_at"]]                  # the subjects', in the plan's order
+    out[OUT_INFO] = sp.info_text(plan, sizes)
     _relink(g, nid, out)
     del g[nid]
     return {"id": plan["id"], "policy": plan["policy"], "fps": plan["fps"],
             "loaded_refs": ([f"RENDERED WITHOUT: {', '.join(plan['blanked'])} (missing refs)"]
-                            if plan["blanked"] else []) + sp.ref_notes(plan, sizes[:n_sub])}
+                            if plan["blanked"] else []) + sp.ref_notes(plan, sizes)}
 
 
 def picture(sp, spec: dict, path: str) -> tuple[str, tuple[int, int]]:

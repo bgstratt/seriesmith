@@ -1959,6 +1959,43 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       dub of any source gets it back on a backend without that, and a take already saved that way plays its
       `_h3.wav` (`peaks.clip_audio`). Those old takes still play effects alone in Play all, which plays the mp4.
 
+## H3 re-render of a frame range (branch `h3-rerender`, 2026-11-05)
+
+- [x] H3 Ref2VA, H3 Singularity and Pika H3 Flex take eight subjects, as the node's nine sockets allow: `<Picture 1>`-`<Picture 3>`, the
+      plate still `<Picture 4>`, then `<Picture 5>`-`<Picture 9>` (`recipe.subject_slots`, the graphs, `shotplan.MOST_SUBJECTS`
+      and `plate_at`, `cloud._lower_loader`, `prompt.subject_pictures`). A shot of three or fewer is unchanged: same prompt,
+      same pictures, no stale takes, no new placeholders. Pika H3 Flex too.
+- [x] FastH3 Omni the same, its plate moved from `<Picture 9>` to `<Picture 4>`: one layout for the family (FL2VA aside), and no
+      placeholders past the last subject. Its existing takes read as stale, since their prompt changed; a shotlist built before renders
+      as it says (`defaults.subject_slots`).
+- [x] Each job's picture sockets are set from the loader (`compile.wire_pictures`): a saved `H3_Ref2VA_Shotlist_v1.json` wins over the
+      repo's graph, and its four sockets sent four pictures on an eight-subject shot, seen in ComfyUI's history on a live render.
+- [x] Decided, measured live 2026-11-06: frames of a take are made again by sampling the whole clip with the rest held by a noise
+      mask (`SeriesmithRangeLatent`), at any length. No slice with breathing room: the held frames are a first-generation decode, so a
+      splice would add a join and save nothing. Outside the range the video latent holds to rounding (2.4e-07) and the
+      sound to rounding; pixels change a little beyond the range (asked 74-123: 70 on; asked 52-87: about 47-104).
+- [x] The wording goes with it (`redo_range.prompt`; else what the source take asked, its frozen shotlist, not today's script). On
+      sh110 three new seeds alone kept the same exaggerated yawn; new wording (t14-t16) changed it, the seed the details.
+- [x] A take with no latent on this model is held from its frames through the model's VAEs (`via: "frames"`). A 124-frame encode ran
+      fine. Held frames: 36 dB against the source (42 with the kept latent). Sound through the audio VAE: correlation 0.91 on H3's own,
+      1.5-3.5 dB less above 1 kHz. LTX-2 and FLUX.3 takes joined without a visible jump in stills (not yet watched).
+- [x] Every range take has the source's own sound over the picture (`SeriesmithRangeFinish`; the held audio latent only guides the
+      new frames). An encoded take keeps the source's size and frame count as near as the model's grids allow: frames rounded up to
+      the grid for sampling, trimmed back after. A different frame rate is refused.
+- [x] Tests (`tests/test_range_render.py`), `docs/API.md`.
+- [x] The editor: **Re-render part of this take…**: the range picked on the take's video, the prompt ready to edit, a new seed. `docs/EDITOR.md`.
+- [x] LTX-2 too (`range` in its target.json: `grid: "ltx"`, 8 frames a step; `stages: 2`). Decided, measured live 2026-11-06 on sh080 t03,
+      frames 30-60: both stages hold the take. Only the second (A) kept the original action: 0.85 sigma can't make a new one from the old
+      latents. Both (B: `SeriesmithRangeLatent` on the half-size stage, the take encoded at that size; `SeriesmithRangeRefine` on the second,
+      the kept latent with the range's steps from the upscaled first stage, only those open) took the new wording. Steps outside the
+      range held exactly, the audio latent identical, 55-70 s. Change reaches about 25-64.
+- [x] LTX-2 with no kept latent: the take's frames through its VAEs at both stages (`via: "frames"`), and any model's take. Against the
+      source outside the change: own take 38 dB (42-44 kept), sharpness down 4-11% (under 1% kept); H3 33 dB, FLUX.3 38 dB, sharpness down
+      25-32%. Watched: no seams, and FLUX.3 came out clean. Encoding darkens the frame's outer 8-32 px by up to 6 levels out of 255 (2.5
+      at the bottom; 0.1 kept), seen by the user on sh080 t09.
+- [x] Decided, encoded edge darkening stays: minor, hard to see unless looked for (took the user a few viewings), and a crossfade or encoding with extended edges would add more complication than it saves. Part of the price of re-rendering a portion; a full new take avoids it.
+- [x] A range re-render uses the take's own size and length, kept latent or not, rather than refusing when the shot has moved.
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

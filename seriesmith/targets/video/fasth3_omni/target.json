@@ -40,18 +40,9 @@
     "plates": 1
   },
   "recipe": {
-    "_note": "As Ref2VA's (its compile and prompt are Ref2VA's, minimax_h3_ref2va/compile.py), with the node's nine picture sockets: Pictures 1-8 are the shot's subjects (characters first, then props and vehicles, in script order), Picture 9 is always the location plate. A shot with fewer subjects fills the rest with 32x32 grey placeholders (comfy_nodes/shotplan.py), so the plate stays <Picture 9>. Each character is fed ONE panel of its 4-panel sheet, as on Ref2VA. Clone mode feeds one voice sample per speaker, at most 3.",
-    "subject_slots": [
-      "Picture 1",
-      "Picture 2",
-      "Picture 3",
-      "Picture 4",
-      "Picture 5",
-      "Picture 6",
-      "Picture 7",
-      "Picture 8"
-    ],
-    "plate_slot": "Picture 9",
+    "_note": "As Ref2VA's (its compile and prompt are Ref2VA's, minimax_h3_ref2va/compile.py), with the same pictures: up to eight subjects (characters first, then props and vehicles, in script order) on Pictures 1-3, then 5-9, and Picture 4 always the location plate. Sockets past the last subject stay empty. Each character is fed ONE panel of its 4-panel sheet, as on Ref2VA. Clone mode feeds one voice sample per speaker, at most 3.",
+    "subject_slots": ["Picture 1", "Picture 2", "Picture 3", "Picture 5", "Picture 6", "Picture 7", "Picture 8", "Picture 9"],
+    "plate_slot": "Picture 4",
     "voice_slots": [
       "Audio 1",
       "Audio 2",

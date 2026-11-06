@@ -14,6 +14,9 @@ SeriesmithChainLatent   between the empty joint AV latent and the sampler, as
                         record (`continued_from`).
 SeriesmithChainTrim     after decoding: the held frames and their sound off the
                         front (h3pipe's H3ChainTrim).
+SeriesmithRangeLatent   between the empty latent and the sampler: a take's whole
+                        kept latent and sound held, only a range of its frames
+                        made again.
 
 H3's grids: a clip of 17k+5 frames is 5k+2 video latent steps; a hold of 17j+5
 frames is the last 5j+2 steps of a take. Audio is 40 latent steps a second.
@@ -31,6 +34,7 @@ import torch
 
 from . import _ff
 from .shot import load_audio, load_latent
+from .shotplan import GRIDS
 
 log = logging.getLogger("seriesmith")
 
@@ -85,6 +89,34 @@ def chain(latent: dict, v_old, a_old, overlap: int, hold_audio: bool,
     return out, {"overlap": int(overlap), "video_steps": steps, "audio_steps": held_audio}
 
 
+def hold_range(latent: dict, v_old, a_old, first: int, last: int, grid: str = "h3") -> tuple[dict, dict]:
+    """`latent` (the shot's empty joint AV latent) holding a take's whole latent,
+    with only the steps of frames first..last open to the denoise, and all of
+    its sound held. Returns (the latent, a record of what was made again)."""
+    import comfy.nested_tensor
+
+    new = latent["samples"]
+    if not getattr(new, "is_nested", False):
+        raise ValueError("SeriesmithRangeLatent needs H3's joint audio/video latent")
+    v_new, a_new = new.unbind()[:2]
+    if v_new.shape != v_old.shape:
+        raise ValueError(f"the take's latent is {tuple(v_old.shape)}, this render's "
+                         f"{tuple(v_new.shape)}: render the range at the take's size and length")
+    start, end = GRIDS[grid][1](first, last, v_new.shape[2])
+    v_mask = torch.zeros_like(v_new)
+    v_mask[:, :, start:end] = 1.0
+    held_audio = 0
+    a_out, a_mask = a_new, torch.ones_like(a_new)
+    if a_old is not None and a_old.shape == a_new.shape:
+        a_out, a_mask = a_old.to(a_new), torch.zeros_like(a_new)
+        held_audio = int(a_new.shape[-1])
+    out = dict(latent)
+    out["samples"] = comfy.nested_tensor.NestedTensor((v_old.to(v_new), a_out))
+    out["noise_mask"] = comfy.nested_tensor.NestedTensor((v_mask, a_mask))
+    return out, {"first": int(first), "last": int(last), "video_steps": [start, end],
+                 "audio_steps_held": held_audio}
+
+
 def kept_latent(path: str):
     lat = load_latent(path)["samples"]
     if not getattr(lat, "is_nested", False):
@@ -137,6 +169,55 @@ def encoded_tail(video: str, frames: int, width: int, height: int, video_vae,
             wave = audio["waveform"] if sr == want else comfy.audio.resample(
                 audio["waveform"], sr, want)
             a = audio_vae.encode(wave.movedim(1, -1))
+    return v, a
+
+
+def fit_audio_latent(a, shape):
+    """An encoded sound's latent cut or filled with silence to a render's: its one
+    time axis, wherever the model keeps it (H3's last, LTX's third)."""
+    for dim in range(a.ndim):
+        if a.shape[dim] > shape[dim]:
+            a = a.narrow(dim, 0, shape[dim])
+        elif a.shape[dim] < shape[dim]:
+            pad = list(a.shape)
+            pad[dim] = shape[dim] - a.shape[dim]
+            a = torch.cat([a, torch.zeros(pad, dtype=a.dtype, device=a.device)], dim=dim)
+    return a
+
+
+def encoded_take(video: str, frames: int, width: int, height: int, audio_shape,
+                 video_vae, audio_vae, fps: float):
+    """(video, audio or None) latents of a whole video from any model, as a render
+    of `frames` frames at width x height holds them: the picture fitted, extra frames
+    cut, missing ones the last frame again, the sound cut or filled with silence."""
+    import comfy.utils
+
+    images = read_frames(video)
+    pixels = images[:frames]
+    if pixels.shape[0] < frames:
+        pixels = torch.cat([pixels, pixels[-1:].repeat(frames - pixels.shape[0], 1, 1, 1)])
+    if pixels.shape[1] != height or pixels.shape[2] != width:
+        pixels = comfy.utils.common_upscale(pixels.movedim(-1, 1), width, height, "lanczos",
+                                            "center").movedim(1, -1)
+    v = video_vae.encode(pixels[:, :, :, :3])
+    a = None
+    if audio_vae is not None:
+        try:
+            audio = load_audio(video)
+        except Exception:
+            audio = None
+        if audio is not None:
+            import comfy.audio
+            sr = audio["sample_rate"]
+            want = getattr(audio_vae, "audio_sample_rate", 44100)
+            wave = audio["waveform"] if sr == want else comfy.audio.resample(audio["waveform"], sr, want)
+            if wave.shape[1] == 1:
+                wave = wave.repeat(1, 2, 1)
+            need = round(frames / fps * want)
+            wave = wave[..., :need]
+            if wave.shape[-1] < need:
+                wave = torch.nn.functional.pad(wave, (0, need - wave.shape[-1]))
+            a = fit_audio_latent(audio_vae.encode(wave.movedim(1, -1)), audio_shape)
     return v, a
 
 
@@ -247,7 +328,139 @@ class SeriesmithChainTrim:
         return (images[frames:], audio)
 
 
+class SeriesmithRangeLatent:
+    """A take's whole latent and sound held, a range of its frames made again."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "latent": ("LATENT",),
+            "take_latent": ("STRING", {"default": "", "tooltip": "the take's kept latent, uploaded"}),
+            "first_frame": ("INT", {"default": 0, "min": 0, "max": 100000}),
+            "last_frame": ("INT", {"default": 0, "min": 0, "max": 100000}),
+        }, "optional": {
+            "source": ("STRING", {"default": "{}", "tooltip": "the take: {shot, take, pass}"}),
+            "take_video": ("STRING", {"default": "", "tooltip": "the take's video, uploaded: encoded when no latent came"}),
+            "video_vae": ("VAE",),
+            "audio_vae": ("VAE",),
+            "fps": ("FLOAT", {"default": 24.0, "min": 1.0, "max": 120.0}),
+            "grid": ("STRING", {"default": "h3", "tooltip": "the model's frame grid: h3, ltx"}),
+        }}
+
+    RETURN_TYPES = ("LATENT", "STRING")
+    RETURN_NAMES = ("latent", "record")
+    FUNCTION = "hold"
+    CATEGORY = "seriesmith"
+
+    def hold(self, latent, take_latent, first_frame, last_frame, source="{}", take_video="",
+             video_vae=None, audio_vae=None, fps=24.0, grid="h3"):
+        path, video = _input_file(take_latent), _input_file(take_video)
+        v_new, a_new = latent["samples"].unbind()[:2]
+        v_old = a_old = None
+        if path:
+            v_old, a_old = kept_latent(path)
+        if v_old is None or v_old.shape != v_new.shape:
+            # no latent, or the kept one is another stage's size (LTX's first stage is half
+            # the take's): the take's frames at this size, its kept sound if it has any
+            if not (video and video_vae is not None):
+                raise ValueError("SeriesmithRangeLatent: neither a take latent of this size nor a video and VAE came")
+            w, h = pixel_size(v_new, video_vae)
+            frames = GRIDS[grid][0](v_new.shape[2])
+            v_old, encoded = encoded_take(video, frames, w, h, a_new.shape, video_vae,
+                                          None if a_old is not None else audio_vae, float(fps))
+            a_old = a_old if a_old is not None else encoded
+        out, rec = hold_range(latent, v_old, a_old, first_frame, last_frame, grid)
+        rec["via"] = "latent" if path else "frames"
+        try:
+            src = json.loads(source or "{}")
+        except ValueError:
+            src = {}
+        log.info("seriesmith: making frames %d-%d again (latent steps %d-%d), the rest held",
+                 first_frame, last_frame, *rec["video_steps"])
+        return (out, json.dumps(dict(src, **rec)))
+
+
+class SeriesmithRangeRefine:
+    """LTX's second stage of a range re-render: the take's kept full-size latent (or its
+    frames encoded, with the sound the first stage held), the range's steps from the
+    upscaled first stage (`latent`), and only those open to the denoise."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "latent": ("LATENT",),
+            "first_frame": ("INT", {"default": 0, "min": 0, "max": 100000}),
+            "last_frame": ("INT", {"default": 0, "min": 0, "max": 100000}),
+        }, "optional": {
+            "take_latent": ("STRING", {"default": "", "tooltip": "the take's kept latent, uploaded"}),
+            "take_video": ("STRING", {"default": "", "tooltip": "the take's video, uploaded: encoded when no latent came"}),
+            "video_vae": ("VAE",),
+            "grid": ("STRING", {"default": "ltx"}),
+        }}
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "refine"
+    CATEGORY = "seriesmith"
+
+    def refine(self, latent, first_frame, last_frame, take_latent="", take_video="", video_vae=None, grid="ltx"):
+        import comfy.nested_tensor
+
+        v_new, a_new = latent["samples"].unbind()[:2]
+        path, video = _input_file(take_latent), _input_file(take_video)
+        if path:
+            v_old, a_old = kept_latent(path)
+        elif video and video_vae is not None:
+            w, h = pixel_size(v_new, video_vae)
+            v_old = encoded_take(video, GRIDS[grid][0](v_new.shape[2]), w, h, a_new.shape, video_vae, None, 24.0)[0]
+            a_old = a_new                                # what the first stage held or made
+        else:
+            raise ValueError("SeriesmithRangeRefine: neither a take latent nor a video and VAE came")
+        out, rec = hold_range(latent, v_old, a_old, first_frame, last_frame, grid)
+        start, end = rec["video_steps"]
+        v_out, a_out = out["samples"].unbind()[:2]
+        v_out = v_out.clone()
+        v_out[:, :, start:end] = v_new[:, :, start:end].to(v_out)
+        out["samples"] = comfy.nested_tensor.NestedTensor((v_out, a_out))
+        return (out,)
+
+
+class SeriesmithRangeFinish:
+    """After decoding a range re-render: the take's frame count again, and its own
+    sound over the picture (the held audio latent only guided the new frames)."""
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "images": ("IMAGE",),
+            "frames": ("INT", {"default": 124, "min": 1, "max": 100000}),
+            "fps": ("FLOAT", {"default": 24.0, "min": 1.0, "max": 120.0}),
+        }, "optional": {
+            "sound": ("STRING", {"default": "", "tooltip": "the take's sound, uploaded"}),
+            "audio": ("AUDIO", {"tooltip": "what the render made, for a take with no sound"}),
+        }}
+
+    RETURN_TYPES = ("IMAGE", "AUDIO")
+    RETURN_NAMES = ("images", "audio")
+    FUNCTION = "finish"
+    CATEGORY = "seriesmith"
+
+    def finish(self, images, frames, fps, sound="", audio=None):
+        frames = int(frames)
+        path = _input_file(sound)
+        if path:
+            audio = load_audio(path)
+        elif audio is not None:
+            audio = dict(audio, waveform=audio["waveform"][..., :round(frames / float(fps) * audio["sample_rate"])])
+        return (images[:frames], audio)
+
+
 NODE_CLASS_MAPPINGS = {"SeriesmithChainLatent": SeriesmithChainLatent,
-                       "SeriesmithChainTrim": SeriesmithChainTrim}
+                       "SeriesmithChainTrim": SeriesmithChainTrim,
+                       "SeriesmithRangeLatent": SeriesmithRangeLatent,
+                       "SeriesmithRangeRefine": SeriesmithRangeRefine,
+                       "SeriesmithRangeFinish": SeriesmithRangeFinish}
 NODE_DISPLAY_NAME_MAPPINGS = {"SeriesmithChainLatent": "seriesmith Chain Latent (continuous: latent)",
-                              "SeriesmithChainTrim": "seriesmith Chain Trim"}
+                              "SeriesmithChainTrim": "seriesmith Chain Trim",
+                              "SeriesmithRangeLatent": "seriesmith Range Latent (re-render frames)",
+                              "SeriesmithRangeRefine": "seriesmith Range Refine (LTX's second stage)",
+                              "SeriesmithRangeFinish": "seriesmith Range Finish (the take's length and sound)"}

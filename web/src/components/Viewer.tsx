@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import {
-  closeViewer, currentPlaylist, openPano, openInspector, openMenu, openRedo, openSidecar, openViewer, pickRef, pickTake,
+  closeViewer, currentPlaylist, openPano, openInspector, openMenu, openRangeRedo, openRedo, openSidecar, openViewer, pickRef, pickTake,
   reportCutPos, seekCut, setCutPlaying, stepFrame, toggleUpscaled, updateViewer,
 } from "../actions";
 import { cutKey, isTyping, lockedPickRefusal, setCutAudio } from "../cutActions";
@@ -429,6 +429,14 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
           title="Open the New take dialog with A's settings"
         >
           <i className="pi pi-refresh" /> New take from {takeA ? tn(takeA.take) : "A"}…
+        </button>
+        <button
+          className="h3-btn"
+          disabled={!takeA || takeA.status !== "ok" || !takeA.has_video}
+          onClick={() => takeA && openRangeRedo(v.shot, takeA.take, v.pass)}
+          title="Make a stretch of A again as a new take, keeping the rest and its sound"
+        >
+          <i className="pi pi-pencil" /> Re-render part of {takeA ? tn(takeA.take) : "A"}…
         </button>
         <button
           className="h3-btn h3-primary"

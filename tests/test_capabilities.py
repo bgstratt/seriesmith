@@ -68,9 +68,9 @@ class VideoCapabilitiesTest(unittest.TestCase):
     def caps(self, target_id: str) -> dict:
         return TG.load_target(target_id, "video").capabilities()
 
-    def test_h3_takes_three_subjects_and_three_voices_and_chains_latents(self):
+    def test_h3_takes_eight_subjects_and_three_voices_and_chains_latents(self):
         c = self.caps("minimax_h3_ref2va")
-        self.assertEqual((c["max_subjects"], c["max_voices"]), (3, 3))
+        self.assertEqual((c["max_subjects"], c["max_voices"]), (8, 3))
         # `first` too: it opens on a first frame when a shot asks (keyframes_when_asked)
         self.assertEqual(c["continuous"], ["first", "latent", "multishot"])
         self.assertTrue(c["latents"])
