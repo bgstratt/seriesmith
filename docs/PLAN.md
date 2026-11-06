@@ -1130,6 +1130,10 @@ collide with the package.
       Master follow Play all's audio switch, on recording the recording as the dialogue under the
       mix; a take dubbed to the recording with its effects kept no longer exports with no line (the
       model's whole mix in its video, an older take's `_h3.wav`). Published by the merge's version bump.
+- [x] **0.1.17** (2026-11-06, `release-0.1.17`): re-render part of a take (#98): a stretch of a take made
+      again as a new take on the H3 family or LTX-2, the rest held and its sound kept, from any model's take; H3 Ref2VA, Singularity,
+      Pika H3 Flex and FastH3 Omni take eight subjects round the plate on `<Picture 4>` (existing FastH3 takes read as stale).
+      Published by the merge's version bump.
 - [x] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render. Done by the user.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
