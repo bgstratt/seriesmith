@@ -104,6 +104,25 @@ frames, size and seed, both the Turbo render (8 steps, 217 s) and the full one (
 watched. Viggle stayed closer to the source's scene and motion (20.0 dB, against 16.4 and 16.6), and it keeps the source's
 sound, where these generate their own. These ran on ComfyUI's own nodes, without the SAM mask of the author's full recipe.
 
+**What the face does across a shot.** InsightFace scored every frame's face against her picture, a stand-in for melting and not
+a measure of it. At 1280x736 Character Swap averaged 0.47 on the first 124 frames (worst tenth 0.25 to 0.29) against Viggle's 0.43
+(0.18). The score falls by half or more in every render when the head turns fast, though blur comes with those frames; holding an
+angle costs little, and a bigger face scores much higher. The dough over the lens dips it (0.52 to 0.53 at 736), and it recovers
+straight after. Watched on the frames with the dough and the talking close-ups, Turbo8 stayed cleaner than Viggle.
+
+**Two people, one clip, seed 0, 124 frames at 1280x736.** The pink jacket became the woman and the white suit the mascot, with no mix-up
+in any run, and SAM 3.1 kept a mask on each man in every frame:
+
+| Run | Scene outside the two people, against the source | What it did |
+|---|---|---|
+| Viggle Remake, one pass, three pictures | 24.6 dB (lowest 23.9) | Both characters whole, no clipping. The rest of the frame is redrawn |
+| Character Swap, woman's pass alone | 24.3 dB (lowest 21.7) | Whole frame redrawn |
+| Character Swap, mascot's pass alone | 20.9 dB (lowest 12.9) | Whole frame redrawn, and the camera drifts at points |
+| Those two passes, each from the source, composited through the SAM masks | 78.3 dB (lowest 72.2) | The scene is effectively the source. But the mascot's crown is cut off, because the mask is the man's shape |
+
+So compositing side by side from the source keeps the scene, and an unmasked pass doesn't fit a figure of another shape. These
+Character Swap passes weren't masked while generating; the author's recipe, IV Studio's graphs and a stacked two-pass run are still untested.
+
 ## Reading the numbers
 
 - **Scene held** is PSNR of the later painted frame (frame 184) against its source frame, over the part Viggle's own
