@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import {
   cancelTake, clearRef, closeMenu, copyText, discardTake, generateKeyframe, keyframeFromTake, loadRefs,
   openIssue,
-  keepUpscale, openInspector, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, openShotForm, showInScript, showMissingRefs,
+  keepUpscale, openInspector, openRangeRedo, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, openShotForm, showInScript, showMissingRefs,
   upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu, makeFinalsFromDrafts, renderSelected,
   generateDubTracks, openSound, setSound,
 } from "../actions";
@@ -490,6 +490,11 @@ export function ContextMenu() {
           </button>
           <button onClick={run(() => openRedo(menu.shot, take.take, menu.pass))}>
             <i className="pi pi-refresh" /> New take like this one…
+          </button>
+          <button disabled={!usable}
+            title={usable ? "Make a stretch of this take again as a new take, keeping the rest and its sound" : "Only a finished take with video"}
+            onClick={run(() => openRangeRedo(menu.shot, take.take, menu.pass))}>
+            <i className="pi pi-pencil" /> Re-render part of this take…
           </button>
           {menu.pass === "proxy" && take.draft && take.status === "ok" && (
             <button disabled={take.draft.expired}

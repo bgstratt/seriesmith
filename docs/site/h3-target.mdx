@@ -67,6 +67,14 @@ mapping is fixed, so prompts are stable regardless of cast size:
 | `<Picture 3>` | background | background | subject 3 |
 | `<Picture 4>` | background | background | background |
 
+Subjects four to eight (2026-11-05) go on `<Picture 5>` to `<Picture 9>`, the node's other sockets: the plate stays
+`<Picture 4>`, so a shot of three subjects or fewer sends the same pictures and prompt it always did, and its takes stay
+current. Sockets after the last subject stay empty, which is safe: the node drops an empty socket and numbers the rest
+from 1, so only a gap would move a number, and there is none at the end. H3 Singularity, Pika H3 Flex and FastH3 Omni are the same;
+Omni had its plate at `<Picture 9>` until then, so its takes from before read as stale (their prompt changed), and a shotlist built
+before it still renders as it says. Each job's picture sockets are set from the loader (`compile.wire_pictures`), because a workflow
+saved in ComfyUI wins over the repo's: an older copy's four sockets dropped subjects 4-8 while the prompt still named them.
+
 **A change of clothes is a second subject**, not a note in the prompt. Give it `of:` in the
 series config and its own `design`; it inherits the character's name and voice, and
 its sheet path is derived from theirs (`refs/gina/gina_sheet_4panel.png` →

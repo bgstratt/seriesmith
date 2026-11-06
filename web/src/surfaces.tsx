@@ -10,6 +10,7 @@ import { CutMenu } from "./components/CutMenu";
 import { ExportMenu } from "./components/ExportMenu";
 import { Boundary } from "./components/ErrorBoundary";
 import { RedoDialog, SidecarDialog } from "./components/Dialogs";
+import { RangeDialog } from "./components/RangeDialog";
 import { ExportCheckDialog } from "./components/ExportCheck";
 import { SoundDialog } from "./components/SoundDialog";
 import { BrowseDialog } from "./components/Browse";
@@ -181,6 +182,7 @@ export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Cut menu", CutMenu],
   ["Export menu", ExportMenu],
   ["Redo", RedoDialog],
+  ["Re-render frames", RangeDialog],
   ["Render", RenderDialog],
   ["Upscale", UpscaleDialog],
   ["Post-process", PostDialog],

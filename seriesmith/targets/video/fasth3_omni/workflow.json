@@ -235,42 +235,42 @@
           "name": "ref_images.ref_image_3",
           "shape": 7,
           "type": "IMAGE",
-          "link": 41
+          "link": 12
         },
         {
           "localized_name": "ref_image_4",
           "name": "ref_images.ref_image_4",
           "shape": 7,
           "type": "IMAGE",
-          "link": 42
+          "link": 41
         },
         {
           "localized_name": "ref_image_5",
           "name": "ref_images.ref_image_5",
           "shape": 7,
           "type": "IMAGE",
-          "link": 43
+          "link": 42
         },
         {
           "localized_name": "ref_image_6",
           "name": "ref_images.ref_image_6",
           "shape": 7,
           "type": "IMAGE",
-          "link": 44
+          "link": 43
         },
         {
           "localized_name": "ref_image_7",
           "name": "ref_images.ref_image_7",
           "shape": 7,
           "type": "IMAGE",
-          "link": 45
+          "link": 44
         },
         {
           "localized_name": "ref_image_8",
           "name": "ref_images.ref_image_8",
           "shape": 7,
           "type": "IMAGE",
-          "link": 12
+          "link": 45
         },
         {
           "label": "ref_video_0",
@@ -1937,7 +1937,7 @@
       11,
       5,
       20,
-      11,
+      6,
       "IMAGE"
     ],
     [
@@ -2145,7 +2145,7 @@
       11,
       17,
       20,
-      6,
+      7,
       "IMAGE"
     ],
     [
@@ -2153,7 +2153,7 @@
       11,
       18,
       20,
-      7,
+      8,
       "IMAGE"
     ],
     [
@@ -2161,7 +2161,7 @@
       11,
       19,
       20,
-      8,
+      9,
       "IMAGE"
     ],
     [
@@ -2169,7 +2169,7 @@
       11,
       20,
       20,
-      9,
+      10,
       "IMAGE"
     ],
     [
@@ -2177,7 +2177,7 @@
       11,
       21,
       20,
-      10,
+      11,
       "IMAGE"
     ]
   ],

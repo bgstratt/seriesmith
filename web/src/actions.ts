@@ -1013,6 +1013,15 @@ export function closeRedo() {
   set({ redo: null });
 }
 
+export function openRangeRedo(shot: string, take: number, pass = get().pass) {
+  set({ rangeRedo: { shot, take, pass }, menu: null });
+  void loadDetail(shot, pass);
+}
+
+export function closeRangeRedo() {
+  set({ rangeRedo: null });
+}
+
 export function openSidecar(shot: string, take: number, pass = get().pass) {
   set({ sidecar: { shot, take, pass }, menu: null });
   void loadDetail(shot, pass);

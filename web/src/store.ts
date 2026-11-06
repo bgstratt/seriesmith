@@ -423,6 +423,8 @@ export interface AppState {
   refFocus: { id: string; n: number } | null;
   menu: MenuState | null;
   redo: RedoState | null;
+  /** frames of a take made again: the dialog (components/RangeDialog.tsx) */
+  rangeRedo: { shot: string; take: number; pass: Pass } | null;
   sidecar: { shot: string; pass: Pass; take: number } | null;
   toasts: Toast[];
   models: string[] | null;
@@ -620,6 +622,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     refFocus: null,
     menu: null,
     redo: null,
+    rangeRedo: null,
     sidecar: null,
     toasts: [],
     models: null,

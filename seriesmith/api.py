@@ -1411,6 +1411,27 @@ def post_render(ctx: Context, body):
         raise ApiError(400, "then_render follows a dub track: ask with dub_track true")
     if then_render and ctx.runner is None:
         raise ApiError(400, "then_render needs seriesmith's queue (this host has none)")
+    # frames of one take made again: {"take", "first", "last"}, and what to ask
+    # for them (`prompt`, shaped like a job's: else what the take asked)
+    redo_range = body.get("redo_range")
+    if redo_range is not None:
+        if (not isinstance(redo_range, dict)
+                or any(not isinstance(redo_range.get(k), int) or isinstance(redo_range.get(k), bool)
+                       for k in ("take", "first", "last"))):
+            raise ApiError(400, "redo_range must be {take, first, last}, whole numbers")
+        prompt = redo_range.get("prompt")
+        if prompt is not None and not (
+                (isinstance(prompt, str) and prompt.strip())
+                or (isinstance(prompt, list) and prompt and all(isinstance(p, str) for p in prompt))):
+            raise ApiError(400, "redo_range's prompt must be text, or a list of text")
+        redo_range = {k: redo_range[k] for k in ("take", "first", "last")}
+        if prompt is not None:
+            redo_range["prompt"] = prompt
+        via = body["redo_range"].get("via")
+        if via is not None:
+            if via != "frames":
+                raise ApiError(400, 'redo_range\'s via can only be "frames"')
+            redo_range["via"] = via
     template = J.RenderRequest(
         shot_id="", redo=redo, seed=seed_in(body.get("seed")), seed_mode=seed_mode,
         model=_opt_str(body, "model") or None, loras=_opt_loras(body.get("loras")),
@@ -1419,7 +1440,7 @@ def post_render(ctx: Context, body):
         note=_opt_str(body, "note") or "", allow_missing_refs=allow_missing,
         target=_opt_target(body.get("target")), allow_model_mismatch=allow_mismatch,
         negative=_opt_negative(body.get("negative")), save_latent=save_latent,
-        size=_opt_size(body.get("size")), dub_track=dub_track)
+        size=_opt_size(body.get("size")), dub_track=dub_track, redo_range=redo_range)
     J.load_shotlist(ep, pass_)                           # 404 before anything else
     if body.get("from_draft") is not None:
         # finals made from Seedance drafts: {shot: its proxy draft take}

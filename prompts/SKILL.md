@@ -211,8 +211,8 @@ shot 93. So:
 
 | target | what pins the look | sound | keyframes | length grid | good for |
 |---|---|---|---|---|---|
-| `minimax_h3_ref2va` (default) | your sheets and plate, as four reference pictures | generated, dubbed to a recording, or cloned from voice samples | first, when the series' `first_target` sends its continuing shots to it (otherwise they go to H3 FL2VA) | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
-| `fasth3_omni` | your sheets and plate, as up to nine reference pictures: eight subjects and the plate | as Ref2VA | not read | `17k+5` at 24 fps | crowded shots (up to eight characters, props and vehicles); FastVideo's 8-step H3, no turbo LoRA |
+| `minimax_h3_ref2va` (default) | your sheets and plate, as up to nine reference pictures: eight subjects and the plate | generated, dubbed to a recording, or cloned from voice samples | first, when the series' `first_target` sends its continuing shots to it (otherwise they go to H3 FL2VA) | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
+| `fasth3_omni` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | crowded shots (up to eight characters, props and vehicles); FastVideo's 8-step H3, no turbo LoRA |
 | `h3_singularity` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | Ref2VA shots on AIGC-Singularity's fine-tune of H3 Ref2VA (its v2 pruned INT8: sharper highlights, distant faces, motion). A shot that asks for a first frame (`continuous: first`, a `first:` line) opens on it here, its pictures kept |
 | `fasth3_fl2va`, `h3_singularity_fl2va` | the first/last keyframes, as FL2VA | as FL2VA | as FL2VA | as FL2VA | FL2VA's graph with FastH3 Omni's or Singularity's weights. `fasth3_fl2va` is where a `continuous: first` shot on FastH3 Omni goes, so it keeps FastH3's look; either can be named, or be the series' `first_target` |
 | `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated, dubbed, or cloned (the lines made by LTX first) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
@@ -1211,8 +1211,8 @@ dur: 1.62
 - **Limits:** Kling, at most 6 shots and 15 s; Seedance 2.5, 30 s (2.0: 15 s). `check`
   refuses a group on a model that renders one shot a call (Veo, Runway, Wan, LTX).
 - **One set of pictures for the whole generation**: every person in the group once (a
-  wardrobe variant in a later shot isn't sent), up to the model's slots (FastH3 Omni eight,
-  Ref2VA three: background people can be one group subject, `members`), and **one plate**,
+  wardrobe variant in a later shot isn't sent), up to the model's slots (Ref2VA, Singularity and
+  FastH3 Omni eight: background people can be one group subject, `members`), and **one plate**,
   the first shot's (Seedance: every shot's). A close-up on another plate is drawn as a
   blurred crop of the one sent; a wider shot on another plate gets its place in words.
 - **A group can carry on from the shot before it** with `continuous: latent` on its first
@@ -1273,15 +1273,15 @@ What each video model takes (generated from the models by `python tools/make_ref
 |---|---|---|---|---|---|
 | `fasth3_fl2va` | FastH3 FL2V | your ComfyUI | none | first and last | — |
 | `fasth3_omni` | Omni | your ComfyUI | 8 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
-| `h3_singularity` | Singularity | your ComfyUI | 3 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
+| `h3_singularity` | Singularity | your ComfyUI | 8 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
 | `h3_singularity_fl2va` | Singularity FL2V | your ComfyUI | none | first and last | — |
 | `hold` | Hold | this machine | none | first | — |
 | `ltx2` | LTX-2 | your ComfyUI | none | first and last | — |
 | `ltx2_ingredients` | LTX+refs | your ComfyUI | one sheet tiled from the subjects and the plate | — | by their order |
 | `ltx2_msr` | LTX+MSR | your ComfyUI | 4 subjects + the plate | — | `Image N`, by their order |
 | `minimax_h3_fl2va` | H3 FL2V | your ComfyUI | none | first and last | — |
-| `minimax_h3_ref2va` | H3 | your ComfyUI | 3 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
-| `pika_h3_flex` | Pika Flex | your ComfyUI | 3 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
+| `minimax_h3_ref2va` | H3 | your ComfyUI | 8 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
+| `pika_h3_flex` | Pika Flex | your ComfyUI | 8 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
 | `pika_h3_flex_fl2va` | Pika Flex FL2VA | your ComfyUI | none | first and last | — |
 | `wan22_i2v` | Wan I2V | your ComfyUI | none | first and last | — |
 | `wan22_ti2v` | Wan 5B | your ComfyUI | none | first | — |
@@ -1677,12 +1677,13 @@ This section is about the default target, `minimax_h3_ref2va`. The other targets
 slots (their limits are under **Rendering a shot on …**), but the three-subject rule is a
 good habit everywhere: a shot about more than three things is usually two shots.
 
-Every shot hands H3 four images. Slots 1–3 are the subjects — characters first, then props
-and vehicles, in the order `who:` and `with:` list them. **Slot 4 is always the location
-plate.**
+Every shot hands H3 its subjects and the plate. Slots 1–3 are the first three subjects —
+characters first, then props and vehicles, in the order `who:` and `with:` list them. **Slot 4
+is always the location plate**, and subjects four to eight take slots 5–9.
 
-That caps you at **three subjects on screen**, and a fourth is an error, not a silent drop.
-When a scene has four characters, stage one out of frame, split the shot, or describe the
+That caps you at **eight subjects on screen**, and a ninth is an error, not a silent drop. Each
+picture costs render time, and the model tells people apart less well as the count grows. When
+a scene is too full, stage someone out of frame, split the shot, or describe the
 extra in the action text without referencing it. Crowds cost nothing that way — they just
 won't look the same from shot to shot, unless they are a group (one slot for all of them;
 see **A group: the same extras every shot**).
@@ -1804,7 +1805,7 @@ target it renders on, so it also reports each target's limits.
 
 Errors name the line and quote it. Common ones: a name in `who:` that is not in the series config; a
 location that isn't in the series config, or one with no `description`; an ALL-CAPS `NAME:` line for someone who cannot speak (usually a typo,
-which would otherwise become action prose); more than three subjects on H3 Ref2VA; a shot
+which would otherwise become action prose); more than eight subjects on H3 Ref2VA; a shot
 with neither `dur:` nor `audio:`; `dur: auto` on a shot with no dialogue; a `dur: model`
 range that isn't `min-max` seconds with min below max; a `target:` or `profile:` name that
 doesn't exist; a `first:` / `last:` that isn't a method or an image path; a `continuous:`

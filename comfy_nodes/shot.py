@@ -20,11 +20,12 @@ Reference slots
 ---------------
     <Picture 1..3>  the shot's subjects, characters first then props/vehicles
     <Picture 4>     the location plate, always
+    <Picture 5..9>  subjects 4-8, when a shot has them
 
-A target with more subject sockets (FastH3 Omni: eight, the shotlist's
-`defaults.subject_slots`) takes subjects 4-8 from `ref_4`..`ref_8`, the last
-outputs (so every earlier output keeps its place), and the plate is the
-picture after them; on Ref2VA those outputs are None.
+Subjects 4-8 come from `ref_4`..`ref_8`, the last outputs (so every earlier
+output keeps its place), which are None on a shot without them. A shotlist whose
+plate is later (`defaults.subject_slots`: FastH3 Omni's eight, before 2026-11-05)
+has its subjects before it and the plate as the picture after them.
 
 There is no style reference image. Style is already carried by every sheet and
 plate (all drawn in it) and stated in the prompt text, so slot 4 buys concrete

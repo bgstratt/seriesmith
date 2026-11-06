@@ -886,6 +886,9 @@ export interface RenderRequest {
   then_render?: boolean;
   /** seriesmith: render on this backend (absent: each shot's own). Only sent when set. */
   backend?: string | null;
+  /** frames of a take made again, the rest and its sound held; `prompt` when they
+   * should ask something else than the take did. Only sent when set. */
+  redo_range?: { take: number; first: number; last: number; prompt?: string };
 }
 
 export interface RenderSkip {
@@ -2102,6 +2105,8 @@ export interface Target {
     voice_reference?: boolean;
     /** it can dub a track of its own: a take's sound, a dub track */
     dubs_tracks?: boolean;
+    /** it can make frames of a take again, the rest held (redo_range) */
+    remakes_frames?: boolean;
     /** it can make a dub track (a voice model beside the audio targets: refs.voice_target) */
     dub_track?: boolean;
     subject_refs?: boolean;

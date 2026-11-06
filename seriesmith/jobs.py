@@ -1230,6 +1230,13 @@ class RenderRequest:
     # VOICE_SIZE unless asked otherwise; its voices cloned), its prompt asking
     # for the dialogue alone, kept in <episode>/dub/<shot>/ (takes.DUB_FOLDER)
     dub_track: bool = False
+    # frames of one take made again, the rest of its latent and its sound held
+    # (range_latent): {"take": n, "first": frame, "last": frame}, and `prompt`
+    # when those frames should ask something else than the take did. A take with
+    # no latent on this model (another model's, an import) is encoded from its
+    # video; `via: "frames"` asks for that anyway. The new take keeps the source's
+    # frame count and sound
+    redo_range: dict | None = None
 
 
 @dataclass
@@ -1313,6 +1320,8 @@ class Job:
     # whose binding names no latent source (`saver.latent`)
     save_latent: bool = False
     dub_track: bool = False            # a dub track (RenderRequest.dub_track)
+    # RenderRequest.redo_range with the take's kept latent as `latent`
+    redo_range: dict | None = None
     # the shot's sound as overrides.json sets it (takes.shot_sound), rendered
     # with; a dub's source as its label says it
     sound: dict | None = None
@@ -1790,6 +1799,8 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
                values=values, negative_source=negative_source, save_latent=save_latent,
                size=size, continuity=(req.continuity or {}).get(sid),
                from_draft=(req.from_draft or {}).get(sid), dub_track=req.dub_track)
+    if req.redo_range and job.runs:
+        plan_range(job, req.redo_range, takes)
     if req.dub_track and job.runs:
         apply_sound(job, {"mode": "clone"})
         job.prompt = voice_only_prompt(job.prompt)
@@ -2149,7 +2160,82 @@ def sidecar_for(job: Job) -> dict:
         **({"dub_track": True} if job.dub_track else {}),
         **({"sound": dict(job.sound)} if job.sound else {}),
         **_dub_lines_field(job),
+        **({"redo_range": {k: job.redo_range[k] for k in ("take", "first", "last", "via")}}
+           if job.redo_range else {}),
     }
+
+
+def range_spec(t: "TG.Target") -> dict | None:
+    """How `t` makes frames of a take again: target.json's `range` (LTX-2: two stages),
+    else its `continuous.latent` (H3's family: one sampler, its grid)."""
+    if t.spec.get("range"):
+        return t.spec["range"]
+    latent = (t.spec.get("continuous") or {}).get("latent")
+    return {"grid": "h3", "sampler": latent["sampler"]} if latent else None
+
+
+def plan_range(job: Job, asked: dict, takes: list) -> None:
+    """A re-render of frames of a take: the take must have kept its latent, on
+    this model, and the range must be inside it."""
+    src = next((t for t in takes if t.take == asked["take"]), None)
+    if src is None or not src.usable:
+        job.error = f"no usable take {asked['take']} of {job.shot['id']} to re-render frames of"
+        return
+    if not range_spec(job_target(job)):
+        job.error = f"{job.target} can't make frames of a take again"
+        return
+    made_on = (src.sidecar or {}).get("target") or job.built_target
+    same_model = made_on == job.target
+    via_frames = asked.get("via") == "frames" or not same_model or not os.path.isfile(src.paths.latent)
+    if via_frames and not os.path.isfile(src.paths.mp4):
+        job.error = f"take {src.take} has no video to encode"
+        return
+    length = int((src.sidecar or {}).get("frames") or (src.sidecar or {}).get("length") or 0)
+    first, last = int(asked["first"]), int(asked["last"])
+    if not 0 <= first <= last or (length and last >= length) or (not length and last >= job.frames):
+        job.error = f"frames {first}-{last} aren't inside take {src.take} ({length} frames)"
+        return
+    made = (length, (src.sidecar or {}).get("width"), (src.sidecar or {}).get("height"))
+    if via_frames and not length:
+        job.error = f"take {src.take} doesn't say how many frames it has"
+        return
+    if length:
+        # the take's own size and length, whatever the shot says now, as near as this
+        # model's grids allow: its frames rounded up for sampling and trimmed back after
+        fps = float((src.sidecar or {}).get("fps") or job.fps)
+        if abs(fps - float(job.fps)) > 0.01:
+            job.error = (f"take {src.take} is {length} frames at {fps:g} fps; {job.target} renders "
+                         f"at {float(job.fps):g} fps")
+            return
+        template = job_target(job).template
+        try:
+            if made[1] and made[2]:
+                job.size = template.fit_size(int(made[1]), int(made[2]))
+            grid = template.snap(length)
+        except ValueError as e:
+            job.error = str(e)
+            return
+        # (the loader works its length out from `duration`)
+        fitted = {"length": grid, "duration": length / float(job.fps)}
+        job.shot = {**job.shot, **fitted}
+        if job.recompiled:
+            job.recompiled = {**job.recompiled, **fitted}
+        if grid != length:                               # its latent wouldn't be this take's
+            job.save_latent = False
+    # the new frames sit between the held ones, so they ask what the take asked,
+    # not what the script says today, unless given their own wording (the held
+    # frames don't follow it, only the new ones)
+    # (another model's prompt is written for that model: this one's is built today)
+    asked_then = (F.read_json_or(src.paths.shotlist, {}).get("shots") or [{}])[0].get("prompt")
+    if asked.get("prompt") or (asked_then and same_model):
+        job.prompt = asked.get("prompt") or asked_then
+    job.redo_range = {"take": src.take, "first": first, "last": last,
+                      "via": "frames" if via_frames else "latent",
+                      "latent": "" if via_frames else src.paths.latent,
+                      "video": src.paths.mp4 if via_frames else "",
+                      "keep": length or job.frames, "sound": T.take_sound(src) or "",
+                      "take_video": src.paths.mp4}
+    job.notes.append(f"frames {first}-{last} of take {src.take} made again, the rest held")
 
 
 def start_job(job: Job) -> T.Take:
@@ -2722,6 +2808,8 @@ def graph_for(base: dict, job: Job, take: T.Take, *, panel_mode: str | None = No
         continuity_frame(g, job, take, dict(job.inputs if inputs is None else inputs))
     if (job.recompiled or job.shot).get("hold"):
         chain_latent(g, job, take)
+    if job.redo_range:
+        range_latent(g, job)
     if job.duration_head:
         add_duration_predictor(g, t, job)
     if b.prune:
@@ -2856,6 +2944,69 @@ def continuity_frame(g: dict, job: Job, take: T.Take, inputs: dict) -> None:
                            "pass_": job.continuity.get("pass") or job.pass_,
                            "sidecar": os.path.relpath(take.paths.sidecar, job.root)}
             v.setdefault("_meta", {})["title"] = "Continuity first frame"
+
+
+def range_latent(g: dict, job: Job) -> None:
+    """A re-render of frames of a take (RenderRequest.redo_range): SeriesmithRangeLatent
+    between the target's `continuous.latent.sampler` input and its source, given the
+    take's kept latent to hold. Only a target that can hold a latent can do this."""
+    from seriesmith.backends import File
+    t = job_target(job)
+    spec = range_spec(t)
+    if not spec:
+        raise ValueError(f"{t.short} can't make frames of a take again")
+    s = spec["sampler"]
+    r = job.redo_range
+    grid = spec.get("grid", "h3")
+    samplers = [k for k, v in g.items() if v["class_type"] == s["class_type"]]
+    refine = None
+    if spec.get("stages") == 2:
+        # the sampler the take's own latent came from is the second stage
+        refine = latent_node(g, node_of(g, t.binding.saver_class), t.binding.saver["latent"])
+        samplers = [k for k in samplers if k != refine]
+    sampler = node_of(g, s["class_type"]) if not refine else samplers[0]
+    held = {"take_latent": File(r["latent"]) if r["latent"] else "", "fps": float(job.fps), "grid": grid}
+    if r["video"] or refine:
+        held["take_video"] = File(r["video"] or r["take_video"])
+        for name in ("video_vae", "audio_vae"):
+            specs = t.binding.specs(name)
+            found = select_nodes(g, specs[0]) if specs else []
+            if found:
+                held[name] = [found[0], 0]
+    frames = {"first_frame": int(r["first"]), "last_frame": int(r["last"])}
+    nid = str(_next_id(g))
+    g[nid] = {"class_type": "SeriesmithRangeLatent", "inputs": {
+        "latent": g[sampler]["inputs"][s["input"]], **held, **frames,
+        "source": json.dumps({"shot": job.shot["id"], "take": r["take"], "pass": job.pass_})},
+        "_meta": {"title": "Range latent (frames of a take made again)"}}
+    g[sampler]["inputs"][s["input"]] = [nid, 0]
+    if refine:
+        rid = str(_next_id(g))
+        g[rid] = {"class_type": "SeriesmithRangeRefine", "inputs": {
+            "latent": g[refine]["inputs"][s["input"]], **frames, "grid": grid,
+            "take_latent": held["take_latent"],
+            **({} if r["latent"] else {"take_video": held["take_video"], "video_vae": held.get("video_vae")})},
+            "_meta": {"title": "Range refine (the take's latent, the range from the first stage)"}}
+        g[refine]["inputs"][s["input"]] = [rid, 0]
+    # after decoding: the take's frame count, and its own sound over the picture
+    si = g[node_of(g, t.binding.saver_class)]["inputs"]
+    images, audio = si.get("images"), si.get("audio")
+    if not is_link(images):
+        raise ValueError(f"{t.short}'s saver has no images input")
+    tid = str(_next_id(g))
+    g[tid] = {"class_type": "SeriesmithRangeFinish", "inputs": {
+        "images": images, "frames": int(r["keep"]), "fps": float(job.fps),
+        **({"sound": File(r["sound"])} if r["sound"] else {"sound": ""}),
+        **({"audio": audio} if is_link(audio) and not r["sound"] else {})},
+        "_meta": {"title": "Range finish (the take's length and sound)"}}
+    for k, v in g.items():
+        if k == tid:
+            continue
+        for name, val in v["inputs"].items():
+            if val == images:
+                v["inputs"][name] = [tid, 0]
+            elif is_link(audio) and val == audio:
+                v["inputs"][name] = [tid, 1]
 
 
 def chain_latent(g: dict, job: Job, take: T.Take) -> None:
