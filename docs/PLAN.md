@@ -1993,7 +1993,7 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       source outside the change: own take 38 dB (42-44 kept), sharpness down 4-11% (under 1% kept); H3 33 dB, FLUX.3 38 dB, sharpness down
       25-32%. Watched: no seams, and FLUX.3 came out clean. Encoding darkens the frame's outer 8-32 px by up to 6 levels out of 255 (2.5
       at the bottom; 0.1 kept), seen by the user on sh080 t09.
-- [ ] Encoded edge darkening: untried, encoding the frames with their edges extended and cropping the latent back.
+- [x] Decided, encoded edge darkening stays: minor, hard to see unless looked for (took the user a few viewings), and a crossfade or encoding with extended edges would add more complication than it saves. Part of the price of re-rendering a portion; a full new take avoids it.
 - [x] A range re-render uses the take's own size and length, kept latent or not, rather than refusing when the shot has moved.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
