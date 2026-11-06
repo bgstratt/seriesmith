@@ -2080,6 +2080,15 @@ def sidecar_for(job: Job) -> dict:
     }
 
 
+def range_spec(t: "TG.Target") -> dict | None:
+    """How `t` makes frames of a take again: target.json's `range` (LTX-2: two stages),
+    else its `continuous.latent` (H3's family: one sampler, its grid)."""
+    if t.spec.get("range"):
+        return t.spec["range"]
+    latent = (t.spec.get("continuous") or {}).get("latent")
+    return {"grid": "h3", "sampler": latent["sampler"]} if latent else None
+
+
 def plan_range(job: Job, asked: dict, takes: list) -> None:
     """A re-render of frames of a take: the take must have kept its latent, on
     this model, and the range must be inside it."""
@@ -2087,7 +2096,7 @@ def plan_range(job: Job, asked: dict, takes: list) -> None:
     if src is None or not src.usable:
         job.error = f"no usable take {asked['take']} of {job.shot['id']} to re-render frames of"
         return
-    if not (job_target(job).spec.get("continuous") or {}).get("latent"):
+    if not range_spec(job_target(job)):
         job.error = f"{job.target} can't make frames of a take again"
         return
     made_on = (src.sidecar or {}).get("target") or job.built_target
@@ -2098,20 +2107,18 @@ def plan_range(job: Job, asked: dict, takes: list) -> None:
         return
     length = int((src.sidecar or {}).get("frames") or (src.sidecar or {}).get("length") or 0)
     first, last = int(asked["first"]), int(asked["last"])
-    if not 0 <= first <= last or (length and last >= length) or (via_frames and last >= job.frames):
+    if not 0 <= first <= last or (length and last >= length) or (not length and last >= job.frames):
         job.error = f"frames {first}-{last} aren't inside take {src.take} ({length} frames)"
         return
-    # the kept latent has to fit: the shot's length or size may have moved since
     made = (length, (src.sidecar or {}).get("width"), (src.sidecar or {}).get("height"))
-    if not via_frames and length and made != (job.frames, job.width, job.height):
-        job.error = (f"take {src.take} is {made[1]}x{made[2]}, {length} frames; this shot is now "
-                     f"{job.width}x{job.height}, {job.frames} frames")
+    if via_frames and not length:
+        job.error = f"take {src.take} doesn't say how many frames it has"
         return
-    if via_frames:
-        # the take's own size and length, as near as this model's grids allow: its
-        # frames are rounded up to the grid for sampling and trimmed back after
+    if length:
+        # the take's own size and length, whatever the shot says now, as near as this
+        # model's grids allow: its frames rounded up for sampling and trimmed back after
         fps = float((src.sidecar or {}).get("fps") or job.fps)
-        if not length or abs(fps - float(job.fps)) > 0.01:
+        if abs(fps - float(job.fps)) > 0.01:
             job.error = (f"take {src.take} is {length} frames at {fps:g} fps; {job.target} renders "
                          f"at {float(job.fps):g} fps")
             return
@@ -2141,7 +2148,8 @@ def plan_range(job: Job, asked: dict, takes: list) -> None:
                       "via": "frames" if via_frames else "latent",
                       "latent": "" if via_frames else src.paths.latent,
                       "video": src.paths.mp4 if via_frames else "",
-                      "keep": length or job.frames, "sound": T.take_sound(src) or ""}
+                      "keep": length or job.frames, "sound": T.take_sound(src) or "",
+                      "take_video": src.paths.mp4}
     job.notes.append(f"frames {first}-{last} of take {src.take} made again, the rest held")
 
 
@@ -2859,27 +2867,42 @@ def range_latent(g: dict, job: Job) -> None:
     take's kept latent to hold. Only a target that can hold a latent can do this."""
     from seriesmith.backends import File
     t = job_target(job)
-    spec = (t.spec.get("continuous") or {}).get("latent")
+    spec = range_spec(t)
     if not spec:
         raise ValueError(f"{t.short} can't make frames of a take again")
     s = spec["sampler"]
-    sampler = node_of(g, s["class_type"])
     r = job.redo_range
-    held = {"take_latent": File(r["latent"])} if r["latent"] else {"take_latent": "", "take_video": File(r["video"]),
-                                                                  "fps": float(job.fps)}
-    if not r["latent"]:
+    grid = spec.get("grid", "h3")
+    samplers = [k for k, v in g.items() if v["class_type"] == s["class_type"]]
+    refine = None
+    if spec.get("stages") == 2:
+        # the sampler the take's own latent came from is the second stage
+        refine = latent_node(g, node_of(g, t.binding.saver_class), t.binding.saver["latent"])
+        samplers = [k for k in samplers if k != refine]
+    sampler = node_of(g, s["class_type"]) if not refine else samplers[0]
+    held = {"take_latent": File(r["latent"]) if r["latent"] else "", "fps": float(job.fps), "grid": grid}
+    if r["video"] or refine:
+        held["take_video"] = File(r["video"] or r["take_video"])
         for name in ("video_vae", "audio_vae"):
             specs = t.binding.specs(name)
             found = select_nodes(g, specs[0]) if specs else []
             if found:
                 held[name] = [found[0], 0]
+    frames = {"first_frame": int(r["first"]), "last_frame": int(r["last"])}
     nid = str(_next_id(g))
     g[nid] = {"class_type": "SeriesmithRangeLatent", "inputs": {
-        "latent": g[sampler]["inputs"][s["input"]], **held,
-        "first_frame": int(r["first"]), "last_frame": int(r["last"]),
+        "latent": g[sampler]["inputs"][s["input"]], **held, **frames,
         "source": json.dumps({"shot": job.shot["id"], "take": r["take"], "pass": job.pass_})},
         "_meta": {"title": "Range latent (frames of a take made again)"}}
     g[sampler]["inputs"][s["input"]] = [nid, 0]
+    if refine:
+        rid = str(_next_id(g))
+        g[rid] = {"class_type": "SeriesmithRangeRefine", "inputs": {
+            "latent": g[refine]["inputs"][s["input"]], **frames, "grid": grid,
+            "take_latent": held["take_latent"],
+            **({} if r["latent"] else {"take_video": held["take_video"], "video_vae": held.get("video_vae")})},
+            "_meta": {"title": "Range refine (the take's latent, the range from the first stage)"}}
+        g[refine]["inputs"][s["input"]] = [rid, 0]
     # after decoding: the take's frame count, and its own sound over the picture
     si = g[node_of(g, t.binding.saver_class)]["inputs"]
     images, audio = si.get("images"), si.get("audio")

@@ -1984,7 +1984,17 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       the grid for sampling, trimmed back after. A different frame rate is refused.
 - [x] Tests (`tests/test_range_render.py`), `docs/API.md`.
 - [x] The editor: **Re-render part of this take…**: the range picked on the take's video, the prompt ready to edit, a new seed. `docs/EDITOR.md`.
-- [ ] Then LTX-2's own masked re-render: its kept latent is the full-size second stage, so how its two stages fit is the question.
+- [x] LTX-2 too (`range` in its target.json: `grid: "ltx"`, 8 frames a step; `stages: 2`). Decided, measured live 2026-11-06 on sh080 t03,
+      frames 30-60: both stages hold the take. Only the second (A) kept the original action: 0.85 sigma can't make a new one from the old
+      latents. Both (B: `SeriesmithRangeLatent` on the half-size stage, the take encoded at that size; `SeriesmithRangeRefine` on the second,
+      the kept latent with the range's steps from the upscaled first stage, only those open) took the new wording. Steps outside the
+      range held exactly, the audio latent identical, 55-70 s. Change reaches about 25-64.
+- [x] LTX-2 with no kept latent: the take's frames through its VAEs at both stages (`via: "frames"`), and any model's take. Against the
+      source outside the change: own take 38 dB (42-44 kept), sharpness down 4-11% (under 1% kept); H3 33 dB, FLUX.3 38 dB, sharpness down
+      25-32%. Watched: no seams, and FLUX.3 came out clean. Encoding darkens the frame's outer 8-32 px by up to 6 levels out of 255 (2.5
+      at the bottom; 0.1 kept), seen by the user on sh080 t09.
+- [ ] Encoded edge darkening: untried, encoding the frames with their edges extended and cropping the latent back.
+- [x] A range re-render uses the take's own size and length, kept latent or not, rather than refusing when the shot has moved.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 

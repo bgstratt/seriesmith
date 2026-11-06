@@ -453,8 +453,9 @@ renders every shot of the request there.
     new take has the source's own sound over it and its frame count. A take with no latent on `target`
     (another model's, an import) is encoded from its video through `target`'s VAEs, or any take with
     `via: "frames"`: its size fitted to `target`, its frames rounded up to `target`'s grid for sampling and
-    trimmed back after, at the same frame rate or refused. Only a target with `continuous.latent` can do
-    this (H3's family), on local ComfyUI.
+    trimmed back after, at the same frame rate or refused. A take with a kept latent keeps its own size and
+    length whatever the shot says now. Only a target with `continuous.latent` (H3's family) or `range` in its
+    target.json (LTX-2) can do this, on local ComfyUI; the capability `remakes_frames` says which.
   - `dub_track: true` makes a **dub track**: the shot rendered for its sound only, on
     `minimax_h3_ref2va` at 64x64 unless `target` / `size` say otherwise (another H3, or
     `ltx2`: any model that clones), cloning, its prompt's sound fields asking for the

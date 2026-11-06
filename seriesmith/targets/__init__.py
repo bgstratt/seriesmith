@@ -859,7 +859,7 @@ class Target:
                 # it can dub a file: a take's sound, a dub track (jobs.apply_sound)
                 "dubs_tracks": self.supports("DUB_BY_FILE"),
                 # frames of a take made again, the rest held (jobs.plan_range)
-                "remakes_frames": bool((self.spec.get("continuous") or {}).get("latent")),
+                "remakes_frames": bool(self.spec.get("range") or (self.spec.get("continuous") or {}).get("latent")),
                 # it can make a dub track (a voice model: refs.voice_target)
                 "dub_track": renders_dub_track(self),
                 "subject_refs": bool(r.get("subject_slots") or r.get("reference_sheet")

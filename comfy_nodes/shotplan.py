@@ -382,3 +382,18 @@ def range_steps(first: int, last: int, steps: int) -> tuple[int, int]:
     if start >= end:
         raise ValueError(f"frames {first}-{last} are outside this take's {steps} latent steps")
     return start, end
+
+
+def ltx_range_steps(first: int, last: int, steps: int) -> tuple[int, int]:
+    """range_steps on LTX's grid: frame 0 is step 0, each 8 after it one step."""
+    first, last = int(first), int(last)
+    start = 0 if first == 0 else (first - 1) // 8 + 1
+    end = min(int(steps), 1 if last == 0 else (last - 1) // 8 + 2)
+    if start >= end:
+        raise ValueError(f"frames {first}-{last} are outside this take's {steps} latent steps")
+    return start, end
+
+
+# the frames a video latent of `steps` steps holds, and the steps of a range, by the model's grid
+GRIDS = {"h3": (lambda steps: (int(steps) - 2) // 5 * 17 + 5, range_steps),
+         "ltx": (lambda steps: (int(steps) - 1) * 8 + 1, ltx_range_steps)}

@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import shutil
 import sys
 import tempfile
 import unittest
@@ -18,12 +19,13 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
 from seriesmith import api as A  # noqa: E402
+from seriesmith import edit as E  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import shotnodes as SN  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith.backends import File  # noqa: E402
 from test_cloud import h3_shot  # noqa: E402
-from test_render import build_episode  # noqa: E402
+from test_render import build_episode, stub_refs  # noqa: E402
 
 
 class FrameMath(unittest.TestCase):
@@ -33,6 +35,18 @@ class FrameMath(unittest.TestCase):
         self.assertEqual(sp.range_steps(74, 123, 37), (22, 37))
         self.assertEqual(sp.range_steps(52, 87, 42), (15, 27))
         self.assertEqual(sp.range_steps(0, 0, 37), (0, 1))
+
+    def test_ltx_has_a_coarser_grid(self):
+        sp = SN.shotplan()
+        self.assertEqual(sp.ltx_range_steps(30, 60, 12), (4, 9))
+        self.assertEqual(sp.ltx_range_steps(0, 0, 12), (0, 1))
+        self.assertEqual(sp.ltx_range_steps(1, 8, 12), (1, 2))
+        self.assertEqual(sp.ltx_range_steps(80, 88, 12), (10, 12))
+
+    def test_a_grid_knows_its_frames(self):
+        sp = SN.shotplan()
+        self.assertEqual(sp.GRIDS["h3"][0](37), 124)
+        self.assertEqual(sp.GRIDS["ltx"][0](12), 89)
 
     def test_a_range_past_the_end_is_refused(self):
         with self.assertRaises(ValueError):
@@ -97,9 +111,14 @@ class Plan(Episode):
     def test_a_missing_take_is_refused(self):
         self.assertIn("no usable take", self.plan(99).error)
 
-    def test_a_latent_that_no_longer_fits_is_refused(self):
-        job = self.plan(self.take(frames=self.shot["length"] + 17, length=self.shot["length"] + 17).take)
-        self.assertIn("this shot is now", job.error)
+    def test_a_take_keeps_its_own_size_and_length_when_the_shot_has_moved(self):
+        longer = self.shot["length"] + 17
+        job = self.plan(self.take(frames=longer, length=longer, width=1280, height=704).take, last=longer - 1)
+        self.assertEqual(job.error or "", "")
+        self.assertEqual(job.redo_range["via"], "latent")
+        self.assertEqual((job.frames, job.redo_range["keep"]), (longer, longer))
+        self.assertEqual((job.width, job.height), (1280, 704))
+        self.assertTrue(job.save_latent)
 
     def test_a_take_with_no_latent_is_encoded(self):
         t = self.take(latent=False)
@@ -129,7 +148,7 @@ class Plan(Episode):
     def test_a_model_that_cant_hold_a_take_is_refused(self):
         t = self.take()
         job = self.plan(t.take)
-        job.target = "ltx2"
+        job.target = "wan22_i2v"
         J.plan_range(job, {"take": t.take, "first": 10, "last": 20}, T.list_takes(self.root, "final", self.shot["id"]))
         self.assertIn("can't make frames", job.error)
 
@@ -192,6 +211,69 @@ class Graph(Episode):
         job = J.plan_job(self.root, "final", self.doc, self.index, J.RenderRequest(self.shot["id"]), {})
         kinds = {v["class_type"] for v in self.graph(job).values()}
         self.assertFalse(kinds & {"SeriesmithRangeLatent", "SeriesmithRangeFinish"})
+
+
+class TwoStages(unittest.TestCase):
+    """LTX-2: the first stage holds the take at its size, the second the kept latent."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.ep = os.path.join(self._tmp.name, "ct01")
+        os.makedirs(self.ep)
+        fixture = os.path.join(HERE, "fixtures", "continuous")
+        shutil.copy(os.path.join(fixture, "series.json"), self.ep)
+        shutil.copy(os.path.join(fixture, "script.md"), os.path.join(self.ep, "ct01.md"))
+        self.assertTrue(E.build_episode(self.ep)["ok"])
+        stub_refs(self.ep)
+        self.doc = J.load_shotlist(self.ep, "final")
+        self.index = next(i for i, sh in enumerate(self.doc["shots"]) if sh["id"] == "sh010")
+
+    def graph(self, *, kept=True):
+        t = T.reserve_take(self.ep, "final", "sh010", {"status": "queued"})
+        T.update_sidecar(t.paths.sidecar, status="ok", target="ltx2" if kept else "wan22_i2v", frames=97, length=97,
+                         width=1344, height=768, fps=24.0)
+        open(t.paths.mp4, "wb").close()
+        open(t.paths.h3_wav, "wb").close()
+        if kept:
+            open(t.paths.latent, "wb").close()
+        job = J.plan_job(self.ep, "final", self.doc, self.index, J.RenderRequest(
+            "sh010", redo=True, seed_mode="new", target="ltx2",
+            redo_range={"take": t.take, "first": 30, "last": 60}), {}, rng=random.Random(7))
+        self.assertEqual(job.error or "", "")
+        base, _ = J.target_workflow(J.job_target(job), prefer_repo=True)
+        return t, job, J.graph_for(base, job, J.start_job(job))
+
+    def kind(self, g, link):
+        return g[link[0]]["class_type"]
+
+    def test_each_stage_holds_the_take(self):
+        t, job, g = self.graph()
+        self.assertEqual(job.redo_range["via"], "latent")
+        first = next(v for v in g.values() if v["class_type"] == "SeriesmithRangeLatent")["inputs"]
+        second = next(v for v in g.values() if v["class_type"] == "SeriesmithRangeRefine")["inputs"]
+        self.assertEqual(first["grid"], "ltx")
+        self.assertEqual(first["take_latent"].path, t.paths.latent)
+        self.assertEqual(first["take_video"].path, t.paths.mp4)      # the first stage is half its size
+        self.assertTrue(first["video_vae"])
+        self.assertEqual(second["take_latent"].path, t.paths.latent)
+        self.assertNotIn("take_video", second)
+        fed = [self.kind(g, v["inputs"]["latent_image"]) for v in g.values() if v["class_type"] == "SamplerCustomAdvanced"]
+        self.assertEqual(sorted(fed), ["SeriesmithRangeLatent", "SeriesmithRangeRefine"])
+
+    def test_the_saved_latent_is_the_second_stages(self):
+        _, _, g = self.graph()
+        saver = g[J.node_of(g, "H3SaveShot")]["inputs"]
+        sampler = g[saver["latent"][0]]
+        self.assertEqual(self.kind(g, sampler["inputs"]["latent_image"]), "SeriesmithRangeRefine")
+
+    def test_a_take_from_another_model_is_encoded_at_both_stages(self):
+        t, job, g = self.graph(kept=False)
+        self.assertEqual(job.redo_range["via"], "frames")
+        second = next(v for v in g.values() if v["class_type"] == "SeriesmithRangeRefine")["inputs"]
+        self.assertEqual(second["take_latent"], "")
+        self.assertEqual(second["take_video"].path, t.paths.mp4)
+        self.assertTrue(second["video_vae"])
 
 
 class Api(unittest.TestCase):

@@ -624,7 +624,9 @@ Every run takes a new seed, and the result is a new take: the one you started fr
   of the range change slightly. The new take has the original's frame count and sound.
 - **Dialogue:** the sound is the original's, so a mouth that changes can drift from the words. Check the lip sync.
 - **A flaw outside the range stays.** Held frames also steer the new ones, so a flaw all through the clip needs a full new take.
-- **Which models:** H3 Ref2VA, Singularity, Pika H3 Flex and FastH3, on local ComfyUI. A take from any other model can be brought in: it's encoded from its video into the H3 model you pick, at its own size as near as that model allows, which softens the kept frames slightly and adds about 40 seconds. A take at another frame rate than 24 is refused. A take kept without a latent (usually a proxy) is encoded the same way.
+- **Which models:** H3 Ref2VA, Singularity, Pika H3 Flex, FastH3 and LTX-2, on local ComfyUI. A take from any other model can be brought in: it's encoded from its video into the model you pick, at its own size as near as that model allows. A take at another frame rate than the model's is refused. A take kept without a latent (usually a proxy) is encoded the same way.
+- **What encoding costs:** the kept frames are softer, and on LTX-2 the outer edge of the frame goes slightly darker. A take that kept its latent on the model you pick avoids both, so use that model when you can. An H3 encode adds about 40 seconds.
+- **On LTX-2:** it works in steps of 8 frames, so the change can reach further past the range: in three tests, up to 5 frames before it and up to 10 after. A take encoded and rounded up to LTX-2's frame grid is trimmed back to its own length, and keeps no latent of its own.
 
 ### Keeping a take's frames
 
