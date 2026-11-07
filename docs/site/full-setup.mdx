@@ -82,7 +82,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 |---|---|---|---|
 | MiniMax H3 at full quality and speed | ComfyUI-PlagueKind-Nodes | H3's 4 files, 2 turbo LoRAs | |
 | Shots that carry on from the one before | | H3 FL2VA's model, 2 turbo LoRAs | |
-| Reference pictures and keyframes | | Krea 2's 3 files; FLUX.2 Klein's 3 | |
+| Reference pictures and keyframes | | Krea 2's 3 files; Qwen-Image 2.1's, or FLUX.2 Klein's 3 | |
 | Location tours | ComfyUI-PlagueKind-Nodes | H3 FL2VA's | |
 | Generated voice samples | ComfyUI-LTXVideo | LTX-2.5's transformer, text encoder, audio VAE | |
 | Recorded dialogue | | | faster-whisper; demucs for `dub_keep_foley`; seriesmith's node pack for the vocal stem (optional) |
@@ -193,8 +193,10 @@ picture model):
 | `qwen3vl_4b_fp8_scaled.safetensors` | `text_encoders` | [Comfy-Org/Krea-2](https://huggingface.co/Comfy-Org/Krea-2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors) |
 | `wan_2.1_vae.safetensors` | `vae` | [Comfy-Org/Wan_2.2_ComfyUI_Repackaged](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors) |
 
-**FLUX.2 Klein 9B edit** draws shot keyframes from the characters' and places' pictures
-(`flux2_klein_edit`). Without it, keyframes are drawn on the picture model:
+**Qwen-Image 2.1** draws shot keyframes from the characters' and places' pictures when it's
+installed (`qwen_image_21`; its files are in [INSTALL.md](/install#everything-by-model-family)).
+Without it they're drawn on **FLUX.2 Klein 9B edit** (`flux2_klein_edit`), and without that on
+the picture model:
 
 | File | Folder | Download |
 |---|---|---|
@@ -214,7 +216,7 @@ ref's own. Every picture model, and the voice model:
 | `krea2` | Krea 2 turbo, text to image (the default for refs) |
 | `z_image_turbo` | Z-Image Turbo, fast text to image |
 | `flux2_klein` | FLUX.2 Klein 9B, text to image |
-| `flux2_klein_edit` | FLUX.2 Klein 9B with up to 4 reference images (the default for keyframes when it is installed; otherwise keyframes use the refs model) |
+| `flux2_klein_edit` | FLUX.2 Klein 9B with up to 4 reference images (the default for keyframes when Qwen-Image 2.1 isn't installed; without either, keyframes use the refs model) |
 | `flux_kontext` | FLUX.1 Kontext dev, with one reference image |
 | `minimax_h3_still` | MiniMax H3 — the video model, rendering 5 frames and keeping the first, with up to 9 reference images. No second model stack to install if you already render on H3 |
 | `qwen_image_21` | Qwen-Image 2.1 — one model for both jobs: text to image for a character's own views, an edit of up to 16 reference images for a variant's. Takes a real negative prompt, and its cfg, scheduler and denoise are ordinary sampler settings |

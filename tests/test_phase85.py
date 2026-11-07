@@ -599,9 +599,17 @@ class KeyframeGenerateTest(Episode):
         self.assertTrue(refs["shot:sh020:first"]["can_generate"])
 
     def test_default_keyframe_target_and_t2i(self):
-        # nothing to say it isn't ready: the default keyframe target is Klein edit
+        # nothing to say it isn't ready: the default keyframe target is Qwen 2.1
         r = R.ref_json(self.s, R.find_ref(self.s, "shot:sh030:first"))
-        self.assertEqual(r["effective"]["target"], "flux2_klein_edit")
+        self.assertEqual(r["effective"]["target"], "qwen_image_21")
+        # without it, FLUX.2 Klein edit, on both of the ways the default is read
+        no_qwen = lambda t: t.id != "qwen_image_21"
+        self.assertEqual(R.image_defaults(self.s, no_qwen)["keyframe_target"], "flux2_klein_edit")
+        self.assertEqual(TG.keyframe_target(self.s.series_cfg, no_qwen).id, "flux2_klein_edit")
+        # without either, the refs target
+        neither = lambda t: t.id not in TG.DEFAULT_KEYFRAME_TARGETS
+        self.assertEqual(R.image_defaults(self.s, neither)["keyframe_target"], "krea2")
+        self.assertEqual(TG.keyframe_target(self.s.series_cfg, neither).id, "krea2")
         # not ready: the refs target (krea2), text to image
         out = queue_generate(self.fake(), self.s, R.GenRequest("shot:sh030:first"),
                              J.Comfy(self.fake().url), None, rng=random.Random(1),

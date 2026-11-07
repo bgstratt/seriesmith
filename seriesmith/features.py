@@ -437,7 +437,7 @@ def catalog() -> list[Feature]:
         target_feature("pictures.z_image", "pictures", "z_image_turbo", "Z-Image Turbo",
                        "Fast text to image."),
         target_feature("pictures.qwen_image_21", "pictures", "qwen_image_21", "Qwen-Image 2.1",
-                       "Text to image and edits; also what Make 360 and Turn run on."),
+                       "Text to image, edits and keyframes; also what Make 360 and Turn run on."),
         Feature("pictures.flux3_klein", "pictures", "FLUX.3 Klein",
                 "Text to image and edits, with a step-distilled turbo. Gated.",
                 _merge(_target_items("flux3_klein"), _target_items("flux3_klein_turbo"))),
@@ -584,9 +584,8 @@ def catalog() -> list[Feature]:
                 [Item("model", R.TURN_LORA, folder="loras", url=R.TURN_LORA_URL)] + _target_items("qwen_image_21")),
         Feature("refs.relight", "refs", "Relight a plate or a sequence",
                 "A relight is an edit of the plate: it runs on the episode's edit model (Made "
-                f"with), any of {_edit_models()}. The default is FLUX.2 Klein 9B edit (gated): "
-                "these files.",
-                _target_items(TG.DEFAULT_KEYFRAME_TARGET)),
+                f"with), any of {_edit_models()}. The default is Qwen-Image 2.1: these files.",
+                _target_items(TG.DEFAULT_EDIT_TARGET)),
         Feature("hosted.comfy_api", "hosted", "Comfy API: Router models, Cloud, deployments",
                 f"{len(hosted_video)} video models ({_names(hosted_video)}) and "
                 f"{len(hosted_image)} picture models ({_names(hosted_image)}) "

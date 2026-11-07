@@ -539,8 +539,9 @@ def image_defaults(s: Series, ready=None) -> dict:
     "voice_target_source"}, each source "editor" (overrides.json's episode.refs_target /
     episode.keyframe_target / episode.edit_target / episode.voice_target, PUT
     /seriesmith/refs/defaults), "series" (the series config's `refs` block) or
-    "default" (krea2; flux2_klein_edit for keyframes when `ready(target)` says
-    it can render here, else the refs target; for edits Qwen-Image 2.1, and
+    "default" (krea2; for keyframes the first of qwen_image_21 and
+    flux2_klein_edit that `ready(target)` says can render here, else the refs
+    target; for edits Qwen-Image 2.1, and
     FLUX.3 Klein for a character (`edit_target_person`), each the other when it
     isn't ready, then the first of the keyframe and refs targets that can edit,
     None when neither can; ltx2_voice for voices). A chosen edit model is
@@ -569,9 +570,8 @@ def image_defaults(s: Series, ready=None) -> dict:
             out.update(keyframe_target=block["keyframe_target"],
                        keyframe_target_source="series")
         else:
-            t = TG.load_target(TG.DEFAULT_KEYFRAME_TARGET, "image")
-            kt = t.id if (ready is None or ready(t)) else out["target"]
-            out.update(keyframe_target=kt, keyframe_target_source="default")
+            t = TG.default_keyframe_target(ready)
+            out.update(keyframe_target=t.id if t else out["target"], keyframe_target_source="default")
         editors = {t.id for t in TG.list_targets("image") if is_edit_target(t)}
         ee = T.episode_field(ov, "edit_target")
         if ee and ee in editors:

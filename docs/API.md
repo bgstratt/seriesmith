@@ -2626,7 +2626,7 @@ left it open).
 - Each has presets, `models` tiers, downloads and readiness, like the video targets.
 - `capabilities`: `{"mode": "t2i" | "edit", "max_refs": N}`.
 - **Series defaults:** the series config's `refs` block, `{"target": "<image id>", "keyframe_target": "<image id>"}`.
-  - The defaults are `krea2` and, when it is ready, `flux2_klein_edit` (else the refs `target`).
+  - The defaults are `krea2` and the first of `qwen_image_21` and `flux2_klein_edit` that is ready (else the refs `target`).
   - A per-ref override lives in `refs/_overrides.json` as `target`.
   - A generate request's `target` beats both.
 - **`GET /seriesmith/targets?kind=image&ready=1`** lists them, as for video.
@@ -2731,8 +2731,8 @@ here too) or **[settled]** (the contract left it open).
   to `refs.turn_target`.
   Precedence: request, then the ref's override (`target` in `refs/_overrides.json`, now a
   `PUT /seriesmith/refs/override` field), then the episode's, then the series config's `refs`,
-  then built-in. "Ready" for the built-in keyframe default means every required file of
-  `flux2_klein_edit` is among ComfyUI's model lists.
+  then built-in. "Ready" for a built-in keyframe default means every required file of
+  that target is among ComfyUI's model lists.
 - **[added]** Each ref's `effective.target` is the image target a generate would use (a
   character's top-level `effective` is `{target}`; each view's has the rest). Ref-take
   sidecars add `target`, `negative`, `negative_source`, `values`, `resolved`, `notes`, and
