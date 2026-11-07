@@ -1608,6 +1608,8 @@ export interface RefDefaults {
   keyframe_target_source?: RefDefaultSource | null;
   /** the image target an edit of a picture uses (one that can edit; null when none can) */
   edit_target?: string | null;
+  /** the same for a character (differs only when no edit model is chosen) */
+  edit_target_person?: string | null;
   edit_target_source?: RefDefaultSource | null;
   /** the image target Turn runs on (one that can edit); null: automatic (Qwen 2.1 + angles
    *  when it's installed, else the edit target) */

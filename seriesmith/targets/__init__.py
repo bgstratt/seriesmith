@@ -1396,6 +1396,10 @@ def first_target(series_cfg: dict | None = None) -> str | None:
 
 
 DEFAULT_KEYFRAME_TARGET = "flux2_klein_edit"   # when it is ready, else the refs target
+# An edit with no model chosen, when it is ready: a character on the first, anything else
+# on the second, each falling back to the other (refs.image_defaults)
+DEFAULT_PERSON_EDIT_TARGET = "flux3_klein"
+DEFAULT_EDIT_TARGET = "qwen_image_21"
 
 
 REFS_TARGET_KINDS = {"target": "image", "keyframe_target": "image", "edit_target": "image",

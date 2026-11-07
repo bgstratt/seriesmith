@@ -45,7 +45,8 @@ export function EditForm({ r, view: view0, take, viewChoices, onDone }: {
   const refs = useApp((s) => (s.ep ? s.refs[s.ep] : null));
   const busy = useApp((s) => !!s.busy[`refgen|${r.id}`]);
   const edits = useMemo(() => imageTargets(list).filter(isEditTarget), [list]);
-  const editsDefault = useRefDefaults().edits;
+  const refDefaults = useRefDefaults();
+  const editsDefault = r.kind === "character" ? refDefaults.editsPerson : refDefaults.edits;
   const [text, setText] = useState("");
   // relight presets (seriesmith/presets/relight.json) in this ref's wording: a plate's, or a figure's
   const relights = useRelightTiles(r.kind);

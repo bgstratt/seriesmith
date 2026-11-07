@@ -87,7 +87,7 @@ export function ImageModelBar({ open0 = false }: { open0?: boolean }) {
     const badge = readinessBadge(t?.readiness);
     const editor = src === "editor";
     const what = kind === "voices" ? voiceModeText(t) || "audio model"
-      : kind === "edits" ? `The model that edits a picture: Edit, Relight, Turn (on Automatic, when Qwen 2.1 + angles isn't installed), an angle (of:) from its place. ${imageModeText(t) || ""}`.trim()
+      : kind === "edits" ? `The model that edits a picture: Edit, Relight, Turn (on Automatic, when Qwen 2.1 + angles isn't installed), an angle (of:) from its place.${defaults.editsPerson !== cur ? ` Characters use ${targetLabel(list, defaults.editsPerson)} unless you choose a model here.` : ""} ${imageModeText(t) || ""}`.trim()
       : kind === "turns" ? `The model ↻ Turn draws a character's view on. ${TURN_ANGLES_LABEL} turns a figure best (the multiple-angles LoRA); any other edit model is told the turn in words. Automatic: ${TURN_ANGLES_LABEL} when it's installed, else the Edits model.`
       : imageModeText(t) || "image model";
     // what the voice model can and can't do, kept on the label's mouseover

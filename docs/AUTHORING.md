@@ -483,8 +483,9 @@ voices), or name others:
 ```
 
 (`edit_target` is the model that edits a picture you already have: the editor's Edit and
-Relight. It must be one that reads reference images; left out, it's the first of
-`keyframe_target` and `target` that can. `turn_target` is the one a character's view is
+Relight. It must be one that reads reference images; left out, it's `flux3_klein` for a
+character and `qwen_image_21` for anything else, each the other when it isn't installed, then
+the first of `keyframe_target` and `target` that can. `turn_target` is the one a character's view is
 turned on: `qwen_image_21` adds the multiple-angles LoRA, any other edit model is told the
 turn in words; left out, Qwen 2.1 + angles when it's installed, else `edit_target`.)
 

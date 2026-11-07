@@ -271,7 +271,7 @@ class TurnTest(Base):
     def test_with_no_model_named_qwen_when_ready_else_the_edit_model(self):
         self.assertEqual(self.turn(ready=lambda t: True).target.id, R.TURN_TARGET)
         job = self.turn(ready=lambda t: t.id != R.TURN_TARGET)
-        self.assertEqual(job.target.id, "flux2_klein_edit")      # the episode's edit model
+        self.assertEqual(job.target.id, "flux3_klein")      # the episode's edit model, for a character
         self.assertIsNone(job.loras)
         self.assertEqual(job.prompt, R.VIEW_TURNS_PROSE["03_back"])
         R.set_image_defaults(self.ep, {"edit_target": "flux_kontext"})

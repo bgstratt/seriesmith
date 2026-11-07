@@ -2563,7 +2563,7 @@ here too) or **[settled]** (the contract left it open).
   that graph code repeats per image (or cuts out with none); each is uploaded as
   `seriesmith/<sha1>.png`. A character with no picked view gets that panel cut out of its live
   sheet (`h3_refsheet.py`, PIL).
-- **[added] Image defaults.** `GET /seriesmith/refs` returns `{"refs": [...], "defaults":   {"target", "target_source", "keyframe_target", "keyframe_target_source", "edit_target",   "edit_target_source", "turn_target", "turn_target_source", "ambience_target",   "ambience_target_source", ...}}` (the voice and dub defaults below), sources `"editor"` |
+- **[added] Image defaults.** `GET /seriesmith/refs` returns `{"refs": [...], "defaults":   {"target", "target_source", "keyframe_target", "keyframe_target_source", "edit_target",   "edit_target_person", "edit_target_source", "turn_target", "turn_target_source", "ambience_target",   "ambience_target_source", ...}}` (the voice and dub defaults below), sources `"editor"` |
   `"series"` | `"default"` (`ambience_target` is the series config's `refs.ambience_target`
   or the default, never the editor's). **`PUT /seriesmith/refs/defaults`** `{ep, target?,   keyframe_target?, edit_target?, turn_target?}` (null clears; a key left out is kept)
   stores `overrides.json` `episode.refs_target` / `episode.keyframe_target` /
@@ -2573,10 +2573,14 @@ here too) or **[settled]** (the contract left it open).
 - **[added 2026-11] The Edits model.** `edit_target` is the image target an edit of a
   picture uses (Edit, Relight, a frame's cut-out, a Turn without Qwen 2.1 + angles): the
   editor's episode choice, else the series config's `refs.edit_target` (an image target
-  with `mode: "edit"` and `max_refs` >= 1, else the series config is refused), else the
-  first of `keyframe_target` and `target` that can edit (`null` when neither can). An edit
-  with no `target` (`refs.edit_target_for`) takes the ref's own model if it can edit, then
-  `edit_target`, then the keyframe model, then the refs model. Promote moves an episode's
+  with `mode: "edit"` and `max_refs` >= 1, else the series config is refused), else
+  `qwen_image_21` when it's ready, then `flux3_klein`, then the first of `keyframe_target`
+  and `target` that can edit (`null` when neither can). `edit_target_person` is what a
+  character's edit uses: the same choice when one is made, else `flux3_klein` when it's
+  ready, then `qwen_image_21`, then the same fallback. An edit with no `target`
+  (`refs.edit_target_for`) takes the ref's own model if it can edit, then
+  `edit_target_person` for a character, then `edit_target`, then the keyframe model, then
+  the refs model. Promote moves an episode's
   `edit_target` to `refs.edit_target`. `turn_target` (`turn_target_source`) is Turn's,
   set the same ways (an image target that can edit; `null`: automatic); promote moves it
   to `refs.turn_target`.
