@@ -258,6 +258,7 @@
     }
   },
   "upscale": {
+    "any_take": true,
     "_note": "h3upscale.py: a final take re-sampled at `scale` from `start` (a fraction of its own schedule: 0.875 is step 7 of 8), its latent's video upscaled by `upscaler` (ComfyUI's own, or a node pack: its `fallback`). The loader's resolution_override carries the new size into the conditioning.",
     "scale": 2,
     "start": 0.875,

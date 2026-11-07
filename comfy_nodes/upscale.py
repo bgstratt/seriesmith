@@ -60,13 +60,18 @@ class SeriesmithLoadTakeLatent:
 class SeriesmithLoadTakeVideo:
     """A take's frames and the audio its lips were made against: `audio` (H3's
     own mix, uploaded) wins over the video's audio stream; a mute take gives
-    silence of its length."""
+    silence of its length. `frames`, when set, is how many a model samples: extra
+    ones cut, missing ones the last frame again, the sound cut or filled with silence
+    to match (at 24 fps, as H3 renders)."""
 
     @classmethod
     def INPUT_TYPES(cls):
         return {"required": {
             "video": ("STRING", {"default": "", "tooltip": "the take's mp4, uploaded"}),
             "audio": ("STRING", {"default": "", "tooltip": "its _h3.wav, uploaded (optional)"}),
+        }, "optional": {
+            "frames": ("INT", {"default": 0, "min": 0, "max": 100000,
+                               "tooltip": "how many frames to give: 0 for the take's own"}),
         }}
 
     RETURN_TYPES = ("IMAGE", "AUDIO")
@@ -74,15 +79,26 @@ class SeriesmithLoadTakeVideo:
     FUNCTION = "load"
     CATEGORY = "seriesmith/upscale"
 
-    def load(self, video, audio=""):
+    def load(self, video, audio="", frames=0):
         path = _input_file(video)
         images = read_frames(path)
+        frames = int(frames or 0)
+        if frames:
+            images = images[:frames]
+            if images.shape[0] < frames:
+                images = torch.cat([images, images[-1:].repeat(frames - images.shape[0], 1, 1, 1)])
         try:
             sound = load_audio(_input_file(audio) if (audio or "").strip() else path)
         except Exception:
             seconds = images.shape[0] / 24.0
             sound = {"waveform": torch.zeros(1, 1, max(1, int(44100 * seconds))),
                      "sample_rate": 44100}
+        if frames:
+            need = round(frames / 24.0 * sound["sample_rate"])
+            wave = sound["waveform"][..., :need]
+            if wave.shape[-1] < need:
+                wave = torch.nn.functional.pad(wave, (0, need - wave.shape[-1]))
+            sound = dict(sound, waveform=wave)
         return (images, sound)
 
 

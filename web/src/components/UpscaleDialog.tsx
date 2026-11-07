@@ -91,7 +91,10 @@ function UpscaleBody() {
     ? ask.takes.map((r) => shots.find((s) => s.shot === r.shot)?.takes.find((t) => t.take === r.take))
     : shots.filter((s) => s.cut.usable && !s.cut.placeholder && !s.cut.out).map((s) => s.takes.find((t) => t.take === s.cut.take));
   const targets = [...new Set(takes.filter(Boolean).map((t) => t!.target || "minimax_h3_ref2va"))];
-  const latentOf = (id: string) => opts?.latent[id] ?? null;
+  // a take goes through the chosen model unless its own model shares that model's latents
+  const through = f.through ? opts?.through?.find((c) => c.id === f.through) ?? null : null;
+  const goesThrough = (id: string) => !!through && (opts?.latent[id]?.family ?? null) !== through.family;
+  const latentOf = (id: string) => (goesThrough(id) ? opts?.latent[through!.id] : opts?.latent[id]) ?? null;
   const latentAll = !!opts && targets.length > 0 && targets.every((id) => latentOf(id)?.status === "ready");
   const latentSome = !!opts && targets.some((id) => latentOf(id)?.status === "ready");
   const noLatent = targets.filter((id) => !latentOf(id));
@@ -115,7 +118,9 @@ function UpscaleBody() {
     const m = methodFor(f.method, li);
     // on top of its upscale: that upscale's size is what gets scaled
     const onUp = (f.method === "pixel" || f.method === "seedvr2") && f.fromUpscale;
-    const base = onUp ? { width: t.upscale?.width, height: t.upscale?.height } : t;
+    const onGrid = (n?: number | null) => (n ? Math.ceil(n / (li?.align ?? 32)) * (li?.align ?? 32) : n);
+    const base = onUp ? { width: t.upscale?.width, height: t.upscale?.height }
+      : m === "latent" && goesThrough(t.target || "minimax_h3_ref2va") ? { width: onGrid(t.width), height: onGrid(t.height) } : t;
     const first = f.method === "latent" && !li
       ? { ok: false, why: "its target has no re-sample" }
       : onUp && !(t.upscale?.status === "ok" && t.upscale.fresh)
@@ -158,7 +163,7 @@ function UpscaleBody() {
   const one = real.length === 1 ? now[0] : null;
   const summary = one
     ? (one.out.ok
-      ? `${(f.method === "pixel" || f.method === "seedvr2") && f.fromUpscale ? `its upscale ${real[0].upscale?.width}×${real[0].upscale?.height}` : `${real[0].width}×${real[0].height}`} → ${one.first.w}×${one.first.h} ${one.method === "pixel" ? `(${f.pixelModel})` : one.method === "seedvr2" ? `(SeedVR2 ${f.seedvr2Model ?? opts?.seedvr2?.default ?? ""})` : "(re-sample)"}`
+      ? `${(f.method === "pixel" || f.method === "seedvr2") && f.fromUpscale ? `its upscale ${real[0].upscale?.width}×${real[0].upscale?.height}` : `${real[0].width}×${real[0].height}`} → ${one.first.w}×${one.first.h} ${one.method === "pixel" ? `(${f.pixelModel})` : one.method === "seedvr2" ? `(SeedVR2 ${f.seedvr2Model ?? opts?.seedvr2?.default ?? ""})` : goesThrough(real[0].target || "minimax_h3_ref2va") ? `(re-sample through ${through!.label})` : "(re-sample)"}`
         + (one.method === "latent" && f.thenModel ? ` → ${one.out.w}×${one.out.h} (${thenLabel})` : "")
         + (D && one.out.w && one.out.h && (one.out.w !== D.w || one.out.h !== D.h)
           ? ` → ${D.w}×${D.h} (${fitWords(one.out.w, one.out.h, D.w, D.h, f.fit ?? "crop")})` : "")
@@ -268,6 +273,15 @@ function UpscaleBody() {
               <div className="h3-muted h3-small">Pixel needs: {opts.pixel.missing.join("; ")}</div>
             )}
           </div>
+          {f.method !== "pixel" && f.method !== "seedvr2" && (opts.through?.length ?? 0) > 0 && (
+            <label className="h3-col" style={{ gap: 2 }} title="Takes from other models go through this model: their frames through its VAEs, then its sampler from late in its schedule, with its prompt built from the script and the characters' references. Faces can move toward the references. The take's own sound is kept. Takes this model's family made keep their own re-sample">
+              <span className="h3-h">Re-sample through</span>
+              <select value={f.through ?? ""} onChange={(e) => set({ through: e.target.value || null })}>
+                <option value="">Each take's own model</option>
+                {opts.through!.map((c) => <option key={c.id} value={c.id} disabled={c.status === "not_ready"}>{c.label}{c.status === "not_ready" ? " — not ready" : ""}</option>)}
+              </select>
+            </label>
+          )}
           {f.method === "seedvr2" && sv2Ready && (
             <label className="h3-col" style={{ gap: 2 }}>
               <span className="h3-h">SeedVR2 model</span>

@@ -144,6 +144,8 @@ class TakePaths:
     # `continuous: latent`: that shot's upscale holds its tail (upscale)
     @property
     def up_latent(self) -> str: return self._p(".up.latent.safetensors")
+    @property
+    def up_shotlist(self) -> str: return self._p(".up.shotlist.json")
     # the post pass (post): a version of the upscale, made from its .up.mp4
     @property
     def post_mp4(self) -> str: return self._p(".post.mp4")

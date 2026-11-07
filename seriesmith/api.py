@@ -1738,7 +1738,7 @@ def post_upscale(ctx: Context, body):
                                 frequency_split=frequency_split, keep_soft=keep_soft, grain=grain,
                                 seedvr2_model=seedvr2_model, deliver=deliver, fit=fit,
                                 quality=quality, upscaler=body.get("upscaler"),
-                                windowing=body.get("windowing"))
+                                windowing=body.get("windowing"), through=body.get("through") or None)
         if up.action == "skip":
             skipped.append({"shot": shot, "take": t.take, "reason": up.why})
         elif up.action == "error":
@@ -2274,10 +2274,11 @@ def get_upscale_options(ctx: Context, query: dict):
             # what the dialog needs to judge a scale: LTX's is fixed, H3's sizes
             # land on `align`
             r = dict(r, mode=spec.get("mode", U.RESAMPLE), align=U.align_of(spec),
-                     fixed_scale=U.fixed_scale(spec), **U.node_choices(spec, info))
+                     fixed_scale=U.fixed_scale(spec), family=U.family(spec), **U.node_choices(spec, info))
         latent[t.id] = r
     ep = check_ep(ctx, query["ep"]) if query.get("ep") else None
-    return 200, {"pixel": px, "seedvr2": sv2, "latent": latent, "details": list(U.DETAILS),
+    return 200, {"pixel": px, "seedvr2": sv2, "latent": latent, "through": U.through_choices(info),
+                 "details": list(U.DETAILS),
                  "recipe": recipe_view(ep) if ep else None,
                  "max_scale": U.MAX_SCALE, "encoders": list(U.ENCODERS),
                  "precisions": list(U.PRECISIONS),
@@ -2307,7 +2308,7 @@ def delete_upscale(ctx: Context, query: dict):
         alive = still_queued(ctx)
         if pid in alive:
             raise ApiError(409, f"{shot} take {n}'s upscale is still in ComfyUI's queue")
-    for p in (t.paths.up_mp4, t.paths.up_sidecar):
+    for p in (t.paths.up_mp4, t.paths.up_sidecar, t.paths.up_shotlist):
         if os.path.isfile(p):
             os.remove(p)
     upscale_event(ctx, ep, shot, n, "deleted")

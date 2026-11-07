@@ -1080,7 +1080,9 @@ can re-sample (every built-in video target has one):
   latent has it; always the VAE route: `route: "latent"` is refused).
 
 The `.up.json` records `mode` and the schedule's `steps`. Options' `latent[target]`
-`fixed_scale` is the one scale a fixed upsampler makes (the LTX targets: 2), else null.
+`fixed_scale` is the one scale a fixed upsampler makes (the LTX targets: 2), else null, and
+`family` what its latents are (its upscaler's class). Options' `through` lists the models any take can be
+re-sampled through: `[{id, label, status, family}]`, `status` `not_ready` when its upscaler or model file is missing.
 
 ### `POST /seriesmith/upscale`
 Body `{"ep", "shots"?: ["sh020"] | null, "takes"?: [{"shot", "take"}], "redo"?: false, "scale"?: 2, "start_step"?: null, "vae"?: false}`. `shots` upscales the final cut's take
@@ -1089,6 +1091,11 @@ that pass's takes directly and wins; `pass` (default `"final"`) says whose. A pr
 kept no latent by default, so its re-sample goes through the VAE. A take with a fresh
 upscale is skipped unless `redo`.
 `vae` forces the VAE route; `start_step` is an exact step of the take's schedule.
+`through` (a target id with `upscale.any_take`: `minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`,
+`pika_h3_flex`) re-samples a take its family didn't make through that model: always the VAE route, the prompt
+and references compiled for that model from the script, the frames fitted to its grid (`.up.shotlist.json`
+beside the upscale, `.up.json`'s `through` and `from_target`). Takes of its family ignore it. A recipe's
+section or a shot's recipe takes `through` too.
 `method`: `"latent"` (a re-sample: the default where the take's target has an `upscale`
 block) or `"pixel"` (an upscale model over the frames: any target, the default for the
 rest), null for each take's default. `pixel_model` names the pixel method's model, a file

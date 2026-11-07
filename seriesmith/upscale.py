@@ -43,6 +43,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 
+from seriesmith.core import fileio as F
 from seriesmith import jobs as J
 from seriesmith import takes as T
 from seriesmith import targets as TG
@@ -68,6 +69,12 @@ class UpscaleJob:
     height: int
     action: str = "upscale"             # upscale | skip | error
     method: str = "latent"              # latent | pixel | seedvr2
+    # a re-sample through another model than the take's (`through`): that shot's
+    # shotlist compiled for it, the size its frames are fitted to, and how many to
+    # keep of the frames it samples
+    through_doc: dict | None = None
+    through_size: tuple | None = None
+    keep_frames: int = 0
     pixel_model: str = ""
     seedvr2_model: str = ""             # the SeedVR2 method's model file
     # "then pixel": after a re-sample, an upscale model takes width x height on
@@ -626,7 +633,7 @@ def upscale_readiness(target: "TG.Target", object_info: dict | None,
 # the whole master's (one size, one encoding)
 RECIPE_GLOBAL = ("deliver", "fit", "quality", "encoder")
 # a target section's, or a shot's
-RECIPE_FIELDS = ("method", "scale", "detail", "start_step", "vae", "pixel_model",
+RECIPE_FIELDS = ("method", "through", "scale", "detail", "start_step", "vae", "pixel_model",
                  "seedvr2_model", "then", "then_scale", "precision",
                  "frequency_split", "keep_soft", "grain", "window", "upscaler", "windowing")
 WINDOW_RANGE = (2.0, 30.0)          # a re-sample window, seconds (0: off)
@@ -701,7 +708,7 @@ def recipe_for(root: str, take: T.Take, recipe: dict | None = None,
 def recipe_kwargs(fields: dict, recipe: dict | None = None) -> dict:
     """RECIPE_FIELDS (and the master's RECIPE_GLOBAL) as plan_upscale's kwargs."""
     g = recipe or {}
-    kw = {k: fields[k] for k in ("method", "scale", "detail", "start_step", "pixel_model",
+    kw = {k: fields[k] for k in ("method", "through", "scale", "detail", "start_step", "pixel_model",
                                  "seedvr2_model", "then_scale", "precision",
                                  "frequency_split", "keep_soft", "grain", "window",
                                  "upscaler", "windowing")
@@ -723,7 +730,7 @@ def recipe_from_request(body: dict) -> dict:
     """The upscale request's choices (POST /seriesmith/upscale's fields) as a
     per-shot recipe (RECIPE_FIELDS): what the dialog saves for one shot."""
     out = {}
-    for k in ("method", "scale", "detail", "start_step", "pixel_model", "seedvr2_model",
+    for k in ("method", "through", "scale", "detail", "start_step", "pixel_model", "seedvr2_model",
               "then_scale", "precision", "frequency_split", "keep_soft", "grain", "window",
               "upscaler", "windowing"):
         if body.get(k) is not None:
@@ -744,6 +751,8 @@ def describe_recipe(fields: dict, recipe: dict | None = None) -> str:
         sc = fields.get('scale', 2)
         s = ("re-sample at the smallest scale that covers the size" if sc == AUTO
              else f"re-sample {sc:g}x")
+        if fields.get("through"):
+            s += f" through {fields['through']}"
         if fields.get("detail"):
             s += f" (detail {fields['detail']})"
         then = fields.get("then")
@@ -822,6 +831,10 @@ def check_fields(sec: dict) -> list[str]:
         v = sec.get(k)
         if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float)) or not 0 <= v <= hi):
             out.append(f"{k} {v!r}: 0 to {hi:g}")
+    if sec.get("through") is not None and not isinstance(sec["through"], str):
+        out.append(f"through {sec['through']!r}: it's a video model's id")
+    if sec.get("through") and sec.get("method", "latent") != "latent":
+        out.append("through: only for a re-sample (method latent)")
     if sec.get("then") and sec.get("method", "latent") != "latent":
         out.append("then: only after a re-sample (method latent)")
     w = sec.get("window")
@@ -883,8 +896,9 @@ def plan_upscale(root: str, take: T.Take, *, encoder: str = "auto", precision: s
             job.upscaler_pack = job.upscaler_asked == PACK
             job.windowing_pack = job.windowing_asked == PACK
             set_window(job, window)
-            set_continuity(job)
-            set_chain(job)
+            if not job.through_doc:
+                set_continuity(job)
+                set_chain(job)
     return job
 
 
@@ -1037,6 +1051,9 @@ def resolve_auto_scale(root: str, take: T.Take, deliver, fit: str, kw: dict) -> 
     sc = take.sidecar or {}
     target = TG.load_target(sc.get("target") or T.DEFAULT_TARGET, "video", root=root)
     spec = upscale_spec(target) or {}
+    via = through_target(root, spec, kw.get("through"), kw.get("method"), kw.get("from_upscale"))
+    if via:
+        spec = upscale_spec(via) or {}
     m = kw.get("method") or ("pixel" if kw.get("from_upscale") or not spec else "latent")
     if m != "latent" or kw.get("then_model") or kw.get("then_method"):
         return None
@@ -1045,8 +1062,100 @@ def resolve_auto_scale(root: str, take: T.Take, deliver, fit: str, kw: dict) -> 
     w, h = int(sc.get("width") or 0), int(sc.get("height") or 0)
     if not w or not h:
         return None                                     # _plan says what's wrong
+    if via:
+        w, h = fitted_size(w, h, align_of(spec))
     return auto_scale(w, h, parse_deliver(deliver), fit, align_of(spec),
                       float(spec.get("scale", 2)))
+
+
+def family(spec: dict) -> str | None:
+    """What a re-sample's latents are, by the upscaler that takes them: H3's models
+    share one. None: a model that has no latent upscaler."""
+    return (spec.get("upscaler") or {}).get("class_type")
+
+
+def through_target(root: str, spec: dict, through: str | None, method: str | None = None,
+                   from_upscale: bool = False) -> "TG.Target | None":
+    """The model a take of a model with this `spec` re-samples through, asked for by
+    `through`: None when none was asked, the method isn't a re-sample, or the take's
+    model shares its latents (an H3 take keeps its own re-sample and kept latent).
+    UpscaleError when `through` can't take another model's frames (target.json's
+    `upscale.any_take`)."""
+    if not through or method not in (None, "latent") or from_upscale:
+        return None
+    try:
+        target = TG.load_target(through, "video", root=root)
+    except Exception:
+        raise UpscaleError(f"through {through!r}: no such video model") from None
+    other = upscale_spec(target)
+    if not other or not other.get("any_take"):
+        raise UpscaleError(f"{target.short} can't re-sample another model's take")
+    return None if spec and family(spec) == family(other) else target
+
+
+def model_files(t: "TG.Target", pass_: str, info: dict | None, wanted: dict | None = None) -> dict | None:
+    """targets.resolve_models for what `t` loads, against this ComfyUI's loaders in
+    `info` (/object_info); None when it can't tell."""
+    def listing(spec: dict):
+        field = ((((info or {}).get(spec.get("class_type")) or {}).get("input") or {}).get("required") or {}).get(spec.get("field"))
+        if not isinstance(field, list) or not field:
+            return None
+        if isinstance(field[0], list):
+            return field[0]
+        return (field[1] or {}).get("options") if len(field) > 1 and isinstance(field[1], dict) else None
+    if not info:
+        return None
+    try:
+        return TG.resolve_models(t, pass_, wanted or TG.wanted_files(t, pass_), listing)
+    except Exception:
+        return None
+
+
+def through_choices(info: dict | None) -> list[dict]:
+    """The models an Upscale can re-sample any take through, with whether they're
+    ready on this ComfyUI (their latent upscale and their own model files):
+    [{"id", "label", "status", "family"}]."""
+    out = []
+    for t in TG.list_targets("video"):
+        spec = upscale_spec(t) or {}
+        if spec.get("any_take"):
+            r = upscale_readiness(t, info) or {}
+            status = r.get("status")
+            if status == "ready" and (model_files(t, "final", info) or {}).get("blocked"):
+                status = "not_ready"
+            out.append({"id": t.id, "label": t.label, "status": status, "family": family(spec)})
+    return out
+
+
+def fitted_size(w: int, h: int, align: int) -> tuple[int, int]:
+    """The size a take's frames are fitted to for a model's grid: up, so what the
+    re-sample makes still covers the delivery. 1344x768 stays; 1280x720 is 1280x736."""
+    return (align * math.ceil(w / align), align * math.ceil(h / align))
+
+
+def through_doc(root: str, take: T.Take, target: "TG.Target") -> tuple[dict, int, list[str]]:
+    """(the take's shot compiled for `target` as it is now, the frames of the take to
+    keep, notes). The prompt and references are written for that model, from the
+    script: what the take was asked isn't in that model's form. The take's length,
+    rounded up onto the model's grid: its last frame is held to fill, and cut off after."""
+    sc = take.sidecar or {}
+    length = int(sc.get("frames") or sc.get("length") or 0)
+    fps = float(sc.get("fps") or 0)
+    if not length or not fps:
+        raise UpscaleError(f"{take.shot} t{take.take:02d}'s sidecar doesn't say its length and frame rate")
+    wants = target.template.fps_for(J.series_config(root))
+    if abs(fps - wants) > 0.01:
+        raise UpscaleError(f"{take.shot} t{take.take:02d} is {fps:g} fps; {target.short} renders at {wants:g} fps")
+    try:
+        built, index = J.find_shot(root, take.pass_, take.shot)
+        doc, entry = J.retarget(root, take.pass_, built, built["shots"][index], target.id)
+        grid = target.template.snap(length)
+    except (ValueError, KeyError, OSError) as e:
+        raise UpscaleError(f"{take.shot} has no prompt for {target.short}: {e}") from None
+    entry = {k: v for k, v in entry.items() if k != "hold"}
+    entry.update(length=grid, duration=length / fps)
+    behind = doc.pop(J.BEHIND, None)
+    return {**doc, "shots": [entry]}, length, [behind] if behind else []
 
 
 def _plan(root: str, take: T.Take, *, scale: float | None = None,
@@ -1055,7 +1164,8 @@ def _plan(root: str, take: T.Take, *, scale: float | None = None,
                  pixel_model: str | None = None, detail: int | None = None,
                  then_model: str | None = None, then_scale: float | None = None,
                  then_method: str | None = None,
-                 from_upscale: bool = False, seedvr2_model: str | None = None) -> UpscaleJob:
+                 from_upscale: bool = False, seedvr2_model: str | None = None,
+                 through: str | None = None) -> UpscaleJob:
     """What upscaling `take` would do. action "error" (with `why`) when it
     can't: not final, not usable, a latent upscale on a target without
     `upscale`, a size that doesn't scale evenly; "skip" when it already has a
@@ -1064,14 +1174,26 @@ def _plan(root: str, take: T.Take, *, scale: float | None = None,
     earlier than the default; `start_step` names the step outright.
     `then_model` (a latent upscale only) adds a pixel step after the re-sample:
     that upscale model takes the result on by `then_scale` (default 2) in the
-    same job, so re-sample 2x then RealESRGAN_x2 makes 4x."""
+    same job, so re-sample 2x then RealESRGAN_x2 makes 4x. `through` re-samples
+    a take of another model through this one (through_target): its frames
+    through this model's VAEs, its prompt and references written for this model."""
     sc = take.sidecar or {}
     target_id = sc.get("target") or T.DEFAULT_TARGET
     target = TG.load_target(target_id, "video", root=root)
     spec = upscale_spec(target) or {}
     kw_seedvr2 = seedvr2_model
-    m = method or ("pixel" if from_upscale or not spec else "latent")
     w, h = int(sc.get("width") or 0), int(sc.get("height") or 0)
+    via = doc = None
+    keep, notes = 0, []
+    try:
+        via = through_target(root, spec, through, method, from_upscale)
+        if via:
+            target, spec = via, upscale_spec(via)
+            doc, keep, notes = through_doc(root, take, via)
+    except UpscaleError as e:
+        return UpscaleJob(root, take, target, spec, "vae", float(scale or 2), None, w, h,
+                          action="error", why=str(e))
+    m = method or ("pixel" if from_upscale or not spec else "latent")
     if m in ("pixel", "seedvr2"):
         job = UpscaleJob(root, take, target, spec, m, float(scale or 2), None, w, h,
                          method=m, pixel_model=pixel_model or DEFAULT_PIXEL_MODEL)
@@ -1106,7 +1228,8 @@ def _plan(root: str, take: T.Take, *, scale: float | None = None,
                          why="only the pixel and SeedVR2 methods run on top of an upscale")
         return job
     s = float(scale or spec.get("scale", 2))
-    steps = schedule_steps(spec, int(sc.get("steps") or 8)) if spec else 8
+    own_steps = int(J.built_values(doc["shots"][0], doc.get("defaults") or {})[2] if via else (sc.get("steps") or 8))
+    steps = schedule_steps(spec, own_steps) if spec else 8
     if start_step is not None:
         step = int(start_step)
     elif detail:
@@ -1115,8 +1238,12 @@ def _plan(root: str, take: T.Take, *, scale: float | None = None,
         step = start_of(steps, spec)
     has_latent = bool(sc.get("latent")) and os.path.isfile(take.paths.latent)
     refine = spec.get("mode") == PIXEL_REFINE
-    r = route or ("latent" if has_latent and not refine else "vae")
+    r = "vae" if via else route or ("latent" if has_latent and not refine else "vae")
     job = UpscaleJob(root, take, target, spec, r, s, step, w, h)
+    if via:
+        job.through_doc, job.through_size, job.keep_frames = doc, fitted_size(w, h, align_of(spec)), keep
+        job.notes += [*notes, f"re-sampled through {via.short}: its frames through {via.short}'s VAEs, "
+                              f"its prompt and references from the script as they are now"]
     if refine:
         # Wan: the take's frames through an upscale model first, then its sampler
         job.pixel_model = pixel_model or spec.get("pixel_model") or DEFAULT_PIXEL_MODEL
@@ -1129,10 +1256,13 @@ def _plan(root: str, take: T.Take, *, scale: float | None = None,
             raise UpscaleError(f"{job.label} isn't a finished take ({take.status})")
         if not spec:
             raise UpscaleError(f"{target.short} has no latent upscale: use the pixel method")
-        if not os.path.isfile(take.paths.shotlist):
+        if not via and not os.path.isfile(take.paths.shotlist):
             raise UpscaleError(f"{job.label} has no frozen shotlist to upscale from")
         if r == "latent" and not has_latent:
             raise UpscaleError(f"{job.label} kept no latent: upscale it through the VAE")
+        if via and sc.get("hold"):
+            raise UpscaleError(f"{job.label} continues the shot before it (it held {sc['hold']} frames "
+                               f"of it): only its own model can re-sample it")
         if r == "vae" and sc.get("hold"):
             # continuous: latent: the render was the held frames and the take;
             # its frames alone don't rebuild it
@@ -1145,7 +1275,7 @@ def _plan(root: str, take: T.Take, *, scale: float | None = None,
             raise UpscaleError(f"{target.short}'s upsampler is fixed at {fixed_scale(spec):g}x")
         if not 1 < s <= MAX_SCALE:
             raise UpscaleError(f"scale {s:g}: it's more than 1, up to {MAX_SCALE:g}")
-        job.width, job.height = scaled(w, h, s, align_of(spec))
+        job.width, job.height = scaled(*(job.through_size or (w, h)), s, align_of(spec))
         if then_method not in (None, "", "pixel", "seedvr2"):
             raise UpscaleError(f"then_method {then_method!r}: it's pixel or seedvr2")
         if then_method == "seedvr2":
@@ -1215,6 +1345,16 @@ def take_job(up: UpscaleJob) -> J.Job:
     keyframes, VACE's reference, the ingredients sheet its guide re-encodes),
     except, for a second stage, a reference sheet, which only its first stage reads."""
     take, sc = up.take, up.take.sidecar or {}
+    if up.through_doc:
+        # nothing of the take's own render but its frames (take_source)
+        doc = up.through_doc
+        shot = doc["shots"][0]
+        model, loras, steps = J.built_values(shot, doc.get("defaults") or {})
+        return J.Job(root=up.root, pass_=take.pass_, index=0, shot=shot, doc=doc, folder=None,
+                     action="render", take=take.take, seed=int(shot.get("seed", 0)),
+                     seed_source="stable", model=model, loras=copy.deepcopy(loras),
+                     steps=int(steps), prompt=shot.get("prompt", ""),
+                     target=up.target.id, based=False, inputs={})
     doc = T.read_json(take.paths.shotlist)
     shot = doc["shots"][0]
     first_only = ("sheet",) if up.spec.get("mode") == SECOND_STAGE else ()
@@ -1239,12 +1379,21 @@ def take_source(g: dict, up: UpscaleJob) -> list:
         return ["up_source", 0]
     vvae, avae = vae_link(g, up, "video_vae"), vae_link(g, up, "audio_vae")
     wav = take.paths.h3_wav if os.path.isfile(take.paths.h3_wav) else ""
+    pixels: list = ["up_video", 0]
     enc = up.spec.get("encode_audio") or AUDIO_ENCODE
     g["up_video"] = {"class_type": "H3LoadTakeVideo", "inputs": {
         "project_root": root, "video_file": rel(root, take.paths.mp4),
         "audio_file": rel(root, wav) if wav else ""}}
-    g["up_venc"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["up_video", 0],
-                                                          "vae": vvae}}
+    if up.through_doc:
+        # another model's frames: as many as this model samples, at a size on its grid
+        g["up_video"]["inputs"]["frames"] = int(up.through_doc["shots"][0]["length"])
+        sc = take.sidecar or {}
+        if up.through_size != (int(sc.get("width") or 0), int(sc.get("height") or 0)):
+            g["up_fit"] = {"class_type": "ImageScale", "inputs": {
+                "image": pixels, "upscale_method": "lanczos", "width": up.through_size[0],
+                "height": up.through_size[1], "crop": "center"}}
+            pixels = ["up_fit", 0]
+    g["up_venc"] = {"class_type": "VAEEncode", "inputs": {"pixels": pixels, "vae": vvae}}
     g["up_aenc"] = {"class_type": enc["class_type"], "inputs": {enc["audio"]: ["up_video", 1],
                                                                 enc["vae"]: avae}}
     g["up_source"] = {"class_type": "LTXVConcatAVLatent", "inputs": {
@@ -1307,6 +1456,11 @@ def upscale_graph(base: dict, up: UpscaleJob) -> dict:
             v["inputs"].pop("audio", None)
     if up.first_from is not None:
         continuity_frame(g, up)
+    if up.through_doc:
+        # the loader reads this model's shotlist, kept beside the upscale
+        F.write_json(take.paths.up_shotlist, up.through_doc)
+        loader = g[J.node_of(g, b.loader_class)]["inputs"]
+        loader[(b.loader.get("inputs") or {}).get("shotlist", "shotlist_file")] = rel(up.root, take.paths.up_shotlist)
     saver = J.node_of(g, b.saver_class)
     sampler = J.latent_node(g, saver, spec.get("sampler") or b.saver["latent"])
     si = g[sampler]["inputs"]
@@ -1345,6 +1499,10 @@ def upscale_graph(base: dict, up: UpscaleJob) -> dict:
 
     images = g[saver]["inputs"]["images"]
     del g[saver]
+    if up.through_doc and up.keep_frames != int(up.through_doc["shots"][0]["length"]):
+        g["up_keep"] = {"class_type": "ImageFromBatch", "inputs": {
+            "image": images, "batch_index": 0, "length": up.keep_frames}}
+        images = ["up_keep", 0]
     g = finish_graph(g, up, images)
     if up.keep_latent:
         g["up_save"]["inputs"].update(latent=[sampler, 0],
@@ -1652,6 +1810,18 @@ def not_ready(jobs: list[UpscaleJob], object_info: dict | None) -> list[str]:
         r = upscale_readiness(t, object_info, j.upscaler_asked)
         if r and r["status"] == "not_ready":
             out += [m for m in (f"{t.short}: {x}" for x in r["missing"]) if m not in out]
+    if object_info is not None:
+        for j in jobs:
+            if j.through_doc:
+                out += [f"ComfyUI has no {c} node: update it" for c in ("ImageScale", "ImageFromBatch")
+                        if c not in object_info]
+                # the installed file of the model, as a render of it would choose
+                entry = j.through_doc["shots"][0]
+                r = model_files(j.target, j.take.pass_, object_info) or {}
+                if r.get("blocked"):
+                    out.append(f"{j.target.short}: its model isn't installed, so it can't re-sample {j.label}")
+                elif (r.get("files") or {}).get("model"):
+                    entry["model"] = r["files"]["model"]
     wants = {j.pixel_model for j in jobs if j.method == "pixel"}
     wants |= {j.then_model for j in jobs
               if j.method == "latent" and j.then_model and j.then_method == "pixel"}
@@ -1715,7 +1885,8 @@ def _describe(up: UpscaleJob) -> str:
     then = (f", then {'SeedVR2 (' + up.then_model + ')' if up.then_method == 'seedvr2' else up.then_model}"
             f" {up.then_scale:g}x -> {up.made_size[0]}x{up.made_size[1]}"
             if up.then_model else "")
-    return (f"{up.route}, {up.scale:g}x -> {up.width}x{up.height}, from step {up.start_step}{then}")
+    through = f"through {up.target.short}, " if up.through_doc else ""
+    return (f"{through}{up.route}, {up.scale:g}x -> {up.width}x{up.height}, from step {up.start_step}{then}")
 
 
 def previous_summary(prev: dict) -> dict:
@@ -1743,6 +1914,8 @@ def settings_of(up: UpscaleJob) -> dict:
     model = up.method == "pixel" or (up.method == "latent" and up.spec.get("mode") == PIXEL_REFINE)
     if up.method == "latent":
         d.update(mode=up.spec.get("mode", RESAMPLE), start_step=up.start_step)
+        if up.through_doc:
+            d["through"] = up.target.id
     if model:
         d["pixel_model"] = up.pixel_model
     if up.method == "seedvr2":
@@ -1866,8 +2039,10 @@ def _queued_record(up: UpscaleJob) -> dict:
             "comfy_prompt_id": None, "target": up.target.id, "route": up.route,
             "method": "latent", "mode": up.spec.get("mode", RESAMPLE),
             "scale": up.scale, "start_step": up.start_step,
-            "steps": schedule_steps(up.spec, int((up.take.sidecar or {}).get("steps") or 0)),
-            "seed": (up.take.sidecar or {}).get("seed"),
+            "steps": schedule_steps(up.spec, int(J.built_values(up.through_doc["shots"][0], up.through_doc.get("defaults") or {})[2]
+                                                 if up.through_doc else (up.take.sidecar or {}).get("steps") or 0)),
+            "seed": up.through_doc["shots"][0].get("seed") if up.through_doc else (up.take.sidecar or {}).get("seed"),
+            **({"through": up.target.id, "from_target": (up.take.sidecar or {}).get("target")} if up.through_doc else {}),
             "upscaler": upscaler, "upscaler_nodes": nodes_used(up), "encoder_asked": up.encoder,
             **({"precision": up.precision, "finish": up.finish_record()}
                if up.then_model or up.spec.get("mode") == PIXEL_REFINE else {}),

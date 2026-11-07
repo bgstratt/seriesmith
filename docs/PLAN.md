@@ -2044,6 +2044,20 @@ Live, Dean ep02 sh010 t02 -> sh020 t02 (`continuous: first`, core upscaler, no w
 next shot's upscaled first frame: 28.7 dB without the fix, 37.3 dB with it (the originals, scaled plainly: 34.4 dB). One pair,
 measured at the join only; the keyframes coming back on other shots wasn't measured beyond the earlier first-frame test.
 
+## H3 re-sample of another model's take (branch `h3-resample-any-take`, 2026-11-06)
+
+Tested first on Ballroom ep03 sh070: a Wan 2.2 take (832x480, 109 frames) at 2x, against SeedVR2 7B. SeedVR2: 39.2 dB
+to the take, the same performance, more texture, more shimmer (0.51-0.62 against the take's 0.37-0.40). H3 (`fasth3_omni`
+from step 7 of 8): 31.6 dB, the characters pulled back toward their references, contrast steadier, shimmer 0.25-0.38. One
+step earlier it pushed the skin pink. Decided by the user on watching it: worth offering, for going from about 768 to 2K/QHD.
+H3 only: LTX's 2x upsampler is a stage of its own render and isn't offered.
+
+- `upscale.through` (dialog, recipe rows, API, CLI by recipe): a target with `upscale.any_take`. A take of the same family
+  (`family`: the upscaler's class) ignores it, keeping its own re-sample and kept latent.
+- Ref-based models only. An FL2VA target would need a keyframe from every take: untested.
+- It reuses the frames route the re-render has: `retarget` for the prompt, frames padded to the grid and cut back. Shot's
+  length comes from the take. The compiled shotlist is kept as `.up.shotlist.json`.
+
 ## Step 15 — models behind other APIs (after the Manager listing)
 
 Router reaches most providers through one key; some are only (or more cheaply, or

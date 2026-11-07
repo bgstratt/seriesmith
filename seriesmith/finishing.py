@@ -132,7 +132,8 @@ def portable(fin: Finish) -> tuple[dict, dict]:
             audio = ins.get("audio_file") or ""
             v["class_type"] = "SeriesmithLoadTakeVideo"
             v["inputs"] = {"video": File(_abs(root, ins["video_file"])),
-                           "audio": File(_abs(root, audio)) if audio else ""}
+                           "audio": File(_abs(root, audio)) if audio else "",
+                           **({"frames": ins["frames"]} if ins.get("frames") else {})}
         elif ct == "H3LoadTakeFrame":
             path = _abs(root, ins["image_file"])
             if os.path.isfile(path):

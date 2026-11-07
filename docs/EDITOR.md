@@ -1701,6 +1701,8 @@ then:
 
 ### Finishing: upscale, post, master
 
+**Re-sample through** in the Upscale dialog sends takes other models made through an H3 model, its prompt built from the script and the characters' references (see FINISHING.md).
+
 A take's menu has **Upscale (2x)…**: a re-sample on the take's own model (more detail, the
 same performance) or an upscale model, its own audio kept. **Post-process…** then finishes
 that upscale: an enhance step (draft, production or cinematic) and motion blur. Each
