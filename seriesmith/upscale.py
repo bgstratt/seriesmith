@@ -892,15 +892,22 @@ def continuity_source(take: T.Take, root: str) -> "tuple[T.Take, str] | None":
     """The take a continuity shot's first keyframe was cut from, when it was
     that take's LAST frame and of the same pass, and the staged name of the
     keyframe the take rendered with: (source take, input name), else None.
-    The render's sidecar names its first keyframe's sha1 (`refs`, role first);
-    the keyframe candidate with that picture says where it was cut from
-    (refs.keyframe_from_take: source shot, take, pass, frame)."""
+    A take cut as its render started says so (`continuity`). Otherwise its sidecar
+    names its first keyframe's sha1 (`refs`, role first), and the keyframe candidate
+    with that picture says where it was cut from (refs.keyframe_from_take: source
+    shot, take, pass, frame)."""
     sc = take.sidecar or {}
-    first = (sc.get("inputs") or {}).get("first")
+    first = T.recorded_inputs(sc, root).get("first")
     ref = next((r for r in sc.get("refs") or [] if r.get("role") == "first"), None)
     sha = (ref or {}).get("sha1")
     if not first or not sha:
         return None
+    cut = sc.get("continuity") or {}
+    if cut.get("shot") and cut.get("take") is not None and (cut.get("pass") or take.pass_) == take.pass_:
+        try:
+            return T.get_take(root, take.pass_, cut["shot"], int(cut["take"])), first
+        except Exception:
+            return None
     from seriesmith import refs as R
     try:
         kref = R.keyframe_ref(root, take.shot, "first")
@@ -1211,7 +1218,7 @@ def take_job(up: UpscaleJob) -> J.Job:
     doc = T.read_json(take.paths.shotlist)
     shot = doc["shots"][0]
     first_only = ("sheet",) if up.spec.get("mode") == SECOND_STAGE else ()
-    inputs = {k: v for k, v in (sc.get("inputs") or {}).items() if k not in first_only}
+    inputs = {k: v for k, v in T.recorded_inputs(sc, up.root).items() if k not in first_only}
     return J.Job(root=up.root, pass_=take.pass_, index=0, shot=shot, doc=doc, folder=None,
                  action="render", take=take.take, seed=int(shot.get("seed", sc.get("seed", 0))),
                  seed_source=sc.get("seed_source", "stable"),

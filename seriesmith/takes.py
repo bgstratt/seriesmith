@@ -636,6 +636,27 @@ def _lock_for(path: str) -> threading.Lock:
         return _LOCKS.setdefault(key, threading.Lock())
 
 
+def recorded_inputs(sidecar: dict | None, root: str) -> dict:
+    """A take's staged inputs ({role: name in ComfyUI's input folder}): its record's
+    `inputs`, and the keyframes its `refs` name. Queued renders before 2026-11-06 never
+    recorded `inputs` (they're staged after the record is written), so an upscale lost
+    its keyframes and a continuity shot its source. A keyframe since replaced by another
+    picture isn't this take's, unless the render cut it itself (`continuity`)."""
+    sc = sidecar or {}
+    out = dict(sc.get("inputs") or {})
+    for r in sc.get("refs") or []:
+        role, sha, path = r.get("role"), r.get("sha1"), r.get("path")
+        if role not in ("first", "last") or role in out or not sha or not path:
+            continue
+        full = os.path.join(root, path)
+        if not os.path.isfile(full):
+            continue
+        if file_sha1(full) != sha and not (role == "first" and sc.get("continuity")):
+            continue
+        out[role] = f"seriesmith/{str(sha)[:20]}{os.path.splitext(path)[1]}"
+    return out
+
+
 def update_sidecar(path: str, **fields) -> dict:
     """`fields` merged into the record at `path`: one read-modify-write at a
     time per file in this process (the queue's threads and the routes both

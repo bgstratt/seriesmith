@@ -2023,14 +2023,26 @@ The A/B behind it (local ComfyUI, real graph with one node swapped, against the 
   latents, which didn't crawl on the dynamic loader.
 - **Open:** core's windows drop a first-frame keyframe from any window not containing it. With a first frame in
   the re-sample, obvpm's stayed closer to a no-window reference at the shot's end (34.4 vs 31.8 dB). It matters for
-  a continuity shot longer than a window, and `continuity_source` needs `inputs.first`, which none of 128 render
-  records here has, so that upscale doesn't start from the upscaled frame at all today: test a real pair of shots.
+  a keyframed or continuity shot longer than a window.
 - **The floor:** on the short control take, the same graph on ComfyUI 0.44 with PyTorch 2.15 is 43.6 dB from itself on
   0.43 with 2.14, for LBH and for core alike, and LBH vs core is 43.6 dB on either. A repeat on one setup is
   frame-identical. So a short take's LBH-vs-core gap is no bigger than what that software update moves; only the
   long takes (40.9-42 dB, LBH chunking) go below it. Live on the branch: the graphs match the A/B's, four cases.
 
 - `--detail` 1 and 2, on the two takes: softer and further from the original than the default, on both upscalers.
+
+## Upscales get their keyframes back (branch `h3-core-upscale`, 2026-11-06)
+
+A queued render stages its inputs after writing its record (`runner`), so no record had `inputs` (0 of 134 here). So an
+upscale's graph had no first or last keyframe, and `continuity_source` found nothing: `continuous: first` upscales
+started from no frame at all rather than the previous shot's upscaled last frame, with no note. The tests mocked
+`continuity_source`, so they stayed green. `continuous: latent` (`held_from`) never read `inputs` and wasn't affected.
+The record now gets `inputs`, and `takes.recorded_inputs` recovers keyframes from `refs` for the takes already made.
+A composed input (LTX ingredients' sheet) isn't in `refs`, so a take made before this fix still doesn't recover it.
+
+Live, Dean ep02 sh010 t02 -> sh020 t02 (`continuous: first`, core upscaler, no windows), the upscaled last frame against the
+next shot's upscaled first frame: 28.7 dB without the fix, 37.3 dB with it (the originals, scaled plainly: 34.4 dB). One pair,
+measured at the join only; the keyframes coming back on other shots wasn't measured beyond the earlier first-frame test.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 
