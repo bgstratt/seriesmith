@@ -2,6 +2,7 @@
 // the dialogue track at the clip, placed as the export's clip_track places it, and the
 // clip's own <video> stays muted.
 import { describe, expect, it } from "vitest";
+import { waveSource } from "../src/components/Waveform";
 import { audioOf } from "../src/lib/audioSource";
 import { sourcePlan, sourcedShots } from "../src/lib/mix";
 import { buildPlaylist, type PlayItem } from "../src/lib/playlist";
@@ -78,5 +79,26 @@ describe("buildPlaylist", () => {
     const st = status({ source: "file", path: "dub/sh070/sh070_t01.mp4" }, "dub/sh070/sh070_t01.mp4", true);
     expect(buildPlaylist(st)[0].source).toEqual({ path: "dub/sh070/sh070_t01.mp4", start: 0, offset: 0, gain: 1 });
     expect(audioOf(st.shots[0].cut)).toBeNull();
+  });
+});
+
+describe("waveSource", () => {
+  const st = { fps: 24, track: null } as unknown as EpisodeStatus;
+  const take = { take: 4, audio: "renders/sh070/sh070_t04.mp4" } as never;
+
+  it("draws the sound the cut plays in place of the clip's own", () => {
+    expect(waveSource("E", sourced(), take, st, false, 40)).toMatchObject({ q: { path: FILE, start: 1.1, end: 5.1 } });
+    expect(waveSource("E", sourced(), take, st, false, 40)?.lead).toBeUndefined();
+  });
+
+  it("a positive offset starts it into the clip, a negative one into the source", () => {
+    const w = waveSource("E", sourced({ offset: 1 }), take, st, false, 40);
+    expect([w?.q.start, w?.q.end, w?.lead]).toEqual([1.1, 4.1, 0.25]);
+    expect(waveSource("E", sourced({ offset: -0.5 }), take, st, false, 40)?.q).toMatchObject({ start: 1.6, end: 5.6 });
+  });
+
+  it("draws nothing for silence, and its own sound with no replacement", () => {
+    expect(waveSource("E", clip({ source: { path: null, start: 0, offset: 0, gain: 1 } }), take, st, false, 40)).toBeNull();
+    expect(waveSource("E", clip(), take, st, false, 40)?.q.path).toBe("renders/sh070/sh070_t04.mp4");
   });
 });

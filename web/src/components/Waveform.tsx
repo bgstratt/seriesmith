@@ -1,7 +1,8 @@
 // Phase 9b: the waveform lane under the timeline's clips. Each clip draws its
 // own audio (`take.audio`, over the part the cut plays), or, with Play all on
 // the recording, its slice of the episode's `track` (its dialogue window, trims
-// applied). Peaks come from GET /seriesmith/peaks at the zoom's resolution, through
+// applied). A clip whose sound the cut replaces (Replace audio, or its shot's dub) draws
+// that sound, placed as Play all plays it (lib/mix sourcePlan). Peaks come from GET /seriesmith/peaks at the zoom's resolution, through
 // a shared cache; a clip only asks once it scrolls into view.
 
 import { memo, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -18,7 +19,7 @@ const EMPTY: number[] = [];
 /** What a clip's lane draws: the query, and what it is (for the tooltip and colour). */
 export function waveSource(
   ep: string, item: PlayItem | undefined, take: TakeSummary | undefined, st: EpisodeStatus, recording: boolean, zoom: number,
-): { q: PeaksQuery; kind: "take" | "recording"; label: string } | null {
+): { q: PeaksQuery; kind: "take" | "recording"; label: string; lead?: number } | null {
   if (!item) return null;
   const fps = st.fps || 24;
   const ts = trackState(st.track);
@@ -31,6 +32,20 @@ export function waveSource(
         label: `recording ${slice.start.toFixed(2)}–${slice.end.toFixed(2)} s`,
       };
     }
+  }
+  const s = item.source;
+  if (s) {
+    // silence draws nothing; a positive offset starts it into the clip (`lead`, of its width)
+    const dur = item.outT - item.inT;
+    const head = Math.max(0, s.offset);
+    if (!s.path || !item.mp4 || !(dur > head)) return null;
+    const start = s.start + Math.max(0, -s.offset);
+    return {
+      q: { ep, path: s.path, bins: binsFor(dur - head, zoom), start, end: start + dur - head },
+      kind: "take",
+      label: `${s.path.split("/").pop()} ${start.toFixed(2)}–${(start + dur - head).toFixed(2)} s, in place of its own`,
+      ...(head ? { lead: head / dur } : {}),
+    };
   }
   const path = take?.audio;
   if (!path || !item.mp4) return null;
@@ -156,14 +171,17 @@ export const WaveLane = memo(function WaveLane({ ep, s, item, take, st, width, h
   const src = waveSource(ep, item, take, st, recording, zoom);
   const entry = usePeaks(src?.q ?? null, seen);
 
+  const lead = Math.round(width * (src?.lead ?? 0));
   const title = !src
-    ? item ? (take ? `${s.shot}: no audio for this take` : `${s.shot}: no take`) : `${s.shot}: not in Play all`
+    ? item?.source ? `${s.shot}: silent in the cut` : item ? (take ? `${s.shot}: no audio for this take` : `${s.shot}: no take`) : `${s.shot}: not in Play all`
     : entry && !entry.ok ? `${s.shot}: ${entry.error}`
       : entry?.ok && entry.data.silent ? `${s.shot}: ${src.label} · no audio stream`
         : `${s.shot}: ${src.label}`;
   return (
     <div ref={box} className={`h3-wave${src?.kind === "recording" ? " h3-wave-rec" : ""}`} style={{ width, height }} title={title}>
-      {src && <PeaksCanvas peaks={entry?.ok ? entry.data.peaks : EMPTY} width={width} height={height} kind={src.kind} />}
+      {src && (lead
+        ? <div style={{ marginLeft: lead }}><PeaksCanvas peaks={entry?.ok ? entry.data.peaks : EMPTY} width={width - lead} height={height} kind={src.kind} /></div>
+        : <PeaksCanvas peaks={entry?.ok ? entry.data.peaks : EMPTY} width={width} height={height} kind={src.kind} />)}
       {src && !entry && seen && <span className="h3-wave-note">…</span>}
       {entry && !entry.ok && <span className="h3-wave-note h3-err">!</span>}
     </div>
