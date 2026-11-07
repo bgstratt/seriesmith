@@ -3,6 +3,7 @@
 // <video> elements from it.
 
 import type { EpisodeStatus, Pass, ShotStatus, TakeSummary } from "../types";
+import { gainOf, normalizeAudio, offsetOf, startOf as audioStart } from "./audioSource";
 import { cutTake, tn } from "./format";
 
 export interface PlayItem {
@@ -40,6 +41,9 @@ export interface PlayItem {
    * export's timing; Play all cuts at its middle) */
   dissolveIn: number;
   dissolveOut: number;
+  /** what the cut plays instead of the clip's own sound (cut.json's `audio`), its file
+   * null for silence or a source that isn't there; absent: its own sound */
+  source?: { path: string | null; start: number; offset: number; gain: number } | null;
 }
 
 /** The take a timeline clip shows: the cut's take, from the other pass for a placeholder. */
@@ -175,7 +179,9 @@ export function buildPlaylist(st: EpisodeStatus | undefined, other?: EpisodeStat
     const trimOut = Math.max(0, Math.floor(s.cut.trim_out || 0));
     const win = trimWindow(frames, trimIn, trimOut, fps, rate);
     const w = windowOf(s);
+    const audio = normalizeAudio(s.cut.audio, s.shot);
     const extra = {
+      source: audio ? { path: audio.source === "none" ? null : s.cut.audio_file ?? null, start: audioStart(audio) ?? 0, offset: offsetOf(audio), gain: gainOf(audio) } : null,
       trimIn, trimOut, total, audioIn: w?.audioIn ?? null, audioOut: w?.audioOut ?? null,
       fadeIn: (s.cut.fade_in || 0) / fps, fadeOut: (s.cut.fade_out || 0) / fps, dissolveIn: 0, dissolveOut: 0,
     };

@@ -1190,6 +1190,29 @@ export function voicePlan(items: PlayItem[], res: Pick<MixResult, "mix" | "voice
   return out;
 }
 
+/** The clips whose own sound the cut replaces: their <video> stays muted. */
+export function sourcedShots(items: PlayItem[]): string[] {
+  return items.filter((it) => it.source).map((it) => it.shot);
+}
+
+/** What the cut plays instead of clips' own sound, each on the dialogue track at its clip,
+ * placed as the export's clip_track places it: from `start`, moved by `offset` (a negative
+ * one eats into the source), at `gain`, and cut at the clip's end. */
+export function sourcePlan(items: PlayItem[]): PlayEntry[] {
+  const out: PlayEntry[] = [];
+  for (const it of items) {
+    const s = it.source;
+    if (!s?.path || !it.mp4 || !(it.dur > 0)) continue;
+    const head = Math.max(0, s.offset);
+    if (head >= it.dur) continue;
+    out.push({
+      id: `source:${it.shot}`, track: "dialogue", path: s.path, start: it.start + head, end: it.start + it.dur,
+      offset: s.start + Math.max(0, -s.offset), gain: s.gain, points: [], fadeIn: 0, fadeOut: 0, loop: false,
+    });
+  }
+  return out;
+}
+
 /** A clip's voice stem that's missing or stale while voices only wants it (null: nothing to say). */
 export function voiceBadge(mix: Mix | undefined, v: MixVoice | undefined): string | null {
   if (!v) return null;

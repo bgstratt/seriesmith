@@ -318,6 +318,7 @@ under the shot.
   - **In the cut:** what the cut plays for it: its take's own sound, a dub track or a take's
     sound in its place, or silence. This changes no render (the mouths don't follow it);
     **Adjust…** sets where it starts, its offset and level, or another shot's take or a file.
+    **Play all** plays it on the Dialogue track, as the export does.
 
   The next take does what is set: a dub of a track plays it, evened out to one loudness, on
   any H3 or LTX model, and the take carries the dubbed voice. Changing it marks the shot's
