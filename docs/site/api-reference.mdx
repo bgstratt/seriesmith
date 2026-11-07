@@ -3855,6 +3855,10 @@ and the checks all call.
   (relative to the episode, forward slashes) and `audio_why`. With no source all three are
   null. `audio_why` is `"sh020 t01"`, `"sh020 t01 (proxy)"` when the take is from the other
   pass, the file's base name, or `"silent"`.
+- **[added] `audio_dub: true`**: the entry has no `audio` of its own and the shot's sound is
+  dub (overrides.json `sound`), so the cut and export play the dub: `audio` is that dub as a
+  source (`takes.cut_dub_spec`), `audio_why` `"dub: …"`. The editor never saves it into
+  cut.json; an entry's own `audio` wins over it.
 - **[added] `" (missing)"`** is appended to `audio_why`, and `audio_file` is null, when the
   source's file has gone (a discarded take, a deleted file). Nothing rewrites the entry: the
   badge says so, and assemble warns and lays silence.

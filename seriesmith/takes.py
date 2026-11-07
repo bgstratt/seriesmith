@@ -480,6 +480,10 @@ def latest_usable(takes: list[Take]) -> Take | None:
 #   {"from": "take", "pass": p, "take": n} a take of the shot's sound (either pass)
 #   {"from": "dub", "take": n}             a generated dub track
 #
+# One choice, for the next render and the cut alike: a shot on dub plays its dub in the cut and
+# export (cut_dub_spec), and generate and clone play the take's own. A cut entry's `audio`
+# (Replace audio, Adjust, silence) is on purpose, and wins over this.
+#
 # Dub tracks are the shot rendered tiny on a voice model for its sound only
 # (jobs.RenderRequest.dub_track), kept as takes of their own in
 # <episode>/dub/<shot>/: never in the take list or the cut. It is a top-level
@@ -572,6 +576,58 @@ def dub_source(root: str, shot_id: str, src: dict) -> tuple[str | None, str]:
     if t is None or not t.usable:
         return None, label
     return take_sound(t), label
+
+
+def dub_offset(data: dict, shot_id: str) -> float:
+    """How far a shot's dub is slid in the cut, in seconds (overrides.json `dub_offset`). Apart from
+    `sound`: it changes no render, so nothing goes stale."""
+    v = (data.get("dub_offset") or {}).get(shot_id)
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
+
+
+def dub_model_sound(data: dict, shot_id: str) -> bool:
+    """Whether the cut plays what the model gave back with a take rendered to the shot's dub (the voice,
+    and the effects or music it made around that), not the dub (overrides.json `dub_model_sound`)."""
+    return bool((data.get("dub_model_sound") or {}).get(shot_id))
+
+
+def rendered_to_dub(root: str, sound: dict | None, shot_id: str, sidecar: dict | None) -> bool:
+    """Whether a take was rendered to the shot's dub as it is now: its mouths follow it, and its own
+    sound is that voice with the model's effects under it."""
+    if not sound or sound.get("mode") != "dub":
+        return False
+    made = (sidecar or {}).get("sound") or {}
+    return made.get("mode") == "dub" and made.get("dub") == sound.get("dub")
+
+
+def cut_dub_spec(root: str, shot_id: str, sound: dict | None, sidecar: dict | None, entry: dict | None,
+                 offset: float = 0.0, take_wav: str | None = None, model_sound: bool = False) -> dict | None:
+    """What the cut plays for a shot on dub, as a cut entry's `audio`: the dub, or with `model_sound`, and
+    a take rendered to it, what the model gave back (`take_wav`, the take's `_h3.wav`). None: the take's
+    own sound (not on dub, or the dub isn't there yet). `entry`: the shot's shotlist entry, with the
+    shotlist's defaults as `_defaults`, for its window of the recording."""
+    if not sound or sound.get("mode") != "dub":
+        return None
+    if model_sound and rendered_to_dub(root, sound, shot_id, sidecar):
+        if take_wav and os.path.isfile(take_wav):
+            return {"source": "file", "path": os.path.relpath(take_wav, root).replace(os.sep, "/")}
+        return None
+    src = sound["dub"]
+    out: dict | None = None
+    if src["from"] == "track":
+        from seriesmith.targets import held_audio as HA      # imported on demand
+        rec = (entry or {}).get("audio_in") is not None and HA.dub_recording({"defaults": entry.get("_defaults") or {}}, entry)
+        if rec:
+            out = {"source": "file", "path": str(rec).replace(os.sep, "/"), "start": float(entry["audio_in"])}
+    elif src["from"] == "take":
+        out = {"source": "take", "shot": src.get("shot") or shot_id, "take": int(src["take"]), "pass": src["pass"]}
+    else:
+        f, _ = dub_source(root, shot_id, src)
+        if f:
+            out = {"source": "file", "path": os.path.relpath(f, root).replace(os.sep, "/")}
+    if out and offset:
+        out["offset"] = float(offset)
+    return out
 
 
 def reserve_take(root: str, pass_: str, shot_id: str, sidecar: dict,

@@ -2,6 +2,7 @@
 // the dialogue track at the clip, placed as the export's clip_track places it, and the
 // clip's own <video> stays muted.
 import { describe, expect, it } from "vitest";
+import { audioOf } from "../src/lib/audioSource";
 import { sourcePlan, sourcedShots } from "../src/lib/mix";
 import { buildPlaylist, type PlayItem } from "../src/lib/playlist";
 import type { EpisodeStatus } from "../src/types";
@@ -51,13 +52,13 @@ describe("sourcedShots", () => {
 });
 
 describe("buildPlaylist", () => {
-  function status(audio: unknown, audioFile: string | null): EpisodeStatus {
+  function status(audio: unknown, audioFile: string | null, dub = false): EpisodeStatus {
     return {
       pass: "final", fps: 24,
       shots: [{
         shot: "sh070", seconds: 4,
         cut: { take: 4, picked: false, pass: "final", placeholder: false, usable: true, trim_in: 0, trim_out: 0, out: false, frames: 96, fps: 24,
-               dissolve: 0, fade_in: 0, fade_out: 0, audio, audio_file: audioFile },
+               dissolve: 0, fade_in: 0, fade_out: 0, audio, audio_file: audioFile, ...(dub ? { audio_dub: true } : {}) },
         takes: [{ take: 4, status: "ok", has_video: true, mp4: "renders/sh070/sh070_t04.mp4", frames: 96, fps: 24 }],
       }],
     } as unknown as EpisodeStatus;
@@ -71,5 +72,11 @@ describe("buildPlaylist", () => {
   it("has no file for silence, and nothing for a clip's own sound", () => {
     expect(buildPlaylist(status({ source: "none" }, null))[0].source?.path).toBeNull();
     expect(buildPlaylist(status(null, null))[0].source).toBeNull();
+  });
+
+  it("plays a shot's dub, which is never the cut entry's own", () => {
+    const st = status({ source: "file", path: "dub/sh070/sh070_t01.mp4" }, "dub/sh070/sh070_t01.mp4", true);
+    expect(buildPlaylist(st)[0].source).toEqual({ path: "dub/sh070/sh070_t01.mp4", start: 0, offset: 0, gain: 1 });
+    expect(audioOf(st.shots[0].cut)).toBeNull();
   });
 });

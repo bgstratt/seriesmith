@@ -142,6 +142,8 @@ export interface CutInfo {
   audio_file?: string | null;
   /** Phase 9d: short text for the speaker badge ("sh020 t01", "line.wav"). */
   audio_why?: string | null;
+  /** `audio` is the shot's dub (Sound: Dub), not set by hand in the cut */
+  audio_dub?: boolean;
 }
 
 /** One script shot of a multishot group (ShotStatus.multishot). */

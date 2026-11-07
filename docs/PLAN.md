@@ -1962,6 +1962,12 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       Demucs), so with Demucs installed its export had no voice. The saver now puts H3's whole mix in the mp4, a
       dub of any source gets it back on a backend without that, and a take already saved that way plays its
       `_h3.wav` (`peaks.clip_audio`). Those old takes still play effects alone in Play all, which plays the mp4.
+- [x] A shot on dub plays its dub in the cut and export (2026-11-07, branch `h3-resample-any-take`): the part of
+      external-apis' e6a0bd0 that needs nothing of its Lines or providers (`takes.cut_dub_spec`, `edit.effective_cut_audio`,
+      `audio_dub` in the status, assemble's clip sound). A cut entry's own `audio` still wins; the editor never saves the
+      dub into cut.json, and Adjust… opens on it. Play all plays a clip's replaced sound on the Dialogue track
+      (`lib/mix.sourcePlan`): it played only the `<video>`'s own, so a replacement was heard only in the export.
+      When external-apis comes in, its version of these (line sources, line up, the model's sound) is the one kept.
 
 ## H3 re-render of a frame range (branch `h3-rerender`, 2026-11-05)
 

@@ -36,7 +36,7 @@ describe("the Sound card", () => {
     });
     const html = renderToString(createElement(SoundCard, { shot: shot.shot }));
     for (const words of ["Next take", "Default", "Generate", "Clone", "Dub", "Dub to", "a dub track",
-                         "keep the model", "In the cut", "silent", "its take", "Adjust"]) {
+                         "keep the model", "In the cut", "silent", "its dub (as above)", "Adjust"]) {
       expect(html).toContain(words);
     }
   });

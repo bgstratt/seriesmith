@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { closeSound, generateDubTracks, openClipAudio, setSound } from "../actions";
 import { setClipAudio } from "../cutActions";
 import { api } from "../host";
+import { audioOf } from "../lib/audioSource";
 import { tn } from "../lib/format";
 import { dubBlock, dubTrackBlock, dubTrackDefault, dubTrackModels } from "../lib/readiness";
 import { seriesDefaultTarget, shotTarget, targetShort } from "../lib/targets";
@@ -27,7 +28,7 @@ type Mode = ShotSound["mode"] | "default";
 const MODES: { mode: Mode; label: string; about: string }[] = [
   { mode: "generate", label: "Generate", about: "The model speaks the written lines in a voice made from each character's `voice` words." },
   { mode: "clone", label: "Clone", about: "The model speaks the lines in each character's voice sample (series.json's voice_sample)." },
-  { mode: "dub", label: "Dub", about: "The shot is lip-synced to a track: the recording, a dub track, or a take's sound." },
+  { mode: "dub", label: "Dub", about: "The shot is lip-synced to a track: the recording, a dub track, or a take's sound. The cut and export play that track too." },
 ];
 
 export function SoundDialog() {
@@ -197,7 +198,7 @@ export function SoundCard({ shot, focus, cut = true }: { shot: string; focus?: "
       {cut && (
         <div ref={cutRef} className="h3-col" style={{ gap: 4 }}>
           <b>In the cut</b>
-          <CutSound ep={ep} shot={shot} dubs={okDubs} takes={okTakes} />
+          <CutSound ep={ep} shot={shot} dubs={okDubs} takes={okTakes} dubbed={current?.mode === "dub"} />
         </div>
       )}
     </div>
@@ -206,19 +207,19 @@ export function SoundCard({ shot, focus, cut = true }: { shot: string; focus?: "
 
 /** What the cut plays for the shot: its take's own sound, or another in its place
  * (Replace audio: changes no render). Adjust… opens the timing window. */
-function CutSound({ ep, shot, dubs, takes }: { ep: string; shot: string; dubs: DubOption[]; takes: DubOption[] }) {
+function CutSound({ ep, shot, dubs, takes, dubbed }: { ep: string; shot: string; dubs: DubOption[]; takes: DubOption[]; dubbed: boolean }) {
   const pass = useApp((s) => s.pass);
   const cut = useApp((s) => (s.ep ? s.status[statusKey(s.ep, s.pass)]?.shots.find((x) => x.shot === shot)?.cut : undefined));
-  const a = cut?.audio ?? null;
+  const a = audioOf(cut);
   const replace = (src: CutAudioSource | null) => void setClipAudio(shot, src);
   const dubFile = a?.source === "file" ? dubs.find((d) => d.file === a.path) : undefined;
   const kind = !a ? "own" : a.source === "none" ? "none" : dubFile ? "dub" : a.source === "take" && (a.shot ?? shot) === shot ? "take" : "other";
   return (
     <div className="h3-col" style={{ gap: 4 }}>
       <span className="h3-small h3-muted">
-        The cut plays {a ? (cut?.audio_why ?? "another sound") : "its take's own sound"}. A replacement changes no render: the mouths don't follow it (for that, Dub above and render again).
+        The cut plays {a ? (cut?.audio_why ?? "another sound") : dubbed ? `its ${cut?.audio_why ?? "dub"}` : "its take's own sound"}. A replacement changes no render: the mouths don't follow it (for that, Dub above and render again).
       </span>
-      <Choice chosen={kind === "own"} label="its take's own sound" onPick={() => replace(null)} />
+      <Choice chosen={kind === "own"} label={dubbed ? "its dub (as above)" : "its take's own sound"} onPick={() => replace(null)} />
       {dubs.length > 0 && (
         <Choice chosen={kind === "dub"} label="a dub track in its place">
           <SoundSelect ep={ep} options={dubs} what={(d) => `dub track ${d.take}`} value={dubFile?.take ?? null}

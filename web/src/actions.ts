@@ -2,7 +2,7 @@
 
 import { ApiError, UPLOAD_LIMIT, errText } from "./api";
 import { api, host, type Severity } from "./host";
-import { audioOf } from "./lib/audioSource";
+import { audioOf, normalizeAudio } from "./lib/audioSource";
 import { epRelative, reachable, sameDir } from "./lib/browse";
 import { absPath, promptText, sameEp, tn } from "./lib/format";
 import { normPath, splitByMissingRefs } from "./lib/missingRefs";
@@ -3585,11 +3585,13 @@ export function closePano() {
 // Phase 9d: a shot's audio from elsewhere
 // ---------------------------------------------------------------------------
 
-/** Open "Replace audio…" for one clip, starting from what it plays now. */
+/** Open "Replace audio…" for one clip, starting from what it plays now (its dub too: saved,
+ * that placing becomes the clip's own). */
 export function openClipAudio(shot: string, pass: Pass = get().pass) {
   const s = get();
   const cut = s.ep ? s.status[statusKey(s.ep, pass)]?.shots.find((x) => x.shot === shot)?.cut : undefined;
-  set({ clipAudio: { shot, pass, draft: audioOf(cut), upload: null }, menu: null });
+  const draft = audioOf(cut) ?? (cut?.audio_dub ? normalizeAudio(cut.audio, shot) : null);
+  set({ clipAudio: { shot, pass, draft, upload: null }, menu: null });
 }
 
 export function updateClipAudio(patch: Partial<ClipAudioState>) {
