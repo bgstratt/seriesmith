@@ -3798,6 +3798,21 @@ def voice_sample_text(ref: Ref) -> str:
     return " ".join(str((t.sidecar or {}).get("line") or "").split())
 
 
+def stage_gpu_memory(job: GenJob, backend) -> dict:
+    """The GPU memory of the ComfyUI the job goes to (bytes) in job.inputs
+    (`gpu_memory`), for a target that chooses by it (`capabilities.gpu_memory`:
+    Drama 3, whether its experts fit in VRAM). Nothing for another target, or a
+    backend that can't say (Comfy Cloud, a deployment): the target then plays
+    safe."""
+    if not (job.target.spec.get("capabilities") or {}).get("gpu_memory"):
+        return job.inputs
+    ask = getattr(backend, "gpu_memory", None)
+    got = ask() if callable(ask) else None
+    if got:
+        job.inputs = dict(job.inputs, gpu_memory=int(got))
+    return job.inputs
+
+
 def stage_voice_reference(s: Series, job: GenJob, comfy=None) -> dict:
     """Upload the voice sample an audio target copies (its speaker identity)
     to ComfyUI's input folder and record its name in job.inputs

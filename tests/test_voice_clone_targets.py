@@ -106,6 +106,51 @@ class Drama3Test(CloneTargetCase):
         self.assertEqual((heard["class_type"], heard["inputs"]["audio"][0]),
                          ("Qwen3ASRTranscribe", enc["inputs"]["audio"][0]))
 
+    def test_experts_in_vram_when_the_file_fits(self):
+        """`experts: auto`: in VRAM when the whole file and the headroom fit the GPU ComfyUI
+        says it has, else in RAM (where, short of RAM, ComfyUI frees the model after every take)."""
+        from types import SimpleNamespace as NS
+        from seriesmith.targets.audio.drama3 import target as D
+        job = self.plan("voice:rex")
+        self.assertEqual(job.values.get("experts"), "auto")
+
+        class Local:
+            def __init__(self, vram):
+                self.vram, self.asked = vram, 0
+
+            def gpu_memory(self):
+                self.asked += 1
+                return self.vram
+
+        five090 = Local(34162016256)
+        R.stage_gpu_memory(job, five090)
+        self.assertEqual((five090.asked, job.inputs["gpu_memory"]), (1, 34162016256))
+        (load,) = self.nodes(self.graph(job), "Drama3Loader")
+        self.assertEqual(load["inputs"]["experts"], "in VRAM")         # W4A8 on a 32 GB card
+        for model, vram, where in (("drama3_w6a8experts_bf16.safetensors", 34162016256, "in RAM"),
+                                   ("drama3_int8experts_bf16.safetensors", 51527024640, "in VRAM"),
+                                   ("drama3_w4a8experts_bf16.safetensors", 25757220864, "in RAM"),   # 24 GB
+                                   ("drama3_w4a8experts_bf16.safetensors", None, "in RAM"),          # can't tell
+                                   ("my_drama3_experts.safetensors", 51527024640, "in RAM")):        # size unknown
+            self.assertEqual(D.experts_where(model, vram), where, (model, vram))
+        # a backend that can't say (Cloud): nothing staged, so in RAM
+        job2 = self.plan("voice:rex")
+        R.stage_gpu_memory(job2, NS())
+        self.assertNotIn("gpu_memory", job2.inputs)
+        (load,) = self.nodes(self.graph(job2), "Drama3Loader")
+        self.assertEqual(load["inputs"]["experts"], "in RAM")
+        # named outright, it's used as it is
+        job3 = self.plan("voice:rex")
+        job3.values["experts"] = "in RAM"
+        R.stage_gpu_memory(job3, five090)
+        (load,) = self.nodes(self.graph(job3), "Drama3Loader")
+        self.assertEqual(load["inputs"]["experts"], "in RAM")
+        # a target that doesn't choose by it never asks
+        qwen = R.plan_generate(self.s, R.GenRequest("voice:rex", target="qwen3_tts"), rng=random.Random(1))[0]
+        asked = five090.asked
+        R.stage_gpu_memory(qwen, five090)
+        self.assertEqual((five090.asked, "gpu_memory" in qwen.inputs), (asked, False))
+
     def test_the_largest_installed_is_used(self):
         t = TG.load_target("drama3", "audio")
         want = "drama3_w4a8experts_bf16.safetensors"
@@ -213,6 +258,12 @@ class FishAudioPartnerTest(CloneTargetCase):
         self.assertTrue(clone["_meta"]["partner"])
         self.assertEqual(g[clone["inputs"]["files.audio0"][0]]["inputs"]["audio"], inputs["reference_audio"])
         self.assertEqual(tts["inputs"]["text"], job.line)
+
+
+class GpuMemoryTest(unittest.TestCase):
+    def test_a_comfyui_that_doesnt_answer_cant_tell(self):
+        from seriesmith.backends.native import ComfyUIBackend
+        self.assertIsNone(ComfyUIBackend("local", "http://127.0.0.1:0").gpu_memory())
 
 
 class FeaturesTest(unittest.TestCase):

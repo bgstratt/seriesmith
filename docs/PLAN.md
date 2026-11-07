@@ -2305,9 +2305,12 @@ download with the key). Reading the reference moved up from step 7 (decided with
       take counted against the paid limit, as a ref's is. Live through `seriesmith refs --voices`
       (RTX 5090): every take's words right; Charming cloned at 136 Hz (Drama 3) and 119 Hz (Qwen)
       against his sample's 122; neither read a description aloud.
-- [ ] Drama 3 reloads its 24.6 GB model for every job (23-30 s of a ~50 s take): ComfyUI doesn't
-      keep it between prompts. Find out why (its cache, or the pack's loader) before a lines run of
-      a whole episode.
+- [x] Drama 3 reloaded its 24.6 GB model for every job (23-30 s of a ~50 s take). Not the pack:
+      ComfyUI's RAM-pressure cache (its default since 0.40) frees in-use outputs over 512 MB when
+      free RAM falls under 10% of it, and with the experts in RAM (the pack's default) free RAM hit
+      0 GB on a 64 GB machine. Now `experts: auto` (2026-11-07): in VRAM when the file and 4 GiB fit
+      the GPU ComfyUI reports (refs.stage_gpu_memory, drama3/target.py experts_where), else in RAM;
+      the Features text says what RAM the in-RAM case needs. Live: the next take 13 s, no reload.
 - [ ] `fishaudio_drama3` live: not run, it's paid. Each take's Instant Voice Clone makes a private
       voice on Fish Audio's side; ComfyUI reuses the node's output while the sample is the same, but
       a restart makes another.

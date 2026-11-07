@@ -32,8 +32,10 @@ Three more voice models clone a character's sample instead, each from the Featur
 - **Drama 3**: Fish Audio Drama 3 on your GPU. It hears the sample's words itself (Qwen3-ASR) and speaks
   the line in that voice. With no sample yet, it picks a voice, steered by the character's `voice` line. Its
   default download is W4A8 (24.6 GB); W6A8 (32.7 GB) and int8 (38.7 GB) fall silent less often, and the
-  largest one downloaded is the one used. With the experts in RAM (the default) each needs about its own size
-  plus 8 GB of free RAM. Its licence is free under USD 500k a year and asks for "Built with Fish Audio".
+  largest one downloaded is the one used. It runs the model on the GPU when the whole file fits (W4A8 on a
+  32 GB card); otherwise it keeps most of it in system RAM, which wants about the file's size plus 8 GB free
+  besides whatever else is running. Short of that, every line loads the model again (half a minute more each)
+  and the machine runs out of RAM: keep to W4A8 then. Its licence is free under USD 500k a year and asks for "Built with Fish Audio".
 - **Qwen3-TTS**: on your GPU, about 9 GB. With no sample it designs a voice from the character's description
   (their design and `voice` line), then clones it for every line after. Apache 2.0.
 - **Drama 3 on Comfy (paid)**: the same model on Fish Audio's servers through ComfyUI's own nodes, on your

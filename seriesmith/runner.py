@@ -383,6 +383,7 @@ class Runner:
         if not hosted:
             R.stage_references(s, job, collector)
             R.stage_voice_reference(s, job, collector)
+            R.stage_gpu_memory(job, backend)
         else:
             R.hosted_references(s, job)          # the pictures it sends, as local files
         take = R.start_gen(s, job)
@@ -601,6 +602,7 @@ class Runner:
             s = R.load_series(ep)
             collector = J.InputCollector(keep_dir=os.path.join(LN.folder(ep), "_staged"))
             R.stage_voice_reference(s, job, collector)
+            R.stage_gpu_memory(job, backend)
             g = R.graph_for(local_.get("base"), job, None, portable=True)
             J.files_as_uploads(g, collector.files)
             return g, [k for k, v in g.items() if v["class_type"] == "SaveAudio"]

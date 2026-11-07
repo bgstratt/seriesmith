@@ -10,6 +10,7 @@
     "mode": "voice_clone",
     "reference_audio": true,
     "reference_clip": [5.0, 20.0],
+    "gpu_memory": true,
     "max_seconds": 30
   },
 
@@ -55,12 +56,12 @@
   },
 
   "presets": {
-    "_note": "Experts in RAM, the pack's default: the routed experts (90% of the model) stay in pinned system RAM and the free VRAM caches the ones in use, so it runs on any card from 8 GB. `in VRAM` is faster where the whole file fits the card (W4A8 on a 32 GB one).",
+    "_note": "Experts `auto` (target.py experts_where): in VRAM when the whole file and 4 GiB fit the GPU ComfyUI runs on (its /system_stats, refs.stage_gpu_memory: W4A8 on a 32 GB card), else in RAM, the pack's default, where the routed experts (90% of the model) stay in pinned system RAM and the free VRAM caches the ones in use: any card from 8 GB, but about the file's size plus 8 GB of RAM free. Short of that, ComfyUI's RAM-pressure cache frees the model after a take and the next reads the file again (live 2026-11-07, 64 GB of RAM, W4A8: free RAM at 0 GB, a reload of 23-30 s a take; in VRAM the next take was 8 s). `in RAM` or `in VRAM` named instead is used as it is.",
     "final": {
       "model": "drama3_w4a8experts_bf16.safetensors",
       "codec": "drama3_codec.safetensors",
       "asr": "qwen3_asr_0.6b_bf16.safetensors",
-      "experts": "in RAM",
+      "experts": "auto",
       "lora": "",
       "default_seconds": 8.0, "min_seconds": 1.0, "max_seconds": 30.0
     }

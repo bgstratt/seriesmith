@@ -19,7 +19,31 @@ from seriesmith.targets.audio.common import words_prompt as voice_prompt  # noqa
 
 WHAT = "voice sample"
 GENERATE = "Drama3Generate"
+LOADER = "Drama3Loader"
 VOICE = "voices.voice0"
+
+# Each file's size in bytes (PedroMarinhoDev/Drama-3-ComfyUI, 2026-11-07), by the words in its
+# name: what the experts take in VRAM when they all live there.
+SIZES = {"w4a8experts": 24603565376, "w6a8experts": 32656613840,
+         "int8experts": 38696401232, "fp8experts": 38578417928}
+# Beside the whole file in VRAM: the activations, the codec and a little of ComfyUI's own (W4A8 in
+# VRAM ran on a 32 GB card, 2026-11-07; its peak wasn't measured, so this errs towards RAM).
+VRAM_HEADROOM = 4 * 1024 ** 3
+
+
+def experts_where(model_name: str, gpu_memory: int | None) -> str:
+    """Where the experts live when the preset says "auto": "in VRAM" when the whole file and
+    VRAM_HEADROOM fit the GPU, else "in RAM" (the pack's default: any card from 8 GB, but it holds
+    the file in RAM, about its size plus 8 GB free). Unknown file or GPU: "in RAM".
+
+    Why it matters: with the experts in RAM on a machine whose free RAM is near the file's size,
+    ComfyUI's RAM-pressure cache (its default since 0.40) frees the loaded model to make room, and
+    every job reads the file again: 23-30 s of a 37-50 s take, and free RAM at 0 GB (live
+    2026-11-07, 64 GB of RAM, W4A8). In VRAM the next take was 8 s."""
+    size = next((v for k, v in SIZES.items() if k in (model_name or "").lower()), None)
+    if size and gpu_memory and size + VRAM_HEADROOM <= gpu_memory:
+        return "in VRAM"
+    return "in RAM"
 
 
 def _node(graph: dict, class_type: str) -> str:
@@ -39,7 +63,12 @@ def direction(voice: str) -> str:
 def patch_graph(target, graph: dict, job, inputs: dict) -> None:
     """The staged voice sample (`inputs["reference_audio"]`, refs.stage_voice_reference)
     into the clone's LoadAudio; with none, the voice unhooked from Generate and the
-    character's `voice` line put before the words."""
+    character's `voice` line put before the words. Experts "auto" (the preset) made
+    "in VRAM" or "in RAM" for the file and the GPU (`inputs["gpu_memory"]`,
+    refs.stage_gpu_memory): experts_where."""
+    load = graph[_node(graph, LOADER)]["inputs"]
+    if load.get("experts") not in ("in RAM", "in VRAM"):
+        load["experts"] = experts_where(load.get("model_name") or "", (inputs or {}).get("gpu_memory"))
     gen = _node(graph, GENERATE)
     name = (inputs or {}).get("reference_audio")
     if name:

@@ -303,8 +303,11 @@ under **Voices with:** on the Refs tab, or as the series config's `refs.voice_ta
 - **Fish Audio Drama 3** (`drama3`): [ComfyUI-Drama3](https://github.com/PedroMarinhoDev/ComfyUI-Drama3),
   its codec, Qwen3-ASR (which hears the sample's words) and one size of its experts. The
   Features window downloads W4A8 (24.6 GB) and offers W6A8 (32.7 GB) and int8 (38.7 GB) beside
-  it: the largest installed is used. The experts stay in system RAM (about the file's size plus
-  8 GB free) with the free VRAM caching the ones in use, so it runs from 8 GB cards up. Fish
+  it: the largest installed is used. Its experts (90% of the model) go in VRAM when the whole
+  file and 4 GiB fit the GPU (W4A8 on a 32 GB card), else in system RAM with the free VRAM
+  caching the ones in use, which runs from 8 GB cards up but wants about the file's size plus
+  8 GB of RAM free besides everything else. Short of that, ComfyUI's RAM-pressure cache frees
+  the model after each take, so the next loads it again (half a minute) and RAM runs out. Fish
   Audio Community License: free under USD 500k yearly revenue, credit "Built with Fish Audio".
 - **Qwen3-TTS** (`qwen3_tts`): [ComfyUI-Qwen-TTS](https://github.com/flybirdxx/ComfyUI-Qwen-TTS)
   and three models (about 9 GB), downloaded by the Features window into

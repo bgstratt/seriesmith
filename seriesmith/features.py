@@ -487,18 +487,28 @@ def catalog() -> list[Feature]:
                 [_pack("ComfyUI-LTXVideo")] + _target_items("ltx2_voice"), restart=True),
         Feature("sound.voice_drama3", "sound", "Voices (Fish Audio Drama 3)",
                 "A character's voice cloned from their sample, line by line (the voice model "
-                "Drama 3): PedroMarinhoDev's ComfyUI-Drama3, the W4A8 experts (24.6 GB; about 32 GB "
-                "of RAM with the experts in RAM, the default), its codec and Qwen3-ASR, which hears "
-                "the sample's words. Fish Audio Community License: free under USD 500k yearly "
-                "revenue, credit \"Built with Fish Audio\", no real person's voice without consent.",
+                "Drama 3): PedroMarinhoDev's ComfyUI-Drama3, the W4A8 experts (24.6 GB), its codec "
+                "and Qwen3-ASR, which hears the sample's words. On a 32 GB card or larger the "
+                "experts run in VRAM: fast, little RAM. On a smaller one (24 GB or less) they "
+                "stay in system RAM, which wants about 32 GB free besides everything else running: "
+                "short of that, ComfyUI frees the model after each take to make room, so every "
+                "take loads it again (half a minute more each) and the machine runs out of RAM. "
+                "Fish Audio Community License: free under USD 500k yearly revenue, credit \"Built "
+                "with Fish Audio\", no real person's voice without consent.",
                 [_pack("ComfyUI-Drama3")] + _target_items("drama3"), restart=True),
         Feature("sound.voice_drama3_w6a8", "sound", "Drama 3 W6A8 (larger, steadier)",
                 "Drama 3's W6A8 experts, 32.7 GB: used in place of W4A8 once they're here, and "
-                "they fall silent less often with real voice clips. About 40 GB of free RAM with "
-                "the experts in RAM.", _download_of("drama3", "drama3_w6a8experts_bf16.safetensors")),
+                "they fall silent less often with real voice clips. Too big for a 32 GB card's "
+                "VRAM, so the experts stay in system RAM: about 40 GB free besides everything else "
+                "running, or each take loads the model again and the machine runs out of RAM. "
+                "With less, keep W4A8 (delete this file to go back to it).",
+                _download_of("drama3", "drama3_w6a8experts_bf16.safetensors")),
         Feature("sound.voice_drama3_int8", "sound", "Drama 3 int8 (largest offered)",
                 "Drama 3's int8 experts, 38.7 GB: used in place of the others once they're here; "
-                "the fastest on cards under 24 GB. About 48 GB of free RAM with the experts in RAM.",
+                "the fastest on cards under 24 GB. In VRAM only on a 48 GB card or larger; "
+                "otherwise in system RAM: about 48 GB free besides everything else running, or each "
+                "take loads the model again and the machine runs out of RAM. With less, keep W4A8 "
+                "(delete this file to go back to it).",
                 _download_of("drama3", "drama3_int8experts_bf16.safetensors")),
         Feature("sound.voice_qwen3", "sound", "Voices (Qwen3-TTS)",
                 "A character's voice designed from their description, then cloned from their "
