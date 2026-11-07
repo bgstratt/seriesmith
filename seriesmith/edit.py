@@ -650,7 +650,10 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                     "out_of_order": moved[order],
                     # where this clip's sound comes from (Phase 9d): the
                     # stored source, the file that will play, the badge
-                    "audio": e.audio, **cut_audio(root, e, pass_)},
+                    **effective_cut_audio(root, e, pass_, T.shot_sound(ov, e.shot), chosen.sidecar if chosen_ok else None,
+                                          {**rshot, "_defaults": doc0.get("defaults", {})} if rshot else None,
+                                          T.dub_offset(ov, e.shot), chosen.paths.h3_wav if chosen_ok else None,
+                                          T.dub_model_sound(ov, e.shot))},
             # the shot's dialogue window on the recording (`track`), seconds
             **({"audio_in": shot["audio_in"], "audio_out": shot["audio_out"]}
                if shot and "audio_in" in shot and "audio_out" in shot else {}),
@@ -717,6 +720,21 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
             "height": d.get("height"), "folder": folder or T.pass_subfolder(pass_),
             "track": track,
             "shots": out}
+
+
+def effective_cut_audio(root: str, e: T.CutEntry, pass_: str, sound: dict | None, sidecar: dict | None,
+                        entry: dict | None, offset: float, take_wav: str | None = None, model_sound: bool = False) -> dict:
+    """What a cut entry's clip plays: its own `audio` if it has one (on purpose), else the shot's dub
+    (takes.cut_dub_spec, `audio_dub` true), else the take's own sound."""
+    if e.audio:
+        return {"audio": e.audio, **cut_audio(root, e, pass_)}
+    spec = T.cut_dub_spec(root, e.shot, sound, sidecar, entry, offset, take_wav, model_sound)
+    if not spec:
+        return {"audio": None, **cut_audio(root, e, pass_)}
+    f = T.audio_source_file(root, spec, pass_)
+    return {"audio": spec, "audio_dub": True, "audio_file": rel(root, f) if f else None,
+            "audio_why": ("the model's sound" if model_sound and T.rendered_to_dub(root, sound, e.shot, sidecar)
+                          else f"dub: {T.audio_label(spec, pass_)}") + ("" if f else " (missing)")}
 
 
 def cut_audio(root: str, e: T.CutEntry, pass_: str) -> dict:

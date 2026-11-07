@@ -269,6 +269,8 @@ function ClipAudioLine({ shot, cut, locked }: { shot: string; cut: ShotStatus["c
           {bits.length > 0 && <span className="h3-muted">{bits.join(" · ")}</span>}
           {cut.audio_file && <span className="h3-muted h3-mono h3-ell" title={cut.audio_file}>{cut.audio_file}</span>}
         </>
+      ) : cut.audio_dub ? (
+        <span className="h3-muted" title={cut.audio_file ?? ""}>{cut.audio_why ?? "its dub"}</span>
       ) : (
         <span className="h3-muted">its own take's sound</span>
       )}

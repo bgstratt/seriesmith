@@ -142,6 +142,8 @@ export interface CutInfo {
   audio_file?: string | null;
   /** Phase 9d: short text for the speaker badge ("sh020 t01", "line.wav"). */
   audio_why?: string | null;
+  /** `audio` is the shot's dub (Sound: Dub), not set by hand in the cut */
+  audio_dub?: boolean;
 }
 
 /** One script shot of a multishot group (ShotStatus.multishot). */
@@ -1136,6 +1138,8 @@ export interface UpscaleRequest {
   upscaler?: string;
   /** latent: "pack": the node pack's windows in place of ComfyUI's own */
   windowing?: string;
+  /** latent: re-sample takes of other models through this one (a target id) */
+  through?: string;
   /** null: each take's default (latent where its target has one, else pixel) */
   method?: "latent" | "pixel" | "seedvr2" | null;
   /** seedvr2: "7b" (the default), "3b" or a model file name */
@@ -1239,7 +1243,11 @@ export interface UpscaleOptions {
     upscalers?: { id: string; label: string }[];
     /** the same, for a take long enough to be sampled in windows */
     windowings?: { id: string; label: string }[];
+    /** what its re-sample's latents are: takes of the same family keep their own re-sample */
+    family?: string | null;
   } | null>;
+  /** the models any take can be re-sampled through */
+  through?: { id: string; label: string; status: string | null; family: string | null }[];
   details: number[];
   max_scale?: number;
   encoders?: string[];

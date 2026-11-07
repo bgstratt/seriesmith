@@ -12,10 +12,11 @@
 // region's dialogue_db: a video only goes down), but for voices only: a clip that
 // plays its take's voice stem has its <video> muted (the Viewer: lib/mix voicedShots)
 // and the stem played here on the dialogue track at its clip (lib/mix voicePlan), its
-// fader and regions as the other tracks'; not while the recording plays instead.
+// fader and regions as the other tracks'; not while the recording plays instead. A clip
+// whose sound the cut replaces (Replace audio) plays the same way (lib/mix sourcePlan).
 
 import { useEffect, useRef } from "react";
-import { bedPlan, duckTracks, fxPlan, entryEnd, entryLevel, entryMarks, playPlan, trackGains, voicePlan, type PlayEntry } from "../lib/mix";
+import { bedPlan, duckTracks, fxPlan, entryEnd, entryLevel, entryMarks, playPlan, sourcePlan, trackGains, voicePlan, type PlayEntry } from "../lib/mix";
 import { totalDuration, type PlayItem } from "../lib/playlist";
 import { api } from "../host";
 import { statusKey, store } from "../store";
@@ -265,7 +266,7 @@ export function useMixAudio(ep: string, items: PlayItem[], fps: number, clips = 
         // the items, and the places' ambience beds under them (looped, crossfaded at their runs' cuts)
         // and the shots' picked effects at their clips
         // and voices only's stems in place of their clips' own sound
-        plan = [...(clipsOn ? voicePlan(its, res) : []), ...bedPlan(its, res?.beds, res?.mix ?? {}, fps), ...fxPlan(its, res?.fx, res?.mix ?? {}, fps),
+        plan = [...(clipsOn ? [...voicePlan(its, res), ...sourcePlan(its)] : []), ...bedPlan(its, res?.beds, res?.mix ?? {}, fps), ...fxPlan(its, res?.fx, res?.mix ?? {}, fps),
                 ...playPlan(its, aud ? auditionMix(res?.mix ?? {}, aud) : res?.mix ?? {}, fps)];
         total = totalDuration(its);
         e.setDucking(duckTracks(res, its, fps, duck, total));

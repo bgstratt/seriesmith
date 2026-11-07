@@ -54,6 +54,8 @@ To override, set it per shot (`retention: fully_copy`), for the episode (`"audio
 
 Frame lip-sync shots as close or medium shots. The reference image's framing matters more than the prompt.
 
+A shot set to dub in the editor (**Sound…**, **Dub**) plays that dub in the cut and the export too, whichever take is in the cut, unless the cut's own sound is set for the clip (**Replace audio…**): a take that wasn't rendered to it doesn't move its lips to it, but **Adjust…** can line it up.
+
 On other models a dub shot works too, without retention: on LTX (`ltx2`, `ltx2_ingredients`, `ltx2_msr`) the shot's window is held as its whole soundtrack and the picture is made to it, as `fully_copy` does on H3, so `dub_keep_foley` gets a near-silent foley bed; Seedance is sent the window as an audio reference and told to sync the lips to it.
 
 ## align options

@@ -1962,6 +1962,12 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       Demucs), so with Demucs installed its export had no voice. The saver now puts H3's whole mix in the mp4, a
       dub of any source gets it back on a backend without that, and a take already saved that way plays its
       `_h3.wav` (`peaks.clip_audio`). Those old takes still play effects alone in Play all, which plays the mp4.
+- [x] A shot on dub plays its dub in the cut and export (2026-11-07, branch `h3-resample-any-take`): the part of
+      external-apis' e6a0bd0 that needs nothing of its Lines or providers (`takes.cut_dub_spec`, `edit.effective_cut_audio`,
+      `audio_dub` in the status, assemble's clip sound). A cut entry's own `audio` still wins; the editor never saves the
+      dub into cut.json, and Adjust… opens on it. Play all plays a clip's replaced sound on the Dialogue track
+      (`lib/mix.sourcePlan`): it played only the `<video>`'s own, so a replacement was heard only in the export.
+      When external-apis comes in, its version of these (line sources, line up, the model's sound) is the one kept.
 
 ## H3 re-render of a frame range (branch `h3-rerender`, 2026-11-05)
 
@@ -2043,6 +2049,20 @@ A composed input (LTX ingredients' sheet) isn't in `refs`, so a take made before
 Live, Dean ep02 sh010 t02 -> sh020 t02 (`continuous: first`, core upscaler, no windows), the upscaled last frame against the
 next shot's upscaled first frame: 28.7 dB without the fix, 37.3 dB with it (the originals, scaled plainly: 34.4 dB). One pair,
 measured at the join only; the keyframes coming back on other shots wasn't measured beyond the earlier first-frame test.
+
+## H3 re-sample of another model's take (branch `h3-resample-any-take`, 2026-11-06)
+
+Tested first on Ballroom ep03 sh070: a Wan 2.2 take (832x480, 109 frames) at 2x, against SeedVR2 7B. SeedVR2: 39.2 dB
+to the take, the same performance, more texture, more shimmer (0.51-0.62 against the take's 0.37-0.40). H3 (`fasth3_omni`
+from step 7 of 8): 31.6 dB, the characters pulled back toward their references, contrast steadier, shimmer 0.25-0.38. One
+step earlier it pushed the skin pink. Decided by the user on watching it: worth offering, for going from about 768 to 2K/QHD.
+H3 only: LTX's 2x upsampler is a stage of its own render and isn't offered.
+
+- `upscale.through` (dialog, recipe rows, API, CLI by recipe): a target with `upscale.any_take`. A take of the same family
+  (`family`: the upscaler's class) ignores it, keeping its own re-sample and kept latent.
+- Ref-based models only. An FL2VA target would need a keyframe from every take: untested.
+- It reuses the frames route the re-render has: `retarget` for the prompt, frames padded to the grid and cut back. Shot's
+  length comes from the take. The compiled shotlist is kept as `.up.shotlist.json`.
 
 ## Step 15 — models behind other APIs (after the Manager listing)
 

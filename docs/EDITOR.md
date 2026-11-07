@@ -315,9 +315,13 @@ under the shot.
     render a dub track (H3 Ref2VA, FastH3 Omni, LTX-2.5); it starts on the series' voice model
     (Series settings, **Voices**) when that is one of them, else on H3 Ref2VA. **Keep the
     model's sound effects under the voice** (on), or the voice alone.
-  - **In the cut:** what the cut plays for it: its take's own sound, a dub track or a take's
-    sound in its place, or silence. This changes no render (the mouths don't follow it);
-    **Adjust…** sets where it starts, its offset and level, or another shot's take or a file.
+  - **In the cut:** what the cut plays for it: its take's own sound (on **Dub**, its dub:
+    the cut and export play what the shot is dubbed to, whichever take is in the cut), a dub
+    track or a take's sound in its place, or silence. This changes no render (the mouths don't follow it);
+    **Adjust…** sets where it starts, its offset and level, or another shot's take or a file;
+    on a dubbed shot it opens on the dub, so its start and offset can be lined up with the lips.
+    **Play all** plays it on the Dialogue track, as the export does, and the clip's sound lane
+    draws it.
 
   The next take does what is set: a dub of a track plays it, evened out to one loudness, on
   any H3 or LTX model, and the take carries the dubbed voice. Changing it marks the shot's
@@ -1700,6 +1704,8 @@ then:
   `SeriesmithAudioSpanMask` node in ComfyUI: restart ComfyUI after updating seriesmith.
 
 ### Finishing: upscale, post, master
+
+**Re-sample through** in the Upscale dialog sends takes other models made through an H3 model, its prompt built from the script and the characters' references (see FINISHING.md).
 
 A take's menu has **Upscale (2x)…**: a re-sample on the take's own model (more detail, the
 same performance) or an upscale model, its own audio kept. **Post-process…** then finishes
