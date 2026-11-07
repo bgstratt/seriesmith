@@ -1134,6 +1134,10 @@ collide with the package.
       again as a new take on the H3 family or LTX-2, the rest held and its sound kept, from any model's take; H3 Ref2VA, Singularity,
       Pika H3 Flex and FastH3 Omni take eight subjects round the plate on `<Picture 4>` (existing FastH3 takes read as stale).
       Published by the merge's version bump.
+- [x] **0.1.18** (2026-11-07, `release-0.1.18`): H3 upscales on ComfyUI's own latent upscaler and context windows
+      from 0.44, the packs the fallback; upscales get their keyframes back; new default edit and keyframe models
+      (#100). Any model's take re-sampled through an H3 model; Play all plays a replaced sound; on dub the cut and
+      export play the dub (#101). Published by the merge's version bump.
 - [x] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render. Done by the user.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
@@ -1964,12 +1968,11 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       `_h3.wav` (`peaks.clip_audio`). Those old takes still play effects alone in Play all, which plays the mp4.
 - On this branch, each shot's Sound card says what the cut and export play (below), so Export no longer follows
   the switch, which is for listening. `POST /seriesmith/assemble` and `/master` still take `audio`.
-- [x] A shot on dub plays its dub in the cut and export (2026-11-07, branch `h3-resample-any-take`): the part of
-      external-apis' e6a0bd0 that needs nothing of its Lines or providers (`takes.cut_dub_spec`, `edit.effective_cut_audio`,
-      `audio_dub` in the status, assemble's clip sound). A cut entry's own `audio` still wins; the editor never saves the
-      dub into cut.json, and Adjust… opens on it. Play all plays a clip's replaced sound on the Dialogue track
-      (`lib/mix.sourcePlan`): it played only the `<video>`'s own, so a replacement was heard only in the export.
-      Merged into external-apis 2026-11-07, its version of these kept (line sources, line up, the model's sound).
+- [x] A shot on dub plays its dub in the cut and export (2026-11-07, branch `h3-resample-any-take`):
+      `takes.cut_dub_spec`, `edit.effective_cut_audio`, `audio_dub` in the status, assemble's clip sound. A cut
+      entry's own `audio` still wins; the editor never saves the dub into cut.json, and Adjust… opens on it. Play all
+      plays a clip's replaced sound on the Dialogue track (`lib/mix.sourcePlan`): it played only the `<video>`'s own,
+      so a replacement was heard only in the export.
 
 ## H3 re-render of a frame range (branch `h3-rerender`, 2026-11-05)
 
