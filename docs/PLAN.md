@@ -1964,6 +1964,12 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       `_h3.wav` (`peaks.clip_audio`). Those old takes still play effects alone in Play all, which plays the mp4.
 - On this branch, each shot's Sound card says what the cut and export play (below), so Export no longer follows
   the switch, which is for listening. `POST /seriesmith/assemble` and `/master` still take `audio`.
+- [x] A shot on dub plays its dub in the cut and export (2026-11-07, branch `h3-resample-any-take`): the part of
+      external-apis' e6a0bd0 that needs nothing of its Lines or providers (`takes.cut_dub_spec`, `edit.effective_cut_audio`,
+      `audio_dub` in the status, assemble's clip sound). A cut entry's own `audio` still wins; the editor never saves the
+      dub into cut.json, and Adjust… opens on it. Play all plays a clip's replaced sound on the Dialogue track
+      (`lib/mix.sourcePlan`): it played only the `<video>`'s own, so a replacement was heard only in the export.
+      Merged into external-apis 2026-11-07, its version of these kept (line sources, line up, the model's sound).
 
 ## H3 re-render of a frame range (branch `h3-rerender`, 2026-11-05)
 
@@ -2001,6 +2007,64 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       at the bottom; 0.1 kept), seen by the user on sh080 t09.
 - [x] Decided, encoded edge darkening stays: minor, hard to see unless looked for (took the user a few viewings), and a crossfade or encoding with extended edges would add more complication than it saves. Part of the price of re-rendering a portion; a full new take avoids it.
 - [x] A range re-render uses the take's own size and length, kept latent or not, rather than refusing when the shot has moved.
+
+## H3 upscale on ComfyUI's own nodes (branch `h3-core-upscale`, 2026-11-06)
+
+ComfyUI 0.44 has H3's latent upscaler (`MiniMaxH3LatentUpscaleWithModel`, `LatentUpscaleModelLoader`) and
+context windows (`MiniMaxH3ContextWindows`), so the H3 targets use those by default, even with the packs
+installed. The target's `fallback` is the pack: LBH's or its Plus (the same node id) and obvpm's windows. It's
+used on an older ComfyUI, or when the recipe's `upscaler` / `windowing` (or `--upscaler pack`, `--windowing pack`)
+asks for it. With neither, the upscale doesn't run and says what to do: update ComfyUI, or install a pack.
+`upscale.not_ready` settles the nodes (`choose_nodes`) before a graph is built, by the node classes, not a version
+number. The Plus refusal is gone, as is the user-facing wording on which pack is better: results are the user's to
+judge. The Upscale dialog offers each choice only where both sets of nodes are on this ComfyUI (`node_choices`).
+
+The A/B behind it (local ComfyUI, real graph with one node swapped, against the original take):
+
+- **Upscaler**, LBH vs core: 40.9-44.2 dB at the default start, 41.1-44.2 dB at `--detail` 1 and 2. Core is LBH
+  with chunking off (0.00% on the same latent, on CPU); LBH only chunks above 32 latent frames. Colour against
+  the original: core equal or slightly closer on the four takes at the default start. No sparkles or marks in
+  the crops checked. A two-take sample at `--detail`, plain prompts and a plate from the take.
+- **Windows**, obvpm's vs core's at 124 frames / 39 overlap, pyramid, FreeNoise off (`window_frames`: the length
+  rounds down, the overlap up): pixel-identical on two windows; on a 15 s stitched latent identical to about 60%,
+  then ~43 dB; the same speed. The classic (non-dynamic-VRAM) loader wasn't tried: core skips its clamp for packed
+  latents, which didn't crawl on the dynamic loader.
+- **Open:** core's windows drop a first-frame keyframe from any window not containing it. With a first frame in
+  the re-sample, obvpm's stayed closer to a no-window reference at the shot's end (34.4 vs 31.8 dB). It matters for
+  a keyframed or continuity shot longer than a window.
+- **The floor:** on the short control take, the same graph on ComfyUI 0.44 with PyTorch 2.15 is 43.6 dB from itself on
+  0.43 with 2.14, for LBH and for core alike, and LBH vs core is 43.6 dB on either. A repeat on one setup is
+  frame-identical. So a short take's LBH-vs-core gap is no bigger than what that software update moves; only the
+  long takes (40.9-42 dB, LBH chunking) go below it. Live on the branch: the graphs match the A/B's, four cases.
+
+- `--detail` 1 and 2, on the two takes: softer and further from the original than the default, on both upscalers.
+
+## Upscales get their keyframes back (branch `h3-core-upscale`, 2026-11-06)
+
+A queued render stages its inputs after writing its record (`runner`), so no record had `inputs` (0 of 134 here). So an
+upscale's graph had no first or last keyframe, and `continuity_source` found nothing: `continuous: first` upscales
+started from no frame at all rather than the previous shot's upscaled last frame, with no note. The tests mocked
+`continuity_source`, so they stayed green. `continuous: latent` (`held_from`) never read `inputs` and wasn't affected.
+The record now gets `inputs`, and `takes.recorded_inputs` recovers keyframes from `refs` for the takes already made.
+A composed input (LTX ingredients' sheet) isn't in `refs`, so a take made before this fix still doesn't recover it.
+
+Live, Dean ep02 sh010 t02 -> sh020 t02 (`continuous: first`, core upscaler, no windows), the upscaled last frame against the
+next shot's upscaled first frame: 28.7 dB without the fix, 37.3 dB with it (the originals, scaled plainly: 34.4 dB). One pair,
+measured at the join only; the keyframes coming back on other shots wasn't measured beyond the earlier first-frame test.
+
+## H3 re-sample of another model's take (branch `h3-resample-any-take`, 2026-11-06)
+
+Tested first on Ballroom ep03 sh070: a Wan 2.2 take (832x480, 109 frames) at 2x, against SeedVR2 7B. SeedVR2: 39.2 dB
+to the take, the same performance, more texture, more shimmer (0.51-0.62 against the take's 0.37-0.40). H3 (`fasth3_omni`
+from step 7 of 8): 31.6 dB, the characters pulled back toward their references, contrast steadier, shimmer 0.25-0.38. One
+step earlier it pushed the skin pink. Decided by the user on watching it: worth offering, for going from about 768 to 2K/QHD.
+H3 only: LTX's 2x upsampler is a stage of its own render and isn't offered.
+
+- `upscale.through` (dialog, recipe rows, API, CLI by recipe): a target with `upscale.any_take`. A take of the same family
+  (`family`: the upscaler's class) ignores it, keeping its own re-sample and kept latent.
+- Ref-based models only. An FL2VA target would need a keyframe from every take: untested.
+- It reuses the frames route the re-render has: `retarget` for the prompt, frames padded to the grid and cut back. Shot's
+  length comes from the take. The compiled shotlist is kept as `.up.shotlist.json`.
 
 ## Step 15 — models behind other APIs (designed 2026-11-04; docs/DESIGN.md, section 9)
 

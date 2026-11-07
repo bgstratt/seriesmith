@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { closeSound, generateDubTracks, openClipAudio, renderShots, setSound } from "../actions";
 import { setClipAudio } from "../cutActions";
 import { api } from "../host";
+import { audioOf } from "../lib/audioSource";
 import { tn } from "../lib/format";
 import { dubBlock, dubTrackBlock, dubTrackDefault, dubTrackModels } from "../lib/readiness";
 import { seriesDefaultTarget, shotTarget, targetShort } from "../lib/targets";
@@ -28,7 +29,7 @@ type Mode = ShotSound["mode"] | "default";
 const MODES: { mode: Mode; label: string; about: string }[] = [
   { mode: "generate", label: "Generate", about: "The model speaks the written lines in a voice made from each character's `voice` words." },
   { mode: "clone", label: "Clone", about: "The model speaks the lines in each character's voice sample (series.json's voice_sample)." },
-  { mode: "dub", label: "Dub", about: "The shot is lip-synced to a track: the recording, a dub track, or a take's sound." },
+  { mode: "dub", label: "Dub", about: "The shot is lip-synced to a track: the recording, a dub track, or a take's sound. The cut and export play that track too." },
 ];
 
 export function SoundDialog() {
@@ -319,7 +320,7 @@ function DubStatus({ ep, shot, takeInCut, lips, offset, modelSound, onChanged }:
 function CutSound({ shot, dubbed }: { shot: string; dubbed: boolean }) {
   const pass = useApp((s) => s.pass);
   const cut = useApp((s) => (s.ep ? s.status[statusKey(s.ep, s.pass)]?.shots.find((x) => x.shot === shot)?.cut : undefined));
-  const own = cut?.audio && !cut.audio_dub ? cut.audio : null;
+  const own = audioOf(cut);
   const replace = (src: CutAudioSource | null) => void setClipAudio(shot, src);
   return (
     <div className="h3-col" style={{ gap: 4 }}>

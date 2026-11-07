@@ -111,6 +111,7 @@ CORE_CLASSES = frozenset({
     "LTXVDualCFGGuider", "LTXVDurationPredictor", "LTXVEmptyLatentAudio", "LTXVImgToVideoInplace",
     "LTXVLatentUpsampler", "LTXVPreprocess", "LTXVScheduler", "LTXVSeparateAVLatent",
     "LatentConcat", "LatentCut", "LatentUpscaleModelLoader", "LoadAudio", "LoadImage",
+    "MiniMaxH3ContextWindows", "MiniMaxH3LatentUpscaleWithModel",
     "LoadVideo", "LoraLoader", "LoraLoaderModelOnly", "ManualSigmas", "MiniMaxH3AddGuide",
     "MiniMaxH3ImageToVideo", "MiniMaxH3ReferenceToVideo", "MiniMaxH3SigmaShift",
     "MiniMaxMusic3TextEncode", "EmptyMiniMaxMusic3LatentAudio",
@@ -436,7 +437,7 @@ def catalog() -> list[Feature]:
         target_feature("pictures.z_image", "pictures", "z_image_turbo", "Z-Image Turbo",
                        "Fast text to image."),
         target_feature("pictures.qwen_image_21", "pictures", "qwen_image_21", "Qwen-Image 2.1",
-                       "Text to image and edits; also what Make 360 and Turn run on."),
+                       "Text to image, edits and keyframes; also what Make 360 and Turn run on."),
         Feature("pictures.flux3_klein", "pictures", "FLUX.3 Klein",
                 "Text to image and edits, with a step-distilled turbo. Gated.",
                 _merge(_target_items("flux3_klein"), _target_items("flux3_klein_turbo"))),
@@ -539,14 +540,17 @@ def catalog() -> list[Feature]:
                  Item("hub", hub.HTDEMUCS, folder="torch", url=hub.HTDEMUCS_URL,
                       label="demucs's htdemucs model")]),
         Feature("upscale.h3_latent", "upscale", "H3 latent re-sample (2x)",
-                "The best upscale for H3 takes: the LBH-123-AI pack and its model. Clone the pack: "
-                "ComfyUI-Manager lists only its Plus fork, which invents detail.",
-                [_pack("Comfyui_Minimax_h3_latent_Upscaler"),
-                 Item("model", "minimax_h3_latent_upscaler_3d_fp16.safetensors",
-                      folder=h3_up.get("folder") or "latent_upscale_models", url=h3_up.get("url") or "")],
-                restart=True),
-        Feature("upscale.h3_long", "upscale", "Long H3 takes (over 5.5 s)",
-                "comfyui-obvpm-timeline's context windows, so a long take at 2x fits a 32 GB card.",
+                "H3's latent upscaler model. ComfyUI 0.44 or later has the nodes that use it, "
+                "and samples a long take in windows so it fits a 32 GB card.",
+                [Item("model", "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+                      folder=h3_up.get("folder") or "latent_upscale_models", url=h3_up.get("url") or "")]),
+        Feature("upscale.h3_pack", "upscale", "H3 upscaler node pack (optional)",
+                "For a ComfyUI before 0.44, or to choose it over ComfyUI's own: LBH-123-AI's pack. "
+                "Its Plus version, which ComfyUI-Manager lists, works too; only one can be installed.",
+                [_pack("Comfyui_Minimax_h3_latent_Upscaler")], restart=True),
+        Feature("upscale.h3_long", "upscale", "H3 context windows node pack (optional)",
+                "For a ComfyUI before 0.44, or to choose it over ComfyUI's own: comfyui-obvpm-timeline's "
+                "context windows, for H3 takes over 5.5 s.",
                 [_pack("comfyui-obvpm-timeline")], restart=True),
         Feature("upscale.esrgan", "upscale", "Real-ESRGAN (pixel)",
                 "Any take, through an upscale model: x2 (the default, gentle on grain) and x4.",
@@ -580,9 +584,8 @@ def catalog() -> list[Feature]:
                 [Item("model", R.TURN_LORA, folder="loras", url=R.TURN_LORA_URL)] + _target_items("qwen_image_21")),
         Feature("refs.relight", "refs", "Relight a plate or a sequence",
                 "A relight is an edit of the plate: it runs on the episode's edit model (Made "
-                f"with), any of {_edit_models()}. The default is FLUX.2 Klein 9B edit (gated): "
-                "these files.",
-                _target_items(TG.DEFAULT_KEYFRAME_TARGET)),
+                f"with), any of {_edit_models()}. The default is Qwen-Image 2.1: these files.",
+                _target_items(TG.DEFAULT_EDIT_TARGET)),
         Feature("hosted.comfy_api", "hosted", "Comfy API: Router models, Cloud, deployments",
                 f"{len(hosted_video)} video models ({_names(hosted_video)}) and "
                 f"{len(hosted_image)} picture models ({_names(hosted_image)}) "

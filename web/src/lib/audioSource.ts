@@ -30,8 +30,11 @@ export const startOf = (a: CutAudioSource | null | undefined): number => Math.ma
 export const offsetOf = (a: CutAudioSource | null | undefined): number => num(a?.offset);
 export const gainOf = (a: CutAudioSource | null | undefined): number => num(a?.gain, GAIN_DEFAULT);
 
-/** The clip's own audio (no `audio` in the entry) reads as null everywhere. */
-export function audioOf(e: { audio?: CutAudioSource | null } | null | undefined): CutAudioSource | null {
+/** The clip's own audio (no `audio` in the entry) reads as null everywhere, and so does
+ * the shot's dub (`audio_dub`): the cut plays it, but it isn't the entry's, so it's never
+ * saved into the cut. */
+export function audioOf(e: { audio?: CutAudioSource | null; audio_dub?: boolean } | null | undefined): CutAudioSource | null {
+  if (e?.audio_dub) return null;
   const a = e?.audio;
   return a && typeof a === "object" && typeof a.source === "string" ? a : null;
 }

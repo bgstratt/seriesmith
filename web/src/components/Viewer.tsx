@@ -21,7 +21,7 @@ import {
   atOutPoint, baseIn, clipOffset, cutTime, fadeLevel, fileTime, locate, nextVideo, totalDuration, type PlayItem,
 } from "../lib/playlist";
 import { masterSync, needsResync, recordingAt, trackState } from "../lib/recording";
-import { dialogueDbAt, trackGains, voicedShots } from "../lib/mix";
+import { dialogueDbAt, sourcedShots, trackGains, voicedShots } from "../lib/mix";
 import { currentMix } from "../mixActions";
 import { useMixAudio } from "./MixAudio";
 import { PANO_VIEW, TOUR_VIEW, takesOf, viewLabel, viewOf } from "../lib/refs";
@@ -562,7 +562,8 @@ export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>
   // only's stems in place of their clips' own sound (not while the recording plays)
   useMixAudio(ep, items, fps, !recording);
   // voices only: the clips whose own sound isn't heard (their stem plays, or nothing)
-  const voiced = useApp((s) => voicedShots(currentMix(s)).join(" "));
+  // and those whose sound the cut replaces (it plays through the mix's engine)
+  const voiced = useApp((s) => [...voicedShots(currentMix(s)), ...sourcedShots(items)].join(" "));
   const voicedRef = useRef<Set<string>>(new Set());
   voicedRef.current = new Set(voiced ? voiced.split(" ") : []);
   // the dialogue fader, mute and solo on the clips' own sound and the recording, and a

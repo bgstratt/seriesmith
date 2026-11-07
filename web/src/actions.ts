@@ -2,7 +2,7 @@
 
 import { ApiError, UPLOAD_LIMIT, errText } from "./api";
 import { api, host, type Severity } from "./host";
-import { audioOf } from "./lib/audioSource";
+import { audioOf, normalizeAudio } from "./lib/audioSource";
 import { epRelative, reachable, sameDir } from "./lib/browse";
 import { absPath, promptText, sameEp, tn } from "./lib/format";
 import { normPath, splitByMissingRefs } from "./lib/missingRefs";
@@ -1566,6 +1566,11 @@ export interface UpscaleForm {
   detail: 0 | 1 | 2;
   redo: boolean;
   vae: boolean;
+  /** the re-sample's nodes ("": ComfyUI's own; "pack"), and its windows' */
+  upscaler?: string;
+  windowing?: string;
+  /** re-sample takes of other models through this one (null: each take's own) */
+  through?: string | null;
   /** 2 is the server's default */
   scale: number;
   /** a pixel step after a re-sample: its model (null: none) and scale */
@@ -1605,6 +1610,9 @@ export function upscaleRequestOf(f: UpscaleForm, ask: { pass: Pass; takes: { sho
   if (f.grain) req.grain = f.grain;
   if (f.method !== "pixel" && f.method !== "seedvr2" && f.detail) req.detail = f.detail;
   if (f.method !== "pixel" && f.method !== "seedvr2" && f.vae) req.vae = true;
+  if (f.method !== "pixel" && f.method !== "seedvr2" && f.upscaler) req.upscaler = f.upscaler;
+  if (f.method !== "pixel" && f.method !== "seedvr2" && f.windowing) req.windowing = f.windowing;
+  if (f.method !== "pixel" && f.method !== "seedvr2" && f.through) req.through = f.through;
   // a delivery size decides the pixel method's scale, and a then-pixel step's
   const sized = !!f.deliver;
   if (f.scale !== 2 && !(sized && (f.method === "pixel" || f.method === "seedvr2"))) req.scale = f.scale;
@@ -3595,11 +3603,13 @@ export function closePano() {
 // Phase 9d: a shot's audio from elsewhere
 // ---------------------------------------------------------------------------
 
-/** Open "Replace audio…" for one clip, starting from what it plays now. */
+/** Open "Replace audio…" for one clip, starting from what it plays now (its dub too: saved,
+ * that placing becomes the clip's own). */
 export function openClipAudio(shot: string, pass: Pass = get().pass) {
   const s = get();
   const cut = s.ep ? s.status[statusKey(s.ep, pass)]?.shots.find((x) => x.shot === shot)?.cut : undefined;
-  set({ clipAudio: { shot, pass, draft: audioOf(cut), upload: null }, menu: null });
+  const draft = audioOf(cut) ?? (cut?.audio_dub ? normalizeAudio(cut.audio, shot) : null);
+  set({ clipAudio: { shot, pass, draft, upload: null }, menu: null });
 }
 
 export function updateClipAudio(patch: Partial<ClipAudioState>) {

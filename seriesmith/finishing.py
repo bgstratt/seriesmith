@@ -86,7 +86,7 @@ def take_input_files(take: T.Take, root: str) -> dict[str, str]:
         if r.get("sha1") and r.get("path"):
             by_sha[str(r["sha1"])[:20]] = _abs(root, r["path"])
     out = {}
-    for name in (sc.get("inputs") or {}).values():
+    for name in T.recorded_inputs(sc, root).values():
         if not isinstance(name, str):
             continue
         p = by_sha.get(os.path.splitext(os.path.basename(name))[0])
@@ -132,7 +132,8 @@ def portable(fin: Finish) -> tuple[dict, dict]:
             audio = ins.get("audio_file") or ""
             v["class_type"] = "SeriesmithLoadTakeVideo"
             v["inputs"] = {"video": File(_abs(root, ins["video_file"])),
-                           "audio": File(_abs(root, audio)) if audio else ""}
+                           "audio": File(_abs(root, audio)) if audio else "",
+                           **({"frames": ins["frames"]} if ins.get("frames") else {})}
         elif ct == "H3LoadTakeFrame":
             path = _abs(root, ins["image_file"])
             if os.path.isfile(path):

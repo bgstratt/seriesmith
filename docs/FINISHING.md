@@ -165,7 +165,7 @@ The series config says how, once, in `upscale.master` (the **recipe**):
   most specific glob, then `"*"`). A take is always upscaled through its own target: an H3
   shot re-samples with H3, an LTX shot with LTX. FastH3 Omni (`fasth3_omni`) re-samples as H3
   does but isn't `minimax_h3_*`: give it its own section, or its shots fall to `"*"`. A section takes `method` (latent, pixel,
-  seedvr2), `scale`, `detail`, `pixel_model`, `seedvr2_model`, `then` (an upscale model
+  seedvr2), `scale`, `detail`, `upscaler`, `windowing`, `pixel_model`, `seedvr2_model`, `then` (an upscale model
   file, or `"seedvr2"`, after a re-sample), `then_scale`, and the finish (`keep_soft`,
   `grain`); `finish` sets those for every section. `"scale": "auto"` (a re-sample alone)
   picks, per take, the smallest scale on the target's grid that covers `deliver`: 2x for a
@@ -176,8 +176,28 @@ The series config says how, once, in `upscale.master` (the **recipe**):
   shot still re-samples in one pass), so a 2x
   re-sample of 1344×768 (2688×1536) fits a 32 GB card at any length. Shorter takes are
   sampled in one pass, as before. Set a longer window if your card holds it, or `0` to
-  turn windowing off. It needs the `comfyui-obvpm-timeline` node pack (its H3 Context
-  Windowing); without it, a long shot's upscale says so instead of running out of memory.
+  turn windowing off. ComfyUI 0.44 or later does this with its own nodes; on an older
+  ComfyUI it uses the `comfyui-obvpm-timeline` node pack, and with neither a long shot's
+  upscale says so instead of running out of memory.
+- **Through an H3 model, for a take another model made.** A Wan, LTX, FLUX.3, hosted or imported
+  take can be re-sampled through an H3 model: **Re-sample through** in the Upscale dialog, a row's
+  "re-sampling through" in the master recipe, or `"through": "fasth3_omni"` in a recipe's section
+  (`minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`, `pika_h3_flex`). The take's frames go through
+  that model's VAEs, then its sampler runs from late in its schedule at the bigger size, under a prompt
+  built from the script as it is now and the characters' references. So faces move toward the
+  references, more with **Detail**, and the contrast and colour become H3's: look at the result next to
+  the take. Takes H3's own models made keep their own re-sample and kept latent. The take's sound is
+  kept (a silent take stays silent) and it keeps its frame count: H3 samples 17n+5 frames, so the last
+  frame fills the difference and is cut off after. The frames are fitted up to H3's 32 grid: 1344×768
+  stays, 1280×720 becomes 1280×736 with its sides trimmed, and 2x makes 2560×1472, which the master's
+  1440p crops. The take must be 24 fps, and its shot must still be in the script; a take that held the
+  shot before it (`continuous: latent`) can't, and a `continuous: first` shot starts from no frame of
+  the previous upscale.
+- **Choosing the nodes.** H3's re-sample uses ComfyUI's own upscaler and windows from 0.44.
+  To use a node pack instead, when it's installed, pick it in the Upscale dialog (**Latent
+  upscaler**, **Context windows**), set `"upscaler": "pack"` (LBH-123-AI's pack, or its Plus
+  version) or `"windowing": "pack"` (`comfyui-obvpm-timeline`) in the recipe, or pass
+  `--upscaler pack` / `--windowing pack`. An older ComfyUI uses the packs without being asked.
 - A **continuity shot** (its first keyframe the previous shot's last frame) starts its
   upscale from the previous shot's *upscaled* last frame, so the two meet on one picture.
   Re-sampling each from the same low-res frame gave two different 2x pictures of it, which

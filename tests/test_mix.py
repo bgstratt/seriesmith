@@ -371,6 +371,63 @@ class AssembleMixTest(unittest.TestCase):
         self.assemble()
         self.assertLess(self.level(MX.decode(self.out), 1.1, 1.9), -60)         # now the _h3.wav
 
+    def dub_track(self):
+        """A dub track for sh010, loud (sh020's clip): its take is mute."""
+        d = T.reserve_take(self.root, "final", "sh010", {"status": "queued", "dub_track": True}, folder=T.DUB_FOLDER)
+        shutil.copy(self.loud, d.paths.mp4)
+        T.update_sidecar(d.paths.sidecar, status="ok", frames=probe_frames(self.loud))
+        return {"from": "dub", "take": d.take}
+
+    def on_dub(self, shot, dub):
+        ov = T.load_overrides(self.root)
+        T.set_shot_sound(ov, shot, {"mode": "dub", "dub": dub})
+        T.save_overrides(self.root, ov)
+
+    def exported(self):
+        self.assemble()
+        return MX.decode(self.out)
+
+    def test_a_shot_on_dub_plays_it_in_the_export(self):
+        self.on_dub("sh010", self.dub_track())
+        self.assertGreater(self.level(self.exported(), 0.1, 0.9), -40)
+
+    def test_generate_plays_the_takes_own_sound_in_the_export(self):
+        self.dub_track()
+        ov = T.load_overrides(self.root)
+        T.set_shot_sound(ov, "sh010", {"mode": "generate"})
+        T.save_overrides(self.root, ov)
+        self.assertLess(self.level(self.exported(), 0.1, 0.9), -60)
+
+    def test_a_cut_entrys_own_sound_wins_over_the_dub(self):
+        self.on_dub("sh010", self.dub_track())
+        T.save_cut(self.root, {"final": [{"shot": "sh010", "audio": {"source": "none"}}, {"shot": "sh020"}], "proxy": []})
+        self.assertLess(self.level(self.exported(), 0.1, 0.9), -60)
+
+    def test_a_take_rendered_to_its_dub_plays_the_dub_or_the_models_sound_if_asked(self):
+        dub = self.dub_track()
+        self.on_dub("sh010", dub)
+        t = T.get_take(self.root, "final", "sh010", 1)
+        T.update_sidecar(t.paths.sidecar, sound={"mode": "dub", "dub": dub})
+        tone_wav(t.paths.h3_wav, 1.0, amp=1)
+        self.assertGreater(self.level(self.exported(), 0.1, 0.9), -40)
+        ov = T.load_overrides(self.root)
+        ov["dub_model_sound"] = {"sh010": True}
+        T.save_overrides(self.root, ov)
+        self.assertLess(self.level(self.exported(), 0.1, 0.9), -60)
+
+    def test_the_status_says_what_the_cut_plays(self):
+        from seriesmith import edit as E
+        dub = self.dub_track()
+        self.on_dub("sh010", dub)
+        cut = next(s for s in E.episode_status(self.root, "final")["shots"] if s["shot"] == "sh010")["cut"]
+        self.assertTrue(cut["audio_dub"])
+        self.assertEqual(cut["audio"]["source"], "file")
+        self.assertEqual(cut["audio_file"], "dub/sh010/sh010_t01.mp4")
+        self.assertTrue(cut["audio_why"].startswith("dub: "), cut["audio_why"])
+        T.save_cut(self.root, {"final": [{"shot": "sh010", "audio": {"source": "none"}}, {"shot": "sh020"}], "proxy": []})
+        cut = next(s for s in E.episode_status(self.root, "final")["shots"] if s["shot"] == "sh010")["cut"]
+        self.assertEqual((cut["audio"], cut.get("audio_dub")), ({"source": "none"}, None))
+
     def test_no_mix_leaves_the_cut_alone(self):
         self.assemble()
         self.assertFalse(os.path.isdir(os.path.join(self.root, "renders", "ep01_stems")))

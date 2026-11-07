@@ -1,7 +1,7 @@
 // The master recipe's per-model sections (upscale.master.targets), as rows:
 // which video model (or family) a row is for, and how its takes are upscaled —
-// re-sampled with their own model (and optionally a pixel model or SeedVR2
-// after), a pixel upscale model, or SeedVR2 — with the models this ComfyUI has
+// re-sampled with their own model or through another (and optionally a pixel
+// model or SeedVR2 after), a pixel upscale model, or SeedVR2 — with the models this ComfyUI has
 // (GET /seriesmith/upscale/options). The standard settings are one button.
 // Keys a row doesn't show (keep_soft, grain, window, ...) are kept as they are.
 
@@ -62,7 +62,8 @@ export function MasterRecipe({ ep, raw, onChange }: { ep: string; raw: Raw; onCh
       <span className="h3-small"><b>How each model's shots are upscaled</b></span>
       <span className="h3-small h3-muted">
         A shot goes through the row for its video model: its exact id first, then the closest family, then "any other model".
-        Re-sampling runs the take through its own model again at the bigger size (the best detail, where the model can);
+        Re-sampling runs the take through its own model again at the bigger size, or through an H3 model when it's made by another
+        (its frames through that model's VAEs, its prompt built from the script and the references);
         an upscale model or SeedVR2 works on the pictures alone.
       </span>
       {!keys.length && <div className="h3-note h3-small">No rows yet: every shot would be a gap. Add one, or use the standard settings.</div>}
@@ -70,6 +71,10 @@ export function MasterRecipe({ ep, raw, onChange }: { ep: string; raw: Raw; onCh
         const sec = secs[key];
         const method = (sec.method as string) ?? "latent";
         const canResample = latentFor(key).length > 0 || !opts;
+        const through = (sec.through as string) ?? "";
+        // a family's own row doesn't offer its own family; "any other model" offers them all
+        const throughs = (opts?.through ?? []).filter((c) => c.id === through
+          || key === "*" || !latentFor(key).some(([, r]) => r!.family === c.family));
         const scale = sec.scale == null ? "" : String(sec.scale);
         const then = (sec.then as string) ?? "";
         const problem = sec.scale === "auto" && then ? 'Scale "auto" is for a re-sample alone: pick a scale, or nothing after.' : "";
@@ -88,13 +93,15 @@ export function MasterRecipe({ ep, raw, onChange }: { ep: string; raw: Raw; onCh
                 ))}
               </select>
               <span className="h3-small">by</span>
-              <select className="h3-in" value={method} onChange={(e) => {
+              <select className="h3-in" value={through ? `through:${through}` : method} onChange={(e) => {
                 const m = e.target.value;
-                set(m === "latent" ? { method: m, pixel_model: undefined, seedvr2_model: undefined }
-                  : m === "pixel" ? { method: m, scale: undefined, then: undefined, then_scale: undefined, detail: undefined, pixel_model: (sec.pixel_model as string) || opts?.pixel.default || "RealESRGAN_x2.pth" }
-                    : { method: m, scale: undefined, then: undefined, then_scale: undefined, detail: undefined, seedvr2_model: (sec.seedvr2_model as string) || "7b" });
+                if (m.startsWith("through:")) { set({ method: "latent", through: m.slice(8), pixel_model: undefined, seedvr2_model: undefined }); return; }
+                set(m === "latent" ? { method: m, through: undefined, pixel_model: undefined, seedvr2_model: undefined }
+                  : m === "pixel" ? { method: m, through: undefined, scale: undefined, then: undefined, then_scale: undefined, detail: undefined, pixel_model: (sec.pixel_model as string) || opts?.pixel.default || "RealESRGAN_x2.pth" }
+                    : { method: m, through: undefined, scale: undefined, then: undefined, then_scale: undefined, detail: undefined, seedvr2_model: (sec.seedvr2_model as string) || "7b" });
               }}>
                 <option value="latent" disabled={!canResample}>re-sampling with its own model{canResample ? "" : " (it can't)"}</option>
+                {throughs.map((c) => <option key={c.id} value={`through:${c.id}`} disabled={c.status === "not_ready"}>re-sampling through {c.label}{c.status === "not_ready" ? " (not ready)" : ""}</option>)}
                 <option value="pixel">an upscale model</option>
                 <option value="seedvr2">SeedVR2</option>
               </select>

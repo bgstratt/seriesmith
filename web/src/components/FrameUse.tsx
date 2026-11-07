@@ -141,10 +141,11 @@ function FrameUse({ ep, take: src, video0 }: {
   }, [ep]);
 
   const edits = (targets?.targets ?? []).filter((t) => t.kind === "image" && !t.draft && t.capabilities?.mode === "edit");
-  const editsDefault = useRefDefaults(ep).edits;
+  const refDefaults = useRefDefaults(ep);
   const pickable = (refs ?? []).filter((r) => (r.kind === "character" && !r.of) || r.kind === "location");
   const target = existing ? pickable.find((r) => r.id === existing) : undefined;
   const isChar = make === "character" || (make === "existing" && target?.kind === "character");
+  const editsDefault = isChar ? refDefaults.editsPerson : refDefaults.edits;
   const id = make === "place" ? slug(name) : slug(name.replace(/^(the|a|an)\s+/i, ""));
   const problem = make !== "existing" && raw ? (id ? idProblem(raw, id) : "Give it a name.") : "";
   const ready = (!!src || !!video) && (make === "existing" ? !!existing : !problem && (make === "place" || asIs || !!who.trim()));

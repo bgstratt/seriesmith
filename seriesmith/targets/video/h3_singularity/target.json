@@ -268,35 +268,24 @@
     }
   },
   "upscale": {
-    "_note": "h3upscale.py: a final take re-sampled at `scale` from `start` (a fraction of its own schedule: 0.875 is step 7 of 8), its latent's video upscaled by `upscaler` (the LBH-123-AI Comfyui_Minimax_h3_latent_Upscaler pack, not the Plus fork: temporal chunking must stay on). The loader's resolution_override carries the new size into the conditioning.",
+    "any_take": true,
+    "_note": "h3upscale.py: a final take re-sampled at `scale` from `start` (a fraction of its own schedule: 0.875 is step 7 of 8), its latent's video upscaled by `upscaler` (ComfyUI's own, or a node pack: its `fallback`). The loader's resolution_override carries the new size into the conditioning.",
     "scale": 2,
     "start": 0.875,
     "size": {
       "class_type": "H3ShotListLoader",
       "field": "resolution_override"
     },
-    "windows": {
-      "_note": "A re-sample of a take longer than `seconds` (5.5: the 4.5-5.2 s shots fit one pass at 2688x1536, longer ones risk running out of memory) is sampled in windows (h3upscale.windowed): obvpm's H3 Context Windowing (comfyui-obvpm-timeline), MultiDiffusion along time with pyramid weights over each overlap, so 1344x768 x2 (2688x1536, about twice the pixels of the 1920x1088 the pack measured at ~7 GB of activations per 5 s window) fits 32 GB. The series' upscale recipe's `window` overrides the length (0: off).",
-      "class_type": "H3ContextWindows",
-      "pack": "comfyui-obvpm-timeline",
-      "seconds": 5.5,
-      "overlap": 1.25
-    },
-    "upscaler": {
-      "class_type": "MinimaxH3LatentUpscaler3D",
-      "latent": "latent",
-      "scale": "mode.scale",
-      "align": 32,
-      "inputs": {
-        "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
-        "mode": "scale by multiplier",
-        "align": 32,
-        "enable_temporal_chunking": true,
-        "force_unload": true,
-        "device": "cuda",
-        "precision": "fp16"
-      }
-    }
+    "windows": {"_note": "A re-sample of a take longer than `seconds` (5.5: the 4.5-5.2 s shots fit one pass at 2688x1536, longer ones risk running out of memory) is sampled in windows (upscale.windowed): MultiDiffusion along time with pyramid weights over each overlap, so 1344x768 x2 (2688x1536) fits 32 GB. ComfyUI's own node counts real frames (`frames`: 17n+5, so 5.5 s is 124 and 1.25 s is 39) and FreeNoise stays off, as the A/B against obvpm's ran it. `fallback`: obvpm's H3 Context Windowing, for a ComfyUI before 0.44 or asked for by the recipe's `windowing`. The series' upscale recipe's `window` overrides the length (0: off).", "class_type": "MiniMaxH3ContextWindows", "comfyui": "0.44", "seconds_input": "context_length", "overlap_input": "context_overlap", "frames": {"step": 17, "offset": 5}, "inputs": {"fuse_method": "pyramid", "freenoise": false, "split_conds_to_windows": false}, "seconds": 5.5, "overlap": 1.25, "fallback": {"class_type": "H3ContextWindows", "pack": "comfyui-obvpm-timeline"}},
+    "upscaler": {"_note": "ComfyUI's own (0.44 or later), loading the same model file as LBH-123-AI's pack. `fallback`: that pack, or its Plus, which register the same node, for an older ComfyUI or asked for by the recipe's `upscaler`.",
+                 "class_type": "MiniMaxH3LatentUpscaleWithModel", "comfyui": "0.44", "latent": "samples", "size": ["width", "height"], "align": 32,
+                 "model": {"class_type": "LatentUpscaleModelLoader", "input": "model",
+                           "inputs": {"model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors"}},
+                 "fallback": {"class_type": "MinimaxH3LatentUpscaler3D", "pack": "Comfyui_Minimax_h3_latent_Upscaler (LBH-123-AI) or its Plus version",
+                              "latent": "latent", "scale": "mode.scale", "align": 32,
+                              "inputs": {"model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+                                         "mode": "scale by multiplier", "align": 32, "enable_temporal_chunking": true,
+                                         "force_unload": true, "device": "cuda", "precision": "fp16"}}}
   },
   "downloads": {
     "_note": "Where to get each file this target names (docs/API.md 'Downloads'). A url is only given when a trustworthy record has it: a ComfyUI template's or saved workflow's properties.models entry, or ComfyUI-Manager's model list; `source` says which. Otherwise url is null and source says what to search for. Never a guessed URL.",

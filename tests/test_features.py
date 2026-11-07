@@ -365,7 +365,7 @@ class ResolveTest(unittest.TestCase):
         self.assertTrue(any(s.startswith("ComfyUI-PlagueKind-Nodes: Install") for s in skipped))
 
     def test_packs_and_packages_are_never_queued(self):
-        items, skipped = FT.resolve(["sound.demucs", "upscale.h3_latent"], features=FT.catalog())
+        items, skipped = FT.resolve(["sound.demucs", "upscale.h3_latent", "upscale.h3_pack"], features=FT.catalog())
         # demucs's htdemucs (into torch's hub cache) and the upscaler's file
         self.assertEqual([i.kind for i in items], ["hub", "model"])
         self.assertTrue(any("pip install demucs" in s for s in skipped))

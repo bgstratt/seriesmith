@@ -3279,7 +3279,7 @@ def cmd_keyframe(root: str, argv: list[str]) -> int:
     ap.add_argument("--target", metavar="IMAGE_TARGET",
                     help="with --generate/--missing: the image target (default: the ref's "
                          "override, the episode's, the series config's refs block, else "
-                         "flux2_klein_edit when installed)")
+                         "qwen_image_21 or flux2_klein_edit when installed)")
     ap.add_argument("--dry-run", action="store_true",
                     help="with --generate/--missing: say what would be done, and the prompt")
     ap.add_argument("--comfy", default="http://127.0.0.1:8188")

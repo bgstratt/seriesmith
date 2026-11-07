@@ -89,8 +89,8 @@ uses it.
 | [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo), as above | `GuiderParameters`, `MultimodalGuider`, `LTXVSetAudioVideoMaskByTime` | `ltx23_foley` (a shot's effects on LTX-2.3 Foley) |
 | [ComfyUI-MMAudio](https://github.com/kijai/ComfyUI-MMAudio) | `MMAudioModelLoader`, `MMAudioFeatureUtilsLoader`, `MMAudioSampler` | `mmaudio_ambience` (the default ambience target: a place's bed) |
 | [ComfyUI-HunyuanVideo-Foley](https://github.com/phazei/ComfyUI-HunyuanVideo-Foley) | `HunyuanModelLoader`, `HunyuanDependenciesLoader`, `HunyuanFoleySampler` | `hunyuan_xl_foley` (a shot's effects on HunyuanVideo-Foley XL) |
-| [Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler) | `MinimaxH3LatentUpscaler3D` | `seriesmith upscale` on H3 takes only — see **The upscaler**, below |
-| [comfyui-obvpm-timeline](https://github.com/chanon/comfyui-obvpm-timeline) | `H3ContextWindows` (H3 Context Windowing: sampling along time in overlapping windows) | an H3 upscale of a take longer than 5.5 s, so it fits a 32 GB card — see **The upscaler**. Its README also asks for [comfyui-obvpm](https://github.com/chanon/comfyui-obvpm); that's for its own timeline workflows, not this node |
+| [Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler) | `MinimaxH3LatentUpscaler3D` | optional: `seriesmith upscale` on H3 takes, on a ComfyUI before 0.44 or when chosen. See **The upscaler**, below |
+| [comfyui-obvpm-timeline](https://github.com/chanon/comfyui-obvpm-timeline) | `H3ContextWindows` (H3 Context Windowing: sampling along time in overlapping windows) | optional: an H3 upscale of a take longer than 5.5 s, on a ComfyUI before 0.44 or when chosen. See **The upscaler**, below |
 
 Install them with ComfyUI-Manager or by cloning into `custom_nodes`, then restart ComfyUI.
 A deployment needs the same packs there. Comfy Cloud has its own set: seriesmith sends it
@@ -106,8 +106,8 @@ Cloud's own nodes, leaving out what a model can do without ([docs/SETUP.md](/set
 | `pip install demucs`, in **ComfyUI's own** Python (the portable build's `python_embeded\python.exe -m pip install demucs`), and its htdemucs model downloaded in the Features window (**Keep H3's foley under your vocal**) | the `dub_keep_foley` audio policy (H3's foley kept under your own vocal): the saver node runs demucs on ComfyUI's own interpreter |
 | `pip install -e .[test]` | `python -m pytest`, the test suite (six workers in parallel) |
 | Node.js 20.19+ (or 22.12+) and `npm install` in `web/` | rebuilding the editor. Only if you change `web/`; the built pages are committed |
-| The Comfyui_Minimax_h3_latent_Upscaler node pack and its model (**The upscaler**, below) | `seriesmith upscale` and the editor's Upscale on H3 takes |
-| The comfyui-obvpm-timeline node pack (**The upscaler**) | upscaling H3 takes longer than 5.5 s without running out of memory |
+| H3's latent upscaler model, and ComfyUI 0.44 or later or its node pack (**The upscaler**, below) | `seriesmith upscale` and the editor's Upscale on H3 takes |
+| ComfyUI 0.44 or later, or the comfyui-obvpm-timeline node pack (**The upscaler**) | upscaling H3 takes longer than 5.5 s without running out of memory |
 | Three LoRAs (**For the editor's 360s and turned views**, section 4) | the Refs tab's **Make 360**, and the best **Turn** of a character (Turn also runs on any edit model without its LoRA, told the turn in words) |
 
 **Which Python gets faster-whisper.** `align` runs as a subprocess, and seriesmith picks
@@ -278,25 +278,27 @@ NVIDIA's own index, and PyPI's is a stub that fails to install, so if ComfyUI's 
 `python_embeded\python.exe -m pip install nvidia-vfx --extra-index-url https://pypi.nvidia.com`. The Upscale dialog then lists "RTX Video Super Resolution" beside the models
 (`rtx_vsr`; `rtx_vsr:HIGHBITRATE_ULTRA` for its level tuned to clean sources).
 
-1. Clone **LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler** into `custom_nodes`:
+1. Use ComfyUI 0.44 or later, which has H3's latent upscaler and context windows. On an older
+   ComfyUI, update it, or clone **LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler** into
+   `custom_nodes` (or install its Plus version from ComfyUI-Manager; only one of the two can be
+   installed):
    ```
    cd C:\AI\ComfyUI\ComfyUI\custom_nodes
    git clone https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler
    ```
-   **Not its "Plus" fork**: that registers the same node without temporal chunking, and the
-   re-sample then invents detail (sparkles on hair, marks on faces). Only one of the two can
-   be installed.
 2. Put `minimax_h3_latent_upscaler_3d_fp16.safetensors` in `models/latent_upscale_models/`.
    Its Hugging Face repo, LBH-123-AI/Minimax_h3_latent_Upscaler, now publishes it as
    `minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors` (the same file): download that
    and save it under the old name (section 4, **For upscaling**, has the link).
 3. Restart ComfyUI. `seriesmith targets` then prints `upscale  ready` under
    `minimax_h3_ref2va`, or names what's missing.
-4. For takes longer than 5.5 s, clone **chanon/comfyui-obvpm-timeline** into `custom_nodes`
-   too. Its H3 Context Windowing node samples the re-sample in overlapping windows along
-   time, so a long shot at 2x (2688×1536) fits a 32 GB card; without it such an upscale says
-   it needs the pack instead of running out of memory. The series' upscale recipe's
+4. Takes longer than 5.5 s are sampled in overlapping windows along time, so a long shot at 2x
+   (2688×1536) fits a 32 GB card. ComfyUI 0.44 or later does this itself. On an older ComfyUI,
+   update it or clone **chanon/comfyui-obvpm-timeline** into `custom_nodes`; with neither, such
+   an upscale says so instead of running out of memory. The series' upscale recipe's
    `window` changes the length (0: off).
+5. To use the packs on a newer ComfyUI, see "Choosing the nodes" in
+   [FINISHING](/finishing).
 
 ---
 
@@ -908,9 +910,9 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 ### For upscaling (optional)
 
-Only to upscale takes (`seriesmith upscale`), never to render. H3's MinimaxH3LatentUpscaler3D comes from the Comfyui_Minimax_h3_latent_Upscaler pack (LBH-123-AI) — not its "Plus" fork, which has the same node without temporal chunking; LTX's LTXVLatentUpsampler is ComfyUI's own. `seriesmith targets` says whether this ComfyUI can upscale.
+Only to upscale takes (`seriesmith upscale`), never to render. H3's MiniMaxH3LatentUpscaleWithModel is ComfyUI's own from 0.44; an older ComfyUI uses MinimaxH3LatentUpscaler3D, from the Comfyui_Minimax_h3_latent_Upscaler pack (LBH-123-AI) or its Plus version. LTX's LTXVLatentUpsampler is ComfyUI's own. `seriesmith targets` says whether this ComfyUI can upscale.
 
-- `minimax_h3_latent_upscaler_3d_fp16.safetensors` → `models/latent_upscale_models/` (MinimaxH3LatentUpscaler3D, for `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `pika_h3_flex`, `pika_h3_flex_fl2va`) — [download](https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler/resolve/main/minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors) (the Hugging Face repo LBH-123-AI/Minimax_h3_latent_Upscaler, which now publishes it as minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors (the same file: sha256 043e5a48e161..., checked 2026-10-09): save it under this name. Only needed to upscale, never to render.)
+- `minimax_h3_latent_upscaler_3d_fp16.safetensors` → `models/latent_upscale_models/` (MiniMaxH3LatentUpscaleWithModel, for `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `pika_h3_flex`, `pika_h3_flex_fl2va`) — [download](https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler/resolve/main/minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors) (the Hugging Face repo LBH-123-AI/Minimax_h3_latent_Upscaler, which now publishes it as minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors (the same file: sha256 043e5a48e161..., checked 2026-10-09): save it under this name. Only needed to upscale, never to render.)
 - `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` → `models/latent_upscale_models/` (LTXVLatentUpsampler, for `ltx2_ingredients`) — [download](https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors) (ComfyUI-Manager model list (model-list.json; ComfyUI's blueprint Image to Video (LTX-2.3).json has the same URL). Only needed to upscale, never to render.)
 
 **SeedVR2** (any take; ComfyUI's own nodes, the models Apache 2.0): the VAE and at least one model.

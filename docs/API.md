@@ -1152,7 +1152,9 @@ can re-sample (every built-in video target has one):
   latent has it; always the VAE route: `route: "latent"` is refused).
 
 The `.up.json` records `mode` and the schedule's `steps`. Options' `latent[target]`
-`fixed_scale` is the one scale a fixed upsampler makes (the LTX targets: 2), else null.
+`fixed_scale` is the one scale a fixed upsampler makes (the LTX targets: 2), else null, and
+`family` what its latents are (its upscaler's class). Options' `through` lists the models any take can be
+re-sampled through: `[{id, label, status, family}]`, `status` `not_ready` when its upscaler or model file is missing.
 
 ### `POST /seriesmith/upscale`
 Body `{"ep", "shots"?: ["sh020"] | null, "takes"?: [{"shot", "take"}], "redo"?: false,
@@ -1162,6 +1164,11 @@ that pass's takes directly and wins; `pass` (default `"final"`) says whose. A pr
 kept no latent by default, so its re-sample goes through the VAE. A take with a fresh
 upscale is skipped unless `redo`.
 `vae` forces the VAE route; `start_step` is an exact step of the take's schedule.
+`through` (a target id with `upscale.any_take`: `minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`,
+`pika_h3_flex`) re-samples a take its family didn't make through that model: always the VAE route, the prompt
+and references compiled for that model from the script, the frames fitted to its grid (`.up.shotlist.json`
+beside the upscale, `.up.json`'s `through` and `from_target`). Takes of its family ignore it. A recipe's
+section or a shot's recipe takes `through` too.
 `method`: `"latent"` (a re-sample: the default where the take's target has an `upscale`
 block) or `"pixel"` (an upscale model over the frames: any target, the default for the
 rest), null for each take's default. `pixel_model` names the pixel method's model, a file
@@ -1236,7 +1243,7 @@ no recipe at all is 409.
 ```
 
 A section's fields: `method`, `scale`, `detail`, `start_step`, `vae`, `pixel_model`,
-`seedvr2_model`, `then` (an upscale model file, or `"seedvr2"`), `then_scale`, `precision`,
+`seedvr2_model`, `upscaler` and `windowing` (`"pack"`: the node pack's in place of ComfyUI's own), `then` (an upscale model file, or `"seedvr2"`), `then_scale`, `precision`,
 `frequency_split`, `keep_soft`, `grain`. `quality` (`review` | `master`) is read by Phase
 13e3. The build warns about anything else (upscale.check_recipe).
 
@@ -2630,7 +2637,7 @@ left it open).
 - Each has presets, `models` tiers, downloads and readiness, like the video targets.
 - `capabilities`: `{"mode": "t2i" | "edit", "max_refs": N}`.
 - **Series defaults:** the series config's `refs` block, `{"target": "<image id>", "keyframe_target": "<image id>"}`.
-  - The defaults are `krea2` and, when it is ready, `flux2_klein_edit` (else the refs `target`).
+  - The defaults are `krea2` and the first of `qwen_image_21` and `flux2_klein_edit` that is ready (else the refs `target`).
   - A per-ref override lives in `refs/_overrides.json` as `target`.
   - A generate request's `target` beats both.
 - **`GET /seriesmith/targets?kind=image&ready=1`** lists them, as for video.
@@ -2710,7 +2717,7 @@ here too) or **[settled]** (the contract left it open).
   sheet (`h3_refsheet.py`, PIL).
 - **[added] Image defaults.** `GET /seriesmith/refs` returns `{"refs": [...], "defaults":
   {"target", "target_source", "keyframe_target", "keyframe_target_source", "edit_target",
-  "edit_target_source", "turn_target", "turn_target_source", "ambience_target",
+  "edit_target_person", "edit_target_source", "turn_target", "turn_target_source", "ambience_target",
   "ambience_target_source", ...}}` (the voice and dub defaults below), sources `"editor"` |
   `"series"` | `"default"` (`ambience_target` is the series config's `refs.ambience_target`
   or the default, never the editor's). **`PUT /seriesmith/refs/defaults`** `{ep, target?,
@@ -2722,17 +2729,21 @@ here too) or **[settled]** (the contract left it open).
 - **[added 2026-11] The Edits model.** `edit_target` is the image target an edit of a
   picture uses (Edit, Relight, a frame's cut-out, a Turn without Qwen 2.1 + angles): the
   editor's episode choice, else the series config's `refs.edit_target` (an image target
-  with `mode: "edit"` and `max_refs` >= 1, else the series config is refused), else the
-  first of `keyframe_target` and `target` that can edit (`null` when neither can). An edit
-  with no `target` (`refs.edit_target_for`) takes the ref's own model if it can edit, then
-  `edit_target`, then the keyframe model, then the refs model. Promote moves an episode's
+  with `mode: "edit"` and `max_refs` >= 1, else the series config is refused), else
+  `qwen_image_21` when it's ready, then `flux3_klein`, then the first of `keyframe_target`
+  and `target` that can edit (`null` when neither can). `edit_target_person` is what a
+  character's edit uses: the same choice when one is made, else `flux3_klein` when it's
+  ready, then `qwen_image_21`, then the same fallback. An edit with no `target`
+  (`refs.edit_target_for`) takes the ref's own model if it can edit, then
+  `edit_target_person` for a character, then `edit_target`, then the keyframe model, then
+  the refs model. Promote moves an episode's
   `edit_target` to `refs.edit_target`. `turn_target` (`turn_target_source`) is Turn's,
   set the same ways (an image target that can edit; `null`: automatic); promote moves it
   to `refs.turn_target`.
   Precedence: request, then the ref's override (`target` in `refs/_overrides.json`, now a
   `PUT /seriesmith/refs/override` field), then the episode's, then the series config's `refs`,
-  then built-in. "Ready" for the built-in keyframe default means every required file of
-  `flux2_klein_edit` is among ComfyUI's model lists.
+  then built-in. "Ready" for a built-in keyframe default means every required file of
+  that target is among ComfyUI's model lists.
 - **[added]** Each ref's `effective.target` is the image target a generate would use (a
   character's top-level `effective` is `{target}`; each view's has the rest). Ref-take
   sidecars add `target`, `negative`, `negative_source`, `values`, `resolved`, `notes`, and
@@ -4038,6 +4049,10 @@ and the checks all call.
   (relative to the episode, forward slashes) and `audio_why`. With no source all three are
   null. `audio_why` is `"sh020 t01"`, `"sh020 t01 (proxy)"` when the take is from the other
   pass, the file's base name, or `"silent"`.
+- **[added] `audio_dub: true`**: the entry has no `audio` of its own and the shot's sound is
+  dub (overrides.json `sound`), so the cut and export play the dub: `audio` is that dub as a
+  source (`takes.cut_dub_spec`), `audio_why` `"dub: …"`. The editor never saves it into
+  cut.json; an entry's own `audio` wins over it.
 - **[added] `" (missing)"`** is appended to `audio_why`, and `audio_file` is null, when the
   source's file has gone (a discarded take, a deleted file). Nothing rewrites the entry: the
   badge says so, and assemble warns and lays silence.

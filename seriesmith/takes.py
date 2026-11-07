@@ -144,6 +144,8 @@ class TakePaths:
     # `continuous: latent`: that shot's upscale holds its tail (upscale)
     @property
     def up_latent(self) -> str: return self._p(".up.latent.safetensors")
+    @property
+    def up_shotlist(self) -> str: return self._p(".up.shotlist.json")
     # the post pass (post): a version of the upscale, made from its .up.mp4
     @property
     def post_mp4(self) -> str: return self._p(".post.mp4")
@@ -642,8 +644,8 @@ def cut_dub_spec(root: str, shot_id: str, sound: dict | None, sidecar: dict | No
                  offset: float = 0.0, take_wav: str | None = None, model_sound: bool = False) -> dict | None:
     """What the cut plays for a shot on dub, as a cut entry's `audio`: the dub, or with `model_sound`, and
     a take rendered to it, what the model gave back (`take_wav`, the take's `_h3.wav`). None: the take's
-    own sound (not on dub, or the dub isn't there yet). `entry`: the shot's shotlist entry, for its
-    window of the recording."""
+    own sound (not on dub, or the dub isn't there yet). `entry`: the shot's shotlist entry, with the
+    shotlist's defaults as `_defaults`, for its window of the recording."""
     if not sound or sound.get("mode") != "dub":
         return None
     if model_sound and rendered_to_dub(root, sound, shot_id, sidecar):
@@ -730,6 +732,27 @@ def _lock_for(path: str) -> threading.Lock:
     key = os.path.normcase(os.path.abspath(path))
     with _LOCKS_LOCK:
         return _LOCKS.setdefault(key, threading.Lock())
+
+
+def recorded_inputs(sidecar: dict | None, root: str) -> dict:
+    """A take's staged inputs ({role: name in ComfyUI's input folder}): its record's
+    `inputs`, and the keyframes its `refs` name. Queued renders before 2026-11-06 never
+    recorded `inputs` (they're staged after the record is written), so an upscale lost
+    its keyframes and a continuity shot its source. A keyframe since replaced by another
+    picture isn't this take's, unless the render cut it itself (`continuity`)."""
+    sc = sidecar or {}
+    out = dict(sc.get("inputs") or {})
+    for r in sc.get("refs") or []:
+        role, sha, path = r.get("role"), r.get("sha1"), r.get("path")
+        if role not in ("first", "last") or role in out or not sha or not path:
+            continue
+        full = os.path.join(root, path)
+        if not os.path.isfile(full):
+            continue
+        if file_sha1(full) != sha and not (role == "first" and sc.get("continuity")):
+            continue
+        out[role] = f"seriesmith/{str(sha)[:20]}{os.path.splitext(path)[1]}"
+    return out
 
 
 def update_sidecar(path: str, **fields) -> dict:
