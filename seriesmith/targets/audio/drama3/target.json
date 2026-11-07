@@ -1,0 +1,77 @@
+{
+  "id": "drama3",
+  "kind": "audio",
+  "label": "Fish Audio Drama 3 (voice clone)",
+  "short": "Drama 3",
+  "code": "target.py",
+
+  "capabilities": {
+    "_note": "Fish Audio Drama 3 through PedroMarinhoDev's ComfyUI-Drama3 (GPL-3.0; the model under the Fish Audio Community License: free under USD 500k yearly revenue, 'Built with Fish Audio' credited, no real person's voice without their consent). Sent the words alone; a voice sample is cloned, not continued: the sample cut between words to 5-20 s (reference_clip), its words heard by the pack's Qwen3-ASR in the graph (Drama 3 Encode Voice wants the clip's exact transcript), then Drama 3 Generate speaks the line in it. With no sample the voice is the model's own choice, steered by the series config's `voice` line as a bracketed direction (target.py). The length is the line's: the model ends at end of speech. Tried live 2026-11-07 (RTX 5090, W4A8): in the pack's own graph on Ballroom ep03's Charming and Ava samples (experts in VRAM), every word of five lines heard by Whisper, each line's median pitch within 0-14 Hz of its sample's; through `seriesmith refs --voices` (experts in RAM, 98% of expert reads cached), Charming's line cloned at 136 Hz against the sample's 122 and Harrow's made from his `voice` line, words right, the direction not read aloud, about 50 s a take: 23-30 s of it loading the model again, which ComfyUI doesn't keep between jobs.",
+    "mode": "voice_clone",
+    "reference_audio": true,
+    "reference_clip": [5.0, 20.0],
+    "max_seconds": 30
+  },
+
+  "template": {
+    "_note": "The model decides the length (it ends at end of speech): these only bound what a sample is asked to say (refs.voice_seconds, lines.local_job).",
+    "default_seconds": 8.0,
+    "min_seconds": 1.0,
+    "max_seconds": 30.0
+  },
+
+  "recipe": {
+    "_note": "The words alone (targets/audio/common.py words_line / words_prompt): the character's lines, no opener, no description; target.py adds the `voice` line as a direction only when there's no sample to clone."
+  },
+
+  "binding": {
+    "_note": "An API graph of the pack's nodes, as its drama3_voice_clone example wires them: Load Drama 3 and its codec, the sample (LoadAudio) heard by Qwen3-ASR into Drama 3 Encode Voice, Drama 3 Generate in voice slot 0, Drama 3 Decode. H3SaveRefAudio takes SaveAudio's place. With no sample, target.py unhooks the voice and the prune drops that branch.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_drama3.json",
+    "env": "SERIESMITH_DRAMA3_WORKFLOW",
+    "saver": {"class_type": "H3SaveRefAudio",
+              "replace": {"class_type": "SaveAudio", "inputs": {"audio": "audio"}}},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "Drama3Loader", "field": "model_name"},
+      "experts": {"class_type": "Drama3Loader", "field": "experts"},
+      "codec": {"class_type": "Drama3CodecLoader", "field": "codec_name"},
+      "asr": {"class_type": "Qwen3ASRLoader", "field": "model_name"},
+      "prompt": {"class_type": "Drama3Generate", "field": "text"},
+      "seed": {"class_type": "Drama3Generate", "field": "seed"}
+    }
+  },
+
+  "models": {
+    "_note": "Drama 3's experts come in four sizes (PedroMarinhoDev/Drama-3-ComfyUI): W4A8 24.6 GB (the Features window's default; ~32 GB of RAM with the experts in RAM; falls silent more often with real voice clips), W6A8 32.7 GB (~40 GB), int8 38.7 GB (~48 GB; the fastest on cards under 24 GB) and FP8 38.6 GB (Fish Audio's own). `prefer`: the largest installed is used, so downloading a bigger one in Features is all it takes. The codec and the speech recognizer are required.",
+    "model": {"family": "drama3", "folder": "diffusion_models",
+              "patterns": ["drama3_*experts*.safetensors", "*drama3*experts*"],
+              "prefer": ["*drama3*fp8experts*", "*drama3*int8experts*", "*drama3*w6a8experts*", "*drama3*w4a8experts*"],
+              "tier": "required"},
+    "codec": {"family": "drama3-codec", "folder": "vae", "patterns": ["*drama3*codec*"],
+              "tier": "required"},
+    "asr": {"family": "qwen3-asr", "folder": "asr", "patterns": ["qwen3_asr_*"],
+            "exclude": ["*aligner*"], "tier": "required"}
+  },
+
+  "presets": {
+    "_note": "Experts in RAM, the pack's default: the routed experts (90% of the model) stay in pinned system RAM and the free VRAM caches the ones in use, so it runs on any card from 8 GB. `in VRAM` is faster where the whole file fits the card (W4A8 on a 32 GB one).",
+    "final": {
+      "model": "drama3_w4a8experts_bf16.safetensors",
+      "codec": "drama3_codec.safetensors",
+      "asr": "qwen3_asr_0.6b_bf16.safetensors",
+      "experts": "in RAM",
+      "lora": "",
+      "default_seconds": 8.0, "min_seconds": 1.0, "max_seconds": 30.0
+    }
+  },
+
+  "downloads": {
+    "_note": "PedroMarinhoDev's conversions for the pack (Drama-3-ComfyUI, Qwen3-ASR-ComfyUI on Hugging Face), as its README lists them.",
+    "drama3_w4a8experts_bf16.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/PedroMarinhoDev/Drama-3-ComfyUI/resolve/main/drama3_w4a8experts_bf16.safetensors", "source": "the Hugging Face repo PedroMarinhoDev/Drama-3-ComfyUI, as ComfyUI-Drama3's README lists it"},
+    "drama3_w6a8experts_bf16.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/PedroMarinhoDev/Drama-3-ComfyUI/resolve/main/drama3_w6a8experts_bf16.safetensors", "source": "the Hugging Face repo PedroMarinhoDev/Drama-3-ComfyUI, as ComfyUI-Drama3's README lists it"},
+    "drama3_int8experts_bf16.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/PedroMarinhoDev/Drama-3-ComfyUI/resolve/main/drama3_int8experts_bf16.safetensors", "source": "the Hugging Face repo PedroMarinhoDev/Drama-3-ComfyUI, as ComfyUI-Drama3's README lists it"},
+    "drama3_codec.safetensors": {"folder": "vae", "url": "https://huggingface.co/PedroMarinhoDev/Drama-3-ComfyUI/resolve/main/drama3_codec.safetensors", "source": "the Hugging Face repo PedroMarinhoDev/Drama-3-ComfyUI, as ComfyUI-Drama3's README lists it"},
+    "qwen3_asr_0.6b_bf16.safetensors": {"folder": "asr", "url": "https://huggingface.co/PedroMarinhoDev/Qwen3-ASR-ComfyUI/resolve/main/qwen3_asr_0.6b_bf16.safetensors", "source": "the Hugging Face repo PedroMarinhoDev/Qwen3-ASR-ComfyUI (the smaller Qwen3-ASR, as ComfyUI-Drama3's example workflow names it)"}
+  }
+}

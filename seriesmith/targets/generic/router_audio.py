@@ -22,22 +22,12 @@ from __future__ import annotations
 import copy
 
 from seriesmith.targets import hosted_block
-from seriesmith.targets.audio.common import NEGATIVE, NEUTRAL_LINE, _clean, lines_of, voice_line as _voice_line  # noqa: F401
+from seriesmith.targets.audio.common import NEGATIVE, NEUTRAL_LINE, lines_of  # noqa: F401
+from seriesmith.targets.audio.common import words_line as voice_line  # noqa: F401  the words alone
+from seriesmith.targets.audio.common import words_prompt as voice_prompt  # noqa: F401
 from seriesmith.targets.generic.request_map import fit, max_chars, place, put_seed
 
 WHAT = "voice sample"
-
-
-def voice_line(story, subject: str, seconds: float | None = None, pace: str = "normal",
-               name: str | None = None, held: bool = False) -> tuple[str, str]:
-    """(the words a sample says, where they came from): the character's own lines with no opener."""
-    return _voice_line(story, subject, seconds, pace, None, False)
-
-
-def voice_prompt(name: str, voice: str = "", design: str = "", line: str = "",
-                 seconds: float | None = None) -> str:
-    """What's sent: the words and nothing else."""
-    return _clean(line) or NEUTRAL_LINE
 
 
 def speaker_of(entry: dict | None, service: str) -> dict | None:

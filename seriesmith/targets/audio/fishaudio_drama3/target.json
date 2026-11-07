@@ -1,0 +1,50 @@
+{
+  "id": "fishaudio_drama3",
+  "kind": "audio",
+  "label": "Fish Audio Drama 3 on Comfy (voice clone; paid)",
+  "short": "Drama 3 (Comfy)",
+  "code": "target.py",
+
+  "capabilities": {
+    "_note": "Fish Audio's Drama 3 hosted, through ComfyUI's partner nodes (Fish Audio Text to Speech, model drama-3; Fish Audio Instant Voice Clone): paid per take, billed to the Comfy API key in Settings (backends.partner sends it with the job), nothing to download. Comfy's docs gave about $14.30 per million bytes of text at the launch offer, $35.75 from 2026-11-13. Sent the words alone. A voice sample is cloned: the sample cut between words to 10-30 s (Fish's own advice for a clone) and sent through Instant Voice Clone, which makes a private voice on Fish Audio's side for that take; with none, Fish picks a voice, steered by the series config's `voice` line as a bracketed direction (target.py). The node's seed only says when to run again (target.py sets it from the take's): Fish's results aren't repeatable, so a take isn't made the same twice. Not run here: nothing paid was.",
+    "mode": "voice_clone",
+    "reference_audio": true,
+    "reference_clip": [10.0, 30.0],
+    "max_seconds": 30,
+    "seed": "provider"
+  },
+
+  "template": {
+    "_note": "The model decides the length (it ends at end of speech): these only bound what a sample is asked to say.",
+    "default_seconds": 8.0,
+    "min_seconds": 1.0,
+    "max_seconds": 30.0
+  },
+
+  "recipe": {
+    "_note": "The words alone (targets/audio/common.py words_line / words_prompt); the `voice` line only as a direction, and only with no sample."
+  },
+
+  "binding": {
+    "_note": "The partner node at its defaults for drama-3 (temperature 0.7, top_p 0.7, speed 1, volume 0, normalize on), its inputs as ComfyUI's API takes a dynamic combo's (`model` the option, `model.<input>` its own), and SaveAudio. With a sample, target.py adds LoadAudio and Instant Voice Clone into `model.voices.voice0`. Both partner nodes are marked `_meta.partner`: the take is counted against Settings' paid limit (runner.reserve). H3SaveRefAudio takes SaveAudio's place.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_fishaudio_drama3.json",
+    "env": "SERIESMITH_FISHAUDIO_DRAMA3_WORKFLOW",
+    "saver": {"class_type": "H3SaveRefAudio",
+              "replace": {"class_type": "SaveAudio", "inputs": {"audio": "audio"}}},
+    "prune": true,
+    "params": {
+      "prompt": {"class_type": "FishAudioTextToSpeech", "field": "text"}
+    }
+  },
+
+  "nodes": {
+    "_note": "Beyond the workflow's own classes: what a clone adds (target.py), all ComfyUI's own.",
+    "FishAudioInstantVoiceClone": {"tier": "required"},
+    "LoadAudio": {"tier": "required"}
+  },
+
+  "presets": {
+    "final": {"lora": "", "default_seconds": 8.0, "min_seconds": 1.0, "max_seconds": 30.0}
+  }
+}

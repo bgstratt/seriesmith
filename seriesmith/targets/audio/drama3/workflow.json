@@ -1,0 +1,11 @@
+{
+ "1": {"class_type": "Drama3Loader", "inputs": {"model_name": "drama3_w4a8experts_bf16.safetensors", "experts": "in RAM", "expert_cache_gb": 0.0, "second_gpu": "none", "split_layer": 0}, "_meta": {"title": "Load Drama 3"}},
+ "2": {"class_type": "Drama3CodecLoader", "inputs": {"codec_name": "drama3_codec.safetensors"}, "_meta": {"title": "Load Drama 3 Codec"}},
+ "3": {"class_type": "LoadAudio", "inputs": {"audio": ""}, "_meta": {"title": "Voice sample"}},
+ "4": {"class_type": "Qwen3ASRLoader", "inputs": {"model_name": "qwen3_asr_0.6b_bf16.safetensors"}, "_meta": {"title": "Load Qwen3-ASR"}},
+ "5": {"class_type": "Qwen3ASRTranscribe", "inputs": {"model": ["4", 0], "audio": ["3", 0], "language": "auto", "context": "", "max_new_tokens": 4096}, "_meta": {"title": "The sample's words"}},
+ "6": {"class_type": "Drama3EncodeVoice", "inputs": {"codec": ["2", 0], "audio": ["3", 0], "transcript": ["5", 0]}, "_meta": {"title": "Drama 3 Encode Voice"}},
+ "7": {"class_type": "Drama3Generate", "inputs": {"model": ["1", 0], "text": "", "voices.voice0": ["6", 0], "seed": 0, "temperature": 1.0, "top_p": 0.9, "top_k": 0, "max_frames": 600, "split_long_text": true, "speakers": "one take per line"}, "_meta": {"title": "Drama 3 Generate"}},
+ "8": {"class_type": "Drama3Decode", "inputs": {"codec": ["2", 0], "codes": ["7", 0], "shorten_long_pauses": true}, "_meta": {"title": "Drama 3 Decode"}},
+ "9": {"class_type": "SaveAudio", "inputs": {"audio": ["8", 0], "filename_prefix": "seriesmith/voice"}, "_meta": {"title": "Save"}}
+}

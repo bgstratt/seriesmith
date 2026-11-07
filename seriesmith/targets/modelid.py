@@ -162,6 +162,10 @@ FAMILIES: dict[str, dict] = {
     # you save it under: `250928` (natural colour, finer detail) or `seko_v2`
     # (better on stylised and synthetic work).
     "wan2.2-t2v-lightx2v-lora": {"label": "Wan 2.2 T2V lightx2v 4-step LoRA"},
+    # voices (targets/audio): PedroMarinhoDev's conversions for ComfyUI-Drama3, by name only
+    "drama3": {"label": "Fish Audio Drama 3"},
+    "drama3-codec": {"label": "Drama 3 codec"},
+    "qwen3-asr": {"label": "Qwen3-ASR (speech recognition)"},
 }
 
 # Signatures, first match wins (so a checkpoint, which carries VAEs too, is

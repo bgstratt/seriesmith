@@ -135,6 +135,21 @@ def is_hosted(spec: dict) -> bool:
     return spec.get("router") is not None or spec.get("api") is not None
 
 
+def runs_partner(target) -> bool:
+    """Whether a target's own workflow runs a Comfy partner node (`"_meta": {"partner":
+    true}`, backends.partner): a local job that's paid per run, on the Comfy API key."""
+    b = (target.spec.get("binding") or {}) if target is not None else {}
+    if not b.get("workflow"):
+        return False
+    path = os.path.join(target.folder, b["workflow"])
+    try:
+        with open(path, encoding="utf-8") as fh:
+            graph = json.load(fh)
+    except (OSError, ValueError):
+        return False
+    return any(isinstance(v, dict) and (v.get("_meta") or {}).get("partner") for v in graph.values())
+
+
 def hosted_block(spec: dict) -> dict:
     """The block of a target.json saying how its hosted model is called (its model id,
     its fixed arguments, where each value goes): {} when it has none."""
@@ -739,6 +754,8 @@ class Target:
                           # distilled vs dev), and globs it must not match
                           "keep": [str(k) for k in m.get("keep") or []],
                           "exclude": [str(x) for x in m.get("exclude") or []],
+                          # globs, best first: which substitute wins (resolve_file)
+                          "prefer": [str(x) for x in m.get("prefer") or []],
                           # the audio policies it serves (none: every shot);
                           # a shot rendering another doesn't load it
                           "policies": [str(x) for x in m.get("policies") or []]}
@@ -2251,11 +2268,27 @@ def resolve_file(target: Target, param: str, want: str, installed: list[str],
        name)`, says the family: only for families a header can tell); a tie
        goes to the file of the same precision as `want` (fp8 / int8 / bf16 /
        fp16), then the shortest name. A candidate must keep the spec's `keep`
-       words and match none of its `exclude` globs. Never another family."""
+       words and match none of its `exclude` globs. Never another family.
+
+    A spec with `prefer` (globs, best first) ranks every installed file its
+    patterns name, `want` among them, and the first match wins: Drama 3's
+    quantisations, where `want` is the one the Features window downloads and a
+    larger one downloaded beside it is what's used."""
+    spec = spec if spec is not None else target.models.get(param)
+    if spec and spec.get("prefer"):
+        named = [n for n in installed if modelid.name_matches(n, spec["patterns"])
+                 and not modelid.name_matches(n, spec.get("exclude") or [])]
+        if named:
+            ranks = [next((i for i, p in enumerate(spec["prefer"]) if modelid.name_matches(n, [p])),
+                          len(spec["prefer"])) for n in named]
+            using = min(zip(ranks, range(len(named)), named))[2]
+            if _same_file(using, want):
+                return {"using": using, "how": "exact", "match": "file", "detail": ""}
+            return {"using": using, "how": "family", "match": "name",
+                    "detail": f"the preferred {modelid.family_label(spec['family'])} installed"}
     for name in installed:
         if _same_file(name, want):
             return {"using": name, "how": "exact", "match": "file", "detail": ""}
-    spec = spec if spec is not None else target.models.get(param)
     if not spec or not spec.get("family"):
         return None
     fam = spec["family"]

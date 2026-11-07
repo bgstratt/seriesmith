@@ -174,7 +174,8 @@ def plan(ep: str, target) -> dict:
     todo = [r for r in rows if r["status"] != "ok"]
     recording = os.path.join(DIR, RECORDING).replace("\\", "/")
     return {"target": target.id if target is not None else None, "label": target.label if target is not None else "",
-            "service": service, "paid": bool(service), "lines": rows, "characters": list(people.values()),
+            "service": service, "paid": bool(service) or TG.runs_partner(target),
+            "lines": rows, "characters": list(people.values()),
             "to_make": {"lines": len(todo), "chars": sum(r["chars"] for r in todo)},
             "no_speaker": sorted({r["name"] for r in todo if not r["speaker"]}),
             "recording": recording if os.path.isfile(os.path.join(ep, recording)) else None,
@@ -216,9 +217,9 @@ def call_for(ep: str, line: dict, n: int, target) -> tuple[str, dict]:
     return model, args
 
 
-def held_voice(ep: str, who: str, line_id: str) -> str:
-    """The file a character's other lines continue when it has no sample of its own: the first of its
-    lines made with a local model, in script order. "" for the first line itself."""
+def held_take(ep: str, who: str, line_id: str) -> dict | None:
+    """The take a character's other lines continue when it has no sample of its own: the first of its
+    lines made with a local model, in script order. None for the first line itself."""
     cfg = _config(ep)
     base = _base(cfg, who)
     record = load(ep)
@@ -228,8 +229,14 @@ def held_voice(ep: str, who: str, line_id: str) -> str:
                 continue
             take = _picked(record["lines"].get(ln["id"]) or {})
             if take and str(take.get("voice") or "").startswith("model:"):
-                return os.path.join(ep, take["file"])
-    return ""
+                return take
+    return None
+
+
+def held_voice(ep: str, who: str, line_id: str) -> str:
+    """The file of held_take: "" for none."""
+    take = held_take(ep, who, line_id)
+    return os.path.join(ep, take["file"]) if take else ""
 
 
 def local_job(ep: str, line: dict, n: int, target):
@@ -248,7 +255,10 @@ def local_job(ep: str, line: dict, n: int, target):
                                           seed=stable_seed(os.path.basename(os.path.abspath(ep)), line["id"], str(n)) % (2 ** 31)))[0]
     job.line = line["text"]
     if not (job.ref.file and os.path.isfile(job.ref.file)):
-        job.held_sample = held_voice(ep, line["who"], line["id"])
+        held = held_take(ep, line["who"], line["id"])
+        if held:
+            job.held_sample = os.path.join(ep, held["file"])
+            job.held_text = held.get("text") or ""
     return job
 
 

@@ -2734,6 +2734,7 @@ class GenJob:
     fps: float | None = None
     line: str = ""
     held_sample: str = ""            # continue this file's voice, not the ref's live one (lines.py)
+    held_text: str = ""              # and the words that file says
     line_source: str = ""            # script | neutral | request
     edit: dict = field(default_factory=dict)     # an edit: what it started from (plan_edit)
 
@@ -3775,30 +3776,64 @@ def stage_references(s: Series, job: GenJob, comfy=None) -> dict:
     return job.inputs
 
 
+def voice_sample_text(ref: Ref) -> str:
+    """The words a voice ref's live sample says, when seriesmith knows them:
+    the timings beside it (`<sample>.words.json`, as a recording's), else the
+    line its picked take was asked to say while the sample is still that take.
+    "" when they aren't known (a sample dropped in by hand)."""
+    path = ref.file
+    if not path or not os.path.isfile(path):
+        return ""
+    words = T.read_json_copy(path + ".words.json")
+    if isinstance(words, list) and words:
+        return " ".join(str(w.get("word") or "").strip() for w in words if isinstance(w, dict)).strip()
+    block = read_picks(ref.home)["refs"].get(ref.id) or {}
+    n = block.get("take")
+    if not n or not block.get("sha1") or block.get("sha1") != T.file_sha1(path):
+        return ""
+    try:
+        t = get_take(ref, None, int(n))
+    except (UnknownRef, ValueError):
+        return ""
+    return " ".join(str((t.sidecar or {}).get("line") or "").split())
+
+
 def stage_voice_reference(s: Series, job: GenJob, comfy=None) -> dict:
     """Upload the voice sample an audio target copies (its speaker identity)
     to ComfyUI's input folder and record its name in job.inputs
     ({"reference_audio": "seriesmith/<sha1>.wav", "reference_seconds": 2.1}).
-    What goes up is the sample's head, cut between words (audiocut.voice_clip):
-    the target continues it, so only the voice has to be in it. Only for a
-    target whose `capabilities.reference_audio` is true and a ref whose live
-    file is on disk; otherwise nothing is staged and the target generates the
-    voice from the wording alone. Without `comfy` (a dry run) only the name is
-    worked out."""
+    What goes up is the sample cut between words (audiocut.voice_clip): its
+    head (1.5-2.5 s) for a target that continues it, so only the voice has to
+    be in it; as long as the target's `capabilities.reference_clip` ([shortest,
+    longest] seconds) for one that clones from a clip. A target that wants the
+    clip's words (`capabilities.reference_text`) gets `reference_text` too: the
+    sample's, when seriesmith knows them and the clip is the whole sample, else
+    "" (the target does without). Only for a target whose
+    `capabilities.reference_audio` is true and a ref whose live file is on
+    disk; otherwise nothing is staged and the target generates the voice from
+    the wording alone. Without `comfy` (a dry run) only the name is worked
+    out."""
     from seriesmith import audiocut as AC
     if not job.is_audio or not job.target.capabilities().get("reference_audio"):
         return job.inputs
     path = job.held_sample or job.ref.file
     if not path or not os.path.isfile(path):
         return job.inputs
+    caps = job.target.spec.get("capabilities") or {}
+    lo, hi = caps.get("reference_clip") or (AC.CLIP_MIN, AC.CLIP_MAX)
     try:
-        clip, seconds = AC.voice_clip(path)
+        clip, seconds = AC.voice_clip(path, float(lo), float(hi))
     except AC.CutError as e:
         raise NotUsable(f"{job.ref.id}: {e}") from e
     name = J.input_name(clip)
     if comfy is not None:
         comfy.upload_input(clip, name)
     job.inputs = dict(job.inputs, reference_audio=name, reference_seconds=seconds)
+    if caps.get("reference_text"):
+        total = AC.duration(path)
+        whole = total is not None and float(total) <= float(hi)    # cut short: its words aren't all in it
+        said = (job.held_text if job.held_sample else voice_sample_text(job.ref)) if whole else ""
+        job.inputs["reference_text"] = said
     job.references = [{"role": "voice", "subject": job.ref.subject,
                        "name": job.ref.name, "kind": "voice", "path": path,
                        "seconds": seconds}]

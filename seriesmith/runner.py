@@ -377,7 +377,8 @@ class Runner:
             # downloaded: refused before anything is reserved
             from seriesmith import hubcache as HC
             HC.check_target(job.target, backend)
-        self.reserve(backend, s.ep, "ref")
+        # the target's workflow: a Comfy partner node in it is paid (Fish Audio's voice)
+        self.reserve(backend, s.ep, "ref", None if hosted else base)
         collector = J.InputCollector(keep_dir=os.path.join(R.takes_dir(job.ref), "_staged"))
         if not hosted:
             R.stage_references(s, job, collector)
@@ -577,10 +578,15 @@ class Runner:
         from seriesmith import targets as TG
 
         backend = self.backend_for(backend_name)
-        self.reserve(backend, ep, "line")
+        hosted = TG.is_hosted(target.spec)
+        if not hosted:
+            # what its node pack would fetch by itself (Qwen3-TTS's models), not downloaded:
+            # refused before anything is reserved
+            from seriesmith import hubcache as HC
+            HC.check_target(target, backend)
+        self.reserve(backend, ep, "line", None if hosted else (local or {}).get("base"))
         n = LN.reserve(ep, line, target)
         lid = line["id"]
-        hosted = TG.is_hosted(target.spec)
         call = LN.call_for(ep, line, n, target) if hosted else None
 
         def local_graph() -> tuple[dict, list]:

@@ -1,0 +1,1531 @@
+{
+ "Drama3CodecLoader": {
+  "api_node": false,
+  "category": "audio/drama3",
+  "deprecated": false,
+  "description": "The Fish S2-Pro codec Drama 3 speaks in (tools/convert.py codec): 44.1 kHz, 21.5 frames/s.",
+  "dev_only": false,
+  "display_name": "Load Drama 3 Codec",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "codec_name": [
+     "COMBO",
+     {
+      "multiselect": false,
+      "options": [
+       "drama3_codec.safetensors"
+      ]
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "codec_name"
+   ]
+  },
+  "is_input_list": false,
+  "name": "Drama3CodecLoader",
+  "output": [
+   "DRAMA3_CODEC"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "DRAMA3_CODEC"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "custom_nodes.ComfyUI-Drama3",
+  "search_aliases": null
+ },
+ "Drama3Decode": {
+  "api_node": false,
+  "category": "audio/drama3",
+  "deprecated": false,
+  "description": "Codes to 44.1 kHz audio. Speakers generated separately are decoded take by take and joined in script order with 0.3 s of silence between takes.",
+  "dev_only": false,
+  "display_name": "Drama 3 Decode",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "codec": [
+     "DRAMA3_CODEC",
+     {}
+    ],
+    "codes": [
+     "DRAMA3_CODES",
+     {}
+    ],
+    "shorten_long_pauses": [
+     "BOOLEAN",
+     {
+      "default": true,
+      "tooltip": "Shorten pauses longer than 0.75 s to 0.75 s, cut the silence before the first sound and keep 0.15 s after the last, as Fish Audio's Drama 3 Space does. Off keeps the take as generated."
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "codec",
+    "codes",
+    "shorten_long_pauses"
+   ]
+  },
+  "is_input_list": false,
+  "name": "Drama3Decode",
+  "output": [
+   "AUDIO"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "AUDIO"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "custom_nodes.ComfyUI-Drama3",
+  "search_aliases": null
+ },
+ "Drama3EncodeVoice": {
+  "api_node": false,
+  "category": "audio/drama3",
+  "deprecated": false,
+  "description": "A voice to clone: a clip and its exact transcript. A few seconds of clean speech work best; the clip loses its silent edges and is peak-normalized, as Fish Audio's Drama 3 Space does.",
+  "dev_only": false,
+  "display_name": "Drama 3 Encode Voice",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "audio": [
+     "AUDIO",
+     {}
+    ],
+    "codec": [
+     "DRAMA3_CODEC",
+     {}
+    ],
+    "transcript": [
+     "STRING",
+     {
+      "multiline": true,
+      "tooltip": "What the clip says, word for word (Qwen3-ASR Transcribe can write it). The voice speaks for the speaker of its slot on Drama 3 Generate (voice1 is <|speaker:1|>); a leading <|speaker:N|> tag here picks speaker N instead."
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "codec",
+    "audio",
+    "transcript"
+   ]
+  },
+  "is_input_list": false,
+  "name": "Drama3EncodeVoice",
+  "output": [
+   "DRAMA3_VOICE"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "DRAMA3_VOICE"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "custom_nodes.ComfyUI-Drama3",
+  "search_aliases": null
+ },
+ "Drama3Generate": {
+  "api_node": false,
+  "category": "audio/drama3",
+  "deprecated": false,
+  "description": "Speak the text. Tags such as [sighs] or [laughs] go where the sound should be; <|speaker:N|> switches speakers, and the voice in slot voiceN speaks for speaker N.",
+  "dev_only": false,
+  "display_name": "Drama 3 Generate",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "max_frames": [
+     "INT",
+     {
+      "default": 600,
+      "max": 8192,
+      "min": 1,
+      "tooltip": "At most this many frames per text chunk (21.5 per second of audio); generation ends earlier at end of speech."
+     }
+    ],
+    "model": [
+     "DRAMA3_MODEL",
+     {}
+    ],
+    "seed": [
+     "INT",
+     {
+      "control_after_generate": true,
+      "default": 0,
+      "max": 18446744073709551615,
+      "min": 0
+     }
+    ],
+    "speakers": [
+     "COMBO",
+     {
+      "default": "one take per line",
+      "multiselect": false,
+      "options": [
+       "one take per line",
+       "one take per line, hearing the line before",
+       "one take per speaker",
+       "together"
+      ],
+      "tooltip": "one take per line: each line is generated on its own, with only its speaker's voices and earlier takes in the prompt, as Fish Audio's Drama 3 Space voices a scene; voices cannot bleed into each other, but lines do not hear each other. hearing the line before: the same plus the take before it as context, so lines react again but that take's voice can bleed in. one take per speaker: all of a speaker's lines in one take, cut at the line breaks it says and put back in script order. together: the dialogue as one script, every line hearing the others. Decode and the Editor decode each take on its own."
+     }
+    ],
+    "split_long_text": [
+     "BOOLEAN",
+     {
+      "default": true,
+      "tooltip": "Generate long text in chunks of about 300 bytes, each continuing from the first and the latest chunk, as Fish Audio's own server does."
+     }
+    ],
+    "temperature": [
+     "FLOAT",
+     {
+      "default": 1.0,
+      "max": 2.0,
+      "min": 0.0,
+      "step": 0.05,
+      "tooltip": "1.0 with top_p 0.9 are the defaults of Fish Audio's Drama 3 server and Space; lower values make takes fall silent more often."
+     }
+    ],
+    "text": [
+     "STRING",
+     {
+      "multiline": true
+     }
+    ],
+    "top_k": [
+     "INT",
+     {
+      "default": 0,
+      "max": 4096,
+      "min": 0,
+      "tooltip": "0 keeps every candidate, as Fish Audio's Drama 3 Space does: at a pause a few silence codes outrank the many ways speech resumes, and top_k 30 left 11 of their 40 takes silent."
+     }
+    ],
+    "top_p": [
+     "FLOAT",
+     {
+      "default": 0.9,
+      "max": 1.0,
+      "min": 0.05,
+      "step": 0.05
+     }
+    ],
+    "voices": [
+     "COMFY_AUTOGROW_V3",
+     {
+      "template": {
+       "input": {
+        "required": {
+         "voice": [
+          "DRAMA3_VOICE",
+          {}
+         ]
+        }
+       },
+       "max": 16,
+       "min": 0,
+       "prefix": "voice"
+      }
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "model",
+    "text",
+    "voices",
+    "seed",
+    "temperature",
+    "top_p",
+    "top_k",
+    "max_frames",
+    "split_long_text",
+    "speakers"
+   ]
+  },
+  "is_input_list": false,
+  "name": "Drama3Generate",
+  "output": [
+   "DRAMA3_CODES"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "DRAMA3_CODES"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "custom_nodes.ComfyUI-Drama3",
+  "search_aliases": null
+ },
+ "Drama3Loader": {
+  "api_node": false,
+  "category": "audio/drama3",
+  "deprecated": false,
+  "description": "Fish Audio Drama 3, converted with the pack's tools/convert.py (int8 ConvRot: 36 GB).",
+  "dev_only": false,
+  "display_name": "Load Drama 3",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "expert_cache_gb": [
+     "FLOAT",
+     {
+      "default": 0.0,
+      "max": 256.0,
+      "min": 0.0,
+      "step": 0.5,
+      "tooltip": "VRAM for cached experts when they live in RAM; 0 uses what is free when generation starts."
+     }
+    ],
+    "experts": [
+     "COMBO",
+     {
+      "default": "in RAM",
+      "multiselect": false,
+      "options": [
+       "in RAM",
+       "in VRAM"
+      ],
+      "tooltip": "Where the 256 x 40 routed experts (90% of the model) live. In RAM, each frame copies only the 8 experts per layer it uses and keeps recent ones in a VRAM cache: needs the file's size in system RAM. In VRAM needs the whole file in VRAM (or split over two GPUs)."
+     }
+    ],
+    "model_name": [
+     "COMBO",
+     {
+      "multiselect": false,
+      "options": [
+       "drama3_w4a8experts_bf16.safetensors"
+      ]
+     }
+    ],
+    "second_gpu": [
+     "COMBO",
+     {
+      "advanced": true,
+      "default": "none",
+      "multiselect": false,
+      "options": [
+       "none",
+       "cuda:0"
+      ],
+      "tooltip": "Run the last backbone layers, the head and the tower on this GPU. The int8 file fits two 24 GB cards with the experts in VRAM."
+     }
+    ],
+    "split_layer": [
+     "INT",
+     {
+      "advanced": true,
+      "default": 0,
+      "max": 39,
+      "min": 0,
+      "tooltip": "First layer on the second GPU; 0 balances the two cards' free memory."
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "model_name",
+    "experts",
+    "expert_cache_gb",
+    "second_gpu",
+    "split_layer"
+   ]
+  },
+  "is_input_list": false,
+  "name": "Drama3Loader",
+  "output": [
+   "DRAMA3_MODEL"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "DRAMA3_MODEL"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "custom_nodes.ComfyUI-Drama3",
+  "search_aliases": null
+ },
+ "FB_Qwen3TTSVoiceClone": {
+  "category": "Qwen3-TTS",
+  "description": "VoiceClone: Clone voice from reference audio.",
+  "display_name": "\ud83c\udfad Qwen3-TTS VoiceClone",
+  "has_intermediate_output": false,
+  "input": {
+   "optional": {
+    "attention": [
+     [
+      "auto",
+      "sage_attn",
+      "flash_attn",
+      "sdpa",
+      "eager"
+     ],
+     {
+      "default": "auto",
+      "tooltip": "Attention implementation"
+     }
+    ],
+    "custom_model_path": [
+     "STRING",
+     {
+      "default": "",
+      "placeholder": "Absolute path to local fine-tuned model"
+     }
+    ],
+    "instruct": [
+     "STRING",
+     {
+      "default": "",
+      "multiline": true,
+      "placeholder": "Optional style/emotion, e.g. \u7528\u6124\u6012\u7684\u8bed\u6c14\u8bf4"
+     }
+    ],
+    "max_new_tokens": [
+     "INT",
+     {
+      "default": 2048,
+      "max": 4096,
+      "min": 512,
+      "step": 256
+     }
+    ],
+    "ref_audio": [
+     "AUDIO",
+     {
+      "tooltip": "Reference audio (ComfyUI Audio)"
+     }
+    ],
+    "ref_text": [
+     "STRING",
+     {
+      "default": "",
+      "multiline": true,
+      "placeholder": "Reference audio text (optional)"
+     }
+    ],
+    "repetition_penalty": [
+     "FLOAT",
+     {
+      "default": 1.05,
+      "max": 2.0,
+      "min": 1.0,
+      "step": 0.05,
+      "tooltip": "Penalty for repetition"
+     }
+    ],
+    "seed": [
+     "INT",
+     {
+      "control_after_generate": true,
+      "default": 0,
+      "max": 18446744073709551615,
+      "min": 0
+     }
+    ],
+    "temperature": [
+     "FLOAT",
+     {
+      "default": 0.9,
+      "max": 2.0,
+      "min": 0.1,
+      "step": 0.1,
+      "tooltip": "Sampling temperature"
+     }
+    ],
+    "top_k": [
+     "INT",
+     {
+      "default": 50,
+      "max": 100,
+      "min": 0,
+      "step": 1,
+      "tooltip": "Top-k sampling parameter"
+     }
+    ],
+    "top_p": [
+     "FLOAT",
+     {
+      "default": 1.0,
+      "max": 1.0,
+      "min": 0.0,
+      "step": 0.05,
+      "tooltip": "Nucleus sampling probability"
+     }
+    ],
+    "unload_model_after_generate": [
+     "BOOLEAN",
+     {
+      "default": false,
+      "tooltip": "Unload model from memory after generation"
+     }
+    ],
+    "voice_clone_prompt": [
+     "VOICE_CLONE_PROMPT",
+     {
+      "tooltip": "Reusable voice clone prompt from VoiceClonePromptNode"
+     }
+    ],
+    "x_vector_only": [
+     "BOOLEAN",
+     {
+      "default": false
+     }
+    ]
+   },
+   "required": {
+    "device": [
+     [
+      "auto",
+      "cuda",
+      "xpu",
+      "mps",
+      "cpu"
+     ],
+     {
+      "default": "auto"
+     }
+    ],
+    "language": [
+     [
+      "Auto",
+      "Chinese",
+      "English",
+      "Japanese",
+      "Korean",
+      "French",
+      "German",
+      "Spanish",
+      "Portuguese",
+      "Russian",
+      "Italian"
+     ],
+     {
+      "default": "Auto"
+     }
+    ],
+    "model_choice": [
+     [
+      "0.6B",
+      "1.7B"
+     ],
+     {
+      "default": "0.6B"
+     }
+    ],
+    "precision": [
+     [
+      "bf16",
+      "fp32"
+     ],
+     {
+      "default": "bf16"
+     }
+    ],
+    "target_text": [
+     "STRING",
+     {
+      "default": "Good one. Okay, fine, I'm just gonna leave this sock monkey here. Goodbye.",
+      "multiline": true
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "optional": [
+    "ref_audio",
+    "ref_text",
+    "voice_clone_prompt",
+    "seed",
+    "max_new_tokens",
+    "top_p",
+    "top_k",
+    "temperature",
+    "repetition_penalty",
+    "x_vector_only",
+    "instruct",
+    "attention",
+    "unload_model_after_generate",
+    "custom_model_path"
+   ],
+   "required": [
+    "target_text",
+    "model_choice",
+    "device",
+    "precision",
+    "language"
+   ]
+  },
+  "is_input_list": false,
+  "name": "FB_Qwen3TTSVoiceClone",
+  "output": [
+   "AUDIO"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "audio"
+  ],
+  "output_node": false,
+  "python_module": "custom_nodes.ComfyUI-Qwen-TTS",
+  "search_aliases": []
+ },
+ "FB_Qwen3TTSVoiceDesign": {
+  "category": "Qwen3-TTS",
+  "description": "VoiceDesign: Generate custom voices from descriptions.",
+  "display_name": "\ud83c\udfa8 Qwen3-TTS VoiceDesign",
+  "has_intermediate_output": false,
+  "input": {
+   "optional": {
+    "attention": [
+     [
+      "auto",
+      "sage_attn",
+      "flash_attn",
+      "sdpa",
+      "eager"
+     ],
+     {
+      "default": "auto",
+      "tooltip": "Attention implementation"
+     }
+    ],
+    "max_new_tokens": [
+     "INT",
+     {
+      "default": 2048,
+      "max": 4096,
+      "min": 512,
+      "step": 256
+     }
+    ],
+    "repetition_penalty": [
+     "FLOAT",
+     {
+      "default": 1.05,
+      "max": 2.0,
+      "min": 1.0,
+      "step": 0.05,
+      "tooltip": "Penalty for repetition"
+     }
+    ],
+    "seed": [
+     "INT",
+     {
+      "control_after_generate": true,
+      "default": 0,
+      "max": 18446744073709551615,
+      "min": 0
+     }
+    ],
+    "temperature": [
+     "FLOAT",
+     {
+      "default": 0.9,
+      "max": 2.0,
+      "min": 0.1,
+      "step": 0.1,
+      "tooltip": "Sampling temperature"
+     }
+    ],
+    "top_k": [
+     "INT",
+     {
+      "default": 50,
+      "max": 100,
+      "min": 0,
+      "step": 1,
+      "tooltip": "Top-k sampling parameter"
+     }
+    ],
+    "top_p": [
+     "FLOAT",
+     {
+      "default": 1.0,
+      "max": 1.0,
+      "min": 0.0,
+      "step": 0.05,
+      "tooltip": "Nucleus sampling probability"
+     }
+    ],
+    "unload_model_after_generate": [
+     "BOOLEAN",
+     {
+      "default": false,
+      "tooltip": "Unload model from memory after generation"
+     }
+    ]
+   },
+   "required": {
+    "device": [
+     [
+      "auto",
+      "cuda",
+      "xpu",
+      "mps",
+      "cpu"
+     ],
+     {
+      "default": "auto"
+     }
+    ],
+    "instruct": [
+     "STRING",
+     {
+      "default": "",
+      "multiline": true,
+      "placeholder": "Style instruction (required for VoiceDesign)"
+     }
+    ],
+    "language": [
+     [
+      "Auto",
+      "Chinese",
+      "English",
+      "Japanese",
+      "Korean",
+      "French",
+      "German",
+      "Spanish",
+      "Portuguese",
+      "Russian",
+      "Italian"
+     ],
+     {
+      "default": "Auto"
+     }
+    ],
+    "model_choice": [
+     [
+      "0.6B",
+      "1.7B"
+     ],
+     {
+      "default": "1.7B"
+     }
+    ],
+    "precision": [
+     [
+      "bf16",
+      "fp32"
+     ],
+     {
+      "default": "bf16"
+     }
+    ],
+    "text": [
+     "STRING",
+     {
+      "default": "Hello world",
+      "multiline": true,
+      "placeholder": "Enter text to synthesize"
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "optional": [
+    "seed",
+    "max_new_tokens",
+    "top_p",
+    "top_k",
+    "temperature",
+    "repetition_penalty",
+    "attention",
+    "unload_model_after_generate"
+   ],
+   "required": [
+    "text",
+    "instruct",
+    "model_choice",
+    "device",
+    "precision",
+    "language"
+   ]
+  },
+  "is_input_list": false,
+  "name": "FB_Qwen3TTSVoiceDesign",
+  "output": [
+   "AUDIO"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_name": [
+   "audio"
+  ],
+  "output_node": false,
+  "python_module": "custom_nodes.ComfyUI-Qwen-TTS",
+  "search_aliases": []
+ },
+ "FishAudioInstantVoiceClone": {
+  "api_node": true,
+  "category": "partner/audio/Fish Audio",
+  "deprecated": false,
+  "description": "Create a private cloned voice from audio samples, instantly usable for text-to-speech. Provide 1-20 recordings, 10-30 seconds each recommended, under 270 seconds in total.",
+  "dev_only": false,
+  "display_name": "Fish Audio Instant Voice Clone",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "hidden": {
+    "api_key_comfy_org": [
+     "API_KEY_COMFY_ORG"
+    ],
+    "auth_token_comfy_org": [
+     "AUTH_TOKEN_COMFY_ORG"
+    ],
+    "comfy_usage_source": [
+     "COMFY_USAGE_SOURCE"
+    ],
+    "unique_id": [
+     "UNIQUE_ID"
+    ]
+   },
+   "required": {
+    "enhance_audio_quality": [
+     "BOOLEAN",
+     {
+      "default": true,
+      "tooltip": "Enhance reference audio quality before training."
+     }
+    ],
+    "files": [
+     "COMFY_AUTOGROW_V3",
+     {
+      "template": {
+       "input": {
+        "required": {
+         "audio": [
+          "AUDIO",
+          {}
+         ]
+        }
+       },
+       "max": 20,
+       "min": 1,
+       "prefix": "audio"
+      },
+      "tooltip": "Audio recordings for voice cloning."
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "hidden": [
+    "auth_token_comfy_org",
+    "api_key_comfy_org",
+    "unique_id",
+    "comfy_usage_source"
+   ],
+   "required": [
+    "files",
+    "enhance_audio_quality"
+   ]
+  },
+  "is_input_list": false,
+  "name": "FishAudioInstantVoiceClone",
+  "output": [
+   "FISHAUDIO_VOICE"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "voice"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": {
+   "depends_on": {
+    "input_groups": [],
+    "inputs": [],
+    "widgets": []
+   },
+   "engine": "jsonata",
+   "expr": "{\"type\":\"usd\",\"usd\":0}"
+  },
+  "python_module": "comfy_api_nodes.nodes_fishaudio",
+  "search_aliases": null
+ },
+ "FishAudioTextToSpeech": {
+  "api_node": true,
+  "category": "partner/audio/Fish Audio",
+  "deprecated": false,
+  "description": "Convert text to speech. Supports emotion cues in the text ([happy], [whispering] on s2.1-pro; (happy) on s1), plain-language [directions] and `<whisper>...</whisper>` word tags on drama-3, and multi-speaker dialogue via @Voice1/@Voice2 tags with multiple connected voices.",
+  "dev_only": false,
+  "display_name": "Fish Audio Text to Speech",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "hidden": {
+    "api_key_comfy_org": [
+     "API_KEY_COMFY_ORG"
+    ],
+    "auth_token_comfy_org": [
+     "AUTH_TOKEN_COMFY_ORG"
+    ],
+    "comfy_usage_source": [
+     "COMFY_USAGE_SOURCE"
+    ],
+    "unique_id": [
+     "UNIQUE_ID"
+    ]
+   },
+   "required": {
+    "model": [
+     "COMFY_DYNAMICCOMBO_V3",
+     {
+      "options": [
+       {
+        "inputs": {
+         "required": {
+          "normalize": [
+           "BOOLEAN",
+           {
+            "default": true,
+            "tooltip": "Normalize numbers and text for English and Chinese, improving stability for numbers and dates."
+           }
+          ],
+          "speed": [
+           "FLOAT",
+           {
+            "default": 1.0,
+            "display": "slider",
+            "max": 2.0,
+            "min": 0.5,
+            "step": 0.01,
+            "tooltip": "Speaking rate. 1.0 is normal, <1.0 slower, >1.0 faster."
+           }
+          ],
+          "temperature": [
+           "FLOAT",
+           {
+            "default": 0.7,
+            "display": "slider",
+            "max": 1.0,
+            "min": 0.0,
+            "step": 0.01,
+            "tooltip": "Expressiveness. Higher values are more varied, lower values are more consistent."
+           }
+          ],
+          "top_p": [
+           "FLOAT",
+           {
+            "default": 0.7,
+            "display": "slider",
+            "max": 1.0,
+            "min": 0.01,
+            "step": 0.01,
+            "tooltip": "Diversity via nucleus sampling."
+           }
+          ],
+          "voices": [
+           "COMFY_AUTOGROW_V3",
+           {
+            "template": {
+             "input": {
+              "required": {
+               "voice": [
+                "FISHAUDIO_VOICE",
+                {}
+               ]
+              }
+             },
+             "max": 5,
+             "min": 0,
+             "prefix": "voice"
+            },
+            "tooltip": "Voices for synthesis. Leave empty for a random voice. With two or more voices, mark speaker changes in the text with @Voice1, @Voice2, etc."
+           }
+          ],
+          "volume": [
+           "FLOAT",
+           {
+            "default": 0.0,
+            "display": "slider",
+            "max": 10.0,
+            "min": -10.0,
+            "step": 0.5,
+            "tooltip": "Volume adjustment in decibels. 0 is no change."
+           }
+          ]
+         }
+        },
+        "key": "drama-3"
+       },
+       {
+        "inputs": {
+         "required": {
+          "normalize": [
+           "BOOLEAN",
+           {
+            "default": true,
+            "tooltip": "Normalize numbers and text for English and Chinese, improving stability for numbers and dates."
+           }
+          ],
+          "speed": [
+           "FLOAT",
+           {
+            "default": 1.0,
+            "display": "slider",
+            "max": 2.0,
+            "min": 0.5,
+            "step": 0.01,
+            "tooltip": "Speaking rate. 1.0 is normal, <1.0 slower, >1.0 faster."
+           }
+          ],
+          "temperature": [
+           "FLOAT",
+           {
+            "default": 0.7,
+            "display": "slider",
+            "max": 1.0,
+            "min": 0.0,
+            "step": 0.01,
+            "tooltip": "Expressiveness. Higher values are more varied, lower values are more consistent."
+           }
+          ],
+          "top_p": [
+           "FLOAT",
+           {
+            "default": 0.7,
+            "display": "slider",
+            "max": 1.0,
+            "min": 0.01,
+            "step": 0.01,
+            "tooltip": "Diversity via nucleus sampling."
+           }
+          ],
+          "voices": [
+           "COMFY_AUTOGROW_V3",
+           {
+            "template": {
+             "input": {
+              "required": {
+               "voice": [
+                "FISHAUDIO_VOICE",
+                {}
+               ]
+              }
+             },
+             "max": 5,
+             "min": 0,
+             "prefix": "voice"
+            },
+            "tooltip": "Voices for synthesis. Leave empty for a random voice. With two or more voices, mark speaker changes in the text with @Voice1, @Voice2, etc."
+           }
+          ],
+          "volume": [
+           "FLOAT",
+           {
+            "default": 0.0,
+            "display": "slider",
+            "max": 10.0,
+            "min": -10.0,
+            "step": 0.5,
+            "tooltip": "Volume adjustment in decibels. 0 is no change."
+           }
+          ]
+         }
+        },
+        "key": "s2.1-pro"
+       },
+       {
+        "inputs": {
+         "optional": {
+          "voice": [
+           "FISHAUDIO_VOICE",
+           {
+            "tooltip": "Voice for synthesis. Leave unconnected for a random voice."
+           }
+          ]
+         },
+         "required": {
+          "normalize": [
+           "BOOLEAN",
+           {
+            "default": true,
+            "tooltip": "Normalize numbers and text for English and Chinese, improving stability for numbers and dates."
+           }
+          ],
+          "speed": [
+           "FLOAT",
+           {
+            "default": 1.0,
+            "display": "slider",
+            "max": 2.0,
+            "min": 0.5,
+            "step": 0.01,
+            "tooltip": "Speaking rate. 1.0 is normal, <1.0 slower, >1.0 faster."
+           }
+          ],
+          "temperature": [
+           "FLOAT",
+           {
+            "default": 0.7,
+            "display": "slider",
+            "max": 1.0,
+            "min": 0.0,
+            "step": 0.01,
+            "tooltip": "Expressiveness. Higher values are more varied, lower values are more consistent."
+           }
+          ],
+          "top_p": [
+           "FLOAT",
+           {
+            "default": 0.7,
+            "display": "slider",
+            "max": 1.0,
+            "min": 0.01,
+            "step": 0.01,
+            "tooltip": "Diversity via nucleus sampling."
+           }
+          ],
+          "volume": [
+           "FLOAT",
+           {
+            "default": 0.0,
+            "display": "slider",
+            "max": 10.0,
+            "min": -10.0,
+            "step": 0.5,
+            "tooltip": "Volume adjustment in decibels. 0 is no change."
+           }
+          ]
+         }
+        },
+        "key": "s1"
+       }
+      ],
+      "tooltip": "Model to use for text-to-speech."
+     }
+    ],
+    "seed": [
+     "INT",
+     {
+      "control_after_generate": true,
+      "default": 42,
+      "display": "number",
+      "max": 2147483647,
+      "min": 0,
+      "tooltip": "Seed controls whether the node should re-run; results are non-deterministic regardless of seed."
+     }
+    ],
+    "text": [
+     "STRING",
+     {
+      "default": "",
+      "multiline": true,
+      "tooltip": "The text to convert to speech. With two or more voices connected, mark speaker changes with @Voice1, @Voice2, etc."
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "hidden": [
+    "auth_token_comfy_org",
+    "api_key_comfy_org",
+    "unique_id",
+    "comfy_usage_source"
+   ],
+   "required": [
+    "text",
+    "model",
+    "seed"
+   ]
+  },
+  "is_input_list": false,
+  "name": "FishAudioTextToSpeech",
+  "output": [
+   "AUDIO"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "AUDIO"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": {
+   "depends_on": {
+    "input_groups": [],
+    "inputs": [],
+    "widgets": [
+     {
+      "name": "text",
+      "type": "STRING"
+     },
+     {
+      "name": "model",
+      "type": "COMFY_DYNAMICCOMBO_V3"
+     }
+    ]
+   },
+   "engine": "jsonata",
+   "expr": "\n                (\n                  $t := widgets.text;\n                  $rate := widgets.model = \"drama-3\"\n                    ? ($now() < \"2026-11-13T00:00:00.000Z\" ? 14.3 : 35.75)\n                    : 21.45;\n                  $type($t) = \"string\"\n                    ? (\n                        $bytes := $length($t) + 2 * $count($match($t, /[^\\x00-\\x7F]/));\n                        {\"type\":\"usd\",\"usd\": $bytes * $rate / 1000000, \"format\":{\"approximate\":true}}\n                      )\n                    : {\"type\":\"usd\",\"usd\": $rate / 1000, \"format\":{\"approximate\":true, \"suffix\":\"/1K bytes\"}}\n                )\n                "
+  },
+  "python_module": "comfy_api_nodes.nodes_fishaudio",
+  "search_aliases": null
+ },
+ "H3SaveRefAudio": {
+  "input": {
+   "required": {
+    "audio": [
+     "AUDIO"
+    ],
+    "sidecar": [
+     "STRING",
+     {
+      "default": ""
+     }
+    ]
+   }
+  },
+  "name": "H3SaveRefAudio",
+  "output": [
+   "STRING"
+  ]
+ },
+ "LoadAudio": {
+  "api_node": false,
+  "category": "audio",
+  "deprecated": false,
+  "description": "",
+  "dev_only": false,
+  "display_name": "Load Audio",
+  "essentials_category": "Audio",
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "audio": [
+     "COMBO",
+     {
+      "audio_upload": true,
+      "multiselect": false,
+      "options": []
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "audio"
+   ]
+  },
+  "is_input_list": false,
+  "name": "LoadAudio",
+  "output": [
+   "AUDIO"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "AUDIO"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "comfy_extras.nodes_audio",
+  "search_aliases": [
+   "import audio",
+   "open audio",
+   "audio file"
+  ]
+ },
+ "Qwen3ASRLoader": {
+  "api_node": false,
+  "category": "audio/qwen3_asr",
+  "deprecated": false,
+  "description": "Qwen3-ASR speech recognition (1.7B or 0.6B), converted with the pack's tools/convert.py asr (models/asr).",
+  "dev_only": false,
+  "display_name": "Load Qwen3-ASR",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "model_name": [
+     "COMBO",
+     {
+      "multiselect": false,
+      "options": [
+       "qwen3_asr_0.6b_bf16.safetensors"
+      ]
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "model_name"
+   ]
+  },
+  "is_input_list": false,
+  "name": "Qwen3ASRLoader",
+  "output": [
+   "QWEN3_ASR_MODEL"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "QWEN3_ASR_MODEL"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "custom_nodes.ComfyUI-Drama3",
+  "search_aliases": null
+ },
+ "Qwen3ASRTranscribe": {
+  "api_node": false,
+  "category": "audio/qwen3_asr",
+  "deprecated": false,
+  "description": "Speech to text in 30 languages and 22 Chinese dialects, singing included. Its text can feed Drama 3 Encode Voice's transcript.",
+  "dev_only": false,
+  "display_name": "Qwen3-ASR Transcribe",
+  "essentials_category": null,
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "required": {
+    "audio": [
+     "AUDIO",
+     {}
+    ],
+    "context": [
+     "STRING",
+     {
+      "default": "",
+      "multiline": true,
+      "tooltip": "Optional text that helps recognition: names, terms, the topic."
+     }
+    ],
+    "language": [
+     "COMBO",
+     {
+      "default": "auto",
+      "multiselect": false,
+      "options": [
+       "auto",
+       "Chinese",
+       "English",
+       "Cantonese",
+       "Arabic",
+       "German",
+       "French",
+       "Spanish",
+       "Portuguese",
+       "Indonesian",
+       "Italian",
+       "Korean",
+       "Russian",
+       "Thai",
+       "Vietnamese",
+       "Japanese",
+       "Turkish",
+       "Hindi",
+       "Malay",
+       "Dutch",
+       "Swedish",
+       "Danish",
+       "Finnish",
+       "Polish",
+       "Czech",
+       "Filipino",
+       "Persian",
+       "Greek",
+       "Romanian",
+       "Hungarian",
+       "Macedonian"
+      ],
+      "tooltip": "auto detects the language; naming it writes the text without detecting."
+     }
+    ],
+    "max_new_tokens": [
+     "INT",
+     {
+      "advanced": true,
+      "default": 4096,
+      "max": 32768,
+      "min": 1,
+      "tooltip": "At most this many tokens per 20 minutes of audio."
+     }
+    ],
+    "model": [
+     "QWEN3_ASR_MODEL",
+     {}
+    ]
+   }
+  },
+  "input_order": {
+   "required": [
+    "model",
+    "audio",
+    "language",
+    "context",
+    "max_new_tokens"
+   ]
+  },
+  "is_input_list": false,
+  "name": "Qwen3ASRTranscribe",
+  "output": [
+   "STRING",
+   "STRING"
+  ],
+  "output_is_list": [
+   false,
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "text",
+   "language"
+  ],
+  "output_node": false,
+  "output_tooltips": [
+   null,
+   null
+  ],
+  "price_badge": null,
+  "python_module": "custom_nodes.ComfyUI-Drama3",
+  "search_aliases": null
+ },
+ "SaveAudio": {
+  "api_node": false,
+  "category": "audio",
+  "deprecated": true,
+  "description": "",
+  "dev_only": false,
+  "display_name": "Save Audio (FLAC) (DEPRECATED)",
+  "essentials_category": "Audio",
+  "experimental": false,
+  "has_intermediate_output": false,
+  "input": {
+   "hidden": {
+    "extra_pnginfo": [
+     "EXTRA_PNGINFO"
+    ],
+    "prompt": [
+     "PROMPT"
+    ]
+   },
+   "required": {
+    "audio": [
+     "AUDIO",
+     {}
+    ],
+    "filename_prefix": [
+     "STRING",
+     {
+      "default": "audio/ComfyUI",
+      "multiline": false
+     }
+    ]
+   }
+  },
+  "input_order": {
+   "hidden": [
+    "prompt",
+    "extra_pnginfo"
+   ],
+   "required": [
+    "audio",
+    "filename_prefix"
+   ]
+  },
+  "is_input_list": false,
+  "name": "SaveAudio",
+  "output": [
+   "AUDIO"
+  ],
+  "output_is_list": [
+   false
+  ],
+  "output_matchtypes": null,
+  "output_name": [
+   "audio"
+  ],
+  "output_node": true,
+  "output_tooltips": [
+   null
+  ],
+  "price_badge": null,
+  "python_module": "comfy_extras.nodes_audio",
+  "search_aliases": [
+   "export flac"
+  ]
+ }
+}

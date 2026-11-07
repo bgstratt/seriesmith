@@ -41,7 +41,9 @@ export function voiceCapNotes(t: Pick<Target, "capabilities"> | undefined): stri
   const c = t?.capabilities;
   if (!c) return [];
   const out: string[] = [];
-  out.push(c.reference_audio
+  out.push(c.mode === "voice_clone"
+    ? "It clones this ref's current sample when it has one: sent the character's line alone, it says it in that voice, as long as the line takes (close, not exact; listen before you pick). Without a sample the voice comes from the character's description."
+    : c.reference_audio
     ? "It copies the voice from this ref's current sample when it has one: Generate carries on in that voice with the character's line (close, not exact; listen before you pick). Without a sample the wording makes the voice."
     : "It can't copy an existing voice: the sample is made from the wording only (the character's `voice` line and design), so it won't sound like a recording you already have. Use “a line from a take…” for that.");
   if (c.max_seconds) out.push(`Samples are at most ${Math.round(c.max_seconds)} seconds.`);

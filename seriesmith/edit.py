@@ -2235,7 +2235,7 @@ def readiness(targets, object_info: dict | None, resolve=None, cache=None,
                     missing[("fetches", item.name)] = {
                         "param": "fetches", "tier": "required", "want": item.name,
                         "family": None, "label": item.label or item.name,
-                        "folder": (f"{item.folder}/{item.name}" if item.folder not in HC.PLACES
+                        "folder": (f"{item.folder}/{HC.in_folder(item)}" if item.folder not in HC.PLACES
                                    else None),
                         "url": item.url,
                         "source": f"{HC.where_text(item)}: download it in the Features window "

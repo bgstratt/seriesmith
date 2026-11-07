@@ -461,7 +461,9 @@ def check_graph(api: dict, object_info: dict | None = None) -> list[str]:
     node in the graph. With ComfyUI's /object_info (or a trimmed copy, {class:
     {"input": {"required": {...}}, "output": [...]}}), every class must be
     known, every linked slot must exist, and every required input must be set
-    (a dynamic input like ComfyMathExpression's `values` is set by `values.a`)."""
+    (a dynamic input like ComfyMathExpression's `values` is set by `values.a`;
+    one that grows from none, an autogrow with `min` 0, may be left out: Drama 3
+    Generate's `voices` with no voice to clone)."""
     out = []
     for nid, node in api.items():
         ctype = node.get("class_type")
@@ -481,8 +483,11 @@ def check_graph(api: dict, object_info: dict | None = None) -> list[str]:
                     out.append(f"{nid} ({ctype}).{name}: {src['class_type']} has no "
                                f"output {v[1]}")
         if info is not None:
-            for req in (info.get("input") or {}).get("required") or {}:
+            for req, spec in ((info.get("input") or {}).get("required") or {}).items():
                 if req not in have and not any(k.startswith(req + ".") for k in have):
+                    grows = spec[1] if isinstance(spec, list) and len(spec) > 1 and isinstance(spec[1], dict) else {}
+                    if spec and spec[0] == "COMFY_AUTOGROW_V3" and not grows.get("min"):
+                        continue
                     out.append(f"{nid} ({ctype}): required input {req!r} is not set")
     return out
 
