@@ -182,13 +182,13 @@ A model that ships with seriesmith is a folder, `seriesmith/targets/<kind>/<id>/
 |---|---|
 | `id`, `kind`, `label`, `short` | its name, what it makes, and how the pickers show it |
 | `code` | what turns a shot into a render: `builtin:router_video` / `builtin:router_image` for a Router model, or the folder's own `compile.py` / `target.py` |
-| `capabilities` | where it runs (`backends`), whether a seed repeats a take, how many subjects it takes |
+| `capabilities` | where it runs (`backends`), whether a seed repeats a take, how many subjects it takes; a voice model, whether it copies a character's sample (`reference_audio`), how long a clip of it it wants (`reference_clip`, [shortest, longest] seconds: left out, the 1.5–2.5 s head a model continues) and whether it wants the clip's words too (`reference_text`) |
 | `template` | its length grid (frames, fps) and the sizes it can make |
 | `recipe` | the audio it renders (`policies`, and its `policy_fallback`), its keyframes, its prompt style, its reference pictures |
 | `router` | a Router model's request: the model id, and where each value goes (`inputs`) |
 | `binding` | a local model's workflow, and which node widget takes each value |
-| `models`, `downloads`, `nodes` | a local model's files (each with a family and name patterns), where to download each, and any node classes beyond its workflow's |
-| `fetches` | what its node pack downloads by itself the first time it runs (a Hugging Face repo, `into` its cache, `"hf"`, or a models folder, with the `files` it reads): the Features window downloads it instead, and readiness holds the model back until it's there |
+| `models`, `downloads`, `nodes` | a local model's files (each with a family and name patterns, and `prefer` when several sizes of one model can stand in: the first pattern installed wins, the wanted file included), where to download each, and any node classes beyond its workflow's |
+| `fetches` | what its node pack downloads by itself the first time it runs (a Hugging Face repo, `into` its cache, `"hf"`, or a models folder, with the `files` it reads, and the folder it goes in there, `dir`, when the pack reads it by another name than the repo's): the Features window downloads it instead, and readiness holds the model back until it's there |
 | `presets` | the `final` and `proxy` passes' model, steps and size |
 
 The Features window and INSTALL.md's model list are built from `models` and `downloads`

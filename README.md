@@ -102,6 +102,9 @@ for its new target when it is queued; no rebuild.
 | Audio target | Label |
 |---|---|
 | `ltx2_voice` (default for voices) | LTX-2.5 audio-only: one speaking voice from a character's `voice` line |
+| `drama3` | Fish Audio Drama 3: a character's voice sample cloned |
+| `qwen3_tts` | Qwen3-TTS: a voice designed from a character's description, then cloned |
+| `fishaudio_drama3` | Drama 3 hosted, through ComfyUI's Fish Audio partner nodes (paid) |
 | `stable_audio3` (default for score) | Stable Audio 3 Medium: music cues |
 | `ace_step15` | ACE-Step 1.5 XL: music cues, and repaint (bars of a take made again) |
 | `yue2` (default for songs) | YuE2: songs, sung from lyrics (non-commercial licence) |

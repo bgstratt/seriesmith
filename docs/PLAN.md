@@ -2289,6 +2289,31 @@ download with the key). Reading the reference moved up from step 7 (decided with
       before this, or a recording replaced by hand, can't say what changed, and goes stale as it did.
 - [ ] Only if it proves needed: a script field for a pause between lines in one shot.
 - Replaces "ElevenLabs and the like as voice models" under "Voices before the picture".
+- [x] **Voice models that clone** (2026-11-07, decided with the user after a listening test in
+      ComfyUI): `drama3` (Fish Audio Drama 3 on PedroMarinhoDev's ComfyUI-Drama3), `qwen3_tts`
+      (Qwen3-TTS 1.7B on flybirdxx's ComfyUI-Qwen-TTS) and `fishaudio_drama3` (Drama 3 through
+      ComfyUI's Fish Audio partner nodes, paid). Each is sent the words alone and clones the
+      character's sample (`capabilities.reference_clip`: 5-20 s, 10-30 s for Fish, not LTX's
+      1.5-2.5 s head; `reference_text`: the sample's words when seriesmith knows them, the line its
+      take was asked to say or a recording's timings); Drama 3 hears them itself (Qwen3-ASR in the
+      graph). With no sample: Drama 3 picks a voice steered by the `voice` line as a bracketed
+      direction, Qwen designs one from the description (VoiceDesign's instruct). Features: Drama 3
+      with W4A8 (24.6 GB), and W6A8 / int8 offered beside it, the largest installed used (a models
+      spec's `prefer`); Qwen's three models fetched into `models/qwen-tts/<model>/` (a fetch's `dir`:
+      the pack reads them there, not under `Qwen/` as its README draws, and downloaded them by itself
+      when they weren't). A line's take on a local model is checked for fetches, and a partner node's
+      take counted against the paid limit, as a ref's is. Live through `seriesmith refs --voices`
+      (RTX 5090): every take's words right; Charming cloned at 136 Hz (Drama 3) and 119 Hz (Qwen)
+      against his sample's 122; neither read a description aloud.
+- [ ] Drama 3 reloads its 24.6 GB model for every job (23-30 s of a ~50 s take): ComfyUI doesn't
+      keep it between prompts. Find out why (its cache, or the pack's loader) before a lines run of
+      a whole episode.
+- [ ] `fishaudio_drama3` live: not run, it's paid. Each take's Instant Voice Clone makes a private
+      voice on Fish Audio's side; ComfyUI reuses the node's output while the sample is the same, but
+      a restart makes another.
+- [ ] Qwen's cloning on transformers 5.21+ waits on flybirdxx/ComfyUI-Qwen-TTS#115 (opened
+      2026-11-07); until it merges, the pack from GitHub fails a clone with "property 'upsample' ...
+      has no setter".
 
 **7. Presets**
 - [ ] Presets as data files: fal, Replicate, ElevenLabs, Runway, BytePlus, Atlas, OpenAI, xAI,

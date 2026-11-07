@@ -234,6 +234,9 @@ ref's own. Every picture model, and the voice model:
 | audio target | what it is |
 |---|---|
 | `ltx2_voice` | LTX-2.5 audio-only: one speaking voice saying a line from the script, from the character's `voice` line, or continuing the voice ref's own sample when it has one (the default for voices) |
+| `drama3` | Fish Audio Drama 3 (ComfyUI-Drama3): a character's sample cloned, the words alone sent; with no sample, its own voice steered by the `voice` line |
+| `qwen3_tts` | Qwen3-TTS 1.7B (ComfyUI-Qwen-TTS): a voice designed from the character's description, then cloned from their sample |
+| `fishaudio_drama3` | Drama 3 hosted, through ComfyUI's Fish Audio partner nodes: the sample cloned on Fish Audio's side, paid per take on the Comfy API key |
 
 What each picture model takes (generated from the models by `python tools/make_refs_md.py`):
 
@@ -296,6 +299,24 @@ sample (cut in a pause between words) are played to `ltx2_voice`, which carries 
 voice with the character's line, and that head is cut off again. So a short or rough
 recording, or a few seconds cut from a take, becomes a clean sample of the character saying
 their own words. The voice comes out close, not identical: listen before you pick.
+
+Three voice models **clone** a sample instead of continuing it, sent the words alone; pick one
+under **Voices with:** on the Refs tab, or as the series config's `refs.voice_target`:
+
+- **Fish Audio Drama 3** (`drama3`): [ComfyUI-Drama3](https://github.com/PedroMarinhoDev/ComfyUI-Drama3),
+  its codec, Qwen3-ASR (which hears the sample's words) and one size of its experts. The
+  Features window downloads W4A8 (24.6 GB) and offers W6A8 (32.7 GB) and int8 (38.7 GB) beside
+  it: the largest installed is used. The experts stay in system RAM (about the file's size plus
+  8 GB free) with the free VRAM caching the ones in use, so it runs from 8 GB cards up. Fish
+  Audio Community License: free under USD 500k yearly revenue, credit "Built with Fish Audio".
+- **Qwen3-TTS** (`qwen3_tts`): [ComfyUI-Qwen-TTS](https://github.com/flybirdxx/ComfyUI-Qwen-TTS)
+  and three models (about 9 GB), downloaded by the Features window into
+  `models/qwen-tts/<model>/`, where the pack reads them (not `models/qwen-tts/Qwen/`, as its
+  README draws it). With no sample it designs the voice from the character's description. On
+  transformers 5.21 or later its cloning needs the pack's fix for the Mimi encoder
+  ([flybirdxx/ComfyUI-Qwen-TTS#115](https://github.com/flybirdxx/ComfyUI-Qwen-TTS/pull/115)).
+- **Drama 3 on Comfy** (`fishaudio_drama3`): ComfyUI's own Fish Audio partner nodes, paid per
+  take on the Comfy API key in Settings, nothing to download.
 
 **Recorded dialogue** lip-syncs an episode to lines you recorded
 ([RECORDED_DIALOGUE.md](/recorded-dialogue)):

@@ -89,6 +89,8 @@ uses it.
 | [ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo), as above | `GuiderParameters`, `MultimodalGuider`, `LTXVSetAudioVideoMaskByTime` | `ltx23_foley` (a shot's effects on LTX-2.3 Foley) |
 | [ComfyUI-MMAudio](https://github.com/kijai/ComfyUI-MMAudio) | `MMAudioModelLoader`, `MMAudioFeatureUtilsLoader`, `MMAudioSampler` | `mmaudio_ambience` (the default ambience target: a place's bed) |
 | [ComfyUI-HunyuanVideo-Foley](https://github.com/phazei/ComfyUI-HunyuanVideo-Foley) | `HunyuanModelLoader`, `HunyuanDependenciesLoader`, `HunyuanFoleySampler` | `hunyuan_xl_foley` (a shot's effects on HunyuanVideo-Foley XL) |
+| [ComfyUI-Drama3](https://github.com/PedroMarinhoDev/ComfyUI-Drama3) | `Drama3Loader`, `Drama3CodecLoader`, `Drama3EncodeVoice`, `Drama3Generate`, `Drama3Decode`, `Qwen3ASRLoader`, `Qwen3ASRTranscribe` | `drama3` (voices on Fish Audio Drama 3) |
+| [ComfyUI-Qwen-TTS](https://github.com/flybirdxx/ComfyUI-Qwen-TTS) | `FB_Qwen3TTSVoiceDesign`, `FB_Qwen3TTSVoiceClone` | `qwen3_tts` (voices on Qwen3-TTS). On transformers 5.21 or later its cloning needs [#115](https://github.com/flybirdxx/ComfyUI-Qwen-TTS/pull/115) |
 | [Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler) | `MinimaxH3LatentUpscaler3D` | optional: `seriesmith upscale` on H3 takes, on a ComfyUI before 0.44 or when chosen. See **The upscaler**, below |
 | [comfyui-obvpm-timeline](https://github.com/chanon/comfyui-obvpm-timeline) | `H3ContextWindows` (H3 Context Windowing: sampling along time in overlapping windows) | optional: an H3 upscale of a take longer than 5.5 s, on a ComfyUI before 0.44 or when chosen. See **The upscaler**, below |
 
@@ -328,6 +330,9 @@ workflows (`<ComfyUI>/user/default/workflows/`):
 | `qwen_rapid_aio` | `seriesmith_qwen_rapid_aio.json` | `$SERIESMITH_QWEN_RAPID_AIO_WORKFLOW` |
 | `klein_erp_360` | `seriesmith_klein_erp_360.json` | `$SERIESMITH_KLEIN_ERP_360_WORKFLOW` |
 | `ltx2_voice` | `seriesmith_ltx2_voice.json` | `$SERIESMITH_LTX2_VOICE_WORKFLOW` |
+| `drama3` | `seriesmith_drama3.json` | `$SERIESMITH_DRAMA3_WORKFLOW` |
+| `qwen3_tts` | `seriesmith_qwen3_tts.json` | `$SERIESMITH_QWEN3_TTS_WORKFLOW` |
+| `fishaudio_drama3` | `seriesmith_fishaudio_drama3.json` | `$SERIESMITH_FISHAUDIO_DRAMA3_WORKFLOW` |
 
 **You usually need to do nothing.** The lookup order is:
 
@@ -761,6 +766,24 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
 | `qwen_3_4b.safetensors` | `models/text_encoders/` | required | `z_image_turbo` | [Comfy-Org/z_image_turbo](https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors) |
+
+**Fish Audio Drama 3** (`drama3`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `drama3_w4a8experts_bf16.safetensors` | `models/diffusion_models/` | required | `drama3` | [PedroMarinhoDev/Drama-3-ComfyUI](https://huggingface.co/PedroMarinhoDev/Drama-3-ComfyUI/resolve/main/drama3_w4a8experts_bf16.safetensors) |
+
+**Drama 3 codec** (`drama3-codec`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `drama3_codec.safetensors` | `models/vae/` | required | `drama3` | [PedroMarinhoDev/Drama-3-ComfyUI](https://huggingface.co/PedroMarinhoDev/Drama-3-ComfyUI/resolve/main/drama3_codec.safetensors) |
+
+**Qwen3-ASR (speech recognition)** (`qwen3-asr`)
+
+| File | ComfyUI folder | Tier | Targets | Download |
+|---|---|---|---|---|
+| `qwen3_asr_0.6b_bf16.safetensors` | `models/asr/` | required | `drama3` | [PedroMarinhoDev/Qwen3-ASR-ComfyUI](https://huggingface.co/PedroMarinhoDev/Qwen3-ASR-ComfyUI/resolve/main/qwen3_asr_0.6b_bf16.safetensors) |
 
 **ace-step-1.5** (`ace-step-1.5`)
 

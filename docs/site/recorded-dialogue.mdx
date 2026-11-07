@@ -30,7 +30,23 @@ You don't need to record anything if a voice model speaks the lines. Under **Voi
 choose ElevenLabs and pick a speaker on each character's voice row, or keep LTX, which runs on your GPU and makes
 each line from the character's description. On LTX a character's lines continue its voice sample if it has one,
 else the first line made for it. **Generate all [name]'s lines** on a voice row does one character. For everyone,
-open **Or build it from each character's lines** in the **Recording** window:
+open **Or build it from each character's lines** in the **Recording** window.
+
+Three more voice models clone a character's sample instead, each from the Features window (**Sound**):
+
+- **Drama 3**: Fish Audio Drama 3 on your GPU. It hears the sample's words itself (Qwen3-ASR) and speaks
+  the line in that voice. With no sample yet, it picks a voice, steered by the character's `voice` line. Its
+  default download is W4A8 (24.6 GB); W6A8 (32.7 GB) and int8 (38.7 GB) fall silent less often, and the
+  largest one downloaded is the one used. With the experts in RAM (the default) each needs about its own size
+  plus 8 GB of free RAM. Its licence is free under USD 500k a year and asks for "Built with Fish Audio".
+- **Qwen3-TTS**: on your GPU, about 9 GB. With no sample it designs a voice from the character's description
+  (their design and `voice` line), then clones it for every line after. Apache 2.0.
+- **Drama 3 on Comfy (paid)**: the same model on Fish Audio's servers through ComfyUI's own nodes, on your
+  Comfy API key, nothing to download. Each take is paid, and counts against Settings' paid limit.
+
+Each makes a line as long as it takes to say: there's no length to set.
+
+To build the recording from the lines:
 
 1. **Look at the total.** Every line and character is counted before anything is sent, and a character with
    no speaker stops it.
