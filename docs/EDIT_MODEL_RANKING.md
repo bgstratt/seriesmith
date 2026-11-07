@@ -196,6 +196,7 @@ Earlier, smaller tests of the same models on other work, which came out differen
 - **Relighting** (2026-10-19, one seed per model): FLUX.2 Klein edit best and fastest; Qwen-Image 2.1 the most faithful
   but timid; H3 still cinematic but it invents things; Kontext grades the whole frame and loses identity; FLUX.3
   Klein weak.
+  A larger test (2026-11-06) didn't settle this: see [Relighting](#relighting).
 - **Cutting a character out of a frame, and clearing a frame to its plate** (2026-11-05): see below. These supersede the
   smaller notes on the same jobs.
 - **Cutting a character out of a frame** (2026-10-11): Qwen-Image-Edit Rapid gave a clean, whole figure; FLUX.2 Klein
@@ -225,10 +226,10 @@ face against the frame's.
 
 This doesn't repeat the 2026-10-11 result, where Rapid was the clean one; there the job was a whole figure, here a close, overlapped one.
 
-**Clearing a frame to its plate** at 0.21 s, one woman walking through the room. The take's plate turned out not to be the frame's
-view, since H3 reframed the room when it rendered: straight against the plate every model scores about 17 dB, so that says nothing.
-So the first score is the room outside her against the frame, from SAM 3.1's mask. Aligning the plate on 29 matched points gives a second
-score over the 60% of her area it reaches, from 19 to 22.5 dB, too close to rank on.
+**Clearing a frame to its plate** at 0.21 s, one woman walking through the room. The take's plate is a 1280x346 banner, and it lines up
+with the frame to about 1 px over 128 matched points: it is a band across the middle 51% of the frame, so the render kept the view and added
+the top and bottom. That band reaches 60% of her area, and what each model painted there against the plate runs from 19.2 to 22.7 dB, too
+close to rank on. So the score is the room outside her against the frame, from SAM 3.1's mask, and the order is mostly what each one painted.
 
 | # | Model | Room kept | What it painted where she stood |
 |---|---|---|---|
@@ -245,3 +246,46 @@ score over the 60% of her area it reaches, from 19 to 22.5 dB, too close to rank
 
 Both agree with the swap and edit tables above: FLUX.3 Klein for a person, Qwen-Image 2.1 for a scene. One frame each, two seeds, and the
 orders are a reading of the pictures with the numbers beside them.
+
+## Relighting
+
+Tested 2026-11-06 through seriesmith's Edit: the 10 local models, the 18 place presets in `seriesmith/presets/relight.json`, seeds 111 and
+222, on three plates, 1,080 stills. **This doesn't pick a relighting model.** Only one plate was ranked by hand, and the plates turned out to
+be poor tests for these presets, so the order below is a preference on one interior.
+
+| # | Model | Time | Mean rank of 18 | First in | Notes from the first pass, all plates |
+|---|---|---|---|---|---|
+| 1 | Qwen-Image 2.1 | 6 s | 1.9 | 10 | Keeps the room best, though its light can be understated |
+| 2 | FLUX.3 Klein | 22 s | 3.2 | 3 | Keeps the room less well than turbo |
+| 3 | FLUX.3 Klein turbo | 8 s | 4.1 | 2 | Strong on hard light, and can look patchy |
+| 4 | MiniMax H3 still | 9 s | 4.6 | 0 | Rich light, but draws things in |
+| 5 | Fibo 2.0 Edit Turbo | 4 s | 5.8 | 1 | See below. Non-commercial |
+| 6 | FastH3 Omni still | 9 s | 6.0 | 1 | Adds people and figures on dawn, day and overcast |
+| 7 | Fibo 2.0 Dev | 83 s | 6.1 | 1 | See below. Non-commercial |
+| 8 | Qwen-Image-Edit Rapid | 5 s | 6.4 | 0 | Redraws the room |
+| 9 | FLUX.2 Klein edit | 3 s | 6.9 | 0 | Shifts the framing on this wide plate |
+| 10 | FLUX Kontext | 19 s | 10.0 | 0 | Last in all 18. Moves the frame, and on fog, moonlight and flashlight the room is gone |
+
+The plate is `tremaine_hall_reverse` from Ballroom, a 1280x346 banner of an interior. Times are medians over all three plates. Qwen 2.1, H3 still
+and FastH3 return it at 1280x352, and the other seven at 1712x464, so they weren't compared at the same size.
+
+**What the ranking looked at:** the colour of the light and the quality of the shadow for that light source. Overcast should be diffuse with soft
+shadows, and day bright but not too bright, with sharper shadows. Fibo fell on those grounds: its colour was off and sometimes went very blue, it
+redrew the plate (storm is the clearest case), and it added water for neon.
+
+**A first pass ranked by Claude from contact sheets differed.** It weighted keeping the room, with an edge score printed on each sheet, and put both
+Fibos about 2 places higher and FLUX.2 Klein about 2 lower. An edge score can't see colour or shadow, so don't choose a relighting model by it.
+
+**It also differs from the 2026-10-19 test** in [Other jobs](#other-jobs), which put FLUX.2 Klein first and FLUX.3 Klein last on two relights. Neither
+test is enough to overturn the other.
+
+**Why the plates fall short:**
+
+- Two of the three are interiors, the Ballroom hall and a window seat, and several presets are about exteriors.
+- The third, a cul-de-sac, is an exterior, but the original looks like a render and not a photo, which makes the results hard to judge.
+- The window seat and the cul-de-sac weren't reviewed, so no results are given for them.
+
+A test that could pick a model needs photographic exterior plates, with interiors only for the presets that suit them, and has to be ranked on colour
+and shadow. These are stills, so nothing here says how a relight holds in motion.
+
+The pictures stay out of the repo. On the machine they were made on: `C:\AI\ComfyUI\ComfyUI\output\viggle_remake\repaint_test\relight\`.
