@@ -95,6 +95,9 @@ function UpscaleBody() {
   const latentAll = !!opts && targets.length > 0 && targets.every((id) => latentOf(id)?.status === "ready");
   const latentSome = !!opts && targets.some((id) => latentOf(id)?.status === "ready");
   const noLatent = targets.filter((id) => !latentOf(id));
+  // the nodes a re-sample can choose between: the first of these takes' targets that has a choice
+  const upscalers = targets.map((id) => latentOf(id)?.upscalers ?? []).find((c) => c.length > 1) ?? [];
+  const windowings = targets.map((id) => latentOf(id)?.windowings ?? []).find((c) => c.length > 1) ?? [];
   const pixelReady = opts?.pixel.status === "ready";
   const sv2Ready = opts?.seedvr2?.status === "ready";
   // Wan's re-sample starts by running the frames through an upscale model
@@ -286,6 +289,22 @@ function UpscaleBody() {
               <span className="h3-h">Detail (re-sample)</span>
               <select value={f.detail} onChange={(e) => set({ detail: Number(e.target.value) as 0 | 1 | 2 })}>
                 {opts.details.map((d) => <option key={d} value={d}>{DETAIL_LABELS[d] ?? `${d} steps earlier`}</option>)}
+              </select>
+            </label>
+          )}
+          {f.method !== "pixel" && f.method !== "seedvr2" && latentSome && upscalers.length > 1 && (
+            <label className="h3-col" style={{ gap: 2 }} title="The nodes that upscale the take's latent before the re-sample">
+              <span className="h3-h">Latent upscaler</span>
+              <select value={f.upscaler ?? ""} onChange={(e) => set({ upscaler: e.target.value })}>
+                {upscalers.map((c) => <option key={c.id} value={c.id}>{c.label}{c.id ? "" : " (default)"}</option>)}
+              </select>
+            </label>
+          )}
+          {f.method !== "pixel" && f.method !== "seedvr2" && latentSome && windowings.length > 1 && (
+            <label className="h3-col" style={{ gap: 2 }} title="The nodes that sample a take longer than one window (5.5 s) in overlapping windows, so it fits the card. Shorter takes don't use them">
+              <span className="h3-h">Context windows (long takes)</span>
+              <select value={f.windowing ?? ""} onChange={(e) => set({ windowing: e.target.value })}>
+                {windowings.map((c) => <option key={c.id} value={c.id}>{c.label}{c.id ? "" : " (default)"}</option>)}
               </select>
             </label>
           )}

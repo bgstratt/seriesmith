@@ -138,6 +138,29 @@ class NodesTest(P13.UpscaleTest):
         U.not_ready([b], comfy(LBH, OBVPM))
         self.assertEqual(U.settings_of(a), U.settings_of(b))
 
+    def test_the_dialog_offers_a_choice_only_when_there_is_one(self):
+        spec = self.plan(3.0).spec
+        self.assertEqual(U.node_choices(spec, comfy(CORE)), {"upscalers": [], "windowings": []})
+        self.assertEqual(U.node_choices(spec, comfy(LBH, OBVPM)), {"upscalers": [], "windowings": []})
+        self.assertEqual(U.node_choices(spec, None), {"upscalers": [], "windowings": []})
+        both = U.node_choices(spec, comfy(CORE, LBH, OBVPM))
+        self.assertEqual([c["id"] for c in both["upscalers"]], ["", "pack"])
+        self.assertEqual(both["upscalers"][1]["label"], "LBH-123-AI's pack")
+        self.assertEqual([c["id"] for c in both["windowings"]], ["", "pack"])
+        plus = U.node_choices(spec, comfy(CORE, {"MinimaxH3LatentUpscaler3D": PLUS}))
+        self.assertEqual(plus["upscalers"][1]["label"], "LBH-123-AI's Plus")
+        self.assertEqual(plus["windowings"], [])
+
+    def test_the_request_reaches_the_graph(self):
+        self.final_take()
+        self.comfy.nodes |= set(U.UPSCALE_NODES)
+        self.comfy.info.update(comfy(CORE, LBH, OBVPM))
+        from seriesmith import api as A
+        res = self.ok(A.post_upscale(self.ctx, {"ep": self.ep, "shots": ["sh010"], "upscaler": "pack"}))
+        self.assertEqual(len(res["queued"]), 1)
+        bad = self.ok(A.post_upscale(self.ctx, {"ep": self.ep, "shots": ["sh010"], "redo": True, "upscaler": "lbh"}))
+        self.assertIn("upscaler", bad["errors"][0]["error"])
+
     def test_any_h3_scale_is_still_allowed(self):
         self.assertIsNone(U.fixed_scale(self.plan(3.0).spec))
 

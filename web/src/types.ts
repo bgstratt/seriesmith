@@ -1132,6 +1132,10 @@ export interface UpscaleRequest {
   scale?: number | null;
   start_step?: number | null;
   vae?: boolean;
+  /** latent: "pack": the node pack's upscaler in place of ComfyUI's own */
+  upscaler?: string;
+  /** latent: "pack": the node pack's windows in place of ComfyUI's own */
+  windowing?: string;
   /** null: each take's default (latent where its target has one, else pixel) */
   method?: "latent" | "pixel" | "seedvr2" | null;
   /** seedvr2: "7b" (the default), "3b" or a model file name */
@@ -1231,6 +1235,10 @@ export interface UpscaleOptions {
     /** resample (H3: any scale on the `align` grid) or second_stage (LTX-2: `fixed_scale`) */
     /** resample (H3), second_stage (LTX-2), pixel_refine (Wan: a pixel model, then its sampler) */
     mode?: "resample" | "second_stage" | "pixel_refine"; align?: number; fixed_scale?: number | null;
+    /** the nodes a re-sample can use, when there's a choice here ("": ComfyUI's own; "pack") */
+    upscalers?: { id: string; label: string }[];
+    /** the same, for a take long enough to be sampled in windows */
+    windowings?: { id: string; label: string }[];
   } | null>;
   details: number[];
   max_scale?: number;

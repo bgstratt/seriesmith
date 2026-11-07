@@ -1547,6 +1547,9 @@ export interface UpscaleForm {
   detail: 0 | 1 | 2;
   redo: boolean;
   vae: boolean;
+  /** the re-sample's nodes ("": ComfyUI's own; "pack"), and its windows' */
+  upscaler?: string;
+  windowing?: string;
   /** 2 is the server's default */
   scale: number;
   /** a pixel step after a re-sample: its model (null: none) and scale */
@@ -1586,6 +1589,8 @@ export function upscaleRequestOf(f: UpscaleForm, ask: { pass: Pass; takes: { sho
   if (f.grain) req.grain = f.grain;
   if (f.method !== "pixel" && f.method !== "seedvr2" && f.detail) req.detail = f.detail;
   if (f.method !== "pixel" && f.method !== "seedvr2" && f.vae) req.vae = true;
+  if (f.method !== "pixel" && f.method !== "seedvr2" && f.upscaler) req.upscaler = f.upscaler;
+  if (f.method !== "pixel" && f.method !== "seedvr2" && f.windowing) req.windowing = f.windowing;
   // a delivery size decides the pixel method's scale, and a then-pixel step's
   const sized = !!f.deliver;
   if (f.scale !== 2 && !(sized && (f.method === "pixel" || f.method === "seedvr2"))) req.scale = f.scale;

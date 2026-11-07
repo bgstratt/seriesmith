@@ -184,10 +184,10 @@ The series config says how, once, in `upscale.master` (the **recipe**):
   ComfyUI it uses the `comfyui-obvpm-timeline` node pack, and with neither a long shot's
   upscale says so instead of running out of memory.
 - **Choosing the nodes.** H3's re-sample uses ComfyUI's own upscaler and windows from 0.44.
-  To use a node pack instead, when it's installed, set `"upscaler": "pack"` (LBH-123-AI's
-  pack, or its Plus version) or `"windowing": "pack"` (`comfyui-obvpm-timeline`) in the
-  recipe, or pass `--upscaler pack` / `--windowing pack`. An older ComfyUI uses the packs
-  without being asked.
+  To use a node pack instead, when it's installed, pick it in the Upscale dialog (**Latent
+  upscaler**, **Context windows**), set `"upscaler": "pack"` (LBH-123-AI's pack, or its Plus
+  version) or `"windowing": "pack"` (`comfyui-obvpm-timeline`) in the recipe, or pass
+  `--upscaler pack` / `--windowing pack`. An older ComfyUI uses the packs without being asked.
 - A **continuity shot** (its first keyframe the previous shot's last frame) starts its
   upscale from the previous shot's *upscaled* last frame, so the two meet on one picture.
   Re-sampling each from the same low-res frame gave two different 2x pictures of it, which

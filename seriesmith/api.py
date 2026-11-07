@@ -2274,7 +2274,7 @@ def get_upscale_options(ctx: Context, query: dict):
             # what the dialog needs to judge a scale: LTX's is fixed, H3's sizes
             # land on `align`
             r = dict(r, mode=spec.get("mode", U.RESAMPLE), align=U.align_of(spec),
-                     fixed_scale=U.fixed_scale(spec))
+                     fixed_scale=U.fixed_scale(spec), **U.node_choices(spec, info))
         latent[t.id] = r
     ep = check_ep(ctx, query["ep"]) if query.get("ep") else None
     return 200, {"pixel": px, "seedvr2": sv2, "latent": latent, "details": list(U.DETAILS),

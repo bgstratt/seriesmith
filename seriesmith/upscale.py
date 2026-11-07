@@ -521,6 +521,26 @@ def windows_for(spec: dict, object_info: dict | None, asked: str | None = None) 
     return pack if pack["class_type"] in object_info else None
 
 
+def node_choices(spec: dict, object_info: dict | None) -> dict:
+    """What the Upscale dialog can offer for a re-sample here: `upscalers` and
+    `windowings`, each [{"id": "" (ComfyUI's own) or "pack", "label"}], listed
+    only when there's a choice to make: both sets of nodes on this ComfyUI."""
+    out = {"upscalers": [], "windowings": []}
+    if not object_info or spec.get("mode", RESAMPLE) != RESAMPLE:
+        return out
+    u, w = spec.get("upscaler") or {}, spec.get("windows") or {}
+    pack = u.get("fallback")
+    if pack and has_upscaler(u, object_info) and has_upscaler(pack, object_info):
+        req = ((object_info[pack["class_type"]].get("input") or {}).get("required") or {})
+        label = "LBH-123-AI's pack" if "enable_temporal_chunking" in req else "LBH-123-AI's Plus"
+        out["upscalers"] = [{"id": "", "label": "ComfyUI's own"}, {"id": PACK, "label": label}]
+    pack = w.get("fallback")
+    if pack and w["class_type"] in object_info and pack["class_type"] in object_info:
+        out["windowings"] = [{"id": "", "label": "ComfyUI's own"},
+                             {"id": PACK, "label": pack.get("pack", "the node pack")}]
+    return out
+
+
 def choose_nodes(jobs: list["UpscaleJob"], object_info: dict | None) -> None:
     """Which nodes each job's graph uses on this ComfyUI: ComfyUI's own, else
     the target's fallback pack (or the pack, asked for). Unknown (no answer from
@@ -857,9 +877,11 @@ def plan_upscale(root: str, take: T.Take, *, encoder: str = "auto", precision: s
         if problems:
             job.action, job.why = "error", problems[0]
         else:
-            job.upscaler_asked, job.windowing_asked = upscaler, windowing
-            job.upscaler_pack = upscaler == PACK and bool((job.spec.get("upscaler") or {}).get("fallback"))
-            job.windowing_pack = windowing == PACK and bool((job.spec.get("windows") or {}).get("fallback"))
+            # asking only means something to a target with a pack to fall back on
+            job.upscaler_asked = upscaler if (job.spec.get("upscaler") or {}).get("fallback") else None
+            job.windowing_asked = windowing if (job.spec.get("windows") or {}).get("fallback") else None
+            job.upscaler_pack = job.upscaler_asked == PACK
+            job.windowing_pack = job.windowing_asked == PACK
             set_window(job, window)
             set_continuity(job)
             set_chain(job)

@@ -2009,7 +2009,7 @@ used on an older ComfyUI, or when the recipe's `upscaler` / `windowing` (or `--u
 asks for it. With neither, the upscale doesn't run and says what to do: update ComfyUI, or install a pack.
 `upscale.not_ready` settles the nodes (`choose_nodes`) before a graph is built, by the node classes, not a version
 number. The Plus refusal is gone, as is the user-facing wording on which pack is better: results are the user's to
-judge. The editor has no picker yet (series config, CLI and API only).
+judge. The Upscale dialog offers each choice only where both sets of nodes are on this ComfyUI (`node_choices`).
 
 The A/B behind it (local ComfyUI, real graph with one node swapped, against the original take):
 
