@@ -1737,7 +1737,8 @@ def post_upscale(ctx: Context, body):
                                 from_upscale=from_upscale, encoder=encoder, precision=precision,
                                 frequency_split=frequency_split, keep_soft=keep_soft, grain=grain,
                                 seedvr2_model=seedvr2_model, deliver=deliver, fit=fit,
-                                quality=quality)
+                                quality=quality, upscaler=body.get("upscaler"),
+                                windowing=body.get("windowing"))
         if up.action == "skip":
             skipped.append({"shot": shot, "take": t.take, "reason": up.why})
         elif up.action == "error":
@@ -2273,7 +2274,7 @@ def get_upscale_options(ctx: Context, query: dict):
             # what the dialog needs to judge a scale: LTX's is fixed, H3's sizes
             # land on `align`
             r = dict(r, mode=spec.get("mode", U.RESAMPLE), align=U.align_of(spec),
-                     fixed_scale=U.fixed_scale(spec))
+                     fixed_scale=U.fixed_scale(spec), **U.node_choices(spec, info))
         latent[t.id] = r
     ep = check_ep(ctx, query["ep"]) if query.get("ep") else None
     return 200, {"pixel": px, "seedvr2": sv2, "latent": latent, "details": list(U.DETAILS),
@@ -4802,10 +4803,11 @@ def post_refs_relight(ctx: Context, body):
     except Exception as e:
         raise ApiError(500, f"{R.REFS_WORKFLOW} can't be read: {e}")
     listing = J.model_lister(ctx.comfy, ctx.model_choices)
+    ready = image_ready(ctx)
     for p in planned:
         ref = _ref(s, f"location:{p['id']}")
         try:
-            t = R.edit_target_for(s, ref, target)
+            t = R.edit_target_for(s, ref, target, ready=ready)
             req = R.GenRequest(ref=ref.id, count=count, target=t.id)
             result = R.queue_generate(s, req, ctx.comfy, base, save_node=True, listing=listing,
                                       resolve=ctx.model_resolve, cache=ctx.model_cache,

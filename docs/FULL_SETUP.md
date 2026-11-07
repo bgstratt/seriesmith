@@ -77,7 +77,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 |---|---|---|---|
 | MiniMax H3 at full quality and speed | ComfyUI-PlagueKind-Nodes | H3's 4 files, 2 turbo LoRAs | |
 | Shots that carry on from the one before | | H3 FL2VA's model, 2 turbo LoRAs | |
-| Reference pictures and keyframes | | Krea 2's 3 files; FLUX.2 Klein's 3 | |
+| Reference pictures and keyframes | | Krea 2's 3 files; Qwen-Image 2.1's, or FLUX.2 Klein's 3 | |
 | Location tours | ComfyUI-PlagueKind-Nodes | H3 FL2VA's | |
 | Generated voice samples | ComfyUI-LTXVideo | LTX-2.5's transformer, text encoder, audio VAE | |
 | Recorded dialogue | | | faster-whisper; demucs for `dub_keep_foley`; seriesmith's node pack for the vocal stem (optional) |
@@ -85,7 +85,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Ambience beds | ComfyUI-MMAudio | MMAudio's 4 files (or Stable Audio 3 Small SFX's 2) | |
 | Effects from the picture | ComfyUI-LTXVideo for LTX-2.3 Foley; ComfyUI-HunyuanVideo-Foley for Hunyuan | H3 FL2VA's 4 files (or LTX-2.3 Foley's 7, HunyuanVideo-Foley XL's 3) | |
 | Voices only (the takes' voices without their music) | seriesmith's node pack (its vocal-stem node) | Hybrid Demucs's weights (Features: Vocal stem; a copy torchaudio downloaded before counts) | |
-| Upscaling H3 takes | Comfyui_Minimax_h3_latent_Upscaler; comfyui-obvpm-timeline for takes over 5.5 s | H3's latent upscaler | |
+| Upscaling H3 takes | None on ComfyUI 0.44 or later; before that Comfyui_Minimax_h3_latent_Upscaler or its Plus version, and comfyui-obvpm-timeline for takes over 5.5 s | H3's latent upscaler | |
 | Upscaling any take | Nvidia RTX Nodes (optional) | RealESRGAN, or SeedVR2 | |
 | Post-processing | | RealESRGAN / SeedVR2 7B / SUPIR + SDXL; RAFT for motion blur | |
 | Master and publish | | | a title font (ffmpeg comes with seriesmith) |
@@ -188,8 +188,10 @@ picture model):
 | `qwen3vl_4b_fp8_scaled.safetensors` | `text_encoders` | [Comfy-Org/Krea-2](https://huggingface.co/Comfy-Org/Krea-2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors) |
 | `wan_2.1_vae.safetensors` | `vae` | [Comfy-Org/Wan_2.2_ComfyUI_Repackaged](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors) |
 
-**FLUX.2 Klein 9B edit** draws shot keyframes from the characters' and places' pictures
-(`flux2_klein_edit`). Without it, keyframes are drawn on the picture model:
+**Qwen-Image 2.1** draws shot keyframes from the characters' and places' pictures when it's
+installed (`qwen_image_21`; its files are in [INSTALL.md](../INSTALL.md#everything-by-model-family)).
+Without it they're drawn on **FLUX.2 Klein 9B edit** (`flux2_klein_edit`), and without that on
+the picture model:
 
 | File | Folder | Download |
 |---|---|---|
@@ -209,7 +211,7 @@ ref's own. Every picture model, and the voice model:
 | `krea2` | Krea 2 turbo, text to image (the default for refs) |
 | `z_image_turbo` | Z-Image Turbo, fast text to image |
 | `flux2_klein` | FLUX.2 Klein 9B, text to image |
-| `flux2_klein_edit` | FLUX.2 Klein 9B with up to 4 reference images (the default for keyframes when it is installed; otherwise keyframes use the refs model) |
+| `flux2_klein_edit` | FLUX.2 Klein 9B with up to 4 reference images (the default for keyframes when Qwen-Image 2.1 isn't installed; without either, keyframes use the refs model) |
 | `flux_kontext` | FLUX.1 Kontext dev, with one reference image |
 | `minimax_h3_still` | MiniMax H3 — the video model, rendering 5 frames and keeping the first, with up to 9 reference images. No second model stack to install if you already render on H3 |
 | `qwen_image_21` | Qwen-Image 2.1 — one model for both jobs: text to image for a character's own views, an edit of up to 16 reference images for a variant's. Takes a real negative prompt, and its cfg, scheduler and denoise are ordinary sampler settings |
@@ -376,18 +378,19 @@ You only need this to upscale takes: `seriesmith upscale`, the editor's **Upscal
 **Export 2x**, `master`. A render never needs it. Each method is independent: install the
 ones you want.
 
-**H3 takes, re-sampled at 2x** (the best for H3):
-- **The node pack:**
-  [Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler).
-  Use that one, **not its "Plus" fork**: the fork invents detail. ComfyUI-Manager lists only
-  the fork, so clone this one into `custom_nodes` (or Manager's **Install via Git URL**).
+**H3 takes, re-sampled at 2x:**
+- **The nodes:** ComfyUI 0.44 or later has them. On an older ComfyUI, update it or install
+  [Comfyui_Minimax_h3_latent_Upscaler](https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler)
+  or its Plus version, which ComfyUI-Manager lists. Only one of the two can be installed.
 - **The model:** `minimax_h3_latent_upscaler_3d_fp16.safetensors` in
   `models/latent_upscale_models/`. Its Hugging Face repo now publishes it as
   `minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors`; save it under the old name
   ([download](https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler)).
-- **For takes longer than 5.5 s:**
-  [comfyui-obvpm-timeline](https://github.com/chanon/comfyui-obvpm-timeline). Its context
-  windows let a long shot at 2x fit a 32 GB card.
+- **For takes longer than 5.5 s:** context windows let a long shot at 2x fit a 32 GB card.
+  ComfyUI 0.44 or later has them too; on an older ComfyUI, update it or install
+  [comfyui-obvpm-timeline](https://github.com/chanon/comfyui-obvpm-timeline).
+- **To choose the packs on a newer ComfyUI:** see "Choosing the nodes" in
+  [FINISHING](FINISHING.md).
 
 **LTX-2.5 takes** need nothing: an upscale runs the model's own latent upsampler again.
 

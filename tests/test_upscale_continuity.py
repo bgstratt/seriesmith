@@ -52,6 +52,54 @@ class GraphTest(ApiTest):
         self.assertTrue(g["7"]["inputs"]["image_file"].endswith("sh010_t01.up_last.png"))
         self.assertEqual(g["8"]["class_type"], "LoadImage")          # the last keyframe is left
 
+    def recorded_take(self, shot="sh020", **fields):
+        """A take's record as a queued render writes it: no `inputs`, its keyframe in `refs`."""
+        t = self.final_take(shot)
+        rel = os.path.join("refs", "shots", shot, "first.png")
+        path = os.path.join(self.ep, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(b"a picture")
+        T.update_sidecar(t.paths.sidecar, refs=[
+            {"role": "first", "path": rel, "sha1": T.file_sha1(path)},
+            {"role": "last", "path": "refs/shots/gone/last.png", "sha1": None}], **fields)
+        return T.get_take(self.ep, "final", shot, t.take), path, rel
+
+    def test_a_queued_renders_record_finds_its_source(self):
+        src = self.final_take("sh010")
+        t, _, _ = self.recorded_take(continuity={"shot": "sh010", "take": src.take, "pass": "final"})
+        self.assertNotIn("inputs", t.sidecar)
+        up = U.plan_upscale(self.ep, t)
+        self.assertEqual((up.first_from.shot, up.first_from.take), ("sh010", src.take))
+        self.assertTrue(up.first_fallback.startswith("seriesmith/"))
+        self.assertTrue(any("sh010 t01's upscaled last frame" in n for n in up.notes))
+
+    def test_a_queued_renders_keyframe_comes_back_for_the_upscale(self):
+        from seriesmith import finishing as F
+        t, path, _ = self.recorded_take()
+        want = {"first": f"seriesmith/{T.file_sha1(path)[:20]}.png"}
+        self.assertEqual(T.recorded_inputs(t.sidecar, self.ep), want)
+        job = U.take_job(U.plan_upscale(self.ep, t))
+        self.assertEqual(job.inputs, want)
+        self.assertEqual(F.take_input_files(t, self.ep), {want["first"]: path})
+
+    def test_a_replaced_keyframe_isnt_this_takes(self):
+        t, path, _ = self.recorded_take()
+        with open(path, "wb") as f:
+            f.write(b"another picture")
+        self.assertEqual(T.recorded_inputs(t.sidecar, self.ep), {})
+
+    def test_unless_the_render_cut_it_itself(self):
+        src = self.final_take("sh010")
+        t, path, _ = self.recorded_take(continuity={"shot": "sh010", "take": src.take, "pass": "final"})
+        with open(path, "wb") as f:
+            f.write(b"cut again as it started")
+        self.assertIn("first", T.recorded_inputs(t.sidecar, self.ep))
+
+    def test_a_source_in_another_pass_isnt_followed(self):
+        t, _, _ = self.recorded_take(continuity={"shot": "sh010", "take": 1, "pass": "proxy"})
+        self.assertIsNone(U.plan_upscale(self.ep, t).first_from)
+
     def test_no_source_no_change(self):
         t = self.final_take()
         with mock.patch.object(U, "continuity_source", return_value=None):

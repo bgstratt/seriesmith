@@ -478,8 +478,8 @@ installed, and what each still needs, is `seriesmith targets` ([FULL_SETUP.md](/
 
 The pictures (character sheets, props, plates) and shot keyframes are made by an image
 model, a character's voice sample by an audio model. Leave the block out for the defaults
-(Krea 2 for pictures, FLUX.2 Klein edit for keyframes when it's installed, LTX-2.5 for
-voices), or name others:
+(Krea 2 for pictures, Qwen-Image 2.1 for keyframes when it's installed, then FLUX.2 Klein edit,
+LTX-2.5 for voices), or name others:
 
 ```json
 "refs": {"target": "krea2", "keyframe_target": "flux2_klein_edit", "edit_target": "qwen_image_21",
@@ -487,8 +487,9 @@ voices), or name others:
 ```
 
 (`edit_target` is the model that edits a picture you already have: the editor's Edit and
-Relight. It must be one that reads reference images; left out, it's the first of
-`keyframe_target` and `target` that can. `turn_target` is the one a character's view is
+Relight. It must be one that reads reference images; left out, it's `flux3_klein` for a
+character and `qwen_image_21` for anything else, each the other when it isn't installed, then
+the first of `keyframe_target` and `target` that can. `turn_target` is the one a character's view is
 turned on: `qwen_image_21` adds the multiple-angles LoRA, any other edit model is told the
 turn in words; left out, Qwen 2.1 + angles when it's installed, else `edit_target`.)
 

@@ -174,9 +174,9 @@ class UpscaleTest(ApiTest):
         self.assertEqual(g["up_sigmas"]["inputs"]["step"], 5)
         self.assertEqual(g["up_hold"]["inputs"]["latent"], ["up_join", 0])
         self.assertEqual(g["up_join"]["inputs"]["audio_latent"], ["up_split_av", 1])  # audio untouched
-        self.assertEqual(g["up_scale"]["inputs"]["latent"], ["up_split_av", 0])
-        self.assertEqual(g["up_scale"]["inputs"]["mode.scale"], 2.0)
-        self.assertTrue(g["up_scale"]["inputs"]["enable_temporal_chunking"])
+        self.assertEqual(g["up_scale"]["inputs"]["samples"], ["up_split_av", 0])
+        self.assertEqual((g["up_scale"]["inputs"]["width"], g["up_scale"]["inputs"]["height"]), (up.width, up.height))
+        self.assertEqual(g["up_scale"]["inputs"]["model"], ["up_scale_model", 0])
         self.assertEqual(g["up_source"]["class_type"], "H3LoadTakeLatent")
         save = g["up_save"]["inputs"]
         self.assertTrue(save["out_mp4"].endswith(".up.mp4"))
@@ -294,11 +294,11 @@ class UpscaleRouteTest(UpscaleTest):
         self.err(A.post_upscale(self.ctx, {"ep": self.ep, "shots": "sh010"}), 400)
         res = self.ok(A.post_upscale(self.ctx, {"ep": self.ep, "takes": [{"shot": "sh010", "take": 9}]}))
         self.assertIn("doesn't exist", res["skipped"][0]["reason"])
-        # the Plus fork: same node, no temporal chunking
-        self.comfy.info["MinimaxH3LatentUpscaler3D"] = {"input": {"required": {
-            "latent": ["*", {}], "model_name": [["minimax_h3_latent_upscaler_3d_fp16.safetensors"], {}]}}}
+        # no upscaler at all: what to do about it
+        del self.comfy.info["MinimaxH3LatentUpscaler3D"]
         msg = self.err(A.post_upscale(self.ctx, {"ep": self.ep, "shots": ["sh010"]}), 409)
-        self.assertIn("Plus fork", msg)
+        self.assertIn("update ComfyUI to 0.44", msg)
+        self.assertIn("Plus version", msg)
         self.assertFalse(os.path.exists(T.get_take(self.ep, "final", "sh010", 1).paths.up_sidecar))
 
     def test_delete(self):
@@ -733,8 +733,8 @@ class PixelUpscaleTest(UpscaleRouteTest):
         self.assertEqual((i2v["width"], i2v["height"]), (2688, 1536))
         self.assertEqual(g[i2v["first_frame"][0]]["inputs"]["image"], "h3pipe/sh010_first.png")
         self.assertTrue(self.by_class(g, "MiniMaxH3AddGuide"))              # the anchor, kept
-        self.assertEqual(g["up_scale"]["class_type"], "MinimaxH3LatentUpscaler3D")
-        self.assertEqual(g["up_scale"]["inputs"]["mode.scale"], 2.0)
+        self.assertEqual(g["up_scale"]["class_type"], "MiniMaxH3LatentUpscaleWithModel")
+        self.assertEqual((g["up_scale"]["inputs"]["width"], g["up_scale"]["inputs"]["height"]), (2688, 1536))
         self.assertEqual(g["up_source"]["class_type"], "H3LoadTakeLatent")
         info = {c: {"input": {}} for c in U.UPSCALE_NODES}
         info["MinimaxH3LatentUpscaler3D"] = UPSCALER

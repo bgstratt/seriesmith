@@ -45,6 +45,8 @@ export interface ResolvedRefDefaults {
   turns: string;
   /** Phase 9c-B: the audio target voices generate with */
   voices: string;
+  /** the Edits model for a character (differs from `edits` only when none is chosen) */
+  editsPerson: string;
   /** where each comes from: set in the editor for this episode, the series config, built in */
   refsSource: RefDefaultSource;
   keyframesSource: RefDefaultSource;
@@ -79,12 +81,14 @@ export function refDefaults(list: TargetList | null | undefined, served?: RefDef
     || VOICE_DEFAULT;
   const refs = served?.target || fallback;
   const keyframes = served?.keyframe_target || refs;
-  // the server's (the first of the keyframe and refs models that can edit, when none is chosen)
+  // the server's (its built-in ones when none is chosen, else the first of the keyframe and refs models that can edit)
   const canEdit = (id: string) => isEditTarget((list?.targets ?? []).find((t) => t.id === id));
+  const edits = served?.edit_target || [keyframes, refs].find(canEdit) || "";
   return {
     refs,
     keyframes,
-    edits: served?.edit_target || [keyframes, refs].find(canEdit) || "",
+    edits,
+    editsPerson: served?.edit_target_person || edits,
     turns: served?.turn_target || "",
     voices: served?.voice_target || voiceFallback,
     refsSource: source(served?.target_source),

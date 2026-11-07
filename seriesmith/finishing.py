@@ -86,7 +86,7 @@ def take_input_files(take: T.Take, root: str) -> dict[str, str]:
         if r.get("sha1") and r.get("path"):
             by_sha[str(r["sha1"])[:20]] = _abs(root, r["path"])
     out = {}
-    for name in (sc.get("inputs") or {}).values():
+    for name in T.recorded_inputs(sc, root).values():
         if not isinstance(name, str):
             continue
         p = by_sha.get(os.path.splitext(os.path.basename(name))[0])

@@ -106,10 +106,10 @@ class EditTest(unittest.TestCase):
         self.assertTrue(R.is_edit_target(job.target))
 
     def test_the_edit_model_is_a_setting_of_its_own(self):
-        # nothing chosen: the first of the keyframe and refs targets that can edit
+        # nothing chosen: Qwen 2.1, and FLUX.3 Klein for a character
         d = R.image_defaults(self.s)
-        self.assertEqual((d["edit_target"], d["edit_target_source"]),
-                         ("flux2_klein_edit", "default"))
+        self.assertEqual((d["edit_target"], d["edit_target_person"], d["edit_target_source"]),
+                         ("qwen_image_21", "flux3_klein", "default"))
         # the series config's refs.edit_target
         cfg_path = os.path.join(self.ep, "series.json")
         with open(cfg_path, encoding="utf-8") as fh:
@@ -139,6 +139,27 @@ class EditTest(unittest.TestCase):
         from seriesmith import takes as T
         self.assertIsNone(T.episode_field(T.load_overrides(self.ep), "edit_target"))
 
+    def test_the_built_in_edit_models(self):
+        place = R.find_ref(self.s, "location:kitchen")
+        person = next(r for r in R.series_refs(self.s) if r.kind == "character")
+        self.assertEqual(R.edit_target_for(self.s, place).id, "qwen_image_21")
+        self.assertEqual(R.edit_target_for(self.s, person).id, "flux3_klein")
+
+        # each falls back to the other, then to the keyframe and refs targets that can edit
+        def only(*ids):
+            return lambda t: t.id in ids
+        d = R.image_defaults(self.s, only("flux3_klein"))
+        self.assertEqual((d["edit_target"], d["edit_target_person"]), ("flux3_klein", "flux3_klein"))
+        d = R.image_defaults(self.s, only("qwen_image_21"))
+        self.assertEqual((d["edit_target"], d["edit_target_person"]), ("qwen_image_21", "qwen_image_21"))
+        d = R.image_defaults(self.s, only("flux2_klein_edit"))
+        self.assertEqual((d["edit_target"], d["edit_target_person"]), ("flux2_klein_edit", "flux2_klein_edit"))
+
+        # a choice is every edit's, a character's too
+        R.set_image_defaults(self.ep, {"edit_target": "flux_kontext"})
+        self.assertEqual(R.edit_target_for(self.s, person).id, "flux_kontext")
+        self.assertEqual(R.image_defaults(self.s)["edit_target_person"], "flux_kontext")
+
     def test_edit_target_for_order(self):
         ref = R.find_ref(self.s, "location:kitchen")
         R.set_image_defaults(self.ep, {"edit_target": "qwen_image_21",
@@ -155,9 +176,10 @@ class EditTest(unittest.TestCase):
         ov = R.set_ref_override(R.load_overrides(self.s.home), ref, None,
                                 {"target": "krea2"}, None)
         self.assertEqual(R.edit_target_for(self.s, ref, None, ov).id, "qwen_image_21")
-        # no edit model chosen: the keyframe model, then the refs model
+        # no edit model chosen and neither built-in one ready: the keyframe model
         R.set_image_defaults(self.ep, {"edit_target": None})
-        self.assertEqual(R.edit_target_for(self.s, ref).id, "flux_kontext")
+        self.assertEqual(R.edit_target_for(self.s, ref, ready=lambda t: t.id == "flux_kontext").id,
+                         "flux_kontext")
 
     def test_what_is_refused(self):
         bad = [

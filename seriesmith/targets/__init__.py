@@ -1395,7 +1395,12 @@ def first_target(series_cfg: dict | None = None) -> str | None:
     return tid
 
 
-DEFAULT_KEYFRAME_TARGET = "flux2_klein_edit"   # when it is ready, else the refs target
+# A keyframe with no model chosen: the first of these that is ready, else the refs target
+DEFAULT_KEYFRAME_TARGETS = ("qwen_image_21", "flux2_klein_edit")
+# An edit with no model chosen, when it is ready: a character on the first, anything else
+# on the second, each falling back to the other (refs.image_defaults)
+DEFAULT_PERSON_EDIT_TARGET = "flux3_klein"
+DEFAULT_EDIT_TARGET = "qwen_image_21"
 
 
 REFS_TARGET_KINDS = {"target": "image", "keyframe_target": "image", "edit_target": "image",
@@ -1489,17 +1494,23 @@ def dub_target(series_cfg: dict | None = None, chosen: str | None = None) -> str
     return DEFAULT_DUB_TARGET
 
 
+def default_keyframe_target(ready=None) -> Target | None:
+    """The first of DEFAULT_KEYFRAME_TARGETS that `ready(target)` says can
+    render here (None: assume it can); None when neither can."""
+    for tid in DEFAULT_KEYFRAME_TARGETS:
+        t = load_target(tid, "image")
+        if ready is None or ready(t):
+            return t
+    return None
+
+
 def keyframe_target(series_cfg: dict | None = None, ready=None) -> Target:
     """The image target that makes shot keyframes: the series config's
-    `refs.keyframe_target`, else flux2_klein_edit when `ready(target)` says
-    it can render here (None: assume it can), else the refs target."""
+    `refs.keyframe_target`, else default_keyframe_target, else the refs target."""
     block = refs_block(series_cfg)
     if block.get("keyframe_target"):
         return load_target(block["keyframe_target"], "image")
-    t = load_target(DEFAULT_KEYFRAME_TARGET, "image")
-    if ready is None or ready(t):
-        return t
-    return image_target(series_cfg)
+    return default_keyframe_target(ready) or image_target(series_cfg)
 
 
 def repo_workflow(name: str) -> str | None:

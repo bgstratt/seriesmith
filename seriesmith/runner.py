@@ -195,6 +195,7 @@ class Runner:
             # why) goes into the record reserved before it
             take.sidecar = T.update_sidecar(
                 take.paths.sidecar, length_source=job.length_source,
+                **({"inputs": dict(job.inputs)} if job.inputs else {}),
                 **({"notes": list(job.notes)} if job.notes else {}))
 
         def work(qjob: QJob, report) -> str:

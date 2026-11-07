@@ -36,8 +36,8 @@ class WindowTest(ApiTest):
         self.assertTrue(any("5.5s windows" in n for n in up.notes))
         g = U.upscale_graph(self.base(), up)
         w = g["up_windows"]
-        self.assertEqual(w["class_type"], "H3ContextWindows")
-        self.assertEqual((w["inputs"]["window_seconds"], w["inputs"]["overlap_seconds"]), (5.5, 1.25))
+        self.assertEqual(w["class_type"], "MiniMaxH3ContextWindows")
+        self.assertEqual((w["inputs"]["context_length"], w["inputs"]["context_overlap"]), (124, 39))
         # the windows go between the model and H3's guider
         sampler = next(v for v in g.values() if v["class_type"] == "SamplerCustomAdvanced")
         guider = g[sampler["inputs"]["guider"][0]]
@@ -69,10 +69,10 @@ class WindowTest(ApiTest):
     def test_without_the_node_a_long_take_says_so(self):
         up = U.plan_upscale(self.ep, self.take_of(11.5))
         why = U.not_ready([up], {"SamplerCustomAdvanced": {}})
-        self.assertTrue(any("H3ContextWindows" in m and "comfyui-obvpm-timeline" in m
+        self.assertTrue(any("longer than one" in m and "comfyui-obvpm-timeline" in m
                             for m in why), why)
         short = U.plan_upscale(self.ep, self.take_of(3.0))
-        self.assertFalse([m for m in U.not_ready([short], {}) if "H3ContextWindows" in m])
+        self.assertFalse([m for m in U.not_ready([short], {}) if "longer than one" in m])
 
 
 if __name__ == "__main__":

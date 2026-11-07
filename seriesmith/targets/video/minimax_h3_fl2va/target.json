@@ -131,15 +131,20 @@
   },
 
   "upscale": {
-    "_note": "h3upscale.py: as minimax_h3_ref2va's, a final take re-sampled at `scale` from `start` (0.875: step 7 of 8), its latent's video through the LBH-123-AI latent upscaler, its audio held. No loader here: the new size goes to MiniMaxH3ImageToVideo's width/height (`size`: the binding's params), which stretches the keyframes to it, and the dialogue anchor's MiniMaxH3AddGuide reads its size from that node's latent. The keyframes and the anchor live in the conditioning, not the latent, so replacing the latent keeps them.",
+    "_note": "h3upscale.py: as minimax_h3_ref2va's, a final take re-sampled at `scale` from `start` (0.875: step 7 of 8), its latent's video through H3's latent upscaler, its audio held. No loader here: the new size goes to MiniMaxH3ImageToVideo's width/height (`size`: the binding's params), which stretches the keyframes to it, and the dialogue anchor's MiniMaxH3AddGuide reads its size from that node's latent. The keyframes and the anchor live in the conditioning, not the latent, so replacing the latent keeps them.",
     "scale": 2,
     "start": 0.875,
     "size": "params",
-    "windows": {"_note": "A re-sample of a take longer than `seconds` (5.5: the 4.5-5.2 s shots fit one pass at 2688x1536, longer ones risk running out of memory) is sampled in windows (h3upscale.windowed): obvpm's H3 Context Windowing (comfyui-obvpm-timeline), MultiDiffusion along time with pyramid weights over each overlap, so 1344x768 x2 (2688x1536, about twice the pixels of the 1920x1088 the pack measured at ~7 GB of activations per 5 s window) fits 32 GB. The series' upscale recipe's `window` overrides the length (0: off).", "class_type": "H3ContextWindows", "pack": "comfyui-obvpm-timeline", "seconds": 5.5, "overlap": 1.25},
-    "upscaler": {"class_type": "MinimaxH3LatentUpscaler3D", "latent": "latent", "scale": "mode.scale", "align": 32,
-                 "inputs": {"model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
-                            "mode": "scale by multiplier", "align": 32, "enable_temporal_chunking": true,
-                            "force_unload": true, "device": "cuda", "precision": "fp16"}}
+    "windows": {"_note": "A re-sample of a take longer than `seconds` (5.5: the 4.5-5.2 s shots fit one pass at 2688x1536, longer ones risk running out of memory) is sampled in windows (upscale.windowed): MultiDiffusion along time with pyramid weights over each overlap, so 1344x768 x2 (2688x1536) fits 32 GB. ComfyUI's own node counts real frames (`frames`: 17n+5, so 5.5 s is 124 and 1.25 s is 39) and FreeNoise stays off, as the A/B against obvpm's ran it. `fallback`: obvpm's H3 Context Windowing, for a ComfyUI before 0.44 or asked for by the recipe's `windowing`. The series' upscale recipe's `window` overrides the length (0: off).", "class_type": "MiniMaxH3ContextWindows", "comfyui": "0.44", "seconds_input": "context_length", "overlap_input": "context_overlap", "frames": {"step": 17, "offset": 5}, "inputs": {"fuse_method": "pyramid", "freenoise": false, "split_conds_to_windows": false}, "seconds": 5.5, "overlap": 1.25, "fallback": {"class_type": "H3ContextWindows", "pack": "comfyui-obvpm-timeline"}},
+    "upscaler": {"_note": "ComfyUI's own (0.44 or later), loading the same model file as LBH-123-AI's pack. `fallback`: that pack, or its Plus, which register the same node, for an older ComfyUI or asked for by the recipe's `upscaler`.",
+                 "class_type": "MiniMaxH3LatentUpscaleWithModel", "comfyui": "0.44", "latent": "samples", "size": ["width", "height"], "align": 32,
+                 "model": {"class_type": "LatentUpscaleModelLoader", "input": "model",
+                           "inputs": {"model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors"}},
+                 "fallback": {"class_type": "MinimaxH3LatentUpscaler3D", "pack": "Comfyui_Minimax_h3_latent_Upscaler (LBH-123-AI) or its Plus version",
+                              "latent": "latent", "scale": "mode.scale", "align": 32,
+                              "inputs": {"model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+                                         "mode": "scale by multiplier", "align": 32, "enable_temporal_chunking": true,
+                                         "force_unload": true, "device": "cuda", "precision": "fp16"}}}
   },
 
   "downloads": {

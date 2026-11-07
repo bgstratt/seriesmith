@@ -535,14 +535,17 @@ def ref_shot(ref: Ref) -> tuple[str, str]:
 def image_defaults(s: Series, ready=None) -> dict:
     """The episode's ref-target defaults (GET /seriesmith/refs `defaults`):
     {"target", "target_source", "keyframe_target", "keyframe_target_source",
-    "edit_target", "edit_target_source", "voice_target", "voice_target_source"},
-    each source "editor" (overrides.json's episode.refs_target /
+    "edit_target", "edit_target_person", "edit_target_source", "voice_target",
+    "voice_target_source"}, each source "editor" (overrides.json's episode.refs_target /
     episode.keyframe_target / episode.edit_target / episode.voice_target, PUT
     /seriesmith/refs/defaults), "series" (the series config's `refs` block) or
-    "default" (krea2; flux2_klein_edit for keyframes when `ready(target)` says
-    it can render here, else the refs target; for edits the first of the
-    keyframe and refs targets that can edit, None when neither can; ltx2_voice
-    for voices). An edit target that can't edit (a model changed since it was
+    "default" (krea2; for keyframes the first of qwen_image_21 and
+    flux2_klein_edit that `ready(target)` says can render here, else the refs
+    target; for edits Qwen-Image 2.1, and
+    FLUX.3 Klein for a character (`edit_target_person`), each the other when it
+    isn't ready, then the first of the keyframe and refs targets that can edit,
+    None when neither can; ltx2_voice for voices). A chosen edit model is
+    `edit_target_person` too. An edit target that can't edit (a model changed since it was
     chosen) is passed over. The voice model is one choice of two kinds
     (TG.voice_targets): an audio one is `voice_target` (what voice samples are
     made on) and leaves `dub_target` (what a dub track renders on) at H3
@@ -567,9 +570,8 @@ def image_defaults(s: Series, ready=None) -> dict:
             out.update(keyframe_target=block["keyframe_target"],
                        keyframe_target_source="series")
         else:
-            t = TG.load_target(TG.DEFAULT_KEYFRAME_TARGET, "image")
-            kt = t.id if (ready is None or ready(t)) else out["target"]
-            out.update(keyframe_target=kt, keyframe_target_source="default")
+            t = TG.default_keyframe_target(ready)
+            out.update(keyframe_target=t.id if t else out["target"], keyframe_target_source="default")
         editors = {t.id for t in TG.list_targets("image") if is_edit_target(t)}
         ee = T.episode_field(ov, "edit_target")
         if ee and ee in editors:
@@ -578,7 +580,14 @@ def image_defaults(s: Series, ready=None) -> dict:
             out.update(edit_target=block["edit_target"], edit_target_source="series")
         else:
             first = next((x for x in (out["keyframe_target"], out["target"]) if x in editors), None)
-            out.update(edit_target=first, edit_target_source="default")
+
+            def built_in(*ids):
+                return next((x for x in ids if x in editors
+                             and (ready is None or ready(TG.load_target(x, "image")))), first)
+            out.update(edit_target=built_in(TG.DEFAULT_EDIT_TARGET, TG.DEFAULT_PERSON_EDIT_TARGET),
+                       edit_target_person=built_in(TG.DEFAULT_PERSON_EDIT_TARGET, TG.DEFAULT_EDIT_TARGET),
+                       edit_target_source="default")
+        out.setdefault("edit_target_person", out["edit_target"])
         # Turn's model: chosen, else None (automatic: Qwen 2.1 + angles when it is
         # installed, else the edit target; plan_edit)
         et = T.episode_field(ov, "turn_target")
@@ -2938,9 +2947,9 @@ def edit_target_ids() -> list[str]:
 def edit_target_for(s: Series, ref: Ref, requested: str | None = None,
                     ov_data: dict | None = None, ready=None, defaults: dict | None = None):
     """The image target an edit uses: the request's, else the first of the
-    ref's own target, the episode's edit target (image_defaults' `edit_target`:
-    the editor's choice, the series config's `refs.edit_target`, else the
-    first of the next two that can edit), its keyframe target and its refs
+    ref's own target, the episode's edit target (image_defaults' `edit_target`,
+    `edit_target_person` for a character: the editor's choice, the series
+    config's `refs.edit_target`, else the built-in ones), its keyframe target and its refs
     target that can edit (is_edit_target). RefError when it is none of them,
     or the requested one only draws from text."""
     if requested:
@@ -2954,7 +2963,8 @@ def edit_target_for(s: Series, ref: Ref, requested: str | None = None,
         return t
     d = defaults if defaults is not None else image_defaults(s, ready)
     ov = ref_override(ov_data if ov_data is not None else load_overrides(ref.home), ref.id)
-    for tid in (ov.get("target"), d.get("edit_target"), d.get("keyframe_target"), d.get("target")):
+    person = d.get("edit_target_person") if ref.kind == "character" else None
+    for tid in (ov.get("target"), person, d.get("edit_target"), d.get("keyframe_target"), d.get("target")):
         if not tid:
             continue
         try:

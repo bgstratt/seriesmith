@@ -1011,9 +1011,9 @@ The target picker sets which image model generates. They are not interchangeable
 | `z_image_turbo`, `flux2_klein` | No | Text to image |
 | `moss_image_sft`, `moss_image_base` | No | MOSS-Image: text to image, good with lettering and layout; the SFT is the one to draw with, the base is for LoRAs trained on it |
 | `flux_kontext` | One | The only edit target that takes a negative prompt |
-| `flux2_klein_edit` | Up to 4 | The default for keyframes when installed |
+| `flux2_klein_edit` | Up to 4 | The default for keyframes when Qwen-Image 2.1 isn't installed |
 | `minimax_h3_still` | Up to 9 | The video model rendering 5 frames and keeping the first |
-| `qwen_image_21` | Up to 16 | Text to image *or* an edit, decided by whether there is anything to edit from. The only one with a usable denoise; cfg, scheduler and negative prompt are ordinary settings |
+| `qwen_image_21` | Up to 16 | The default for keyframes when installed. Text to image *or* an edit, decided by whether there is anything to edit from. The only one with a usable denoise; cfg, scheduler and negative prompt are ordinary settings |
 | `flux3_klein` | Up to 10 | FLUX.3 Image Klein: text to image *or* an edit, as `qwen_image_21`. cfg, scheduler and negative prompt are ordinary settings |
 | `flux3_klein_turbo` | Up to 10 | The step-distilled FLUX.3 Klein: the same in 16 steps at cfg 1, so no negative prompt |
 | `fasth3_omni_still` | Up to 9 | FastH3 Omni rendering 5 frames and keeping the first, as `minimax_h3_still` |
