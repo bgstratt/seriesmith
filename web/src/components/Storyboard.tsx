@@ -2,12 +2,14 @@
 // row. A beat shows its target and its real shots; `+` adds a stand-in and Fill makes the rest. The
 // script is what's saved: every edit here goes to disk the way the script editor's do.
 
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
-import { openShotForm, openStoryboard, refreshEpisode } from "../actions";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { openShotForm, openStoryboard, refreshEpisode, requestRender, uploadRef } from "../actions";
 import { api } from "../host";
+import { filesFromDrag } from "../lib/dropped";
+import { keyframeRefId } from "../lib/keyframes";
 import { clipTake } from "../lib/playlist";
 import {
-  bandShare, bareBeats, clock, fillable, fillCount, meter, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_W,
+  bandShare, bareBeats, clock, dropTargets, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_W,
   pushed, type BoardAct, type BoardBeat, type BoardRun, type BoardShot, type SeriesChoices, type StoryboardAnswer, type StoryboardEdit,
 } from "../lib/storyboard";
 import { statusKey, useApp } from "../store";
@@ -144,7 +146,18 @@ function NameField({ value, busy, commit, cancel, className, size }: {
   );
 }
 
-function Run({ run, selected, pick, thumbs, onShotMenu, onRunMenu }: {
+type FrameDrop = (e: DragEvent, shots: BoardShot[], single: boolean) => void;
+
+/** Lets a drop of files land here rather than on the page behind. */
+function allowFiles(e: DragEvent) {
+  if (Array.from(e.dataTransfer.types).includes("Files")) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+}
+
+function Run({ run, selected, pick, thumbs, onShotMenu, onRunMenu, onFrames }: {
+  onFrames: FrameDrop;
   onShotMenu: (e: MouseEvent, shot: BoardShot, last: boolean) => void;
   onRunMenu: (e: MouseEvent, run: BoardRun) => void;
   run: BoardRun;
@@ -154,7 +167,8 @@ function Run({ run, selected, pick, thumbs, onShotMenu, onRunMenu }: {
 }) {
   const who = [...new Set(run.shots.flatMap((s) => s.who))];
   return (
-    <div className="h3-sb-run" style={{ width: runWidth(run.shots.length) }}>
+    <div className="h3-sb-run" style={{ width: runWidth(run.shots.length) }} onDragOver={allowFiles}
+      onDrop={(e) => onFrames(e, run.shots, false)}>
       <button className={`h3-sb-seqbar${run.opens ? "" : " h3-sb-goeson"}${selected ? " h3-sb-sel" : ""}`} disabled={run.block === null}
         title={`${run.sequence}: ${placeName(run.place)}${who.length ? `; ${who.join(", ")}` : ""}${run.opens ? "" : " (carried on from the beat before)"}. Click to change.`}
         onClick={pick} onContextMenu={(e) => onRunMenu(e, run)}>
@@ -167,8 +181,9 @@ function Run({ run, selected, pick, thumbs, onShotMenu, onRunMenu }: {
           return (
             <button key={s.id} className={`h3-sb-tile${s.held_empty ? " h3-sb-standin" : ""}`}
               style={thumb ? { backgroundImage: `url("${thumb}")` } : undefined}
-              title={`${s.id}${s.held_empty ? " (stand-in)" : ""}: ${s.action}`} onClick={() => openShotForm({ shot: s.id, after: null })}
-              onContextMenu={(e) => onShotMenu(e, s, s === run.shots[run.shots.length - 1])} />
+              title={`${s.id}${s.held_empty ? " (stand-in: drop a picture on it)" : ""}: ${s.action}`} onClick={() => openShotForm({ shot: s.id, after: null })}
+              onContextMenu={(e) => onShotMenu(e, s, s === run.shots[run.shots.length - 1])}
+              onDragOver={allowFiles} onDrop={(e) => onFrames(e, [s], true)} />
           );
         })}
       </div>
@@ -176,7 +191,8 @@ function Run({ run, selected, pick, thumbs, onShotMenu, onRunMenu }: {
   );
 }
 
-function Beat({ beat, biggest, picked, pick, busy, edit, thumbs, onShotMenu, onRunMenu, onBeatMenu, renaming, setRenaming }: {
+function Beat({ beat, biggest, picked, pick, busy, edit, thumbs, onShotMenu, onRunMenu, onBeatMenu, renaming, setRenaming, onFrames }: {
+  onFrames: FrameDrop;
   onShotMenu: (e: MouseEvent, shot: BoardShot, last: boolean) => void;
   onRunMenu: (e: MouseEvent, run: BoardRun) => void;
   onBeatMenu: (e: MouseEvent, beat: BoardBeat) => void;
@@ -197,7 +213,7 @@ function Beat({ beat, biggest, picked, pick, busy, edit, thumbs, onShotMenu, onR
   const point = beat.point !== undefined;
   const block = beat.block;
   return (
-    <div className="h3-sb-beat">
+    <div className="h3-sb-beat" onDragOver={allowFiles} onDrop={(e) => onFrames(e, beat.runs.flatMap((r) => r.shots), false)}>
       <div className={`h3-sb-band${point ? " h3-sb-point" : ""}${beat.thin ? " h3-sb-thin" : ""}${beat.plain !== null && !beat.known ? " h3-sb-own" : ""}`}
         style={{ width: bandShare(beat.target_shots, biggest) }}
         onContextMenu={(e) => onBeatMenu(e, beat)}
@@ -211,7 +227,7 @@ function Beat({ beat, biggest, picked, pick, busy, edit, thumbs, onShotMenu, onR
       {beat.guidance && <div className="h3-small h3-muted h3-sb-guide">{beat.guidance}</div>}
       <div className="h3-sb-runs">
         {beat.runs.map((run, i) => (
-          <Run key={`${run.sequence}${i}`} run={run} selected={picked === run.block} pick={() => pick(run)} thumbs={thumbs} onShotMenu={onShotMenu} onRunMenu={onRunMenu} />
+          <Run key={`${run.sequence}${i}`} run={run} selected={picked === run.block} pick={() => pick(run)} thumbs={thumbs} onShotMenu={onShotMenu} onRunMenu={onRunMenu} onFrames={onFrames} />
         ))}
         {named && (
           <button className="h3-sb-add" disabled={busy} title="Add a stand-in shot at the end of this beat"
@@ -265,7 +281,8 @@ function EditBar({ choices, picked, busy, edit, close }: {
   );
 }
 
-function ActRow({ act, label, biggest, shut, toggle, picked, pick, busy, edit, fill, thumbs, onShotMenu, onRunMenu, onBeatMenu, onActMenu, renamingBeat, setRenamingBeat }: {
+function ActRow({ act, label, biggest, shut, toggle, picked, pick, busy, edit, fill, thumbs, onShotMenu, onRunMenu, onBeatMenu, onActMenu, renamingBeat, setRenamingBeat, onFrames }: {
+  onFrames: FrameDrop;
   onShotMenu: (e: MouseEvent, shot: BoardShot, last: boolean) => void;
   onRunMenu: (e: MouseEvent, run: BoardRun) => void;
   onBeatMenu: (e: MouseEvent, beat: BoardBeat) => void;
@@ -299,7 +316,7 @@ function ActRow({ act, label, biggest, shut, toggle, picked, pick, busy, edit, f
       </div>
       {!shut && act.beats.map((b, i) => (
         <Beat key={`${b.plain}${b.nth}${i}`} beat={b} biggest={biggest} picked={picked} pick={pick} busy={busy} edit={edit} thumbs={thumbs}
-          onShotMenu={onShotMenu} onRunMenu={onRunMenu} onBeatMenu={onBeatMenu} renaming={renamingBeat !== null && renamingBeat === b.block}
+          onFrames={onFrames} onShotMenu={onShotMenu} onRunMenu={onRunMenu} onBeatMenu={onBeatMenu} renaming={renamingBeat !== null && renamingBeat === b.block}
           setRenaming={(on) => setRenamingBeat(on ? b.block : null)} />
       ))}
     </section>
@@ -320,6 +337,7 @@ function Storyboard({ ep }: { ep: string }) {
   const [seeded, setSeeded] = useState(false);
   // the show's own format the script opened with: still offered after changing away from it
   const [ownFormat, setOwnFormat] = useState<string | null>(null);
+  const [dropping, setDropping] = useState<string | null>(null);
   const [undo, setUndo] = useState<string[]>([]);
   const [redo, setRedo] = useState<string[]>([]);
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -343,16 +361,30 @@ function Storyboard({ ep }: { ep: string }) {
   // a script that names its structure goes by it, whether or not there's a table for it
   const scriptStructure = data?.plan.structure ?? null;
   const pass = useApp((s) => s.pass);
+  const rendered = useRef<Set<string>>(new Set());
   const status = useApp((s) => s.status[statusKey(ep, s.pass)]);
   const other = useApp((s) => s.status[statusKey(ep, s.pass === "proxy" ? "final" : "proxy")]);
   const thumbs = useMemo(() => {
     const out = new Map<string, string>();
+    const fresh = new Set<string>();
     for (const s of status?.shots ?? []) {
-      const path = clipTake(s, s.cut.placeholder ? other : undefined)?.thumb;
-      if (path) out.set(s.shot, api().thumbUrl(ep, path, TILE_W * 2));
+      const take = clipTake(s, s.cut.placeholder ? other : undefined);
+      if (take?.thumb) out.set(s.shot, api().thumbUrl(ep, take.thumb, TILE_W * 2));
+      if (take && take.status === "ok" && !take.stale?.length) fresh.add(s.shot);
+    }
+    rendered.current = fresh;
+    // a held shot shows its picture: a take of an earlier one, or of the gray card, is out of date
+    for (const act of data?.plan.acts ?? []) {
+      for (const beat of act.beats) {
+        for (const run of beat.runs) {
+          for (const s of run.shots) {
+            if (s.picture && s.target === "hold") out.set(s.id, api().thumbUrl(ep, s.picture, TILE_W * 2, s.picture_version));
+          }
+        }
+      }
     }
     return out;
-  }, [ep, pass, status, other]);
+  }, [ep, pass, status, other, data]);
   const chosen = scriptStructure ?? (structure || (names.find((n) => n.includes("Three-Act")) ?? names[0] ?? ""));
 
   // what the script already says wins, once, as the board opens
@@ -435,6 +467,30 @@ function Storyboard({ ep }: { ep: string }) {
     void restore(text, (now) => setUndo((u) => pushed(u, now)));
   }
 
+  /** Pictures dropped on the board: each becomes its shot's first frame, in filename order. */
+  async function frames(found: Promise<File[]>, shots: BoardShot[], single: boolean) {
+    const files = picturesInOrder(await found);
+    const targets = dropTargets(shots, single);
+    if (!files.length) { setErr("That drop has no pictures in it."); return; }
+    if (!targets.length) { setErr(single ? "Only a held shot takes a picture here." : "There are no empty stand-ins there to fill."); return; }
+    const pairs = targets.slice(0, single ? 1 : files.length).map((s, i) => ({ shot: s, file: files[i] })).filter((p) => p.file);
+    setBusy(true);
+    setErr(null);
+    let done = 0;
+    let failed = 0;
+    for (const { shot: target, file } of pairs) {
+      setDropping(`Adding pictures: ${done + failed + 1} of ${pairs.length}`);
+      if (await uploadRef(keyframeRefId(target.id, "first"), null, file, true)) done += 1;
+      else failed += 1;
+    }
+    setDropping(null);
+    setBusy(false);
+    const spare = files.length - pairs.length;
+    if (failed || spare) setErr(`${done} added.${failed ? ` ${failed} couldn't be added.` : ""}${spare ? ` ${spare} left over: not enough empty stand-ins.` : ""}`);
+    if (length !== null && each !== null) setData(await api().storyboard(ep, chosen, length * 60, each));
+    void refreshEpisode(ep);
+  }
+
   function keys(e: KeyboardEvent) {
     if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z") return;
     if ((e.target as HTMLElement).closest("input, select, textarea")) return;
@@ -454,6 +510,7 @@ function Storyboard({ ep }: { ep: string }) {
   const biggest = Math.max(0, ...allBeats.map((b) => b.target_shots ?? 0));
   const left = fillCount(allBeats);
   const bare = bareBeats(allBeats);
+  const toRender = heldToRender(allBeats.flatMap((b) => b.runs.flatMap((r) => r.shots)), rendered.current);
   // shots and no beat lines: a structure can be laid over them
   const canLayOut = !!plan && plan.shots > 0 && !allBeats.some((b) => b.plain !== null && b.in_script) && names.includes(chosen);
 
@@ -499,6 +556,10 @@ function Storyboard({ ep }: { ep: string }) {
           <span className="h3-grow" />
           <button className="h3-btn h3-icon" disabled={busy || !undo.length} title="Undo (Ctrl+Z)" onClick={undoEdit}><i className="pi pi-undo" /></button>
           <button className="h3-btn h3-icon" disabled={busy || !redo.length} title="Redo (Ctrl+Shift+Z)" onClick={redoEdit}><i className="pi pi-refresh" /></button>
+          {toRender.length > 0 && (
+            <button className="h3-btn" disabled={busy} title="Render every held shot with no up-to-date take, on its picture or the gray card. Free, on this machine: the animatic, in the cut."
+              onClick={() => requestRender(toRender, false, "Render the animatic")}>Render held ({toRender.length})</button>
+          )}
           {bare.length > 0 && (
             <button className="h3-btn" disabled={busy} title="One held shot on every beat that has none: the episode blocked in, from start to end"
               onClick={() => void edit({ op: "fill", beats: bare, each: 1 })}>One per beat ({bare.length})</button>
@@ -518,6 +579,7 @@ function Storyboard({ ep }: { ep: string }) {
           <span className="h3-small h3-err" style={{ padding: "0 10px" }}>The minutes and the shot length need to be above zero.</span>
         )}
         {err && <span className="h3-small h3-err" style={{ padding: "0 10px" }}>{err}</span>}
+        {dropping && <span className="h3-small h3-muted" style={{ padding: "0 10px" }}><i className="pi pi-spin pi-spinner" /> {dropping}</span>}
         {plan && plan.warnings.length > 0 && (
           <details className="h3-small h3-sb-warnings">
             <summary>{plan.warnings.length} {plan.warnings.length === 1 ? "warning" : "warnings"} at this length</summary>
@@ -537,6 +599,12 @@ function Storyboard({ ep }: { ep: string }) {
                 picked={picked?.block ?? null}
                 pick={(run) => run.block !== null && setPicked({
                   block: run.block, place: run.place, who: [...new Set(run.shots.flatMap((s) => s.who))] })}
+                onFrames={(e, shots, single) => {
+                  if (!e.dataTransfer.types.includes("Files")) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void frames(filesFromDrag(e.dataTransfer), shots, single);
+                }}
                 onShotMenu={(e, s, last) => openAt(e, { kind: "shot", shot: s, last, rendered: thumbs.has(s.id) })}
                 onRunMenu={(e, r) => openAt(e, { kind: "sequence", run: r })}
                 onBeatMenu={(e, b) => openAt(e, { kind: "beat", beat: b })}

@@ -3039,6 +3039,17 @@ def _board_block(body: dict, structure: str | None):
         raise ApiError(400, str(e)) from None
 
 
+def _give_gray_cards(ep: str, shots: list[str]) -> None:
+    """Each new stand-in's first frame, unless a picture is already there for its id."""
+    from seriesmith.core import board as BD
+    from seriesmith.core import fileio
+    for sid in shots:
+        path = os.path.join(ep, "refs", "shots", T.safe_id(sid), "first.png")
+        if not os.path.isfile(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            fileio.write_bytes(path, BD.gray_card())
+
+
 def _board_structure(view: dict, asked: str | None) -> str | None:
     """The structure the board goes by: the script's own if it names one, and only a structure
     with a table has targets (a show's own format, `// structure: Porch Lights`, has none);
@@ -3053,14 +3064,21 @@ def _board_answer(ep: str, doc: dict, structure: str | None, body: dict, hash_: 
     view = BD.outline(doc)
     named = _board_structure(view, structure)
     plan = BD.plan(doc, _board_block({**body, "duration": body.get("duration") or view["duration"]}, named))
+    card = BD.gray_card()
     for act in plan["acts"]:
         for beat in act["beats"]:
             for run in beat["runs"]:
                 for shot in run["shots"]:
                     # a picture dropped on a held shot may be a file the script doesn't name
-                    picture = os.path.join(ep, "refs", "shots", T.safe_id(shot["id"]), "first.png")
-                    if shot["held_empty"] and os.path.isfile(picture):
+                    relative = f"refs/shots/{T.safe_id(shot['id'])}/first.png"
+                    picture = os.path.join(ep, *relative.split("/"))
+                    shot["picture"], shot["picture_version"], shot["card"] = None, None, False
+                    if os.path.isfile(picture):
+                        if os.path.getsize(picture) == len(card) and open(picture, "rb").read() == card:
+                            shot["card"] = True
+                            continue
                         shot["held_empty"] = False
+                        shot["picture"], shot["picture_version"] = relative, str(int(os.path.getmtime(picture)))
     return 200, {"plan": plan, "hash": hash_, **more}
 
 
@@ -3182,6 +3200,7 @@ def post_storyboard_edit(ctx: Context, body):
             raise ApiError(400, f"no such edit: {op!r}")
     except (BD.BoardError, IndexError, TypeError, ValueError) as e:
         raise ApiError(400, str(e)) from None
+    _give_gray_cards(ep, made)
     saved = P.H.save_source(ep, "script", BD.text_of(doc), base_hash)
     build = E.build_episode(ep)
     episode_event(ctx, ep)

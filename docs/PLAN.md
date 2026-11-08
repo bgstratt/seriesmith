@@ -2481,14 +2481,20 @@ To build, each ending in something that runs:
       ordinary form, with the guidance as its action, where the person giving it a model reads it.
       A held shot with no picture can't render, so guidance only reaches a model by someone
       choosing one for that shot.
-- [ ] **Frames.** Drop on a tile; drop a folder or a selection on a sequence or beat to fill its
-      empty tiles in filename order; one action renders every held shot with a picture, and the
-      animatic is in the cut. Stand-ins without a picture confirmed refused.
+- [x] **Frames** (2026-11-08). A picture dropped on a tile is that held shot's first frame (a new
+      take of `shot:<id>:first`, picked: `uploadRef`); a folder or a selection on a sequence or
+      beat fills its empty stand-ins in filename order, and says how many were left over. A tile
+      shows its picture until it's rendered. **Render held** renders every held shot with no
+      up-to-date take, free, on this machine: the animatic, in the cut. A new stand-in's
+      `first.png` is a small flat gray card (`board.gray_card`, known by its bytes, so it still counts
+      as empty), which a dropped picture replaces: a blocked episode renders as it is, and a title
+      card someone wrote by hand, with no picture, stays blocked. No line in the script. Undo covers the
+      script, not pictures: an earlier picture stays a take of that keyframe.
 - [ ] **Re-fit to duration**, as above, and only for stand-ins made by Fill: targets follow the
       duration on their own. Maybe not needed at all; decide when the rest is in use.
 - [ ] **Dragging shots** around the board, as on the timeline.
-- [ ] A bulk "convert this sequence" from stand-ins to a model. It must leave out, or stop and name,
-      the stand-ins whose action is still the structure's guidance: nobody reads those one by one.
+- [ ] A bulk "convert this sequence" from stand-ins to a model. Whoever sends a paid render owns
+      having read its shots: no guard on guidance text left in place (decided 2026-11-08).
 
 ## Later
 

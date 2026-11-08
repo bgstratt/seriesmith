@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blockedScript } from "../src/lib/wizard";
-import { bandShare, bareBeats, clock, fillable, fillCount, meter, placeOf, positive, pushed, runtimeMinutes, runWidth, seriesChoices, UNDO_STEPS, type BoardBeat } from "../src/lib/storyboard";
+import { bandShare, bareBeats, clock, dropTargets, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, pushed, runtimeMinutes, runWidth, seriesChoices, UNDO_STEPS, type BoardBeat } from "../src/lib/storyboard";
 
 function beat(over: Partial<BoardBeat>): BoardBeat {
   return { beat: "A", plain: "A", nth: 0, block: null, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
@@ -82,6 +82,36 @@ describe("runtimeMinutes", () => {
 
   it("never comes to nothing", () => {
     expect(runtimeMinutes(0, 0, 3.5)).toBe("0.1");
+  });
+});
+
+describe("frames", () => {
+  const file = (name: string, type = "image/png") => ({ name, type });
+
+  it("takes pictures in filename order, numbers as numbers", () => {
+    const out = picturesInOrder([file("f10.png"), file("f2.png"), file("notes.txt", "text/plain"), file("f1.jpg", "image/jpeg")]);
+    expect(out.map((f) => f.name)).toEqual(["f1.jpg", "f2.png", "f10.png"]);
+  });
+
+  const shots = [
+    { id: "a", target: "hold", held_empty: true, picture: null, card: true },
+    { id: "b", target: "hold", held_empty: false, picture: "x.png", card: false },
+    { id: "c", target: null, held_empty: false, picture: null, card: false },
+    { id: "d", target: "hold", held_empty: true, picture: null, card: false },
+  ];
+
+  it("fills only empty stand-ins from a sequence or a beat", () => {
+    expect(dropTargets(shots, false).map((s) => s.id)).toEqual(["a", "d"]);
+  });
+
+  it("lets a single tile replace its own picture, on a held shot only", () => {
+    expect(dropTargets([shots[1]], true).map((s) => s.id)).toEqual(["b"]);
+    expect(dropTargets([shots[2]], true)).toEqual([]);
+  });
+
+  it("renders held shots on a picture or the gray card, unless their take is up to date", () => {
+    expect(heldToRender(shots, new Set())).toEqual(["a", "b"]);
+    expect(heldToRender(shots, new Set(["a", "b"]))).toEqual([]);
   });
 });
 

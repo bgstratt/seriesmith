@@ -41,6 +41,11 @@ export interface BoardShot {
   action: string;
   /** a stand-in nobody has worked on yet */
   held_empty: boolean;
+  /** its first frame, when it has one of its own */
+  picture?: string | null;
+  /** still holding the gray card it was made with: it renders, gray */
+  card?: boolean;
+  picture_version?: string | null;
   block: number;
 }
 
@@ -191,6 +196,23 @@ export function bandShare(target: number | null, biggest: number): string {
 /** The episode's length so far in minutes, as the Minutes field writes it: untimed shots as typical ones. */
 export function runtimeMinutes(seconds: number, untimed: number, typical: number): string {
   return String(Math.max(0.1, Math.round(((seconds + untimed * typical) / 60) * 10) / 10));
+}
+
+/** The pictures in a drop, in filename order (frame2 before frame10). */
+export function picturesInOrder<T extends { name: string; type: string }>(files: T[]): T[] {
+  return files.filter((f) => f.type.startsWith("image/"))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+}
+
+/** Which shots a drop lands on: a tile takes one even over the picture it has; a sequence or a beat
+ * fills its empty stand-ins and leaves the rest alone. */
+export function dropTargets<T extends Pick<BoardShot, "target" | "held_empty">>(shots: T[], single: boolean): T[] {
+  return single ? shots.filter((s) => s.target === "hold") : shots.filter((s) => s.held_empty);
+}
+
+/** The held shots that can render and have no up-to-date take: the animatic's to-do. */
+export function heldToRender<T extends Pick<BoardShot, "id" | "target" | "picture" | "card">>(shots: T[], fresh: Set<string>): string[] {
+  return shots.filter((s) => s.target === "hold" && (s.picture || s.card) && !fresh.has(s.id)).map((s) => s.id);
 }
 
 export interface SeriesChoices {

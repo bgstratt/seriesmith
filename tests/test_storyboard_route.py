@@ -366,6 +366,71 @@ class TestStoryboardRoutes(unittest.TestCase):
         self.assertEqual(code, 200, done)
         self.assertEqual(len(done["made"]), 1)
 
+    def test_a_stand_in_takes_a_picture_as_its_first_frame(self):
+        self.blank(DRAFT + "\n# sq01  porch\n\n## sh010\ntarget: hold\ndur: 2\nStand.\n")
+        self.assertEqual(A.post_build(self.ctx, {"ep": self.ep})[0], 200)
+        from PIL import Image
+        png = os.path.join(self._tmp.name, "frame.png")
+        Image.new("RGB", (64, 36), (200, 40, 40)).save(png)
+        code, data = A.post_refs_import(self.ctx, {"ep": self.ep, "ref": "shot:sh010:first", "source_path": png, "pick": True})
+        self.assertEqual(code, 200, data)
+        shot = self.rows(self.board())[0]["runs"][0]["shots"][0]
+        self.assertFalse(shot["held_empty"])
+        self.assertEqual(shot["picture"], "refs/shots/sh010/first.png")
+        self.assertTrue(shot["picture_version"])
+
+    def test_a_shot_without_a_picture_says_so(self):
+        self.blank(DRAFT + "\n# sq01  porch\n\n## sh010\ntarget: hold\ndur: 2\nStand.\n")
+        self.assertIsNone(self.rows(self.board())[0]["runs"][0]["shots"][0]["picture"])
+
+    def first_png(self, sid: str) -> str:
+        return os.path.join(self.ep, "refs", "shots", sid, "first.png")
+
+    def test_a_stand_in_holds_the_gray_card(self):
+        self.blank()
+        made = self.edit(op="add", structure="Three-Act", duration="180", beat={"plain": "Debate", "nth": 0})["made"]
+        with open(self.first_png(made[0]), "rb") as fh:
+            self.assertEqual(fh.read(), B.gray_card())
+        self.assertNotIn("first:", self.text())
+        held = next(b for b in self.rows(self.board(structure="Three-Act", duration="180")) if b["plain"] == "Debate")["runs"][0]["shots"][0]
+        self.assertTrue(held["held_empty"])
+        self.assertTrue(held["card"])
+        self.assertIsNone(held["picture"])
+
+    def test_the_gray_card_is_a_picture_the_hold_can_use(self):
+        self.blank()
+        made = self.edit(op="add", structure="Three-Act", duration="180", beat={"plain": "Debate", "nth": 0})["made"]
+        with open(os.path.join(self.ep, "shotlist", "shotlist.hold.json"), encoding="utf-8") as fh:
+            entry = __import__("json").load(fh)["shots"][0]
+        self.assertEqual(os.path.normpath(os.path.join(self.ep, entry["keyframes"]["first"])), os.path.normpath(self.first_png(made[0])))
+        from seriesmith import finish as F
+        from seriesmith import hold as H
+        out = os.path.join(self._tmp.name, "held.mp4")
+        H.encode(self.first_png(made[0]), out, 12, 24.0, (640, 360))
+        self.assertEqual(F.probe(out)["frames"], 12)
+
+    def test_a_real_picture_replaces_the_card_and_it_stops_being_empty(self):
+        self.blank()
+        made = self.edit(op="add", structure="Three-Act", duration="180", beat={"plain": "Debate", "nth": 0})["made"]
+        from PIL import Image
+        png = os.path.join(self._tmp.name, "frame.png")
+        Image.new("RGB", (64, 36), (200, 40, 40)).save(png)
+        code, data = A.post_refs_import(self.ctx, {"ep": self.ep, "ref": f"shot:{made[0]}:first", "source_path": png, "pick": True})
+        self.assertEqual(code, 200, data)
+        held = next(b for b in self.rows(self.board(structure="Three-Act", duration="180")) if b["plain"] == "Debate")["runs"][0]["shots"][0]
+        self.assertFalse(held["held_empty"])
+        self.assertFalse(held["card"])
+        self.assertEqual(held["picture"], f"refs/shots/{made[0]}/first.png")
+
+    def test_a_new_stand_in_never_overwrites_a_picture_already_there(self):
+        self.blank()
+        os.makedirs(os.path.dirname(self.first_png("sh010")))
+        with open(self.first_png("sh010"), "wb") as fh:
+            fh.write(b"mine")
+        self.edit(op="add", structure="Three-Act", duration="180", beat={"plain": "Debate", "nth": 0})
+        with open(self.first_png("sh010"), "rb") as fh:
+            self.assertEqual(fh.read(), b"mine")
+
 
 if __name__ == "__main__":
     unittest.main()

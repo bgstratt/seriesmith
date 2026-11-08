@@ -23,6 +23,8 @@ An act holds until the next `// act:`, or a beat the structure itself puts in an
 from __future__ import annotations
 
 import re
+import struct
+import zlib
 
 from seriesmith.core import spotting as SP
 from seriesmith.core.story import META_KEYS
@@ -31,6 +33,18 @@ _MARK = re.compile(r"^//\s*(structure|duration|act|beat)\b:?\s*(.*?)\s*$")
 _DIALOGUE = re.compile(r"^[A-Z][A-Z0-9_ '\-]*?\s*(?:\([^)]*\))?\s*:\s*.+$")
 _FIELD = re.compile(r"^([a-z_]+)\s*:\s*(.*)$")
 _AGAIN = re.compile(r"\s*\(again\)\s*$")
+
+
+def gray_card() -> bytes:
+    """The picture a new stand-in holds, so a blocked episode renders as it is: a small flat gray
+    PNG, the same bytes every time, which is how a stand-in still holding it is told from one that
+    has been given a picture. The hold scales it up."""
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    width, height, gray = 32, 18, 72
+    rows = b"".join(b"\0" + bytes((gray, gray, gray)) * width for _ in range(height))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b""))
 
 
 def seconds_of(value: str) -> float | None:
@@ -453,6 +467,12 @@ def _new_sequence_id(blocks: list[dict]) -> str:
     return f"sq{max(numbers, default=0) + 1:02d}"
 
 
+def _stand_in(sid: str, who: list[str], seconds: float, action: str) -> str:
+    lines = [f"## {sid}", "target: hold"] + ([f"who: {', '.join(who)}"] if who else [])
+    lines += [f"dur: {seconds:g}", action.strip() or "Stand-in."]
+    return "\n".join(lines) + "\n\n"
+
+
 def add_stand_ins(doc: dict, beat: int, count: int, seconds: float, action: str,
                   who: list[str] | None = None, place: str | None = None) -> list[str]:
     """`count` held shots at the end of the beat at block `beat`; their ids. They join the sequence
@@ -478,12 +498,9 @@ def add_stand_ins(doc: dict, beat: int, count: int, seconds: float, action: str,
                 who = block["shot"]["who"]
                 break
     made = []
-    text = action.strip() or "Stand-in."
     for _ in range(count):
         sid = _new_shot_id(blocks, at)
-        lines = [f"## {sid}", "target: hold"] + ([f"who: {', '.join(who)}"] if who else [])
-        lines += [f"dur: {seconds:g}", text]
-        at += _insert(doc, at, "\n".join(lines) + "\n\n")
+        at += _insert(doc, at, _stand_in(sid, who, seconds, action))
         made.append(sid)
     return made
 
@@ -566,9 +583,7 @@ def add_shot_after(doc: dict, block: int, seconds: float, action: str = "") -> s
     who = blocks[block]["shot"]["who"]
     at = block + 1
     sid = _new_shot_id(blocks, at)
-    lines = [f"## {sid}", "target: hold"] + ([f"who: {', '.join(who)}"] if who else [])
-    lines += [f"dur: {seconds:g}", action.strip() or "Stand-in."]
-    _insert(doc, at, "\n".join(lines) + "\n\n")
+    _insert(doc, at, _stand_in(sid, who, seconds, action))
     return sid
 
 
@@ -599,9 +614,7 @@ def add_sequence_after(doc: dict, block: int, place: str, seconds: float) -> str
 def add_stand_ins_at(doc: dict, at: int, seconds: float, who: list[str]) -> str:
     blocks = doc["blocks"]
     sid = _new_shot_id(blocks, at)
-    lines = [f"## {sid}", "target: hold"] + ([f"who: {', '.join(who)}"] if who else [])
-    lines += [f"dur: {seconds:g}", "Stand-in."]
-    _insert(doc, at, "\n".join(lines) + "\n\n")
+    _insert(doc, at, _stand_in(sid, who, seconds, ""))
     return sid
 
 
