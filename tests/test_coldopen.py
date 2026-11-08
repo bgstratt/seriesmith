@@ -114,6 +114,40 @@ class Episode(unittest.TestCase):
         with self.assertRaises(CO.ColdOpenError):
             CO.set_end(self.ep, "final", "sh999")
 
+    def shots_txt(self, rows: list[tuple[str, int, int]]) -> str:
+        """An assembled cut's shot list as assemble writes it: (shot, start frame, frames)."""
+        path = os.path.join(self.ep, "renders", "ep01_shots.txt")
+        lines = ["# ep01.mp4   4 shots   00:00:09.000   final pass",
+                 "#           in  shot       take  frames  policy"]
+        for sid, start, n in rows:
+            s = start / 24
+            lines.append(f"  00:00:{s:06.3f}  {sid:10} {1:>4} {n:>7}  generate")
+        F.write_text(path, "\n".join(lines) + "\n")
+        return path
+
+    def test_the_break_is_read_from_the_file(self):
+        # sh040's file is 3 frames shorter than its record: the break still lands on sh030's
+        # first frame as the file has it, whatever the plan says of the shots after it
+        self.write(script("cold_open: true\n"))
+        path = self.shots_txt([("sh010", 0, 48), ("sh020", 48, 72), ("sh030", 120, 48),
+                               ("sh040", 168, 45)])
+        self.assertEqual(CO.split_in_file(self.ep, path, 24), 120)
+        # a shot list in another order: the marked shots after an unmarked one are a gap
+        gap = self.shots_txt([("sh010", 0, 48), ("sh030", 48, 48), ("sh020", 96, 72),
+                              ("sh040", 168, 45)])
+        with self.assertRaisesRegex(CO.ColdOpenError, "sh020 marked cold open"):
+            CO.split_in_file(self.ep, gap, 24)
+        # a dissolve across the break: sh030 starts before sh020 ends
+        dis = self.shots_txt([("sh010", 0, 48), ("sh020", 48, 72), ("sh030", 108, 48),
+                              ("sh040", 156, 45)])
+        with self.assertRaisesRegex(CO.ColdOpenError, "dissolves"):
+            CO.split_in_file(self.ep, dis, 24)
+        with self.assertRaisesRegex(CO.ColdOpenError, "no shot list"):
+            CO.split_in_file(self.ep, path + ".nope", 24)
+        # no cold open: nothing to read
+        self.write(script())
+        self.assertIsNone(CO.split_in_file(self.ep, path + ".nope", 24))
+
     def test_routes(self):
         ctx = A.Context(os.path.join(self._tmp.name, "user"), "http://127.0.0.1:0", env={})
         code, _ = A.put_config(ctx, {"roots": [self.shows]})

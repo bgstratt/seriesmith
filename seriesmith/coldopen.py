@@ -117,3 +117,55 @@ def set_end(root: str, pass_: str, end: str | None) -> dict:
     before = src.hash
     after = H.write_source(src, text)
     return {"shots": [s for s in order if s in want], "changed": after != before}
+
+
+def file_shots(path: str, fps: float) -> list[dict]:
+    """An assembled cut's shot list (assemble writes `<cut>_shots.txt` beside every cut it
+    makes, a master's too): [{"id", "start" (its first frame in the file), "frames"}] in the
+    file's order. [] when there's none."""
+    out = []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                parts = line.split()
+                if not parts or line.lstrip().startswith("#") or len(parts) < 4:
+                    continue
+                h, m, s = parts[0].split(":")
+                secs = int(h) * 3600 + int(m) * 60 + float(s)
+                out.append({"id": parts[1], "start": round(secs * fps), "frames": int(parts[3])})
+    except (OSError, ValueError):
+        return []
+    return out
+
+
+def split_in_file(root: str, shots_txt: str, fps: float) -> int | None:
+    """Where the intro goes in an assembled cut, read from its own shot list (`file_shots`):
+    the first frame of the shot after the cold open, as the file has it (a take shorter than
+    its record is laid as the file is, so the cut's plan can be a frame or three off). None
+    without a cold open. ColdOpenError for a gap, a dissolve across the break, every shot
+    marked, or a cut with no shot list."""
+    story = R.episode_story(root)
+    marked = flags(story) if story else {}
+    if not any(marked.values()):
+        return None
+    rows = file_shots(shots_txt, fps)
+    if not rows:
+        raise ColdOpenError(f"the cut has no shot list beside it ({shots_txt}): export it again")
+    i = 0
+    while i < len(rows) and marked.get(rows[i]["id"]):
+        i += 1
+    gaps = [r["id"] for r in rows[i:] if marked.get(r["id"])]
+    if gaps:
+        raise ColdOpenError(f"{', '.join(gaps)} marked cold open but play after "
+                            f"{rows[i]['id']}, which isn't: right-click the last shot it should "
+                            f"hold, Cold open ends here")
+    if i == 0:
+        return None
+    if i == len(rows):
+        raise ColdOpenError("every shot in the cut is marked cold open: the titles would have "
+                            "nothing after them")
+    last, nxt = rows[i - 1], rows[i]
+    if nxt["start"] < last["start"] + last["frames"]:
+        raise ColdOpenError(f"{nxt['id']} dissolves in from {last['id']}, the cold open's last "
+                            f"shot: the titles go in on a cut, so take the dissolve out there")
+    return nxt["start"]

@@ -104,8 +104,10 @@ an **▸ Opening** marker on the cold open's last clip, where the intro will go.
   refused; take it out there.
 - **Music across the break** is cut there, as the picture is. End the cold open's music on
   its last shot (a button on the cut is the classic way into the titles).
-- **The master checks the file it titles against the cut as it stands.** Change the cut after
-  making a master, and master again.
+- **The break is read from the file being titled.** Every cut assemble writes (an export, a
+  master) has its shot list beside it (`<cut>_shots.txt`), and the intro goes in where that
+  list says the cold open's last shot ends, so a take a frame or two shorter than its record
+  doesn't move it. Change the cold open after exporting, and export (or master) again.
 
 ## The intro's and outro's loudness
 

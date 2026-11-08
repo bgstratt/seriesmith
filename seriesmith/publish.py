@@ -603,25 +603,19 @@ def _clip(root: str, block: dict, key: str) -> str | None:
     return None
 
 
-def cold_open_split(root: str, pass_: str, intro: str | None, frames: int) -> int | None:
-    """Where the intro goes in the cut (its frame) when the script marks a cold open
-    (coldopen.state), else None (at the start). PublishError when the marks don't make
-    one run at the cut's head, or when the file (`frames` long) isn't the cut as it stands.
-    Without an intro there's nothing to put in."""
+def cold_open_split(root: str, src: str, fps: float, intro: str | None) -> int | None:
+    """Where the intro goes in the cut `src` (its frame) when the script marks a cold open,
+    else None (at the start): read from the shot list assemble wrote beside it
+    (`<cut>_shots.txt`, coldopen.split_in_file), so it's where the file's shots really are.
+    PublishError when the marks don't make one run at the cut's head. Without an intro
+    there's nothing to put in."""
     if not intro:
         return None
     from seriesmith import coldopen as CO
     try:
-        st = CO.state(root, pass_)
-    except (OSError, ValueError) as e:
-        raise PublishError(f"the cold open couldn't be read: {e}") from None
-    if st["error"]:
-        raise PublishError(f"cold open: {st['error']}")
-    if st["frame"] is not None and st["frames"] != frames:
-        raise PublishError(f"cold open: the file is {frames} frames and the cut as it stands "
-                           f"{st['frames']}, so where its cold open ends can't be found: "
-                           f"export or master it again")
-    return st["frame"]
+        return CO.split_in_file(root, os.path.splitext(src)[0] + "_shots.txt", fps)
+    except CO.ColdOpenError as e:
+        raise PublishError(f"cold open: {e}") from None
 
 
 def titles(root: str) -> tuple[str | None, str | None]:
@@ -662,7 +656,7 @@ def publish(root: str, src: str | None = None, pass_: str = "final", out: str | 
         quality = "master" if os.path.basename(os.path.dirname(src)) == "master" else "review"
 
     cut = probe(src)
-    split = cold_open_split(root, pass_, intro, cut["frames"])
+    split = cold_open_split(root, src, cut["fps"], intro)
     print(f"  {os.path.basename(root)}  \"{title}\"")
     print(f"    intro  {intro or '(none)'}")
     print(f"    cut    {src}  {cut['width']}x{cut['height']} {cut['fps']:g}fps "
