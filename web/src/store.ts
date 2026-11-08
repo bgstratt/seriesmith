@@ -535,6 +535,8 @@ export interface AppState {
   queueInPanel: boolean;
   /** the Finals from drafts window (components/FinalsFromDrafts.tsx) */
   draftsOpen: boolean;
+  /** the storyboard window (components/Storyboard.tsx) */
+  storyboardOpen: boolean;
   /** the standalone page's Settings window (components/SettingsWindow.tsx) */
   settingsOpen: boolean;
   /** the Features window: what can be added, and the installer (components/FeaturesWindow.tsx) */
@@ -659,6 +661,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     jobsOpen: false,
     queueInPanel: false,
     draftsOpen: false,
+    storyboardOpen: false,
     settingsOpen: false,
     featuresOpen: false,
     featuresFocus: null,

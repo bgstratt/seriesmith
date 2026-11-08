@@ -1460,3 +1460,30 @@
 .h3-sndgal-big.h3-on { box-shadow: 0 0 0 2px var(--h3-accent); }
 .h3-sndgal-big .h3-pane-label { top: 0; left: 0; }
 .h3-sndgal-playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--h3-accent); pointer-events: none; }
+
+/* the storyboard (components/Storyboard.tsx): an act to a row, a band over each beat's shots */
+.h3-sb-controls { gap: 14px; padding: 8px 10px; flex-wrap: wrap; border-bottom: 1px solid var(--h3-border); }
+.h3-sb-controls label { gap: 6px; }
+.h3-sb-num { width: 64px; }
+.h3-sb-warnings { padding: 6px 10px 0; color: var(--h3-queued); }
+.h3-sb-warnings ul { margin: 4px 0 0; padding-left: 18px; }
+.h3-sb-board { flex: 1; min-height: 0; overflow: auto; padding: 8px 10px 16px; }
+.h3-sb-act { margin-bottom: 12px; }
+.h3-sb-acthead {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 2px; margin-bottom: 6px;
+  background: none; border: 0; border-bottom: 1px solid var(--h3-border); color: var(--h3-fg); cursor: pointer; text-align: left;
+}
+.h3-sb-acthead:hover { background: var(--h3-hover); }
+.h3-sb-row { display: flex; flex-wrap: wrap; gap: 8px 6px; align-items: flex-start; }
+.h3-sb-beat { min-width: 0; }
+.h3-sb-band {
+  display: flex; justify-content: space-between; gap: 6px; height: 18px; padding: 0 5px; margin-bottom: 3px; border-radius: 3px;
+  font-size: 11px; line-height: 18px; color: #fff; cursor: help; overflow: hidden;
+  background: color-mix(in srgb, var(--h3-accent) 75%, transparent);
+}
+.h3-sb-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.h3-sb-count { flex: none; opacity: 0.8; }
+.h3-sb-point .h3-sb-band { background: color-mix(in srgb, var(--h3-rendering) 55%, var(--h3-bg3)); }
+.h3-sb-thin .h3-sb-band { background: color-mix(in srgb, var(--h3-queued) 75%, transparent); }
+.h3-sb-tiles { display: flex; flex-wrap: wrap; gap: 3px; }
+.h3-sb-tile { width: 28px; height: 16px; border-radius: 2px; background: var(--h3-bg3); border: 1px solid var(--h3-border); box-sizing: border-box; }

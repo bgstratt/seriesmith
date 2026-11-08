@@ -10,6 +10,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from seriesmith import api as A  # noqa: E402
 from seriesmith.core import blocking as B  # noqa: E402
 from seriesmith.core import spotting as SP  # noqa: E402
 
@@ -112,6 +113,25 @@ class TestArguments(unittest.TestCase):
     def test_an_unknown_structure(self):
         with self.assertRaises(B.BlockError):
             B.block("Nonsense Shape", 60.0)
+
+
+class TestTheRoute(unittest.TestCase):
+    def test_it_answers_the_block(self):
+        status, body = A.get_storyboard_block(None, {"structure": "Three-Act", "duration": "180"})
+        self.assertEqual(status, 200)
+        self.assertEqual(body["shots"], 51)
+        self.assertEqual(body["acts"][0]["act"], "I: Setup")
+
+    def test_the_shot_length_is_read(self):
+        _status, body = A.get_storyboard_block(None, {"structure": "Three-Act", "duration": "180", "shot": "6"})
+        self.assertEqual(body["shots"], 30)
+
+    def test_bad_requests_are_400(self):
+        for query in ({"structure": "Three-Act"}, {"structure": "Three-Act", "duration": "abc"},
+                      {"structure": "Three-Act", "duration": "0"}, {"structure": "Nonsense", "duration": "60"},
+                      {"duration": "60"}, {"structure": "Three-Act", "duration": "60", "shot": "x"}):
+            with self.subTest(query):
+                self.assertEqual(A.get_storyboard_block(None, query)[0], 400)
 
 
 if __name__ == "__main__":

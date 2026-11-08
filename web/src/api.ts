@@ -9,6 +9,7 @@
 //    shot's per-pass prompt override is ignored, so the inspector shows its
 //    `effective.prompt` read-only.
 
+import type { StoryboardBlock } from "./lib/storyboard";
 import type { MixBeats } from "./lib/beats";
 import type {
   ColorMatch,
@@ -405,6 +406,8 @@ export interface Api {
     Promise<{ theme: { name: string; ep: string; cue: string; take: number; role?: string; words?: string }; written: string[]; same: string[] }>;
   /** GET /seriesmith/structures: the story structures with a Music table, each with its beats' names. */
   structures(): Promise<{ structures: { id: string; name: string; beats: string[] }[] }>;
+  /** GET /seriesmith/storyboard/block: a structure and a duration, in seconds, as shots per beat. */
+  storyboardBlock(structure: string, duration: number, shot?: number): Promise<StoryboardBlock>;
   /** POST /seriesmith/cue/draft: the first-pass score from the script's structure; written (its cues, hits and
    * the dialogue to voices only unless keep_sound) only with `write`. */
   scoreDraft(req: { ep: string; pass: Pass; write?: boolean; replace?: boolean; rendered?: boolean; keep_sound?: boolean;
@@ -941,6 +944,7 @@ export function createHttpApi(t: Transport): Api {
     pinCueTheme: (req) => call("POST", "/seriesmith/cue/theme", req),
     scoreDraft: (req) => call("POST", "/seriesmith/cue/draft", req),
     structures: () => get("/seriesmith/structures"),
+    storyboardBlock: (structure, duration, shot) => get(`/seriesmith/storyboard/block?${qs({ structure, duration: String(duration), shot: shot === undefined ? undefined : String(shot) })}`),
     compCue: (req) => call("POST", "/seriesmith/cue/comp", req),
     repaintCue: (req) => call("POST", "/seriesmith/cue/repaint", req),
     cutReset: (ep, pass, what) => call("POST", "/seriesmith/cut/reset", { ep, pass, what }),

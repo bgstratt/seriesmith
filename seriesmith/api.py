@@ -3007,6 +3007,27 @@ def get_structures(ctx: Context, query: dict):
 
 
 @handler
+def get_storyboard_block(ctx: Context, query: dict):
+    """A story structure and a duration as shots per beat (core/blocking.py): `structure` (a name
+    or number), `duration` and optionally `shot` in seconds. Nothing is written."""
+    from seriesmith.core import blocking as BL
+
+    def number(key: str, default: float | None = None) -> float:
+        raw = query.get(key)
+        if raw in (None, "") and default is not None:
+            return default
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            raise ApiError(400, f"{key} must be a number of seconds, not {raw!r}") from None
+    try:
+        return 200, BL.block(str(query.get("structure") or ""), number("duration"),
+                             number("shot", BL.TYPICAL_SHOT))
+    except BL.BlockError as e:
+        raise ApiError(400, str(e)) from None
+
+
+@handler
 def put_cue(ctx: Context, body):
     """Write a cue's spec (`{ep, cue}`); 400 for one that doesn't check."""
     body = body_dict(body)
@@ -6597,6 +6618,7 @@ ROUTES = [
     ("POST", "/seriesmith/cue/theme", post_cue_theme, "body"),
     ("POST", "/seriesmith/cue/draft", post_cue_draft, "body"),
     ("GET", "/seriesmith/structures", get_structures, "query"),
+    ("GET", "/seriesmith/storyboard/block", get_storyboard_block, "query"),
     ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
     ("POST", "/seriesmith/cue/repaint", post_cue_repaint, "body"),
     ("GET", "/seriesmith/fx", get_fx, "query"),

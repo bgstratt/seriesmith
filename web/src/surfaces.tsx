@@ -47,6 +47,7 @@ import { useApp } from "./store";
 import css from "./styles.css?inline";
 import { PanelQueueWindows } from "./components/Jobs";
 import { FinalsFromDraftsWindow } from "./components/FinalsFromDrafts";
+import { StoryboardWindow } from "./components/Storyboard";
 
 const SURFACES: Record<Surface, ComponentType> = {
   shots: ShotsTab,
@@ -198,6 +199,7 @@ export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Add issue", IssueDialog],
   ["Take details", SidecarDialog],
   ["Finals from drafts", FinalsFromDraftsWindow],
+  ["Storyboard", StoryboardWindow],
   ["Promote", PromoteDialog],
   ["Toasts", Toasts],
 ];

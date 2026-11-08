@@ -1078,6 +1078,15 @@ The story structures with a Music table (docs/STORY_STRUCTURES.md, as
 Spine", "beats": [their names as a `// beat:` line writes them, a repeat once]}]}`. The shot
 form offers the beats of the script's `// structure:`.
 
+### `GET /seriesmith/storyboard/block?structure=…&duration=…&shot=…`
+A story structure and a duration as shots per beat (`core/blocking.py`; docs/PLAN.md, the
+storyboard). `structure` is a name or number, `duration` and the optional `shot` (a typical
+shot, 3.5 by default) are seconds. Nothing is written. Answers `{"structure", "duration",
+"shot_seconds" (the length each shot comes to), "wanted_shots", "shots", "warnings", "acts":
+[{"act", "shots", "seconds", "beats": [{"beat", "act", "guidance", "at" | "point", "shots",
+"seconds", "first_shot", "thin"}]}]}`; 400 for an unknown structure or a number that isn't above
+zero.
+
 ### `POST /seriesmith/cue/draft`
 Body `{"ep", "pass"?, "write"?, "replace"?, "rendered"?, "keep_sound"?, "structure"?, "mark"?}`: the first-pass score drafted from
 the script's `// structure:`, `// beat:`, `// theme:` and `// flashback` lines, that
