@@ -1,15 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { BEAT_MIN_W, beatWidth, BOX_W, boxShots, clock, freshBoxes, placeOf, positive, removeBox, seriesChoices, splitBox, TILE_GAP, TILE_W } from "../src/lib/storyboard";
+import { bandShare, bareBeats, clock, fillable, fillCount, meter, placeOf, positive, runWidth, seriesChoices, type BoardBeat } from "../src/lib/storyboard";
 
-describe("beatWidth", () => {
-  it("is its tiles in a line, and no wider than the row", () => {
-    expect(beatWidth(10)).toBe(`min(100%, ${10 * (TILE_W + TILE_GAP) - TILE_GAP}px)`);
-  });
-
-  it("leaves a one-shot beat room for its name", () => {
-    expect(beatWidth(1)).toBe(`min(100%, ${BEAT_MIN_W}px)`);
-  });
-});
+function beat(over: Partial<BoardBeat>): BoardBeat {
+  return { beat: "A", plain: "A", nth: 0, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
+    target_shots: null, target_seconds: null, thin: false, runs: [], ...over };
+}
 
 describe("clock", () => {
   it("writes minutes and seconds", () => {
@@ -46,67 +41,78 @@ describe("placeOf", () => {
   });
 });
 
-describe("sequence boxes", () => {
-  const box = (weight: number, place = "") => ({ place, cast: [] as string[], weight });
-
-  it("starts a beat as one sequence with no place", () => {
-    expect(freshBoxes()).toEqual([{ place: "", cast: [], weight: 1 }]);
+describe("meter", () => {
+  it("shows what's there against the target and the time to go", () => {
+    expect(meter(beat({ shots: 3, seconds: 10, target_shots: 93, target_seconds: 325 }))).toBe("3 of 93 shots, about 5:15 to go");
   });
 
-  it("gives one sequence all the beat's shots", () => {
-    expect(boxShots([box(1)], 7)).toEqual([7]);
+  it("drops the time once it's met", () => {
+    expect(meter(beat({ shots: 5, seconds: 20, target_shots: 5, target_seconds: 18 }))).toBe("5 of 5 shots");
   });
 
-  it("shares shots by weight and adds up", () => {
-    expect(boxShots([box(1), box(1)], 7)).toEqual([4, 3]);
-    expect(boxShots([box(3), box(1)], 8)).toEqual([6, 2]);
+  it("just counts a beat with no target", () => {
+    expect(meter(beat({ shots: 1 }))).toBe("1 shot");
+    expect(meter(beat({ shots: 4 }))).toBe("4 shots");
+  });
+});
+
+describe("fill", () => {
+  const beats = [
+    beat({ plain: "A", shots: 2, target_shots: 5 }),
+    beat({ plain: "B", nth: 1, shots: 6, target_shots: 5 }),
+    beat({ plain: null, shots: 3, target_shots: null }),
+    beat({ plain: "C", shots: 0, target_shots: null }),
+    beat({ plain: "D", nth: 1, shots: 0, target_shots: 4 }),
+  ];
+
+  it("counts only what's missing", () => {
+    expect(fillCount(beats)).toBe(3 + 4);
   });
 
-  it("keeps the proportion as the beat changes length", () => {
-    const boxes = [box(0.5), box(0.25), box(0.25)];
-    for (const shots of [8, 40, 400]) {
-      const out = boxShots(boxes, shots);
-      expect(out.reduce((a, b) => a + b, 0)).toBe(shots);
-      expect(out[0]).toBe(shots / 2);
-    }
+  it("names only the beats with something to do", () => {
+    expect(fillable(beats)).toEqual([{ plain: "A", nth: 0 }, { plain: "D", nth: 1 }]);
+  });
+});
+
+describe("bareBeats", () => {
+  it("names only the beats with no shot yet", () => {
+    const beats = [beat({ plain: "A", shots: 1 }), beat({ plain: "B", nth: 1 }), beat({ plain: null })];
+    expect(bareBeats(beats)).toEqual([{ plain: "B", nth: 1 }]);
+  });
+});
+
+describe("runWidth", () => {
+  it("is its shots in a line, no wider than the row", () => {
+    expect(runWidth(10)).toBe("min(100%, 507px)");
   });
 
-  it("gives each sequence a shot first, and the last ones none when the beat runs out", () => {
-    expect(boxShots([box(9), box(1), box(1)], 3)).toEqual([1, 1, 1]);
-    expect(boxShots([box(1), box(1), box(1)], 2)).toEqual([1, 1, 0]);
+  it("leaves a one-shot sequence room for its name", () => {
+    expect(runWidth(1)).toBe("min(100%, 96px)");
+  });
+});
+
+describe("bandShare", () => {
+  it("is the beat's share of the biggest, and never too narrow to read", () => {
+    expect(bandShare(50, 100)).toBe("max(220px, 50%)");
   });
 
-  it("splits a sequence in half, the new one keeping its place and cast", () => {
-    const out = splitBox([{ place: "diner", cast: ["june"], weight: 1 }], 0);
-    expect(out).toEqual([{ place: "diner", cast: ["june"], weight: 0.5 }, { place: "diner", cast: ["june"], weight: 0.5 }]);
-    expect(out[0].cast).not.toBe(out[1].cast);
-  });
-
-  it("gives a removed sequence's share to the one before, or the next for the first", () => {
-    expect(removeBox([box(1, "a"), box(2, "b")], 1)).toEqual([box(3, "a")]);
-    expect(removeBox([box(1, "a"), box(2, "b")], 0)).toEqual([box(3, "b")]);
-  });
-
-  it("keeps the last sequence", () => {
-    expect(removeBox([box(1, "a")], 0)).toEqual([box(1, "a")]);
-  });
-
-  it("makes room for its boxes in the beat's width", () => {
-    expect(beatWidth(10, 2)).toBe(`min(100%, ${10 * (TILE_W + TILE_GAP) + 2 * (BOX_W + TILE_GAP) - TILE_GAP}px)`);
+  it("is the whole row with no target", () => {
+    expect(bandShare(null, 100)).toBe("100%");
+    expect(bandShare(5, 0)).toBe("100%");
   });
 });
 
 describe("seriesChoices", () => {
   const text = JSON.stringify({
-    subjects: { june: { kind: "character", name: "June" }, lantern: { kind: "prop" }, car: { kind: "vehicle" }, ada: {} },
-    locations: { diner: {}, street_gate: {} },
+    subjects: { _note: "a note", june: { kind: "character", name: "June" }, lantern: { kind: "prop" }, car: { kind: "vehicle" }, ada: {} },
+    locations: { _note: "a note", diner: {}, street_gate: {} },
   });
 
   it("offers the locations", () => {
     expect(seriesChoices(text).places).toEqual(["diner", "street_gate"]);
   });
 
-  it("leaves props and vehicles out of the cast", () => {
+  it("leaves props, vehicles and notes out of the cast", () => {
     expect(seriesChoices(text).cast).toEqual([{ id: "june", name: "June" }, { id: "ada", name: "ada" }]);
   });
 

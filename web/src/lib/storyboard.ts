@@ -1,5 +1,5 @@
-// The storyboard's sums and shapes: GET /seriesmith/storyboard/block's answer
-// (seriesmith/core/blocking.py) and how much of the board each beat takes.
+// The storyboard's shapes and sums: GET /seriesmith/storyboard/block (core/blocking.py) and
+// GET /seriesmith/storyboard (core/board.py: the script against a structure's targets).
 
 export interface BlockBeat {
   beat: string;
@@ -33,15 +33,80 @@ export interface StoryboardBlock {
   acts: BlockAct[];
 }
 
-export const TILE_W = 28;
-export const TILE_GAP = 3;
-export const BEAT_MIN_W = 76;
-
-/** A beat's width on the board: its tiles and sequence boxes in one line, wrapping when that's wider than the row. */
-export function beatWidth(shots: number, boxes = 0): string {
-  const line = Math.max(BEAT_MIN_W, shots * (TILE_W + TILE_GAP) + boxes * (BOX_W + TILE_GAP) - TILE_GAP);
-  return `min(100%, ${line}px)`;
+export interface BoardShot {
+  id: string;
+  who: string[];
+  target: string | null;
+  seconds: number | null;
+  action: string;
+  /** a stand-in nobody has worked on yet */
+  held_empty: boolean;
+  block: number;
 }
+
+export interface BoardRun {
+  sequence: string;
+  place: string;
+  /** false: it carries on a sequence begun in an earlier beat */
+  opens: boolean;
+  block: number | null;
+  shots: BoardShot[];
+}
+
+export interface BoardBeat {
+  beat: string | null;
+  /** the name as a script writes it; null: shots before any beat */
+  plain: string | null;
+  /** which time this name comes in the script */
+  nth: number;
+  known: boolean;
+  in_script: boolean;
+  guidance: string;
+  shots: number;
+  seconds: number;
+  target_shots: number | null;
+  target_seconds: number | null;
+  thin: boolean;
+  at?: [number, number];
+  point?: number;
+  runs: BoardRun[];
+}
+
+export interface BoardAct {
+  act: string;
+  own: boolean;
+  shots: number;
+  target_shots: number;
+  beats: BoardBeat[];
+}
+
+export interface BoardPlan {
+  id: string;
+  title: string;
+  structure: string | null;
+  structure_known: boolean;
+  /** the length the script says it's aiming at, in seconds */
+  duration: number | null;
+  shots: number;
+  seconds: number;
+  untimed: number;
+  target_shots: number | null;
+  shot_seconds: number | null;
+  warnings: string[];
+  acts: BoardAct[];
+}
+
+export interface StoryboardAnswer {
+  plan: BoardPlan;
+  hash: string;
+  made?: string[];
+}
+
+export type StoryboardEdit =
+  | { op: "add"; beat: { plain: string; nth: number }; place?: string }
+  | { op: "fill"; beats: { plain: string; nth: number }[]; each?: number }
+  | { op: "place"; block: number; place: string }
+  | { op: "cast"; block: number; who: string[] };
 
 /** 12:34, or 1:02:03 from an hour. */
 export function clock(seconds: number): string {
@@ -59,60 +124,48 @@ export function positive(text: string): number | null {
 }
 
 /** "10–12%", or "at 50%" for a beat at one point of the story. */
-export function placeOf(beat: Pick<BlockBeat, "at" | "point">): string {
+export function placeOf(beat: Pick<BoardBeat, "at" | "point">): string {
   if (beat.at) return `${beat.at[0]}–${beat.at[1]}%`;
   return beat.point === undefined ? "" : `at ${beat.point}%`;
 }
 
-/** A sequence on the board: the thin box at the front of its shots. `weight` is its part of the
- * beat, so a beat split in two stays split in the same proportion when the duration changes. */
-export interface SeqBox {
-  /** the location's id in the series config; "" until one is chosen */
-  place: string;
-  /** the characters' ids, written to each of its shots' `who:` */
-  cast: string[];
-  weight: number;
+/** "3 of 93 shots, about 5:25 to go" and its kin. */
+export function meter(beat: Pick<BoardBeat, "shots" | "target_shots" | "target_seconds" | "seconds">): string {
+  if (beat.target_shots === null || beat.target_seconds === null) return `${beat.shots} ${beat.shots === 1 ? "shot" : "shots"}`;
+  const left = beat.target_seconds - beat.seconds;
+  const rest = left >= 1 ? `, about ${clock(left)} to go` : "";
+  return `${beat.shots} of ${beat.target_shots} shots${rest}`;
 }
 
-export const BOX_W = 54;
-
-/** What a beat starts as: one sequence, no place chosen yet. */
-export function freshBoxes(): SeqBox[] {
-  return [{ place: "", cast: [], weight: 1 }];
+/** How many stand-ins Fill would make on these beats. */
+export function fillCount(beats: Pick<BoardBeat, "shots" | "target_shots" | "plain">[]): number {
+  return beats.reduce((n, b) => n + (b.plain === null ? 0 : Math.max(0, (b.target_shots ?? 0) - b.shots)), 0);
 }
 
-/** A beat's shots shared among its sequences by weight: at least one each while there are enough
- * to go round, the rest by largest remainder. A sequence the beat has no shot left for gets 0. */
-export function boxShots(boxes: Pick<SeqBox, "weight">[], shots: number): number[] {
-  const whole = boxes.reduce((n, b) => n + b.weight, 0);
-  const ideal = boxes.map((b) => (b.weight / whole) * shots);
-  const out = boxes.map(() => 0);
-  let left = shots;
-  for (let i = 0; i < boxes.length && left > 0; i++) {
-    out[i] = 1;
-    left -= 1;
-  }
-  // from here, whoever is furthest under its share (the earlier one on a tie)
-  while (left > 0) {
-    let best = 0;
-    for (let i = 1; i < boxes.length; i++) if (ideal[i] - out[i] > ideal[best] - out[best]) best = i;
-    out[best] += 1;
-    left -= 1;
-  }
-  return out;
+/** The beats Fill has something to do on, as the edit names them. */
+export function fillable(beats: BoardBeat[]): { plain: string; nth: number }[] {
+  return beats.flatMap((b) => (b.plain !== null && (b.target_shots ?? 0) > b.shots ? [{ plain: b.plain, nth: b.nth }] : []));
 }
 
-/** Sequence `i` split in two, the second keeping its place and cast. */
-export function splitBox(boxes: SeqBox[], i: number): SeqBox[] {
-  const half = { ...boxes[i], cast: [...boxes[i].cast], weight: boxes[i].weight / 2 };
-  return [...boxes.slice(0, i), { ...boxes[i], weight: half.weight }, half, ...boxes.slice(i + 1)];
+/** The beats with no shot at all, as the edit names them: one held shot each is the episode blocked in. */
+export function bareBeats(beats: BoardBeat[]): { plain: string; nth: number }[] {
+  return beats.flatMap((b) => (b.plain !== null && b.shots === 0 ? [{ plain: b.plain, nth: b.nth }] : []));
 }
 
-/** Sequence `i` gone, its share to the one before it (the next, for the first). The last one stays. */
-export function removeBox(boxes: SeqBox[], i: number): SeqBox[] {
-  if (boxes.length < 2) return boxes;
-  const heir = i > 0 ? i - 1 : 1;
-  return boxes.flatMap((b, k) => (k === i ? [] : k === heir ? [{ ...b, weight: b.weight + boxes[i].weight }] : [b]));
+export const TILE_W = 48;
+export const TILE_GAP = 3;
+export const RUN_MIN_W = 96;
+
+/** A sequence's width on the board: its shots in a line under its bar, wrapping past the row. */
+export function runWidth(shots: number): string {
+  const line = Math.max(RUN_MIN_W, shots * (TILE_W + TILE_GAP) - TILE_GAP);
+  return `min(100%, ${line}px)`;
+}
+
+/** A beat's share of the width: the biggest target fills the row, and no band is too narrow to read. */
+export function bandShare(target: number | null, biggest: number): string {
+  if (!target || biggest <= 0) return "100%";
+  return `max(220px, ${Math.round((target / biggest) * 100)}%)`;
 }
 
 export interface SeriesChoices {
@@ -124,12 +177,11 @@ export interface SeriesChoices {
 export function seriesChoices(text: string): SeriesChoices {
   const raw = JSON.parse(text) as {
     locations?: Record<string, unknown>;
-    subjects?: Record<string, { kind?: string; name?: string }>;
+    subjects?: Record<string, { kind?: string; name?: string } | string>;
   };
   return {
-    places: Object.keys(raw.locations ?? {}),
-    cast: Object.entries(raw.subjects ?? {})
-      .filter(([, s]) => s.kind !== "prop" && s.kind !== "vehicle")
-      .map(([id, s]) => ({ id, name: s.name || id })),
+    places: Object.keys(raw.locations ?? {}).filter((k) => !k.startsWith("_")),
+    cast: Object.entries(raw.subjects ?? {}).flatMap(([id, s]) =>
+      typeof s === "object" && s.kind !== "prop" && s.kind !== "vehicle" ? [{ id, name: s.name || id }] : []),
   };
 }

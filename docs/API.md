@@ -1087,6 +1087,24 @@ shot, 3.5 by default) are seconds. Nothing is written. Answers `{"structure", "d
 "seconds", "first_shot", "thin"}]}]}`; 400 for an unknown structure or a number that isn't above
 zero.
 
+### `GET /seriesmith/storyboard?ep=…&structure=…&duration=…&shot=…`
+The episode's script against a story structure (`core/board.py`). `structure` and `duration`
+(seconds) fall back on the script's `// duration:`; a script that names a `// structure:` always
+goes by it, and one without a table (a show's own format) has no targets. Without a structure and a
+duration there are no targets. Nothing is written. Answers `{"plan", "hash"}`: `plan` is the outline, acts and beats with
+each beat's `runs` of a sequence and their real `shots`, its `target_shots`, `target_seconds` and
+`in_script`, the structure's beats the script hasn't got yet among them.
+
+### `POST /seriesmith/storyboard/edit`
+Body `{"ep", "base_hash", "structure"?, "duration"?, "shot"?, "op", ...}`, saved as the script
+editor's saves are: 409 when the script's hash isn't `base_hash`, the old script to history, then a
+rebuild. `op` is `add` (`beat: {"plain", "nth"}`, optionally `place`: one held stand-in at the end
+of the beat, its line written first if the script hasn't got it), `fill` (`beats: [{"plain",
+"nth"}]`: each up to its target, or up to `each` shots), `place` (`block`, `place`: a sequence's location) or `cast`
+(`block`, `who`: on that sequence's empty stand-ins only). The first edit also writes the script's
+`// structure:` and `// duration:`. Answers as the GET does, with `made` (new shot ids), `check` and
+`build`.
+
 ### `POST /seriesmith/cue/draft`
 Body `{"ep", "pass"?, "write"?, "replace"?, "rendered"?, "keep_sound"?, "structure"?, "mark"?}`: the first-pass score drafted from
 the script's `// structure:`, `// beat:`, `// theme:` and `// flashback` lines, that

@@ -2456,11 +2456,15 @@ To build, each ending in something that runs:
       all came back exactly, the shots agreed with `story.parse_script` on the 151 it could parse
       (actions, durations, lines), and the beats with `read_marks` on the 23 that have them.
       Reading only so far: the edits (adding a shot, a beat, an act) come with the steps below.
-- [ ] **Targets and `+`.** A beat shows its target against its real shots; tiles are shots; `+` at
-      the end of a beat, and **Fill with stand-ins** for a beat, an act or all of it.
-- [ ] **Save draft and open a script.** The board on the open episode: reads its script (an
-      existing one, with no `// structure:`, offers `spotting.layout`'s guess), writes it through
-      `PUT /seriesmith/source` (its hash, 409 when it changed underneath).
+- [x] **Targets and `+`** (2026-11-08). A beat shows its target against its real shots; tiles are
+      shots, and a click opens Edit Shot; `+` at the end of a beat, and **Fill with stand-ins** for
+      a beat, an act or all of it. A sequence box sets its place, and its cast on the empty
+      stand-ins only. `GET /seriesmith/storyboard`, `POST /seriesmith/storyboard/edit`.
+- [ ] **Open an existing script.** Saving is in: every edit is written as the script editor's are
+      (its hash, 409 when it changed underneath, history, a rebuild), so a draft is simply the
+      script. Still to come: a script with shots and no beats shows them under "Before any beat"
+      and new beats land after them; offer `spotting.layout`'s guess instead. Choosing a place for
+      a new sequence on a beat.
 - [ ] **Your own acts and beats.** Add, rename and remove them on the board; a structure is where
       it starts, not a limit.
 - [ ] **Generation.** A new episode from the board through `POST /seriesmith/episode/new`

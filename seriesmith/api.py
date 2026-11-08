@@ -3027,6 +3027,128 @@ def get_storyboard_block(ctx: Context, query: dict):
         raise ApiError(400, str(e)) from None
 
 
+def _board_block(body: dict, structure: str | None):
+    """The targets a storyboard request asks for: None without a structure and a duration."""
+    from seriesmith.core import blocking as BL
+    duration, shot = body.get("duration"), body.get("shot")
+    if not structure or duration in (None, ""):
+        return None
+    try:
+        return BL.block(structure, float(duration), float(shot) if shot not in (None, "") else BL.TYPICAL_SHOT)
+    except (TypeError, ValueError) as e:
+        raise ApiError(400, str(e)) from None
+
+
+def _board_structure(view: dict, asked: str | None) -> str | None:
+    """The structure the board goes by: the script's own if it names one, and only a structure
+    with a table has targets (a show's own format, `// structure: Porch Lights`, has none);
+    `asked` only for a script that doesn't say."""
+    if view["structure"]:
+        return view["structure"] if view["structure_known"] else None
+    return asked or None
+
+
+def _board_answer(ep: str, doc: dict, structure: str | None, body: dict, hash_: str, **more) -> tuple[int, dict]:
+    from seriesmith.core import board as BD
+    view = BD.outline(doc)
+    named = _board_structure(view, structure)
+    plan = BD.plan(doc, _board_block({**body, "duration": body.get("duration") or view["duration"]}, named))
+    for act in plan["acts"]:
+        for beat in act["beats"]:
+            for run in beat["runs"]:
+                for shot in run["shots"]:
+                    # a picture dropped on a held shot may be a file the script doesn't name
+                    picture = os.path.join(ep, "refs", "shots", T.safe_id(shot["id"]), "first.png")
+                    if shot["held_empty"] and os.path.isfile(picture):
+                        shot["held_empty"] = False
+    return 200, {"plan": plan, "hash": hash_, **more}
+
+
+@handler
+def get_storyboard(ctx: Context, query: dict):
+    """The episode's script on the storyboard (core/board.py): `{"plan", "hash"}`, with targets
+    when `duration` (seconds; else the script's) and a structure (`structure`; else the script's)
+    are known, and `shot`, a typical shot in seconds. Nothing is written."""
+    from seriesmith.core import board as BD
+    ep = check_ep(ctx, query.get("ep"))
+    src = P.H.read_source(ep, "script")
+    return _board_answer(ep, BD.read(src.text), query.get("structure") or None, query, src.hash)
+
+
+@handler
+def post_storyboard_edit(ctx: Context, body):
+    """An edit from the storyboard, saved like the script editor's (`base_hash`, 409 when the file
+    changed; the old script to history; a rebuild): `op` is `add` (one stand-in on `beat`), `fill`
+    (`beats`: each up to its target, or up to `each` shots), `place` (`block`, `place`) or `cast` (`block`, `who`)."""
+    from seriesmith.core import blocking as BL
+    from seriesmith.core import board as BD
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    base_hash = body.get("base_hash")
+    if not isinstance(base_hash, str) or not base_hash:
+        raise ApiError(400, "base_hash is required: the hash the board was read at")
+    src = P.H.read_source(ep, "script")
+    if base_hash != src.hash:
+        raise P.H.Conflict(src)
+    doc = BD.read(src.text)
+    series = json.loads(P.H.read_source(ep, "series").text)
+    places = [k for k, v in series.get("locations", {}).items() if isinstance(v, dict)]
+    place = body.get("place") or None
+    if place is not None and place not in places:
+        raise ApiError(400, f"{place!r} is not a location in the series config")
+    view = BD.outline(doc)
+    structure = _board_structure(view, body.get("structure"))
+    each = body.get("each")
+    if each is not None and (not isinstance(each, int) or isinstance(each, bool) or each < 1):
+        raise ApiError(400, "each must be a whole number above zero")
+    op = body.get("op")
+    made: list[str] = []
+    try:
+        if op in ("add", "fill"):
+            wanted = [body.get("beat")] if op == "add" else body.get("beats")
+            if not isinstance(wanted, list) or not wanted:
+                raise ApiError(400, "beats must be a list of {plain, nth}")
+            duration = body.get("duration") or view["duration"]
+            block = _board_block({**body, "duration": duration}, structure)
+            BD.set_marks(doc, structure, float(duration) if duration not in (None, "") else None)
+            seconds = float(body.get("shot") or (block or {}).get("shot_seconds") or BL.TYPICAL_SHOT)
+            for ask in wanted:
+                if not isinstance(ask, dict) or not isinstance(ask.get("plain"), str) or not ask["plain"].strip():
+                    raise ApiError(400, "a beat is {plain, nth}")
+                rows = [b for a in BD.plan(doc, block)["acts"] for b in a["beats"]]
+                nth = int(ask.get("nth") or 0)
+                index = next((i for i, b in enumerate(rows) if b["plain"] == ask["plain"] and b["nth"] == nth), None)
+                row = rows[index] if index is not None else {"guidance": "", "target_shots": None, "shots": 0}
+                later = [(b["plain"], b["nth"]) for b in rows[index + 1:] if b["plain"]] if index is not None else []
+                goal = each if each is not None else (row["target_shots"] or 0)
+                count = 1 if op == "add" else max(0, goal - row["shots"])
+                if not count:
+                    continue
+                at = BD.ensure_beat(doc, ask["plain"], nth, later)
+                # only a script's first sequence has to be told where it is
+                no_sequence = not any(b["kind"] == "sequence" for b in doc["blocks"])
+                opening = place or (places[0] if places and no_sequence else None)
+                made += BD.add_stand_ins(doc, at, count, seconds, row["guidance"], place=opening)
+        elif op == "place":
+            if place is None:
+                raise ApiError(400, "place is required")
+            BD.set_place(doc, int(body.get("block")), place)
+        elif op == "cast":
+            who = body.get("who")
+            if not isinstance(who, list) or not all(isinstance(w, str) for w in who):
+                raise ApiError(400, "who must be a list of subject ids")
+            BD.set_cast(doc, int(body.get("block")), who)
+        else:
+            raise ApiError(400, "op must be add, fill, place or cast")
+    except (BD.BoardError, IndexError, TypeError, ValueError) as e:
+        raise ApiError(400, str(e)) from None
+    saved = P.H.save_source(ep, "script", BD.text_of(doc), base_hash)
+    build = E.build_episode(ep)
+    episode_event(ctx, ep)
+    fresh = BD.read(P.H.read_source(ep, "script").text)
+    return _board_answer(ep, fresh, structure, body, saved["hash"], made=made, check=saved["check"], build=build)
+
+
 @handler
 def put_cue(ctx: Context, body):
     """Write a cue's spec (`{ep, cue}`); 400 for one that doesn't check."""
@@ -6619,6 +6741,8 @@ ROUTES = [
     ("POST", "/seriesmith/cue/draft", post_cue_draft, "body"),
     ("GET", "/seriesmith/structures", get_structures, "query"),
     ("GET", "/seriesmith/storyboard/block", get_storyboard_block, "query"),
+    ("GET", "/seriesmith/storyboard", get_storyboard, "query"),
+    ("POST", "/seriesmith/storyboard/edit", post_storyboard_edit, "body"),
     ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
     ("POST", "/seriesmith/cue/repaint", post_cue_repaint, "body"),
     ("GET", "/seriesmith/fx", get_fx, "query"),

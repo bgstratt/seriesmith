@@ -14,6 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from seriesmith.core import board as B  # noqa: E402
+from seriesmith.core import blocking as BL  # noqa: E402
 from seriesmith.core import spotting as SP  # noqa: E402
 from seriesmith.core import story  # noqa: E402
 
@@ -227,6 +228,203 @@ class TestShotView(unittest.TestCase):
         shot = next(b for b in doc["blocks"] if b["kind"] == "shot")
         self.assertEqual(shot["lines"][0], "// theme: show, tender\n")
         self.assertEqual(shot["shot"]["id"], "sh010")
+
+
+SUBJECTS = {"june"}
+
+
+def parses(text: str) -> dict:
+    """The build's own parser: what an edit wrote has to read as a script."""
+    return story.parse_script(text, SUBJECTS | {"mara"}, {"june", "mara"})
+
+
+def build_shots(text: str) -> list[dict]:
+    return [s for q in parses(text)["sequences"] for s in q["shots"]]
+
+
+def block_for(minutes: float = 3.0) -> dict:
+    return BL.block("Three-Act", minutes * 60)
+
+
+def rows_of(plan: dict) -> list[dict]:
+    return [b for a in plan["acts"] for b in a["beats"]]
+
+
+class TestPlan(unittest.TestCase):
+    def test_a_blank_script_shows_the_whole_structure(self):
+        plan = B.plan(B.read(HEAD), block_for())
+        self.assertEqual(len(rows_of(plan)), 11)
+        self.assertEqual([a["act"] for a in plan["acts"]], ["I: Setup", "II: Confrontation", "III: Resolution"])
+        first = rows_of(plan)[0]
+        self.assertEqual((first["in_script"], first["shots"], first["target_shots"]), (False, 0, 5))
+
+    def test_real_shots_count_against_the_target(self):
+        text = HEAD + "// structure: Three-Act\n// beat: Debate\n# sq01  a\n\n" + SHOT.format(id="sh010")
+        row = next(b for b in rows_of(B.plan(B.read(text), block_for())) if b["plain"] == "Debate")
+        self.assertEqual((row["in_script"], row["shots"], row["seconds"], row["target_shots"]), (True, 1, 3.5, 4))
+
+    def test_the_structures_order_holds_around_the_script(self):
+        text = HEAD + "// structure: Three-Act\n// beat: Climax\n"
+        names = [b["plain"] for b in rows_of(B.plan(B.read(text), block_for()))]
+        self.assertEqual(names.index("Climax"), 9)
+        self.assertEqual(names[0], "Opening / Status Quo")
+        self.assertEqual(names[-1], "Resolution / Final Image")
+
+    def test_a_beat_of_your_own_stays_where_it_is(self):
+        text = HEAD + "// structure: Three-Act\n// beat: Debate\n// act: Mine\n// beat: Odd One\n// beat: Climax\n"
+        plan = B.plan(B.read(text), block_for())
+        names = [b["plain"] for b in rows_of(plan)]
+        self.assertLess(names.index("Debate"), names.index("Odd One"))
+        self.assertLess(names.index("Odd One"), names.index("Climax"))
+        self.assertIsNone(next(b for b in rows_of(plan) if b["plain"] == "Odd One")["target_shots"])
+
+    def test_no_targets_without_a_block(self):
+        plan = B.plan(B.read(HEAD + "// beat: One\n"), None)
+        self.assertEqual([b["plain"] for b in rows_of(plan)], ["One"])
+        self.assertIsNone(plan["target_shots"])
+
+    def test_shots_before_any_beat_are_shown(self):
+        text = HEAD + "# sq01  a\n\n" + SHOT.format(id="sh010")
+        row = rows_of(B.plan(B.read(text), block_for()))[0]
+        self.assertIsNone(row["plain"])
+        self.assertEqual(row["shots"], 1)
+
+    def test_repeats_each_get_their_target(self):
+        block = BL.block("Pixar Story Spine", 180.0)
+        text = HEAD + "// structure: Pixar Story Spine\n// beat: Because of that…\n"
+        rows = [b for b in rows_of(B.plan(B.read(text), block)) if b["plain"] == "Because of that…"]
+        self.assertEqual([(b["nth"], b["in_script"]) for b in rows], [(0, True), (1, False)])
+
+
+class TestEdits(unittest.TestCase):
+    def add(self, text: str, plain: str, count: int = 1, **kw) -> tuple[dict, list[str]]:
+        doc = B.read(text)
+        at = B.ensure_beat(doc, plain, 0, kw.pop("later", []))
+        return doc, B.add_stand_ins(doc, at, count, 3.5, kw.pop("action", "Guidance."), **kw)
+
+    def test_a_first_shot_opens_a_sequence(self):
+        doc, made = self.add(HEAD, "Debate", place="porch")
+        written = B.text_of(doc)
+        self.assertEqual(made, ["sh010"])
+        self.assertIn("// beat: Debate\n", written)
+        self.assertIn("# sq01  porch\n", written)
+        self.assertEqual(build_shots(written)[0]["action"], "Guidance.")
+
+    def test_no_sequence_and_no_place_is_refused(self):
+        with self.assertRaises(B.BoardError):
+            self.add(HEAD, "Debate")
+
+    def test_a_later_shot_joins_the_sequence_the_script_is_in(self):
+        text = HEAD + "// beat: A\n# sq01  porch\n\n" + SHOT.format(id="sh010")
+        doc, _made = self.add(text, "B")
+        self.assertEqual(B.text_of(doc).count("\n# sq"), 1)
+
+    def test_it_copies_the_cast_of_the_shot_before(self):
+        text = HEAD + "// beat: A\n# sq01  porch\n\n" + SHOT.format(id="sh010")
+        doc, _made = self.add(text, "A")
+        self.assertEqual([s["cast"] for s in build_shots(B.text_of(doc))], [["june"], ["june"]])
+
+    def test_another_place_opens_a_new_sequence(self):
+        text = HEAD + "// beat: A\n# sq01  porch\n\n" + SHOT.format(id="sh010")
+        doc, _made = self.add(text, "A", place="street")
+        self.assertIn("# sq02  street\n", B.text_of(doc))
+
+    def test_the_same_place_does_not(self):
+        text = HEAD + "// beat: A\n# sq01  porch\n\n" + SHOT.format(id="sh010")
+        doc, _made = self.add(text, "A", place="porch")
+        self.assertEqual(B.text_of(doc).count("\n# sq"), 1)
+
+    def test_shots_go_at_the_end_of_their_beat(self):
+        text = HEAD + "// beat: A\n# sq01  a\n\n" + SHOT.format(id="sh010") + "// beat: B\n" + SHOT.format(id="sh020")
+        doc, made = self.add(text, "A")
+        self.assertEqual([s["id"] for s in build_shots(B.text_of(doc))], ["sh010", made[0], "sh020"])
+        self.assertEqual(SP.read_marks(B.text_of(doc))["beats"], {"sh010": "A", "sh020": "B"})
+
+    def test_it_stays_ahead_of_the_next_beats_own_header(self):
+        text = HEAD + "// beat: A\n# sq01  a\n\n" + SHOT.format(id="sh010") + "# sq02  b\n\n// beat: B\n" + SHOT.format(id="sh020")
+        doc, made = self.add(text, "A")
+        shape = [(q["id"], [s["id"] for s in q["shots"]]) for q in parses(B.text_of(doc))["sequences"]]
+        self.assertEqual(shape, [("sq01", ["sh010", made[0]]), ("sq02", ["sh020"])])
+
+    def test_a_new_beat_goes_in_structure_order(self):
+        text = HEAD + "// beat: A\n# sq01  a\n\n" + SHOT.format(id="sh010") + "// beat: C\n" + SHOT.format(id="sh020")
+        doc, made = self.add(text, "B", later=[("C", 0)])
+        self.assertEqual([s["id"] for s in build_shots(B.text_of(doc))], ["sh010", made[0], "sh020"])
+        marks = SP.read_marks(B.text_of(doc))["beats"]
+        self.assertEqual((marks[made[0]], marks["sh020"]), ("B", "C"))
+
+    def test_a_new_beat_keeps_clear_of_a_later_beats_header(self):
+        text = HEAD + "// beat: A\n# sq01  a\n\n" + SHOT.format(id="sh010") + "# sq02  b\n\n// beat: C\n" + SHOT.format(id="sh020")
+        doc, made = self.add(text, "B", later=[("C", 0)])
+        shape = [(q["id"], [s["id"] for s in q["shots"]]) for q in parses(B.text_of(doc))["sequences"]]
+        self.assertEqual(shape, [("sq01", ["sh010", made[0]]), ("sq02", ["sh020"])])
+
+    def test_everything_else_is_left_exactly(self):
+        text = HEAD + "// my note\n\n// beat: A\n# sq01  a\n// under it\n\n## sh010\n// dur: 5 (align)\ndur: 2\nX.\n\n// beat: B\n## sh020\ndur: 2\nY.\n"
+        doc, made = self.add(text, "A")
+        written = B.text_of(doc)
+        new = f"## {made[0]}\ntarget: hold\ndur: 3.5\nGuidance.\n\n"
+        self.assertEqual(written.replace(new, ""), text)
+
+    def test_many_shots_get_their_own_ids_and_parse(self):
+        doc, made = self.add(HEAD, "A", 40, place="porch")
+        self.assertEqual(len(set(made)), 40)
+        self.assertEqual([s["id"] for s in build_shots(B.text_of(doc))], made)
+
+    def test_ids_fit_between_neighbours(self):
+        text = HEAD + "// beat: A\n# sq01  a\n\n" + SHOT.format(id="sh010") + "// beat: B\n" + SHOT.format(id="sh020")
+        _doc, made = self.add(text, "A", 12)
+        self.assertEqual(len(set(made) | {"sh010", "sh020"}), 14)
+
+    def test_an_id_never_collides_with_an_odd_one(self):
+        text = HEAD + "// beat: A\n# sq01  a\n\n" + SHOT.format(id="intro") + SHOT.format(id="sh010")
+        doc, made = self.add(text, "A", 3)
+        self.assertEqual(len(build_shots(B.text_of(doc))), 5)
+        self.assertNotIn("sh010", made)
+
+    def test_blank_action_is_still_a_shot(self):
+        doc, _made = self.add(HEAD, "A", action="  ", place="porch")
+        self.assertEqual(build_shots(B.text_of(doc))[0]["action"], "Stand-in.")
+
+    def test_marks_go_under_the_head(self):
+        doc = B.read(HEAD)
+        B.set_marks(doc, "Three-Act", 1320.0)
+        self.assertEqual(B.text_of(doc), HEAD + "// structure: Three-Act\n// duration: 22:00\n")
+
+    def test_marks_keep_the_scripts_own_structure(self):
+        doc = B.read(HEAD + "// structure: Fable\n")
+        B.set_marks(doc, "Three-Act", None)
+        self.assertEqual(B.text_of(doc), HEAD + "// structure: Fable\n")
+
+    def test_the_duration_can_change(self):
+        doc = B.read(HEAD + "// structure: Fable\n// duration: 3:00\n")
+        B.set_marks(doc, None, 420.0)
+        self.assertEqual(B.outline(B.read(B.text_of(doc)))["duration"], 420.0)
+
+    def test_set_place(self):
+        doc = B.read(HEAD + "# sq01  a\n// note\n\n" + SHOT.format(id="sh010"))
+        at = next(i for i, b in enumerate(doc["blocks"]) if b["kind"] == "sequence")
+        B.set_place(doc, at, "street")
+        self.assertEqual(B.text_of(doc), HEAD + "# sq01  street\n// note\n\n" + SHOT.format(id="sh010"))
+
+    def test_set_place_refuses_a_shot(self):
+        doc = B.read(HEAD + "# sq01  a\n\n" + SHOT.format(id="sh010"))
+        with self.assertRaises(B.BoardError):
+            B.set_place(doc, len(doc["blocks"]) - 1, "street")
+
+    def test_set_cast_touches_only_empty_stand_ins(self):
+        worked = "## sh020\nwho: june\ndur: 2\nReal.\n\n"
+        doc = B.read(HEAD + "# sq01  a\n\n" + SHOT.format(id="sh010") + worked)
+        at = next(i for i, b in enumerate(doc["blocks"]) if b["kind"] == "sequence")
+        self.assertEqual(B.set_cast(doc, at, ["mara"]), 1)
+        shots = build_shots(B.text_of(doc))
+        self.assertEqual([s["cast"] for s in shots], [["mara"], ["june"]])
+
+    def test_set_cast_stops_at_the_next_sequence(self):
+        doc = B.read(HEAD + "# sq01  a\n\n" + SHOT.format(id="sh010") + "# sq02  b\n\n" + SHOT.format(id="sh020"))
+        at = next(i for i, b in enumerate(doc["blocks"]) if b["kind"] == "sequence")
+        self.assertEqual(B.set_cast(doc, at, []), 1)
+        self.assertEqual([s["cast"] for s in build_shots(B.text_of(doc))], [[], ["june"]])
 
 
 if __name__ == "__main__":

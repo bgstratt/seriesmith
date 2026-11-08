@@ -251,3 +251,272 @@ def outline(doc: dict) -> dict:
                 untimed += 1
     return {"id": ep_id, "title": title, "structure": known_name or named, "structure_known": known_name is not None,
             "duration": duration, "shots": n_shots, "seconds": round(total, 3), "untimed": untimed, "acts": acts}
+
+
+# ---------------------------------------------------------------------------
+# the structure's targets against what the script has
+# ---------------------------------------------------------------------------
+class BoardError(ValueError):
+    pass
+
+
+def _plain_name(name: str) -> str:
+    return _AGAIN.sub("", name).strip()
+
+
+def _beat_row(beat: dict | None, entry: dict | None, plain: str | None, nth: int) -> dict:
+    row = dict(beat) if beat else {"beat": plain, "known": True, "block": None, "runs": []}
+    shots = [s for r in row["runs"] for s in r["shots"]]
+    row.update({"plain": plain, "nth": nth, "in_script": beat is not None,
+                "guidance": (entry or {}).get("guidance") or row.get("guidance", ""),
+                "target_shots": entry["shots"] if entry else None,
+                "target_seconds": entry["seconds"] if entry else None,
+                "thin": bool(entry and entry["thin"]),
+                "shots": len(shots), "seconds": round(sum(s["seconds"] or 0 for s in shots), 3)})
+    if entry:
+        row.update({k: entry[k] for k in ("at", "point") if k in entry})
+    return row
+
+
+def plan(doc: dict, block: dict | None) -> dict:
+    """outline(doc), each beat with its target from `block` (core/blocking.py's answer, or None for
+    no targets) and the structure's beats the script hasn't got yet, in the structure's order: every
+    beat gains "plain" (its name as a script writes it), "nth" (which time that name comes),
+    "in_script", "target_shots", "target_seconds", "thin", "shots", "seconds"; every act "shots",
+    "target_shots". A beat of the script's own stays where it is, among the structure's."""
+    view = outline(doc)
+    table = [b for a in (block or {}).get("acts", []) for b in a["beats"]]
+    keyed: dict[tuple[str, int], int] = {}
+    nth_of: list[int] = []
+    counts: dict[str, int] = {}
+    for i, entry in enumerate(table):
+        key = SP.norm(_plain_name(entry["beat"]))
+        nth_of.append(counts.get(key, 0))
+        keyed[(key, nth_of[i])] = i
+        counts[key] = nth_of[i] + 1
+
+    out: list[tuple[str, bool, dict]] = []
+    next_up = 0
+
+    def table_up_to(stop: int) -> None:
+        nonlocal next_up
+        while next_up < stop:
+            entry = table[next_up]
+            out.append((entry["act"], False, _beat_row(None, entry, _plain_name(entry["beat"]), nth_of[next_up])))
+            next_up += 1
+
+    seen: dict[str, int] = {}
+    for act in view["acts"]:
+        for beat in act["beats"]:
+            if beat["beat"] is None:
+                out.append((act["act"], act["own"], _beat_row(beat, None, None, 0)))
+                continue
+            plain = _plain_name(beat["beat"])
+            key = SP.norm(plain)
+            nth = seen.get(key, 0)
+            seen[key] = nth + 1
+            at = keyed.get((key, nth))
+            if at is None:
+                out.append((act["act"], act["own"], _beat_row(beat, None, plain, nth)))
+                continue
+            table_up_to(at)
+            next_up = max(next_up, at + 1)
+            out.append((act["act"], act["own"], _beat_row(beat, table[at], plain, nth)))
+    table_up_to(len(table))
+
+    acts: list[dict] = []
+    for name, own, row in out:
+        if not acts or acts[-1]["act"] != name or acts[-1]["own"] != own:
+            acts.append({"act": name, "own": own, "beats": [], "shots": 0, "target_shots": 0})
+        acts[-1]["beats"].append(row)
+        acts[-1]["shots"] += row["shots"]
+        acts[-1]["target_shots"] += row["target_shots"] or 0
+    return {**view, "acts": acts, "warnings": (block or {}).get("warnings", []),
+            "target_shots": (block or {}).get("shots"), "shot_seconds": (block or {}).get("shot_seconds")}
+
+
+# ---------------------------------------------------------------------------
+# edits: each adds or changes the blocks it means to and leaves the rest alone
+# ---------------------------------------------------------------------------
+def _clock(seconds: float) -> str:
+    whole = max(1, round(seconds))
+    h, m, s = whole // 3600, whole % 3600 // 60, whole % 60
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def _insert(doc: dict, at: int, text: str, blank_before: bool = True) -> int:
+    """`text`'s blocks into the script before block `at`; how many went in. The block before ends
+    its last line and, with `blank_before`, leaves a blank one."""
+    made = read(text)["blocks"][1:]
+    blocks = doc["blocks"]
+    before = blocks[at - 1] if at > 0 else None
+    if before and before["lines"]:
+        if not before["lines"][-1].endswith(("\n", "\r")):
+            before["lines"][-1] += "\n"
+        if blank_before and before["lines"][-1].strip():
+            before["lines"].append("\n")
+    blocks[at:at] = made
+    return len(made)
+
+
+def set_marks(doc: dict, structure: str | None, duration: float | None) -> None:
+    """The script's `// structure:` (only if it has none) and `// duration:` lines, under its head."""
+    blocks = doc["blocks"]
+    if structure and not any(b["kind"] == "structure" for b in blocks):
+        _insert(doc, 1, f"// structure: {structure}\n")
+    if duration is None:
+        return
+    line = f"// duration: {_clock(duration)}\n"
+    for block in blocks:
+        if block["kind"] == "duration":
+            if seconds_of(block["value"]) != float(max(1, round(duration))):
+                block["lines"][0] = line
+                block["value"] = _clock(duration)
+            return
+    after = next((i + 1 for i, b in enumerate(blocks) if b["kind"] == "structure"), None)
+    if after is None:
+        _insert(doc, 1, line)
+    else:
+        _insert(doc, after, line, blank_before=False)
+
+
+def _find_beat(doc: dict, plain: str, nth: int) -> int | None:
+    key, seen = SP.norm(plain), 0
+    for i, block in enumerate(doc["blocks"]):
+        if block["kind"] == "beat" and SP.norm(_plain_name(block["value"])) == key:
+            if seen == nth:
+                return i
+            seen += 1
+    return None
+
+
+def _before_its_header(blocks: list[dict], at: int) -> int:
+    """From a beat line (or its `// act:`) back to what belongs in front of it: its act, and a `#`
+    header right above it whose shots are that beat's."""
+    beat = at + 1 if blocks[at]["kind"] == "act" else at
+    if at > 0 and blocks[at - 1]["kind"] == "act":
+        at -= 1
+    shots_follow = beat + 1 < len(blocks) and blocks[beat + 1]["kind"] == "shot"
+    if at > 0 and blocks[at - 1]["kind"] == "sequence" and shots_follow:
+        at -= 1
+    return at
+
+
+def ensure_beat(doc: dict, plain: str, nth: int, later: list[tuple[str, int]]) -> int:
+    """The block index of the beat, writing its line first if the script hasn't got it: in front of
+    the first of `later` (the beats after it in the structure) that the script has, else at the end."""
+    found = _find_beat(doc, plain, nth)
+    if found is not None:
+        return found
+    blocks = doc["blocks"]
+    at = len(blocks)
+    for name, n in later:
+        hit = _find_beat(doc, name, n)
+        if hit is not None:
+            at = _before_its_header(blocks, hit)
+            break
+    _insert(doc, at, f"// beat: {plain}\n\n")
+    return at
+
+
+def _end_of_beat(blocks: list[dict], beat: int) -> int:
+    """Where a new shot of the beat goes: before the next beat, with its act and its header."""
+    at = beat + 1
+    while at < len(blocks) and blocks[at]["kind"] not in ("beat", "act"):
+        at += 1
+    return _before_its_header(blocks, at) if at < len(blocks) else at
+
+
+def _number(block: dict) -> int | None:
+    m = re.fullmatch(r"sh(\d+)", block["shot"]["id"])
+    return int(m.group(1)) if m else None
+
+
+def _new_shot_id(blocks: list[dict], at: int) -> str:
+    """Ten past the shot before if that's clear of the next, between them if not, ten past the
+    highest when they leave no room."""
+    numbers = [n for b in blocks if b["kind"] == "shot" for n in [_number(b)] if n is not None]
+    used = {b["shot"]["id"] for b in blocks if b["kind"] == "shot"}
+    prev = next((n for b in reversed(blocks[:at]) if b["kind"] == "shot" for n in [_number(b)] if n is not None), 0)
+    after = next((n for b in blocks[at:] if b["kind"] == "shot" for n in [_number(b)] if n is not None), None)
+    wanted = prev + 10
+    if after is not None and wanted >= after:
+        wanted = (prev + after) // 2 if after - prev > 1 else 0
+    if not wanted or f"sh{wanted:03d}" in used:
+        wanted = max(numbers, default=0) + 10
+    return f"sh{wanted:03d}"
+
+
+def _new_sequence_id(blocks: list[dict]) -> str:
+    numbers = [int(m.group(1)) for b in blocks if b["kind"] == "sequence"
+               for m in [re.fullmatch(r"sq(\d+)", b["id"])] if m]
+    return f"sq{max(numbers, default=0) + 1:02d}"
+
+
+def add_stand_ins(doc: dict, beat: int, count: int, seconds: float, action: str,
+                  who: list[str] | None = None, place: str | None = None) -> list[str]:
+    """`count` held shots at the end of the beat at block `beat`; their ids. They join the sequence
+    the script is in there, unless `place` is somewhere else: then a new sequence opens. BoardError
+    when there's no sequence to join and no place to open one in. `who` omitted: the last shot's,
+    if it's in the same sequence."""
+    blocks = doc["blocks"]
+    at = _end_of_beat(blocks, beat)
+    current = next((b for b in reversed(blocks[:at]) if b["kind"] == "sequence"), None)
+    if current is None and not place:
+        # ahead of the script's first sequence: a shot has to be under one, so open one there
+        place = next((b["place"] for b in blocks[at:] if b["kind"] == "sequence"), None)
+    if place and (current is None or current["place"] != place):
+        at += _insert(doc, at, f"# {_new_sequence_id(blocks)}  {place}\n\n")
+    elif current is None:
+        raise BoardError("the script has no sequence yet: choose a place for the first one")
+    if who is None:
+        who = []
+        for block in reversed(blocks[:at]):
+            if block["kind"] == "sequence":
+                break
+            if block["kind"] == "shot":
+                who = block["shot"]["who"]
+                break
+    made = []
+    text = action.strip() or "Stand-in."
+    for _ in range(count):
+        sid = _new_shot_id(blocks, at)
+        lines = [f"## {sid}", "target: hold"] + ([f"who: {', '.join(who)}"] if who else [])
+        lines += [f"dur: {seconds:g}", text]
+        at += _insert(doc, at, "\n".join(lines) + "\n\n")
+        made.append(sid)
+    return made
+
+
+def set_place(doc: dict, block: int, place: str) -> None:
+    """The location of the sequence at block `block`."""
+    target = doc["blocks"][block]
+    if target["kind"] != "sequence":
+        raise BoardError("that isn't a sequence")
+    for i, raw in enumerate(target["lines"]):
+        if raw.startswith("# "):
+            ending = raw[len(raw.rstrip("\r\n")):]
+            target["lines"][i] = f"# {target['id']}  {place}{ending}"
+            target["place"] = place
+            return
+
+
+def set_cast(doc: dict, block: int, who: list[str]) -> int:
+    """`who:` on the sequence's empty stand-ins (never a shot someone has worked on); how many."""
+    blocks = doc["blocks"]
+    if blocks[block]["kind"] != "sequence":
+        raise BoardError("that isn't a sequence")
+    changed = 0
+    for target in blocks[block + 1:]:
+        if target["kind"] == "sequence":
+            break
+        if target["kind"] != "shot" or not target["shot"]["held_empty"]:
+            continue
+        keep = [ln for ln in target["lines"] if not re.match(r"^(who|cast)\s*:", ln)]
+        header = next(i for i, ln in enumerate(keep) if ln.startswith("## "))
+        if who:
+            keep.insert(header + 1, f"who: {', '.join(who)}\n")
+        target["lines"] = keep
+        target["shot"] = _shot_view(keep)
+        changed += 1
+    return changed
