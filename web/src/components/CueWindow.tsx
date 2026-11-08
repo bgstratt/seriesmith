@@ -26,7 +26,7 @@ import {
   drawnPoints, editableSections, familyName, gridOf, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, melodyText, mergeStroke, meterBeats,
   meterText, mergeSections, moveEdge,
   movePoint, orchestraRows, sectionChoice, SCORE_SECTIONS, SONG_SECTIONS, paintOrchestra, patchSection, presetPoints, ranks, removeFamily, removePoint, renameFamily, sectionAt, sectionEdges, sectionWords, strokeLevel, ORCH_STEP,
-  presetGroups, presetReplaces, sectionsFromArc, smoothPoints, snapToHits, splitPoint, splitSection, tauX, trimOrchestra, withEnergies, withSpec, wordsOffArc, xTau, yLevel,
+  presetGroups, presetReplaces, sectionsFromArc, smoothPoints, snapToHits, splitPoint, splitSection, takeRun, tauX, trimOrchestra, viewSeconds, withEnergies, withSpec, wordsOffArc, xTau, yLevel,
   type ArcPt, type Grid, type Orchestra,
 } from "../lib/cue";
 import { fmtClock } from "../lib/format";
@@ -332,9 +332,11 @@ function CueBody({ ep, v, res, sel, setSel, tab, brush, setBrush, help }: {
   }
   const g = gridOf(plan, spec);
   const t0 = cueStart(items, spec, fps);
-  const fit = Math.max(PPS_MIN, (size.width - LAB_W - 16) / g.seconds);
+  // the window shows the whole of every take: a song longer than the cue runs on past its grid
+  const viewS = viewSeconds(g, res.takes);
+  const fit = Math.max(PPS_MIN, (size.width - LAB_W - 16) / viewS);
   const pps = Math.min(PPS_MAX, zoom ?? fit);
-  const W = Math.ceil(g.seconds * pps);
+  const W = Math.ceil(viewS * pps);
   const placed = res.takes.find((t) => t.placed === v.pass);
 
   // the arc: the spec's points, else the ones the sections imply
@@ -443,6 +445,8 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
   const [range, setRange] = useState<{ take: number; bars: [number, number] } | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   useEffect(() => () => audio.current?.pause(), []);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const latest = useRef({ g, pps });
   const editable = tab === "score";
 
   // ---- the picture ----
@@ -500,6 +504,17 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
   };
 
   // ---- a take played: the playhead on the grid ----
+  // the grid as last drawn, for the playhead's tick (a zoom while it plays moves it)
+  latest.current = { g, pps };
+  // keeps the playhead in view: when it leaves the lanes' visible part, the grid scrolls a page
+  const follow = (tau: number) => {
+    const el = gridRef.current?.closest<HTMLElement>(".h3-cue-scroll");
+    if (!el) return;
+    const px = LAB_W + tauX(latest.current.g, tau, latest.current.pps);
+    const lo = el.scrollLeft + LAB_W;
+    const hi = el.scrollLeft + el.clientWidth - 16;
+    if (px < lo || px > hi) el.scrollLeft = Math.max(0, px - LAB_W - (el.clientWidth - LAB_W) * 0.1);
+  };
   const play = (t: CueTake) => {
     const a = audio.current ?? (audio.current = new Audio());
     if (playing?.take === t.take) {
@@ -519,7 +534,9 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
         setPlaying((p) => (p?.take === t.take ? null : p));
         return;
       }
-      setPlaying({ take: t.take, tau: a.currentTime - m.downbeat - g.preroll });
+      const tau = a.currentTime - m.downbeat - g.preroll;
+      setPlaying({ take: t.take, tau });
+      follow(tau);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -620,7 +637,7 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
   );
 
   return (
-    <div className="h3-cue-grid" style={{ width: LAB_W + W }}>
+    <div ref={gridRef} className="h3-cue-grid" style={{ width: LAB_W + W }}>
       {under}
       {/* the head's lanes stay in view over the takes */}
       <div className="h3-cue-head">
@@ -1006,7 +1023,10 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, s
 }) {
   const m = t.measured;
   const ok = t.status === "ok" && !!m && !!t.file;
-  const q = ok ? { ep, path: t.file!, bins: Math.max(16, Math.min(4096, Math.round(W / 2))), start: m!.downbeat, end: m!.downbeat + g.seconds, version: t.finished ?? null } : null;
+  // its waveform to its own end (the grid's when its length isn't known), at the window's scale
+  const run = takeRun(t) || g.seconds;
+  const tw = Math.max(1, Math.min(W, Math.ceil(run * pps)));
+  const q = ok ? { ep, path: t.file!, bins: Math.max(16, Math.min(4096, Math.round(tw / 2))), start: m!.downbeat, end: m!.downbeat + run, version: t.finished ?? null } : null;
   const peaks = usePeaks(q);
   const name = tn(t.take);
   const lv = m ? levelsAsEnergy(m.levels) : [];
@@ -1026,7 +1046,7 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, s
       <Lane label={label} h={TAKE_H} W={W} cls={`h3-cue-wave${select && ok ? " h3-cue-selectable" : ""}`}
         onPointerDown={select && ok ? select.onDown : undefined}
         title={ok ? `${name}: its waveform from its first bar line, its loudness per bar (white) over the arc${select ? ". Drag across bars to select them: repaint them, comp them from another take, or lower them in the mix" : ""}` : t.error ?? t.status}>
-        {ok && <PeaksCanvas peaks={peaks?.ok ? peaks.data.peaks : EMPTY} width={W} height={TAKE_H - 4} />}
+        {ok && <PeaksCanvas peaks={peaks?.ok ? peaks.data.peaks : EMPTY} width={tw} height={TAKE_H - 4} />}
         {ok && (
           <svg width={W} height={TAKE_H} className="h3-cue-svg">
             <polyline points={arcLine} className="h3-cue-arcline h3-dim" />

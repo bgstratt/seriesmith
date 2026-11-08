@@ -76,6 +76,7 @@ import os
 import re
 import subprocess
 import threading
+import wave
 
 from seriesmith import beats as B
 from seriesmith import edit as E
@@ -1183,6 +1184,19 @@ def list_takes(root: str, cid: str) -> list[dict]:
             if isinstance(sc, dict):
                 out.append({**sc, "take": int(m.group(1))})
     return out
+
+
+def take_seconds(root: str, sc: dict) -> float | None:
+    """A finished take's length in seconds (its wav, stretched to the cue's tempo: a YuE2 song
+    is as long as its plan, longer than the cue), read from the wav's header; None for a take
+    with no wav, or one that can't be read."""
+    if sc.get("status") != "ok" or not sc.get("file"):
+        return None
+    try:
+        with wave.open(os.path.join(root, *sc["file"].split("/")), "rb") as w:
+            return round(w.getnframes() / float(w.getframerate()), 3)
+    except (OSError, EOFError, wave.Error, ZeroDivisionError):
+        return None
 
 
 def ranked(takes: list[dict]) -> list[dict]:

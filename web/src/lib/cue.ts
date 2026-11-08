@@ -32,6 +32,21 @@ export function gridOf(plan: Pick<CuePlan, "bar" | "bars" | "preroll">, spec: Pi
   return { bar, beat: bar / meter, meter, bars: Math.max(1, plan.bars), preroll: plan.preroll, seconds: Math.max(1, plan.bars) * bar };
 }
 
+/**
+ * How far a finished take runs from its first bar line (the grid's start), in seconds: its
+ * length less its downbeat; 0 for a take not finished or whose length isn't known. A YuE2
+ * song is as long as its plan, so it can run past the cue's grid.
+ */
+export function takeRun(t: { status: string; seconds?: number | null; measured?: { downbeat: number } }): number {
+  if (t.status !== "ok" || !t.measured || !t.seconds) return 0;
+  return Math.max(0, t.seconds - t.measured.downbeat);
+}
+
+/** The cue window's length in seconds: the grid, or the longest take when one runs past it. */
+export function viewSeconds(g: Pick<Grid, "seconds">, takes: Parameters<typeof takeRun>[0][]): number {
+  return Math.max(g.seconds, ...takes.map(takeRun));
+}
+
 // ---------------------------------------------------------------------------
 // meter and key (cue.py's parse_meter; ace_step15/prompt.py's keyscale)
 // ---------------------------------------------------------------------------

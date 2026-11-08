@@ -827,6 +827,11 @@ class RouteTest(unittest.TestCase):
         self.assertIn(CU.REPAINT_NODE, {v["class_type"] for v in g.values()})
         sc = self.call(A.get_cue, {"ep": self.ep, "pass": "final", "cue": "m01"})["takes"]
         self.assertEqual(next(t for t in sc if t["take"] == 2)["repaint"]["bars"], [1, 3])
+        # a finished take's length (its wav's), for the window to show the whole of it; none queued
+        secs = {t["take"]: t["seconds"] for t in sc}
+        self.assertIsNone(secs[2])
+        self.assertGreater(secs[1], p["bars"] * p["bar"] * 0.9)
+        self.assertLess(secs[1], p["bars"] * p["bar"] * 1.2)
         # a model that can't repaint
         CU.update(self.ep, "m01", 1, target="stable_audio3")
         self.assertIn("can't make bars", self.call(A.post_cue_repaint, body, 409)["error"])

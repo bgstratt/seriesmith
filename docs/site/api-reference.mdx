@@ -894,7 +894,9 @@ fitted, both in the take's job; the take's as `tNN.melody.abc`) and `on_theme` (
 least 0.3; a take that lost it is ranked after those that kept it), and `stale`: what has moved in the cut since it was
 rendered (its sidecar's `rendered_for`: the span, each hit, the tempo, the theme), in words,
 `[]` when nothing has (a `{"cue"}` theme now resolving to another take than the one it was
-rendered with is stale: "the theme is m01 t03, not m01 t02"). A take rendered with a theme has
+rendered with is stale: "the theme is m01 t03, not m01 t02"), and `seconds`: a finished take's
+length (its `tNN.wav`, read from its header; a YuE2 song runs as long as its plan, past the
+cue's grid; null for a take not finished, or one whose wav can't be read). A take rendered with a theme has
 `theme` (`{label, use, from?}`: the take or file it heard, and for a `{"cue"}` theme how that
 take was found, `strength` and `staged` (`{stretch, bars, seconds}`: how it was fitted) when it
 was rendered from; a repaint of it hears the same take, whatever is picked since); a YuE2 take

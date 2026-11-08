@@ -349,7 +349,10 @@ a take on a 5090) and is measured as it does:
 
 The list is **ranked**: #1 best lands the must-land hits and follows the arc. It can't hear
 whether the music is any good, so **listen to the top two or three** (▶) and **Pick** the one you
-like. Picking puts it on the Music track from the cue's in point to its out point, with volume
+like. ▶ plays the whole take, the playhead running over the grid and the window scrolling with it
+when you've zoomed in; a take longer than the cue (a YuE2 song runs as long as the song it
+writes) is shown whole, its part past the cue's out point hatched. Picking puts it on the Music
+track from the cue's in point to its out point, with volume
 points that pull its loudness toward the arc (a drop really drops). Render again for eight more
 if none is right; the models vary a lot from take to take, which is why it makes eight.
 

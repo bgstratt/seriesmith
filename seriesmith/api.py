@@ -2799,8 +2799,9 @@ def get_cue(ctx: Context, query: dict):
     """A cue: `spec`, `plan` (what it is asked against the pass's cut: its hits in
     seconds, the fitted tempo, bars, sections, arc and the model's prompt; null with
     `plan_error` when its anchors aren't in the cut) and `takes`, best first, each with
-    `stale`: what has moved in the cut since it was rendered, in words; and `themes`, the
-    series config's (cue.theme_list), for the theme to be picked from."""
+    `stale`: what has moved in the cut since it was rendered, in words, and `seconds`: a
+    finished take's length (its wav; null for the rest); and `themes`, the series config's
+    (cue.theme_list), for the theme to be picked from."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query.get("pass"))
     spec = _cue_spec(ep, query.get("cue"))
@@ -2811,6 +2812,7 @@ def get_cue(ctx: Context, query: dict):
     takes = CU.ranked(CU.list_takes(ep, spec["id"]))
     for t in takes:
         t["stale"] = CU.stale(t, full) if full else []
+        t["seconds"] = CU.take_seconds(ep, t)
     return 200, {"spec": spec, "plan": _plan_summary(full) if full else None,
                  "plan_error": why, "takes": takes, "themes": CU.theme_list(ep)}
 

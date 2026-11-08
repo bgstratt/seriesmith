@@ -3262,6 +3262,8 @@ export interface CueTake {
   placed?: Pass;
   /** what has moved in the cut since it was rendered ([] or absent: nothing) */
   stale?: string[];
+  /** a finished take's length (its wav; a YuE2 song can run past the cue's grid); null or absent: not known */
+  seconds?: number | null;
   /** a comp (POST /seriesmith/cue/comp): take `base` with the cue's bars [a, b) from take `from` */
   comp?: { base: number; from: number; bars: [number, number] };
   /** a repaint (POST /seriesmith/cue/repaint): take `from` with the cue's bars [a, b) made again
