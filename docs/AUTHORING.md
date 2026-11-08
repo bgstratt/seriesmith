@@ -958,6 +958,7 @@ sound: running footsteps on grass, fabric movement
 | `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `ltx2`, `ltx2_ingredients`, `ltx2_msr`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, `hold` for a picture held still, or a show's own); see below |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |
 | `continuous: first` | this shot carries straight on from the previous one in the cut: `first` (open on its last frame) or `latent` (hold the previous take's last frames and carry on from them); `multishot` renders it in one generation with the shot before (see **Several shots in one generation**); under a `#` header, every shot after the sequence's first; `none` breaks the chain; see **Continuous shots** |
+| `cold_open: true` | it plays before the opening titles: a master puts the series intro in right after the cold open's last shot. Under a `#` header, every shot of the sequence; on a shot, that shot (`cold_open: false` takes one out of its sequence's). The cold open is the cut's first shots, one after another: see **A cold open** |
 | `overlap: 39` | frames of the previous take a `continuous: latent` shot holds (39, the default, is right almost always; any other number rounds up to 22, 39, 56, 73, ...); also valid under a `#` header |
 | `NAME: line` | dialogue from someone on screen (the name is a character's key, in capitals) |
 | `NAME (breathless): line` | a delivery direction, written into the prompt |
@@ -1196,6 +1197,24 @@ dur: 1.62
   without its pictures.
 - **Sound is generated**: a dubbed or cloned shot can't be in a group.
 - It is no fix for a jump cut: two near-identical shots in one generation still cut as one.
+
+### A cold open: `cold_open:`
+
+A teaser before the opening titles: the episode's first scene, then the series intro, then
+the rest. Mark the sequences (or shots) that play before the titles:
+
+```
+# sq01  diner_night
+cold_open: true
+```
+
+- **It's the cut's first shots, one after another.** A master (and the editor's **Titles**)
+  puts the series intro in right after the last of them; without any, at the start.
+- **The cut's order decides.** A marked shot moved after one that isn't is a gap: master
+  refuses until it's fixed. In the editor, right-click the clip the cold open should end on,
+  **In the cut › Cold open ends here**: the marks are rewritten to the cut as it is.
+- **A dissolve can't cross the break**: the titles go in on a cut.
+- Nothing else changes: Export, Play all and the mix are the cut as it is, with no titles.
 
 ### A picture held still: `target: hold`
 

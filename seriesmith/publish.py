@@ -39,8 +39,16 @@ check fails), the whole thing is re-encoded instead and the reason is printed;
         "intro_in": [4.0, 5.0],  # seconds into the intro: fade starts, fully on
         "outro_in": [0.0, 1.0],  # seconds into the outro: fade in ...
         "outro_out": [4.5, 5.5]  # ... and out
-      }
+      },
+      "loudness": {"match": true, "under_lu": 0}
     }
+
+The title clips' sound is brought to the episode's loudness (the mix's target,
+mix.loudness_target: -16 LUFS, -1 dBTP unless set): each measured by loudnorm
+and moved by one gain to the target less `under_lu` (a theme tucked under the
+episode: 1-2), held under the ceiling by the mix's true-peak limiter when that
+gain would cross it. `"match": false` leaves them as they came. The cut's own
+sound is never touched: its mix brought it to the target already.
 
 Every `subtitle` key is optional; the values above are the defaults, and
 `intro` / `outro` default to the _titles files. Stdlib only; needs ffmpeg and
@@ -63,6 +71,7 @@ from seriesmith import edit as E  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import ff as FF  # noqa: E402
 
+LEVEL = {"match": True, "under_lu": 0.0}
 SUBTITLE = {
     "font": "C:/Windows/Fonts/segoescb.ttf",
     "size": 0.058,
@@ -157,6 +166,7 @@ def publish_config(series_cfg: dict) -> dict:
     """The series config's `publish` block with the subtitle defaults filled in."""
     block = dict(series_cfg.get("publish") or {})
     block["subtitle"] = {**SUBTITLE, **(block.get("subtitle") or {})}
+    block["loudness"] = {**LEVEL, **(block.get("loudness") or {})}
     return block
 
 
@@ -235,40 +245,59 @@ def titled(label: str, out: str, sub: dict, w: int, h: int, fps: float,
     ]
 
 
-def sound_graph(pieces: list[tuple[int, bool, float]], silence: int, first: int = 0) -> list[str]:
-    """(input, has sound, seconds) per piece -> each cut or padded to its picture,
-    in one rate and layout, joined into [a]."""
+def sound_graph(pieces: list[tuple], silence: int, first: int = 0) -> list[str]:
+    """(input, has sound, seconds[, level]) per piece -> each cut or padded to its
+    picture, in one rate and layout, joined into [a]; `level` (clip_level's filter)
+    goes first on a piece with sound."""
     fmt = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo"
     lines, labels = [], ""
-    for n, (idx, has, secs) in enumerate(pieces, first):
+    for n, (idx, has, secs, *rest) in enumerate(pieces, first):
         src = idx if has else silence
-        lines.append(f"[{src}:a]{fmt},apad,atrim=0:{secs:.6f},asetpts=PTS-STARTPTS[a{n}]")
+        level = (rest[0] + ",") if has and rest and rest[0] else ""
+        lines.append(f"[{src}:a]{level}{fmt},apad,atrim=0:{secs:.6f},asetpts=PTS-STARTPTS[a{n}]")
         labels += f"[a{n}]"
     lines.append(f"{labels}concat=n={len(pieces)}:v=0:a=1[a]")
     return lines
 
 
-def filter_graph(cut: dict, intro: dict | None, outro: dict | None, sub: dict) -> str:
-    """The full re-encode. Inputs in order: [intro], cut, [outro], silence. Output [v] [a]."""
+def filter_graph(cut: dict, intro: dict | None, outro: dict | None, sub: dict,
+                 levels: dict | None = None, split: int | None = None) -> str:
+    """The full re-encode. Inputs in order: [intro], cut, [outro], silence. Output [v] [a].
+    `levels`: clip_level's filter for "intro" and "outro". `split` (a cold open's end, in
+    the cut's frames): the inputs are cut, [intro], cut again, [outro], silence, and the
+    intro plays between the cut's frames before `split` and the rest."""
+    levels = levels or {}
     w, h, fps = cut["width"], cut["height"], cut["fps"]
     lines, parts, pieces, i = [], [], [], 0
-    silence = int(intro is not None) + 1 + int(outro is not None)
+    silence = int(intro is not None) + 1 + int(outro is not None) + int(split is not None)
+    tags = ",".join(ASM.to_bt709(cut.get("color_space") or ""))
+    if split is not None:
+        at = split / fps
+        lines.append(f"[{i}:v]setsar=1,{tags},trim=end_frame={split},setpts=PTS-STARTPTS[cv0]")
+        parts.append("[cv0]")
+        pieces.append((i, cut["audio"], at))
+        i += 1
     if intro:
         lines += titled(f"{i}:v", "in", sub, w, h, fps, intro["duration"],
                         alpha_expr(sub["intro_in"]), matrix=intro.get("color_space") or "")
         parts.append("[inv]")
-        pieces.append((i, intro["audio"], intro["duration"]))
+        pieces.append((i, intro["audio"], intro["duration"], levels.get("intro")))
         i += 1
-    lines.append(f"[{i}:v]setsar=1,{','.join(ASM.to_bt709(cut.get('color_space') or ''))}[cv]")
+    if split is not None:
+        lines.append(f"[{i}:v]setsar=1,{tags},trim=start_frame={split},setpts=PTS-STARTPTS[cv]")
+        pieces.append((i, cut["audio"], cut["duration"] - at,
+                       f"atrim=start={at:.6f},asetpts=PTS-STARTPTS"))
+    else:
+        lines.append(f"[{i}:v]setsar=1,{tags}[cv]")
+        pieces.append((i, cut["audio"], cut["duration"]))
     parts.append("[cv]")
-    pieces.append((i, cut["audio"], cut["duration"]))
     i += 1
     if outro:
         lines += titled(f"{i}:v", "out", sub, w, h, fps, outro["duration"],
                         alpha_expr(sub["outro_in"], sub["outro_out"]),
                         matrix=outro.get("color_space") or "")
         parts.append("[outv]")
-        pieces.append((i, outro["audio"], outro["duration"]))
+        pieces.append((i, outro["audio"], outro["duration"], levels.get("outro")))
     lines.append(f"{''.join(parts)}concat=n={len(parts)}:v=1:a=0[v]")
     lines += sound_graph(pieces, silence)
     return ";\n".join(lines)
@@ -380,8 +409,24 @@ def check_joins(out: str, pieces: list[tuple[str, dict]]) -> str | None:
     return None
 
 
+def split_picture(pic: str, frames: int, at: int, tmp: str) -> tuple[str, str] | str:
+    """The cut's picture (copied out, `frames` long) in two at frame `at`, each copied:
+    (head, tail), or why it can't be (`at` isn't a keyframe: every clip assemble writes
+    starts on one, so a cold open ending on a clip's last frame always is)."""
+    r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", pic, "-map", "0:v:0", "-c", "copy",
+             "-f", "segment", "-segment_frames", str(at), "-reset_timestamps", "1",
+             "-segment_format", "mp4", "part%d.mp4"], cwd=tmp)
+    head, tail = os.path.join(tmp, "part0.mp4"), os.path.join(tmp, "part1.mp4")
+    if r.returncode != 0 or not os.path.isfile(tail):
+        return f"the cut couldn't be split at the cold open's end: {r.stderr.strip()[-300:]}"
+    if probe(head)["frames"] != at or probe(tail)["frames"] != frames - at:
+        return f"the cold open's end (frame {at}) isn't a keyframe of the cut"
+    return head, tail
+
+
 def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub: dict,
-                 out: str, tmp: str) -> str | None:
+                 out: str, tmp: str, levels: dict | None = None,
+                 split: int | None = None) -> str | None:
     """Intro + cut + outro with the cut's picture copied. Writes `out` and
     returns None, or returns why it couldn't (and writes nothing)."""
     why = copy_blocker(cut)
@@ -419,16 +464,34 @@ def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub:
              pic_only], cwd=tmp)
     if r.returncode != 0:
         return f"the cut's picture couldn't be copied out: {r.stderr.strip()[-300:]}"
-    order = ([made["intro"]] if intro else []) + [pic_only] + ([made["outro"]] if outro else [])
-    sounds = ([intro] if intro else []) + [src] + ([outro] if outro else [])
+    levels = levels or {}
+    # (picture, sound, what it is): the cut's head and tail around the intro when a cold
+    # open ends at `split`, else the cut whole
+    parts: list[tuple[str, str, str]] = []
+    if split is not None:
+        halves = split_picture(pic_only, cut["frames"], split, tmp)
+        if isinstance(halves, str):
+            return halves
+        parts.append((halves[0], src, "head"))
+    if intro:
+        parts.append((made["intro"], intro, "intro"))
+    parts.append((halves[1], src, "tail") if split is not None else (pic_only, src, "cut"))
+    if outro:
+        parts.append((made["outro"], outro, "outro"))
+    order = [pic for pic, _, _ in parts]
+    sounds = [snd for _, snd, _ in parts]
     infos = {p: (cut if p == pic_only else probe(p)) for p in order}
     with open(os.path.join(tmp, "join.txt"), "w", encoding="utf-8") as f:
         for p in order:
             f.write(f"file '{p.replace(os.sep, '/')}'\n")
     pieces = []
-    for i, (pic, snd) in enumerate(zip(order, sounds), 1):
+    for i, (pic, snd, kind) in enumerate(parts, 1):
+        if kind == "tail":
+            pre = f"atrim=start={split / cut['fps']:.6f},asetpts=PTS-STARTPTS"
+        else:
+            pre = levels.get(kind)
         pieces.append((i, probe(snd)["audio"] if snd != src else cut["audio"],
-                       infos[pic]["frames"] / cut["fps"]))
+                       infos[pic]["frames"] / cut["fps"], pre))
     silence = len(order) + 1
     with open(os.path.join(tmp, "sound_graph.txt"), "w", encoding="utf-8") as f:
         f.write(";\n".join(sound_graph(pieces, silence)))
@@ -452,18 +515,20 @@ def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub:
     if why:
         return why
     shutil.move(joined, out)
-    print(f"    picture copied; title clips encoded at assemble's {used} quality, "
+    print(f"    picture copied{' (split at the cold open)' if split is not None else ''}; "
+          f"title clips encoded at assemble's {used} quality, "
           f"sound re-encoded")
     return None
 
 
 def publish_reencode(src: str, cut: dict, intro: str | None, outro: str | None, sub: dict,
-                     out: str, tmp: str, quality: str) -> None:
+                     out: str, tmp: str, quality: str, levels: dict | None = None,
+                     split: int | None = None) -> None:
     pi, po = (probe(intro) if intro else None), (probe(outro) if outro else None)
     with open(os.path.join(tmp, "graph.txt"), "w", encoding="utf-8") as f:
-        f.write(filter_graph(cut, pi, po, sub))
+        f.write(filter_graph(cut, pi, po, sub, levels, split))
     cmd = [*FF.tool("ffmpeg"), "-y", "-v", "error"]
-    for p in (intro, src, outro):
+    for p in ((src, intro, src, outro) if split is not None else (intro, src, outro)):
         if p:
             cmd += ["-i", p]
     cmd += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
@@ -476,6 +541,43 @@ def publish_reencode(src: str, cut: dict, intro: str | None, outro: str | None, 
         raise PublishError(f"ffmpeg failed:\n{r.stderr.strip()}")
     shutil.move(os.path.join(tmp, "out.mp4"), out)
     print(f"    re-encoded at {quality} quality")
+
+
+# ---------------------------------------------------------------------------
+# the title clips' loudness
+# ---------------------------------------------------------------------------
+
+def loudness_target(root: str, pass_: str, series_cfg: dict) -> dict:
+    """The loudness the episode's export is held to (its pass's mix's, else the
+    series config's, else mix.LOUDNESS)."""
+    from seriesmith import mix as MX
+    try:
+        mix = MX.load(root).get(pass_)
+    except (OSError, ValueError):
+        mix = None
+    return MX.loudness_target(mix if isinstance(mix, dict) else None, series_cfg)
+
+
+def clip_level(path: str, target: dict, under_lu: float = 0.0) -> tuple[str | None, str]:
+    """A title clip's sound brought to `target` less `under_lu`: (the filter that does it,
+    or None to leave it; what was done, in words). One gain, as the mix's; the mix's
+    true-peak limiter (oversampled, LOSSY_MARGIN_DB under the ceiling for the AAC) when
+    the gain would cross it. A clip that can't be measured, or is silent, is left."""
+    from seriesmith import mix as MX
+    want = float(target["target_lufs"]) - float(under_lu or 0.0)
+    m = MX.measure(path, want, float(target["true_peak_db"]))
+    if not m or not (m.get("input_i", float("-inf")) > -70):
+        return None, "left as it is (silent, or it couldn't be measured)"
+    gain = want - m["input_i"]
+    words = f"{m['input_i']:g} LUFS, {gain:+.1f} dB to {want:g}"
+    level = f"volume={gain:.2f}dB"
+    hold = float(target["true_peak_db"]) - MX.LOSSY_MARGIN_DB
+    peak = m.get("input_tp", float("-inf")) + gain
+    if peak > hold:
+        level += (f",aresample={48000 * MX.TP_OVERSAMPLE},alimiter=limit={10 ** (hold / 20):.4f}"
+                  f":level=false:attack=5:release=50")
+        words += f", limited to {hold:g} dBTP (it would peak at {peak:+.1f})"
+    return level, words
 
 
 # ---------------------------------------------------------------------------
@@ -499,6 +601,27 @@ def _clip(root: str, block: dict, key: str) -> str | None:
         if os.path.isfile(path):
             return path
     return None
+
+
+def cold_open_split(root: str, pass_: str, intro: str | None, frames: int) -> int | None:
+    """Where the intro goes in the cut (its frame) when the script marks a cold open
+    (coldopen.state), else None (at the start). PublishError when the marks don't make
+    one run at the cut's head, or when the file (`frames` long) isn't the cut as it stands.
+    Without an intro there's nothing to put in."""
+    if not intro:
+        return None
+    from seriesmith import coldopen as CO
+    try:
+        st = CO.state(root, pass_)
+    except (OSError, ValueError) as e:
+        raise PublishError(f"the cold open couldn't be read: {e}") from None
+    if st["error"]:
+        raise PublishError(f"cold open: {st['error']}")
+    if st["frame"] is not None and st["frames"] != frames:
+        raise PublishError(f"cold open: the file is {frames} frames and the cut as it stands "
+                           f"{st['frames']}, so where its cold open ends can't be found: "
+                           f"export or master it again")
+    return st["frame"]
 
 
 def titles(root: str) -> tuple[str | None, str | None]:
@@ -539,13 +662,27 @@ def publish(root: str, src: str | None = None, pass_: str = "final", out: str | 
         quality = "master" if os.path.basename(os.path.dirname(src)) == "master" else "review"
 
     cut = probe(src)
+    split = cold_open_split(root, pass_, intro, cut["frames"])
     print(f"  {os.path.basename(root)}  \"{title}\"")
     print(f"    intro  {intro or '(none)'}")
     print(f"    cut    {src}  {cut['width']}x{cut['height']} {cut['fps']:g}fps "
           f"{cut['duration']:.1f}s")
+    if split is not None:
+        print(f"    cold open: the intro goes in at frame {split} ({split / cut['fps']:.2f}s)")
     print(f"    outro  {outro or '(none)'}")
     print(f"    font   {sub['font']}")
     print(f"    -> {out}")
+    levels: dict[str, str] = {}
+    lv = block["loudness"]
+    if not check and lv.get("match", True):
+        with open(cfg_path, encoding="utf-8") as f:
+            target = loudness_target(root, pass_, json.load(f))
+        for kind, clip in (("intro", intro), ("outro", outro)):
+            if clip and probe(clip)["audio"]:
+                level, words = clip_level(clip, target, lv.get("under_lu") or 0.0)
+                print(f"    {kind} sound: {words}")
+                if level:
+                    levels[kind] = level
     if check:
         why = copy_blocker(cut)
         print(f"    {'picture would be re-encoded: ' + why if why else 'picture can be copied'}")
@@ -558,11 +695,12 @@ def publish(root: str, src: str | None = None, pass_: str = "final", out: str | 
         with open(os.path.join(tmp, "title.txt"), "w", encoding="utf-8") as f:
             f.write(title)
         shutil.copyfile(sub["font"], os.path.join(tmp, "font" + os.path.splitext(sub["font"])[1]))
-        why = "--reencode" if reencode else publish_copy(src, cut, intro, outro, sub, out, tmp)
+        why = "--reencode" if reencode else publish_copy(src, cut, intro, outro, sub, out, tmp,
+                                                         levels, split)
         if why:
             print(f"  ! re-encoding the whole cut: {why}")
             say("reencode", 0, None, why)
-            publish_reencode(src, cut, intro, outro, sub, out, tmp, quality)
+            publish_reencode(src, cut, intro, outro, sub, out, tmp, quality, levels, split)
     got = probe(out)
     print(f"    {got['duration']:.1f}s, {got['frames']} frames")
     print(f"  -> {out}")

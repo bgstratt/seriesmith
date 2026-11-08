@@ -3144,6 +3144,22 @@ export interface CuePreset {
 }
 
 /** GET /seriesmith/cues: one cue. */
+/** GET /seriesmith/cold-open: the shots the script marks `cold_open:` that open the pass's cut, and
+ * where a master puts the series intro (docs/TITLES_GUIDE.md). */
+export interface ColdOpenState {
+  /** the run, in cut order */
+  shots: string[];
+  /** its last shot; null: no cold open */
+  end: string | null;
+  /** where the intro goes in the assembled cut (frames, seconds); null without a cold open or with an error */
+  frame: number | null;
+  seconds: number | null;
+  /** marked shots that play after one that isn't */
+  gaps: string[];
+  /** why a master can't put the intro in, else null */
+  error: string | null;
+}
+
 export interface CueSummary {
   spec: CueSpec;
   takes: number;

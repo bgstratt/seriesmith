@@ -6,7 +6,7 @@ import {
   clickShot, closeViewer, currentPlaylist, openInspector, openMenu, openViewer, playAll, refreshEpisode, seekCut, seekToShot, select,
   setZoom, showMissingRefs, toggleCutPlay,
 } from "../actions";
-import { cutKey, flaggedShots, gotoFlagged, moveClip, redoCut, seekCutAt, setJoin, setTrims, undoCut } from "../cutActions";
+import { cutKey, flaggedShots, gotoFlagged, loadColdOpen, moveClip, redoCut, seekCutAt, setJoin, setTrims, undoCut } from "../cutActions";
 import { api, host } from "../host";
 import { JOIN_MAX, clampTrim, dropIndex, framesLabel, pxToFrames } from "../lib/cutEdit";
 import {
@@ -379,6 +379,13 @@ export function Timeline() {
     return m;
   }, [issues]);
   const moved = useMemo(() => (st?.shots ?? []).filter((s) => s.cut?.out_of_order && !s.orphan).length, [st]);
+  // the cold open (docs/TITLES_GUIDE.md): where a master puts the series intro, fetched again
+  // whenever the cut's order, what's in it or a take in it changes
+  const coldOpen = useApp((s) => (s.ep ? s.coldOpen[statusKey(s.ep, s.pass)] : undefined));
+  const cutSig = useMemo(() => (st?.shots ?? []).map((s) => `${s.shot}:${s.cut?.out ? 0 : 1}:${s.cut?.take ?? ""}`).join(","), [st]);
+  useEffect(() => {
+    if (ep && cutSig) void loadColdOpen(ep, pass);
+  }, [ep, pass, cutSig]);
 
   /** a clip's width: its length in the cut (trims applied; the edge being dragged, previewed) */
   const widthOf = useCallback((s: ShotStatus): number => {
@@ -668,6 +675,12 @@ export function Timeline() {
             <i className="pi pi-flag-fill" /> {flagged.length} flagged
           </button>
         )}
+        {coldOpen?.error && (
+          <span className="h3-badge h3-b-missing-refs" title={`${coldOpen.error}
+(The cold open: the shots the script marks cold_open: true, played before the opening titles in a master.)`}>
+            <i className="pi pi-exclamation-triangle" /> Cold open
+          </span>
+        )}
         {moved > 0 && (
           <span className="h3-badge h3-b-moved" title={`${moved} shot${moved > 1 ? "s are" : " is"} out of script order (Cut ▸ Reset order puts them back)`}>
             {moved} moved
@@ -735,6 +748,12 @@ export function Timeline() {
                             onEdgeDown={onEdgeDown}
                             suppress={suppress}
                           />
+                          {coldOpen?.end === s.shot && !s.cut.out && (
+                            <div className={`h3-coldopen-mark${coldOpen.error ? " h3-coldopen-err" : ""}`}
+                              title={coldOpen.error ?? `The cold open ends here: a master puts the series intro in after ${s.shot}${coldOpen.seconds != null ? ` (${fmtSeconds(coldOpen.seconds)} in)` : ""}. Right-click a clip › In the cut to move it`}>
+                              <span>▸ Opening</span>
+                            </div>
+                          )}
                           {it && !s.cut.out && (
                             <JoinCurves it={it} next={nextOf.get(s.shot)} width={width} height={clipH} fps={fps}
                               locked={!!s.cut.locked || !!s.orphan} drag={join} onDown={onJoinDown} />

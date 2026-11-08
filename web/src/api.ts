@@ -25,7 +25,7 @@ import type {
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
   LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
-  AmbienceBed, FxShot, FxShotSummary, DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake,
+  AmbienceBed, FxShot, FxShotSummary, DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake, ColdOpenState,
   ScoreDraftResult,
 } from "./types";
 import { comboChoices } from "./lib/targets";
@@ -372,6 +372,11 @@ export interface Api {
     queued: { shot: string; take: number; job: string }[]; skipped: { shot: string; why: string }[] }>;
   /** POST /seriesmith/fx/pick: a shot's effects take into the pass's mix (null: out). */
   pickFx?(req: { ep: string; pass: Pass; shot: string; take: number | null }): Promise<{ mix: Mix }>;
+  /** GET /seriesmith/cold-open: the cold open against the pass's cut (where a master's intro goes). */
+  getColdOpen?(ep: string, pass: Pass): Promise<ColdOpenState>;
+  /** PUT /seriesmith/cold-open: the cold open marked in the script as the cut has it, every shot up to `end`
+   * (null: none); a history copy of the script kept, and rebuilt. */
+  putColdOpen?(ep: string, pass: Pass, end: string | null): Promise<ColdOpenState & { changed: boolean }>;
   /** GET /seriesmith/cues: the episode's music cues, each its spec and take counts; with
    * `pass`, each planned against that pass's cut too (its tempo, the take in the mix, what's stale). */
   cues(ep: string, pass?: Pass): Promise<{ cues: CueSummary[]; unreadable?: { id: string; error: string }[] }>;
@@ -899,6 +904,12 @@ export function createHttpApi(t: Transport): Api {
       const r = await get<Partial<MixBeats>>(`/seriesmith/mix/beats?${qs({ ep, pass })}`);
       return { items: Array.isArray(r?.items) ? r.items : [], recording: r?.recording ?? null };
     },
+    getColdOpen: async (ep, pass) => {
+      const r = await get<Partial<ColdOpenState>>(`/seriesmith/cold-open?${qs({ ep, pass })}`);
+      return { shots: Array.isArray(r?.shots) ? r.shots : [], end: r?.end ?? null, frame: r?.frame ?? null,
+               seconds: r?.seconds ?? null, gaps: Array.isArray(r?.gaps) ? r.gaps : [], error: r?.error ?? null };
+    },
+    putColdOpen: (ep, pass, end) => call("PUT", "/seriesmith/cold-open", { ep, pass, end }),
     cues: async (ep, pass) => {
       const r = await get<Partial<{ cues: CueSummary[]; unreadable: { id: string; error: string }[] }>>(`/seriesmith/cues?${qs(pass ? { ep, pass } : { ep })}`);
       return { cues: Array.isArray(r?.cues) ? r.cues : [], unreadable: Array.isArray(r?.unreadable) ? r.unreadable : [] };

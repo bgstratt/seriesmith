@@ -33,7 +33,9 @@ Started from h3pipe `c5f9be0` (2026-10-09).
   can promise that.
 - **Takes and the cut.** Every render is a take, kept with a record of how it was
   made. You pick takes into a cut; overrides change one shot without touching the
-  script. The cut leaves as an mp4 (assemble), with titles (publish), as a master, or as
+  script. The cut leaves as an mp4 (assemble), with titles (publish: a cold open the script
+  marks plays before the intro, the cut split on a clip's first frame, and the intro and outro
+  brought to the episode's loudness: 2026-11-07), as a master, or as
   an FCP7 XML timeline (`assemble --xml`, nle_xml.py): the same plan, each clip its take's
   own file, for real editing in Premiere or Resolve (decided 2026-10-30: FCP7 XML alone,
   not EDL, FCPXML, AAF or OpenTimelineIO; PLAN.md says why).

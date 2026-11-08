@@ -578,6 +578,24 @@ Body `{"ep", "pass", "shot", "take": 3 | null, "from_pass": null | "final" | "pr
 Uses `takes.pick`. A take that isn't usable answers 409 unless `"force": true`.
 `take: null` goes back to the latest usable take. Returns `{"cut": <cut.json>}`.
 
+### `GET /seriesmith/cold-open?ep=…&pass=…`
+The cold open against the pass's cut (`coldopen.state`): `{"shots" (the shots the script marks
+`cold_open:` that open the cut, in cut order), "end" (the last of them; null: none), "frame"
+and "seconds" (where a master puts the series intro in the assembled cut; null without a cold
+open or with an error), "gaps" (marked shots that play after one that isn't), "error" (why a
+master can't put the intro in: a gap, a dissolve across the break, every shot marked; else
+null), "frames" (the cut's length as assemble lays it)}`. Shots with no usable take are left
+out, as assemble leaves them.
+
+### `PUT /seriesmith/cold-open`
+Body `{"ep", "pass", "end": shot | null}`: the cold open marked in the script as the pass's
+cut has it, every shot from the cut's first to `end` (null: none). A `#` header whose shots
+are all in it gets `cold_open: true`, the rest of them each their own line, and every other
+`cold_open:` line goes; the script is written (a history copy first) only when that changes
+it, then rebuilt. Answers the state as GET does, with `changed` and `build` (null when
+nothing changed). 400 for a shot not in the cut, a script that doesn't parse, or an `end`
+that isn't a string or null.
+
 ### `PUT /seriesmith/cut`
 Body `{"ep", "pass", "entries": [{"shot", "take"?, "pass"?, "trim_in"?, "trim_out"?,
 "locked"?, "note"?, "audio"?, "out"?, "flag"?, "color"?, "fade_in"?, "fade_out"?, "dissolve"?}, …]}`. Replaces that pass's list, for reordering and trims.

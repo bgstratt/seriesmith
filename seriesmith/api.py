@@ -2550,6 +2550,40 @@ def post_color_match(ctx: Context, body):
 
 
 @handler
+def get_cold_open(ctx: Context, query: dict):
+    """The cold open against the pass's cut (coldopen.state): {"shots", "end", "frame",
+    "seconds", "gaps", "error", "frames"}: the shots the script marks `cold_open:` that open
+    the cut, where the series intro goes in a master, and why it can't (a marked shot after
+    one that isn't)."""
+    from seriesmith import coldopen as CO
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    return 200, CO.state(ep, pass_)
+
+
+@handler
+def put_cold_open(ctx: Context, body):
+    """`{ep, pass, end}`: the cold open marked as the pass's cut has it, every shot from the
+    cut's first to `end` (null: no cold open), in the script (coldopen.set_end: a history
+    copy kept), and rebuilt. Returns the state, `changed` and `build`. 400 for a shot not in
+    the cut, or a script that doesn't parse."""
+    from seriesmith import coldopen as CO
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    end = body.get("end")
+    if end is not None and not isinstance(end, str):
+        raise ApiError(400, "end is a shot id, or null for no cold open")
+    try:
+        res = CO.set_end(ep, pass_, end)
+    except CO.ColdOpenError as e:
+        raise ApiError(400, str(e)) from None
+    build = E.build_episode(ep) if res["changed"] else None
+    episode_event(ctx, ep)
+    return 200, {**CO.state(ep, pass_), "changed": res["changed"], "build": build}
+
+
+@handler
 def put_cut(ctx: Context, body):
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
@@ -6452,6 +6486,8 @@ ROUTES = [
     ("DELETE", "/seriesmith/post", delete_post, "query"),
     ("PUT", "/seriesmith/pick", put_pick, "body"),
     ("PUT", "/seriesmith/cut", put_cut, "body"),
+    ("GET", "/seriesmith/cold-open", get_cold_open, "query"),
+    ("PUT", "/seriesmith/cold-open", put_cold_open, "body"),
     ("GET", "/seriesmith/mix", get_mix, "query"),
     ("PUT", "/seriesmith/mix", put_mix, "body"),
     ("GET", "/seriesmith/mix/duck", get_mix_duck, "query"),

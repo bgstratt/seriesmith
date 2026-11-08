@@ -473,3 +473,10 @@ series config, relative to the episode folder:
 An optional `subtitle` object sets `font`,
 `size` and `y` (fractions of the frame height), `color`, `glow`, and the fades in seconds:
 `intro_in`, `outro_in`, `outro_out` (see `seriesmith/publish.py` for the defaults).
+The intro and outro are brought to the episode's loudness (the mix's target) by one gain each,
+their peaks held under its ceiling; `"loudness": {"under_lu": 1.5}` sits them under it, and
+`{"match": false}` leaves them as they came. With a cold open (the script's `cold_open:`), the
+intro goes in after it, the cut split there (copied when the split is on a clip's first frame,
+as an assembled cut's always is). [TITLES_GUIDE.md](TITLES_GUIDE.md) goes through it in order:
+where the clips go, an intro per season or episode, the title's place and timing, a cold open,
+the loudness, and a montage intro made as an episode of its own.

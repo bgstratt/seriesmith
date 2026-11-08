@@ -10,7 +10,7 @@ import type { GalleryScope } from "./lib/gallery";
 import type { RefFilter } from "./lib/refs";
 import type {
   AlignReady, AlignResult, BuildResult, Config, CutAudioSource, EpisodeStatus, EpisodeSummary, ModelList, Pass, Ref,
-  CueResult, CueSummary, Issue, MasterJob, MixResult, RefDefaults, RefGenerateMissingResult, RefMatchResult, SeedMode, ShotDetail, SourceFile, TakeRef,
+  ColdOpenState, CueResult, CueSummary, Issue, MasterJob, MixResult, RefDefaults, RefGenerateMissingResult, RefMatchResult, SeedMode, ShotDetail, SourceFile, TakeRef,
   TargetList, PresetList, Anchor } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -482,6 +482,8 @@ export interface AppState {
   /** GET /seriesmith/mix/beats of the pass open, by statusKey: fetched when the mix's music files (or the
    * recording) change, never polled; `sig` is what it was fetched for. The timeline snaps trims to them. */
   mixBeats: Record<string, { sig: string; beats: MixBeats }>;
+  /** GET /seriesmith/cold-open, by statusKey(ep, pass): fetched when the cut's order changes (the timeline) */
+  coldOpen: Record<string, ColdOpenState>;
   /** GET /seriesmith/cues, by episode (fetched with the mix while the lanes are unfolded, and on opening a cue) */
   cues: Record<string, CueSummary[]>;
   /** GET /seriesmith/cue of the cue open, by cueKey(ep, pass, cue) */
@@ -668,6 +670,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     mixError: {},
     mixDuck: {},
     mixBeats: {},
+    coldOpen: {},
     cues: {},
     cue: {},
     cueError: {},

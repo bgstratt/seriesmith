@@ -25,7 +25,7 @@ from .speech import SPEECH_RATE
 META_KEYS = {"who", "cast", "with", "props", "size", "audio", "dur", "duration",
              "camera", "sound", "music", "policy", "continuous", "text",
              "pace", "plate", "retention", "model", "lora", "steps", "extras",
-             "target", "profile", "first", "last", "overlap", "sla", "lens"}
+             "target", "profile", "first", "last", "overlap", "sla", "lens", "cold_open"}
 SIZES = framing.ALIASES          # every name `size:` takes (core/framing.py)
 
 # Voice-only delivery markers. A speaker tagged with one of these is NOT added
@@ -306,6 +306,12 @@ def _parse(text: str, subject_ids: set[str], character_ids: set[str],
                     raise ScriptError(n, line, f"`sla: {val.strip()}` must be on or off (the "
                                                f"model's sparse attention: off renders smoother, slower)")
                 target["sla"] = v
+            elif key == "cold_open":
+                v = val.strip().lower()
+                if v not in ("true", "yes", "false", "no"):
+                    raise ScriptError(n, line, f"`cold_open: {val.strip()}` must be true or false "
+                                               f"(whether it plays before the opening titles)")
+                target["cold_open"] = v in ("true", "yes")
             elif key == "lens":
                 v = framing.lens(val)
                 if v is None:
@@ -479,7 +485,8 @@ def _shot_ir(ep_id: str, seq: dict, sh: dict, span: tuple[int, int],
         profile=sh.get("profile") or None, first=sh.get("first") or None,
         last=sh.get("last") or None, continuous=sh.get("continuous") or None, sla=sh.get("sla"),
         lens=_styled(styles, sh, seq, "lens"), look=_styled(styles, sh, seq, "look"),
-        overlap=sh.get("overlap"), legacy=list(sh.get("_legacy") or []))
+        overlap=sh.get("overlap"), legacy=list(sh.get("_legacy") or []),
+        cold_open=sh.get("cold_open"))
 
 
 def _with_style(look: str | None, lens: str | None, action: str) -> str:
@@ -508,7 +515,8 @@ def episode_from_parsed(ep: dict, seq_lines: list[int],
             shots=[_shot_ir(ep["id"], seq, sh, spans[sh["id"]], styles) for sh in seq["shots"]],
             unparsed=unparsed, target=seq.get("target") or None,
             profile=seq.get("profile") or None, first=seq.get("first") or None,
-            last=seq.get("last") or None, sla=seq.get("sla"), lens=seq.get("lens")))
+            last=seq.get("last") or None, sla=seq.get("sla"), lens=seq.get("lens"),
+            cold_open=bool(seq.get("cold_open"))))
     return Episode(id=ep["id"], title=ep["title"], series=dict(series or {}),
                    sequences=sequences)
 
