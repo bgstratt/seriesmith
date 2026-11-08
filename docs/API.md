@@ -1106,7 +1106,8 @@ of the beat, its line written first if the script hasn't got it), `fill` (`beats
 `add_after` and `delete_shot` (`block`: a shot's; a deleted shot's takes stay on disk), `add_sequence`
 (`block`: the shot it follows, not in the middle of a sequence; `place`), `add_beat` (`beat: {"plain",
 "nth"}`, `name`, optionally `act` to open an act of your own), `remove_beat` (`block`: its shots join
-the beat before), `rename_act` and `remove_act` (`block`: the beat opening an act of your own). The first edit also writes the script's
+the beat before), `lay_out` (`name`: a structure's beats laid over a script that has shots and no
+beat lines, as the score draft guesses them; only comment lines are added), `rename_act` and `remove_act` (`block`: the beat opening an act of your own). The first edit also writes the script's
 `// structure:` and `// duration:`. Answers as the GET does, with `made` (new shot ids), `check` and
 `build`.
 

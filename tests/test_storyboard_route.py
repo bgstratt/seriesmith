@@ -314,6 +314,58 @@ class TestStoryboardRoutes(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertEqual(self.text(), before)
 
+    PLAIN = DRAFT + "\n# sq01  porch\n\n" + "".join(f"## sh{n:03d}\ndur: 4\nThing {n}.\n\n" for n in range(10, 410, 10))
+
+    def test_lay_a_structure_over_a_script_with_no_beats(self):
+        self.blank(self.PLAIN)
+        data = self.edit(op="lay_out", name="Three-Act", duration="160")
+        written = self.text()
+        self.assertIn("// structure: Three-Act", written)
+        beats = [b for b in B.read(written)["blocks"] if b["kind"] == "beat"]
+        self.assertGreater(len(beats), 5)
+        self.assertEqual([b["shot"]["id"] for b in B.read(written)["blocks"] if b["kind"] == "shot"],
+                         [f"sh{n:03d}" for n in range(10, 410, 10)])
+        counted = sum(b["shots"] for b in self.rows(data))
+        self.assertEqual(counted, 40)
+        self.assertIsNone(next((b for b in self.rows(data) if b["plain"] is None and b["shots"]), None))
+
+    def test_laying_out_only_adds_comments(self):
+        self.blank(self.PLAIN)
+        self.edit(op="lay_out", name="Three-Act", duration="160")
+        kept = [ln for ln in self.text().splitlines() if not ln.startswith("//")]
+        self.assertEqual([ln for ln in kept if ln.strip()], [ln for ln in self.PLAIN.splitlines() if ln.strip()])
+
+    def test_a_beat_that_starts_a_sequence_goes_above_its_header(self):
+        self.blank(self.PLAIN)
+        self.edit(op="lay_out", name="Three-Act", duration="160")
+        lines = self.text().splitlines()
+        self.assertTrue(lines[lines.index("# sq01  porch") - 1].startswith("// beat:"))
+
+    def test_laying_out_is_refused_once_there_are_beats(self):
+        self.blank(self.SCRIPT)
+        self.edit(status=400, op="lay_out", name="Three-Act")
+
+    def test_laying_out_needs_shots_and_a_real_structure(self):
+        self.blank()
+        self.edit(status=400, op="lay_out", name="Three-Act")
+        self.blank(self.PLAIN)
+        self.edit(status=400, op="lay_out", name="Nonsense Shape")
+
+    def test_a_new_episode_can_start_with_no_shots(self):
+        parent = os.path.dirname(self.ep)
+        series = open(os.path.join(self.ep, "series.json"), encoding="utf-8").read()
+        script = "= ep09  Blocked\n\n// structure: Three-Act\n// duration: 3:00\n"
+        code, res = A.post_episode_new(self.ctx, {"parent": parent, "name": "ep09", "template": "form", "series": series, "script": script})
+        self.assertEqual(code, 200, res)
+        self.assertTrue(res["check"]["ok"], res["check"])
+        code, data = A.get_storyboard(self.ctx, {"ep": res["ep"]})
+        self.assertEqual(code, 200, data)
+        self.assertEqual((data["plan"]["shots"], data["plan"]["target_shots"]), (0, 51))
+        code, done = A.post_storyboard_edit(self.ctx, {"ep": res["ep"], "base_hash": data["hash"], "op": "fill", "each": 1,
+                                                        "beats": [{"plain": "Debate", "nth": 0}]})
+        self.assertEqual(code, 200, done)
+        self.assertEqual(len(done["made"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

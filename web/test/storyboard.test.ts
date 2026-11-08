@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { bandShare, bareBeats, clock, fillable, fillCount, meter, placeOf, positive, pushed, runWidth, seriesChoices, UNDO_STEPS, type BoardBeat } from "../src/lib/storyboard";
+import { blockedScript } from "../src/lib/wizard";
+import { bandShare, bareBeats, clock, fillable, fillCount, meter, placeOf, positive, pushed, runtimeMinutes, runWidth, seriesChoices, UNDO_STEPS, type BoardBeat } from "../src/lib/storyboard";
 
 function beat(over: Partial<BoardBeat>): BoardBeat {
   return { beat: "A", plain: "A", nth: 0, block: null, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
@@ -74,6 +75,16 @@ describe("fill", () => {
   });
 });
 
+describe("runtimeMinutes", () => {
+  it("counts untimed shots as typical ones", () => {
+    expect(runtimeMinutes(600, 60, 5)).toBe("15");
+  });
+
+  it("never comes to nothing", () => {
+    expect(runtimeMinutes(0, 0, 3.5)).toBe("0.1");
+  });
+});
+
 describe("pushed", () => {
   it("adds on top", () => {
     expect(pushed(["a"], "b")).toEqual(["a", "b"]);
@@ -132,5 +143,15 @@ describe("seriesChoices", () => {
 
   it("copes with a series that has neither", () => {
     expect(seriesChoices("{}")).toEqual({ places: [], cast: [] });
+  });
+});
+
+describe("blockedScript", () => {
+  it("is a title, a structure and a length, and no shots", () => {
+    expect(blockedScript("ep03", "The Long Way", "Three-Act", 420)).toBe("= ep03  The Long Way\n\n// structure: Three-Act\n// duration: 7:00\n");
+  });
+
+  it("writes hours and copes with no title", () => {
+    expect(blockedScript("ep03", "", "Fable", 3723)).toBe("= ep03\n\n// structure: Fable\n// duration: 1:02:03\n");
   });
 });

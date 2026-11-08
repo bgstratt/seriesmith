@@ -7,7 +7,7 @@ import { openShotForm, openStoryboard, refreshEpisode } from "../actions";
 import { api } from "../host";
 import { clipTake } from "../lib/playlist";
 import {
-  bandShare, bareBeats, clock, fillable, fillCount, meter, placeOf, positive, runWidth, seriesChoices, TILE_W,
+  bandShare, bareBeats, clock, fillable, fillCount, meter, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_W,
   pushed, type BoardAct, type BoardBeat, type BoardRun, type BoardShot, type SeriesChoices, type StoryboardAnswer, type StoryboardEdit,
 } from "../lib/storyboard";
 import { statusKey, useApp } from "../store";
@@ -361,6 +361,7 @@ function Storyboard({ ep }: { ep: string }) {
     setSeeded(true);
     if (data.plan.structure && !data.plan.structure_known) setOwnFormat(data.plan.structure);
     if (data.plan.duration) setMinutes(String(Math.round((data.plan.duration / 60) * 100) / 100));
+    else if (data.plan.shots) setMinutes(runtimeMinutes(data.plan.seconds, data.plan.untimed, each ?? 3.5));
   }, [data, seeded]);
 
   const ask = useCallback(() => {
@@ -453,6 +454,8 @@ function Storyboard({ ep }: { ep: string }) {
   const biggest = Math.max(0, ...allBeats.map((b) => b.target_shots ?? 0));
   const left = fillCount(allBeats);
   const bare = bareBeats(allBeats);
+  // shots and no beat lines: a structure can be laid over them
+  const canLayOut = !!plan && plan.shots > 0 && !allBeats.some((b) => b.plain !== null && b.in_script) && names.includes(chosen);
 
   const head = (
     <>
@@ -504,6 +507,12 @@ function Storyboard({ ep }: { ep: string }) {
         </div>
         {picked && (
           <EditBar choices={choices} picked={picked} busy={busy} edit={(e) => void edit(e)} close={() => setPicked(null)} />
+        )}
+        {canLayOut && plan && (
+          <div className="h3-row h3-sb-editbar h3-small">
+            <span className="h3-grow">This script has {plan.shots} shots and no beats yet. Lay {chosen} over them, each beat on the shot nearest its place in the story? You can move and rename them after.</span>
+            <button className="h3-btn h3-primary" disabled={busy} onClick={() => void edit({ op: "lay_out", name: chosen })}>Lay out beats</button>
+          </div>
         )}
         {(length === null || each === null) && (
           <span className="h3-small h3-err" style={{ padding: "0 10px" }}>The minutes and the shot length need to be above zero.</span>

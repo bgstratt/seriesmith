@@ -116,6 +116,7 @@ export type StoryboardEdit =
   | { op: "add_sequence"; block: number; place: string }
   | { op: "add_beat"; beat: { plain: string; nth: number }; name: string; act?: string }
   | { op: "remove_beat"; block: number }
+  | { op: "lay_out"; name: string }
   | { op: "rename_act"; block: number; name: string }
   | { op: "remove_act"; block: number };
 
@@ -185,6 +186,11 @@ export function runWidth(shots: number): string {
 export function bandShare(target: number | null, biggest: number): string {
   if (!target || biggest <= 0) return "100%";
   return `max(220px, ${Math.round((target / biggest) * 100)}%)`;
+}
+
+/** The episode's length so far in minutes, as the Minutes field writes it: untimed shots as typical ones. */
+export function runtimeMinutes(seconds: number, untimed: number, typical: number): string {
+  return String(Math.max(0.1, Math.round(((seconds + untimed * typical) / 60) * 10) / 10));
 }
 
 export interface SeriesChoices {

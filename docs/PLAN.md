@@ -2460,11 +2460,10 @@ To build, each ending in something that runs:
       shots, and a click opens Edit Shot; `+` at the end of a beat, and **Fill with stand-ins** for
       a beat, an act or all of it. A sequence box sets its place, and its cast on the empty
       stand-ins only. `GET /seriesmith/storyboard`, `POST /seriesmith/storyboard/edit`.
-- [ ] **Open an existing script.** Saving is in: every edit is written as the script editor's are
+- [x] **Open an existing script** (2026-11-08). Every edit is written as the script editor's are
       (its hash, 409 when it changed underneath, history, a rebuild), so a draft is simply the
-      script. Still to come: a script with shots and no beats shows them under "Before any beat"
-      and new beats land after them; offer `spotting.layout`'s guess instead. Choosing a place for
-      a new sequence on a beat.
+      script. A script with shots and no beats is offered `spotting.layout`'s guess; the Minutes
+      field starts at the length it has.
 - [ ] **Your own acts and beats.** A structure is where it starts, not a limit. In (2026-11-08):
       changing the structure (only the `// structure:` line: beats match what they match, the rest
       stay as the script has them), renaming a beat (double-click), the episode picker, and a
@@ -2472,19 +2471,24 @@ To build, each ending in something that runs:
       chosen place (after a sequence's last shot: a sequence's id is in its shots' seeds, so one
       is never split or renamed here), add, rename and remove beats and acts of your own. Undo and
       redo: Ctrl+Z on the board, each step the whole script, for as long as the window is open.
-- [ ] **Generation.** A new episode from the board through `POST /seriesmith/episode/new`
-      (`template: "form"`), a third start in the New Episode Wizard beside "write" and "xml", the
-      unplaced sequences' reuse and words-only location above. Checked: `check` and `build` pass
-      at every length, and Draft… runs on it.
-- [ ] **Edit Shot on a stand-in.** The notice, the model chosen when ready, the guidance text
-      handled; a stand-in that's built reads as built on the board.
+- [x] **Generation** (2026-11-08). **Block from a structure**, a third start in the New Episode
+      Wizard: where, series, cast and places as ever, then a structure and a length, and the
+      episode opens on the storyboard with no shots. A location needs a `description` (the build
+      refuses one without), so a series with no locations is asked where it opens, in words:
+      nothing is invented, and guidance never lands in a location. Tried on a scratch episode:
+      Fill to 51 stand-ins, `check` passes and the score draft runs on it (11 beats, 2 cues).
+- [x] **Edit Shot on a stand-in** (decided 2026-11-08: nothing to build). A click on a tile opens the
+      ordinary form, with the guidance as its action, where the person giving it a model reads it.
+      A held shot with no picture can't render, so guidance only reaches a model by someone
+      choosing one for that shot.
 - [ ] **Frames.** Drop on a tile; drop a folder or a selection on a sequence or beat to fill its
       empty tiles in filename order; one action renders every held shot with a picture, and the
       animatic is in the cut. Stand-ins without a picture confirmed refused.
 - [ ] **Re-fit to duration**, as above, and only for stand-ins made by Fill: targets follow the
       duration on their own. Maybe not needed at all; decide when the rest is in use.
 - [ ] **Dragging shots** around the board, as on the timeline.
-- [ ] A bulk "convert this sequence" from stand-ins to a model.
+- [ ] A bulk "convert this sequence" from stand-ins to a model. It must leave out, or stop and name,
+      the stand-ins whose action is still the structure's guidance: nobody reads those one by one.
 
 ## Later
 

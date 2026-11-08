@@ -6,7 +6,7 @@
 // instead start "From an edit (FCP7 XML)": XmlImportPanel.
 
 import { useEffect, useMemo, useState } from "react";
-import { build, loadEpisodes, loadTargets, openBrowse, openEpisodeAt, openShotForm, openWizard } from "../actions";
+import { build, loadEpisodes, loadTargets, openBrowse, openEpisodeAt, openShotForm, openStoryboard, openWizard } from "../actions";
 import { api, host } from "../host";
 import { nameError } from "../lib/newEpisode";
 import {
@@ -17,7 +17,7 @@ import { SIZES, listOf, newShot, type ShotForm as Shot } from "../lib/shotForm";
 import { pictureOf } from "../lib/pictures";
 import { sizeRule } from "../lib/size";
 import {
-  WIZARD_KINDS, castId, castOfConfig, castProblems, firstScript, seriesConfig, showFolder, withCast, type NewCast,
+  WIZARD_KINDS, castId, castOfConfig, castProblems, blockedScript, firstScript, seriesConfig, showFolder, withCast, type NewCast,
 } from "../lib/wizard";
 import { useApp } from "../store";
 import type { EpisodeTemplate } from "../types";
@@ -46,7 +46,7 @@ export function NewEpisodeWizard() {
 
 const FIELD = (p: string): Field => SECTIONS.flatMap((s) => s.fields).find((f) => f.path.join(".") === p)!;
 
-function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boolean; startFrom?: "write" | "xml" }) {
+function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boolean; startFrom?: "write" | "xml" | "board" }) {
   const targets = useApp((s) => s.targets);
   const [step, setStep] = useState(0);
   const [title, setTitle] = useState("");           // the series' (a new one)
@@ -68,7 +68,19 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
   const [error, setError] = useState<string | null>(null);
   // written here, or an edit made elsewhere imported (XmlImportPanel): a new show, or
   // the next episode of the show in `parent`
-  const [from, setFrom] = useState<"write" | "xml">(startFrom ?? "write");
+  const [from, setFrom] = useState<"write" | "xml" | "board">(startFrom ?? "write");
+  const onBoard = from === "board";
+  const [structures, setStructures] = useState<string[]>([]);
+  const [structure, setStructure] = useState("");
+  const [boardMinutes, setBoardMinutes] = useState("7");
+  useEffect(() => {
+    if (!onBoard || structures.length) return;
+    void api().structures().then((r) => {
+      const all = r.structures.map((s) => s.name);
+      setStructures(all);
+      setStructure((now) => now || (all.find((n) => n.includes("Three-Act")) ?? all[0] ?? ""));
+    }, (e) => setError((e as Error).message));
+  }, [onBoard, structures.length]);
   const fromXml = from === "xml";
 
   useEffect(() => {
@@ -129,7 +141,11 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
     1: !String(getPath(series, ["series", "id"]) ?? "").trim() ? "Give the series an id."
       : !String(getPath(series, ["style", "look"]) ?? "").trim() ? "Say the look: every shot's prompt opens with it." : null,
     2: problems.find(Boolean) ?? null,
-    3: !shot.action.trim() ? "Say what happens in it." : null,
+    3: onBoard
+      ? (!structure ? "Pick a structure."
+        : !(Number(boardMinutes) > 0) ? "Say how long it runs."
+        : !place && !placeText.trim() ? "Say where it opens: a location needs words, even with no picture." : null)
+      : !shot.action.trim() ? "Say what happens in it." : null,
   };
   const at = steps.findIndex((x) => x.i === step);
   const last = at === steps.length - 1;
@@ -151,6 +167,7 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
     const config = inWords
       ? setPath(full, ["locations", where], { description: placeText.trim() || shot.action.trim() })
       : full;
+    const epName = epTitle.trim() || (isNewSeries ? title.trim() : "");
     setBusy(true);
     setError(null);
     try {
@@ -158,7 +175,9 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
         parent, name: name.trim(), title: epTitle.trim() || null,
         show: showName || null,
         series: serialize(config, tpl.series ?? "\n"),
-        script: firstScript(name.trim(), epTitle.trim() || (isNewSeries ? title.trim() : ""), "sq01", where, current(shot)),
+        script: onBoard
+          ? blockedScript(name.trim(), epName, structure, Number(boardMinutes) * 60)
+          : firstScript(name.trim(), epName, "sq01", where, current(shot)),
       });
       host().toast(res.check.ok ? "success" : "warn", `Made ${res.episode.name}`,
         res.check.ok ? `${res.ep}\nNext: the pictures (Refs tab), then Build.` : res.check.errors[0]?.message ?? "");
@@ -172,7 +191,10 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
       openWizard(null);
       openShotForm(null);
       // opened and built, so the shots are there and the refs it needs are listed
-      if (await openEpisodeAt(res.ep, tpl.parent)) await build();
+      if (await openEpisodeAt(res.ep, tpl.parent)) {
+        await build();
+        if (onBoard) openStoryboard(true);
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -213,6 +235,7 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
         <div id="sm-wizard-from" className="h3-row" style={{ padding: "6px 10px", gap: 6, borderBottom: "1px solid var(--h3-border)" }}>
           <span className="h3-small h3-muted">Start from</span>
           <button className={`h3-btn${from === "write" ? " h3-on" : ""}`} onClick={() => setFrom("write")}>A first shot I write</button>
+          <button id="sm-wizard-board" className={`h3-btn${onBoard ? " h3-on" : ""}`} title="A story structure and a length: the episode opens on the storyboard, with no shots yet" onClick={() => setFrom("board")}>Block from a structure</button>
           <button id="sm-wizard-xml" className={`h3-btn${from === "xml" ? " h3-on" : ""}`} onClick={() => setFrom("xml")}>From an edit (FCP7 XML)…</button>
         </div>
       )}
@@ -224,7 +247,7 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
       <div className="h3-row" style={{ padding: "6px 10px", gap: 6, borderBottom: "1px solid var(--h3-border)" }}>
         {steps.map(({ s, i }, n) => (
           <button key={s} className={`h3-btn${i === step ? " h3-on" : ""}`} disabled={n > at && !!blockers[step]}
-            onClick={() => setStep(i)}>{n + 1}. {s}</button>
+            onClick={() => setStep(i)}>{n + 1}. {i === 3 && onBoard ? "Structure" : s}</button>
         ))}
       </div>
       <div id="sm-wizard" className="h3-col" style={{ padding: 10, gap: 10, overflow: "auto", flex: 1, minHeight: 0 }}>
@@ -329,7 +352,24 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
           </>
         )}
 
-        {step === 3 && (
+        {step === 3 && onBoard && (
+          <>
+            <Row label="Structure" help="The beats it starts from. You can change it, and add your own, on the storyboard.">
+              <select className="h3-in" value={structure} onChange={(e) => setStructure(e.target.value)}>
+                {structures.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </Row>
+            <Row label="Minutes" help="How long it's meant to run. It sets every beat's target, and you can change it later.">
+              <input className="h3-in" type="number" min="0.1" step="any" value={boardMinutes} onChange={(e) => setBoardMinutes(e.target.value)} />
+            </Row>
+            {!place && (
+              <Row label="Where it opens" help="This series has no locations yet, and a sequence needs one. Words are enough: it has no picture, so it may look different from shot to shot.">
+                <input className="h3-in" value={placeText} placeholder="a small pond at dawn, reeds, mist on the water" onChange={(e) => setPlaceText(e.target.value)} />
+              </Row>
+            )}
+          </>
+        )}
+        {step === 3 && !onBoard && (
           <>
             <div className="h3-small h3-muted">The episode's first shot, to start from; the shot form adds the rest.</div>
             <Row label="Where" help={known.locations.length

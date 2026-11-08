@@ -645,3 +645,37 @@ def rename_act(doc: dict, beat: int, name: str) -> None:
 def remove_act(doc: dict, beat: int) -> None:
     """The act's line. Its beats stay and fall in with what's around them."""
     del doc["blocks"][_own_act_of(doc["blocks"], beat)]
+
+
+def lay_out(doc: dict, structure: str, typical: float) -> int:
+    """A structure's beats laid over a script that has shots and no beat lines, each on the shot
+    nearest its place in the story (spotting.layout, as the score draft's guess), above its
+    sequence's header when it starts one; how many beats. An untimed shot counts as the script's
+    average, or `typical`. Only the comment lines are added: the build reads the script as before."""
+    blocks = doc["blocks"]
+    if any(b["kind"] == "beat" for b in blocks):
+        raise BoardError("this script already has beats")
+    timed = [b["shot"]["seconds"] for b in blocks if b["kind"] == "shot" and b["shot"]["seconds"]]
+    length = sum(timed) / len(timed) if timed else typical
+    shots: list[dict] = []
+    at_block: dict[str, int] = {}
+    sequence, t = "", 0.0
+    for i, block in enumerate(blocks):
+        if block["kind"] == "sequence":
+            sequence = block["id"]
+        elif block["kind"] == "shot":
+            seconds = block["shot"]["seconds"] or length
+            shots.append({"id": block["shot"]["id"], "t": t, "d": seconds, "seq": sequence})
+            at_block[block["shot"]["id"]] = i
+            t += seconds
+    if not shots:
+        raise BoardError("this script has no shots to lay a structure over")
+    st = SP.structure(structure)
+    placed = SP.layout(shots, st)
+    for sid in sorted(placed, key=lambda s: at_block[s], reverse=True):
+        at = at_block[sid]
+        if at > 0 and blocks[at - 1]["kind"] == "sequence":
+            at -= 1
+        _insert(doc, at, f"// beat: {_plain_name(placed[sid])}\n", blank_before=False)
+    set_structure(doc, structure)
+    return len(placed)

@@ -3081,7 +3081,7 @@ def post_storyboard_edit(ctx: Context, body):
     changed; the old script to history; a rebuild): `op` is `add` (one stand-in on `beat`), `fill`
     (`beats`: each up to its target, or up to `each` shots), `place` (`block`, `place`), `cast` (`block`, `who`), `structure` (`name`), `rename_beat` (`block`,
     `name`), `add_after`, `delete_shot` (`block`: a shot's), `add_sequence` (`block`, `place`),
-    `add_beat` (`beat`, `name`, optionally `act`), `remove_beat`, `rename_act` or `remove_act`
+    `add_beat` (`beat`, `name`, optionally `act`), `lay_out` (`name`: a structure over a script with no beats), `remove_beat`, `rename_act` or `remove_act`
     (`block`: the beat's, `name`)."""
     from seriesmith.core import blocking as BL
     from seriesmith.core import board as BD
@@ -3170,6 +3170,10 @@ def post_storyboard_edit(ctx: Context, body):
             BD.add_beat_after(doc, BD.ensure_beat(doc, ask["plain"], nth, later), body.get("name"), body.get("act"))
         elif op == "remove_beat":
             BD.remove_beat(doc, int(body.get("block")))
+        elif op == "lay_out":
+            BD.lay_out(doc, str(body.get("name") or ""), BL.TYPICAL_SHOT)
+            if body.get("duration") not in (None, ""):
+                BD.set_marks(doc, None, float(body.get("duration")))
         elif op == "rename_act":
             BD.rename_act(doc, int(body.get("block")), body.get("name"))
         elif op == "remove_act":
