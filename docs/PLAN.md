@@ -2419,10 +2419,12 @@ To build, each ending in something that runs:
       duration. A beat at a point gets one shot under 5 minutes and two from there. A beat coming
       to under 1.5 shots is flagged to merge. Tests at 3, 7, 22 and 100 minutes
       (`tests/test_blocking.py`).
-- [ ] **The window, up to generation.** On `FloatingWindow`: structure, duration, the live preview
-      as act rows, beat bands, sequence boxes and tiles; a place and a cast per box, a beat split
-      across places. It has to stay usable at a feature's 1,700 tiles (act rows collapse, tiles
-      drawn as they scroll in).
+- [x] **The window, up to generation** (2026-11-08). `components/Storyboard.tsx`, on
+      `FloatingWindow`, opened for now from the Shots tab: structure, duration, the live preview as
+      act rows, beat bands, sequence boxes and tiles; a place and a cast per box, a beat split
+      across places (`lib/storyboard.ts`: each sequence's `weight`, so a split survives a change of
+      duration). Its plan lives in the window until generation. Act rows collapse; a feature's
+      1,700 tiles still to be tried, and tiles drawn as they scroll in only if it needs them.
 - [ ] **Generation.** The board's script through `POST /seriesmith/episode/new` (`template: "form"`);
       a third start in the New Episode Wizard beside "write" and "xml". Checked: `check` and `build`
       pass on the result at every length, and Draft… runs on it.

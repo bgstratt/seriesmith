@@ -1487,3 +1487,12 @@
 .h3-sb-thin .h3-sb-band { background: color-mix(in srgb, var(--h3-queued) 75%, transparent); }
 .h3-sb-tiles { display: flex; flex-wrap: wrap; gap: 3px; }
 .h3-sb-tile { width: 28px; height: 16px; border-radius: 2px; background: var(--h3-bg3); border: 1px solid var(--h3-border); box-sizing: border-box; }
+.h3-sb-box {
+  width: 54px; height: 16px; padding: 0 3px; border-radius: 2px; box-sizing: border-box; cursor: pointer; font-size: 9px; line-height: 14px;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left;
+  color: var(--h3-fg); background: color-mix(in srgb, var(--h3-ok) 30%, var(--h3-bg3)); border: 1px solid var(--h3-ok);
+}
+.h3-sb-box.h3-sb-unset { color: var(--h3-muted); background: none; border: 1px dashed var(--h3-border); }
+.h3-sb-box.h3-sb-sel { outline: 2px solid var(--h3-accent); outline-offset: 0; }
+.h3-sb-editbar { gap: 10px; padding: 6px 10px; flex-wrap: wrap; border-bottom: 1px solid var(--h3-border); background: var(--h3-bg2); }
+.h3-sb-editbar label { gap: 6px; }
