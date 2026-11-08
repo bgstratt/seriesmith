@@ -2467,10 +2467,11 @@ To build, each ending in something that runs:
       a new sequence on a beat.
 - [ ] **Your own acts and beats.** A structure is where it starts, not a limit. In (2026-11-08):
       changing the structure (only the `// structure:` line: beats match what they match, the rest
-      stay as the script has them), renaming a beat or a sequence (double-click; a sequence's id
-      goes into its shots' seeds, so the board warns when it has takes), the episode picker. To
-      come, on a right-click menu with the `+` kept: add and remove beats and acts, a shot after
-      a shot, delete a shot, a new sequence in a chosen place.
+      stay as the script has them), renaming a beat (double-click), the episode picker, and a
+      right-click menu with the `+` kept: a shot after a shot, delete a shot, a new sequence in a
+      chosen place (after a sequence's last shot: a sequence's id is in its shots' seeds, so one
+      is never split or renamed here), add, rename and remove beats and acts of your own. Undo and
+      redo: Ctrl+Z on the board, each step the whole script, for as long as the window is open.
 - [ ] **Generation.** A new episode from the board through `POST /seriesmith/episode/new`
       (`template: "form"`), a third start in the New Episode Wizard beside "write" and "xml", the
       unplaced sequences' reuse and words-only location above. Checked: `check` and `build` pass

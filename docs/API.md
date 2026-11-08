@@ -1102,8 +1102,11 @@ rebuild. `op` is `add` (`beat: {"plain", "nth"}`, optionally `place`: one held s
 of the beat, its line written first if the script hasn't got it), `fill` (`beats: [{"plain",
 "nth"}]`: each up to its target, or up to `each` shots), `place` (`block`, `place`: a sequence's location) or `cast`
 (`block`, `who`: on that sequence's empty stand-ins only), `structure` (`name`: the script's
-`// structure:` line; its beats stay and match what they match), `rename_beat` or `rename_sequence`
-(`block`, `name`; a sequence's id goes into its shots' seeds). The first edit also writes the script's
+`// structure:` line; its beats stay and match what they match), `rename_beat` (`block`, `name`),
+`add_after` and `delete_shot` (`block`: a shot's; a deleted shot's takes stay on disk), `add_sequence`
+(`block`: the shot it follows, not in the middle of a sequence; `place`), `add_beat` (`beat: {"plain",
+"nth"}`, `name`, optionally `act` to open an act of your own), `remove_beat` (`block`: its shots join
+the beat before), `rename_act` and `remove_act` (`block`: the beat opening an act of your own). The first edit also writes the script's
 `// structure:` and `// duration:`. Answers as the GET does, with `made` (new shot ids), `check` and
 `build`.
 

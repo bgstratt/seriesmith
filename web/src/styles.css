@@ -1503,3 +1503,7 @@
 .h3-sb-add:hover:not(:disabled) { border-color: var(--h3-accent); color: var(--h3-accent); }
 .h3-sb-editbar { gap: 10px; padding: 6px 10px; flex-wrap: wrap; border-bottom: 1px solid var(--h3-border); background: var(--h3-bg2); }
 .h3-sb-editbar label { gap: 6px; }
+.h3-sb-menuback { position: fixed; inset: 0; z-index: 9998; }
+.h3-sb-menu { position: fixed; z-index: 9999; min-width: 200px; }
+.h3-sb-menu .h3-sb-menuchoice { padding-left: 28px; }
+.h3-sb-menuask { display: flex; flex-direction: column; gap: 3px; padding: 4px 8px 6px; }

@@ -111,7 +111,21 @@ export type StoryboardEdit =
   | { op: "cast"; block: number; who: string[] }
   | { op: "structure"; name: string }
   | { op: "rename_beat"; block: number; name: string }
-  | { op: "rename_sequence"; block: number; name: string };
+  | { op: "add_after"; block: number }
+  | { op: "delete_shot"; block: number }
+  | { op: "add_sequence"; block: number; place: string }
+  | { op: "add_beat"; beat: { plain: string; nth: number }; name: string; act?: string }
+  | { op: "remove_beat"; block: number }
+  | { op: "rename_act"; block: number; name: string }
+  | { op: "remove_act"; block: number };
+
+/** Steps of undo a window keeps: each is the whole script, so not without limit. */
+export const UNDO_STEPS = 50;
+
+/** `stack` with `item` on top, the oldest falling off past UNDO_STEPS. */
+export function pushed<T>(stack: T[], item: T): T[] {
+  return [...stack, item].slice(-UNDO_STEPS);
+}
 
 /** 12:34, or 1:02:03 from an hour. */
 export function clock(seconds: number): string {

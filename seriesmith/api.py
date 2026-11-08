@@ -3079,8 +3079,10 @@ def get_storyboard(ctx: Context, query: dict):
 def post_storyboard_edit(ctx: Context, body):
     """An edit from the storyboard, saved like the script editor's (`base_hash`, 409 when the file
     changed; the old script to history; a rebuild): `op` is `add` (one stand-in on `beat`), `fill`
-    (`beats`: each up to its target, or up to `each` shots), `place` (`block`, `place`), `cast` (`block`, `who`), `structure` (`name`), `rename_beat` or
-    `rename_sequence` (`block`, `name`)."""
+    (`beats`: each up to its target, or up to `each` shots), `place` (`block`, `place`), `cast` (`block`, `who`), `structure` (`name`), `rename_beat` (`block`,
+    `name`), `add_after`, `delete_shot` (`block`: a shot's), `add_sequence` (`block`, `place`),
+    `add_beat` (`beat`, `name`, optionally `act`), `remove_beat`, `rename_act` or `remove_act`
+    (`block`: the beat's, `name`)."""
     from seriesmith.core import blocking as BL
     from seriesmith.core import board as BD
     body = body_dict(body)
@@ -3143,10 +3145,37 @@ def post_storyboard_edit(ctx: Context, body):
             BD.set_structure(doc, body.get("name"))
         elif op == "rename_beat":
             BD.rename_beat(doc, int(body.get("block")), body.get("name"))
-        elif op == "rename_sequence":
-            BD.rename_sequence(doc, int(body.get("block")), body.get("name"))
+        elif op in ("add_after", "add_sequence"):
+            seconds = float(body.get("shot") or BL.TYPICAL_SHOT)
+            block_at = int(body.get("block"))
+            if op == "add_after":
+                made.append(BD.add_shot_after(doc, block_at, seconds))
+            else:
+                if place is None:
+                    raise ApiError(400, "place is required")
+                made.append(BD.add_sequence_after(doc, block_at, place, seconds))
+        elif op == "delete_shot":
+            BD.delete_shot(doc, int(body.get("block")))
+        elif op == "add_beat":
+            ask = body.get("beat")
+            if not isinstance(ask, dict) or not isinstance(ask.get("plain"), str):
+                raise ApiError(400, "a beat is {plain, nth}")
+            duration = body.get("duration") or view["duration"]
+            block = _board_block({**body, "duration": duration}, structure)
+            BD.set_marks(doc, structure, float(duration) if duration not in (None, "") else None)
+            rows = [b for a in BD.plan(doc, block)["acts"] for b in a["beats"]]
+            nth = int(ask.get("nth") or 0)
+            index = next((i for i, b in enumerate(rows) if b["plain"] == ask["plain"] and b["nth"] == nth), None)
+            later = [(b["plain"], b["nth"]) for b in rows[index + 1:] if b["plain"]] if index is not None else []
+            BD.add_beat_after(doc, BD.ensure_beat(doc, ask["plain"], nth, later), body.get("name"), body.get("act"))
+        elif op == "remove_beat":
+            BD.remove_beat(doc, int(body.get("block")))
+        elif op == "rename_act":
+            BD.rename_act(doc, int(body.get("block")), body.get("name"))
+        elif op == "remove_act":
+            BD.remove_act(doc, int(body.get("block")))
         else:
-            raise ApiError(400, "op must be add, fill, place, cast, structure, rename_beat or rename_sequence")
+            raise ApiError(400, f"no such edit: {op!r}")
     except (BD.BoardError, IndexError, TypeError, ValueError) as e:
         raise ApiError(400, str(e)) from None
     saved = P.H.save_source(ep, "script", BD.text_of(doc), base_hash)

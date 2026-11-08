@@ -225,22 +225,94 @@ class TestStoryboardRoutes(unittest.TestCase):
         self.assertIn("// beat: New Name\n", self.text())
         self.assertNotIn("Old Name", self.text())
 
-    def test_rename_a_sequence(self):
-        self.blank(DRAFT + "\n# sq01  porch\n\n## sh010\ndur: 2\nA.\n")
-        block = self.rows(self.board())[0]["runs"][0]["block"]
-        self.edit(op="rename_sequence", block=block, name="sq_intro")
-        self.assertIn("# sq_intro  porch\n", self.text())
-
     def test_bad_renames(self):
-        self.blank(DRAFT + "\n// beat: A\n# sq01  porch\n\n## sh010\ndur: 2\nA.\n\n# sq02  porch\n\n## sh020\ndur: 2\nB.\n")
+        self.blank(DRAFT + "\n// beat: A\n# sq01  porch\n\n## sh010\ndur: 2\nA.\n")
         row = self.rows(self.board())[0]
-        first, second = row["runs"][0]["block"], row["runs"][1]["block"]
-        self.edit(status=400, op="rename_sequence", block=first, name="sq02")
-        self.edit(status=400, op="rename_sequence", block=first, name="has space")
-        self.edit(status=400, op="rename_sequence", block=row["block"], name="sq09")
-        self.edit(status=400, op="rename_beat", block=second, name="x")
+        self.edit(status=400, op="rename_beat", block=row["runs"][0]["block"], name="x")
         self.edit(status=400, op="rename_beat", block=row["block"], name="  ")
         self.edit(status=400, op="structure", name="")
+        self.edit(status=400, op="rename_sequence", block=row["runs"][0]["block"], name="sq09")
+
+    SCRIPT = DRAFT + "\n// beat: A\n# sq01  porch\n\n## sh010\nwho: ada\ndur: 2\nA.\n\n## sh020\ndur: 2\nB.\n\n// beat: B\n# sq02  porch\n\n## sh030\ndur: 2\nC.\n"
+
+    def shots(self) -> list[str]:
+        return [b["shot"]["id"] for b in B.read(self.text())["blocks"] if b["kind"] == "shot"]
+
+    def shot_block(self, sid: str) -> int:
+        return next(i for i, b in enumerate(B.read(self.text())["blocks"]) if b["kind"] == "shot" and b["shot"]["id"] == sid)
+
+    def beat_block(self, name: str) -> int:
+        return next(i for i, b in enumerate(B.read(self.text())["blocks"]) if b["kind"] == "beat" and b["value"] == name)
+
+    def test_add_a_shot_after_a_shot(self):
+        self.blank(self.SCRIPT)
+        made = self.edit(op="add_after", block=self.shot_block("sh010"))["made"]
+        self.assertEqual(self.shots(), ["sh010", made[0], "sh020", "sh030"])
+        self.assertIn(f"## {made[0]}\ntarget: hold\nwho: ada\n", self.text())
+
+    def test_delete_a_shot(self):
+        self.blank(self.SCRIPT)
+        self.edit(op="delete_shot", block=self.shot_block("sh020"))
+        self.assertEqual(self.shots(), ["sh010", "sh030"])
+
+    def test_delete_needs_a_shot(self):
+        self.blank(self.SCRIPT)
+        self.edit(status=400, op="delete_shot", block=self.beat_block("A"))
+
+    def test_a_new_sequence_after_a_sequences_last_shot(self):
+        self.blank(self.SCRIPT)
+        made = self.edit(op="add_sequence", block=self.shot_block("sh020"), place="porch")["made"]
+        self.assertIn("# sq03  porch", self.text())
+        self.assertEqual(self.shots(), ["sh010", "sh020", made[0], "sh030"])
+
+    def test_no_new_sequence_in_the_middle_of_one(self):
+        self.blank(self.SCRIPT)
+        self.edit(status=400, op="add_sequence", block=self.shot_block("sh010"), place="porch")
+
+    def test_add_a_beat_after_a_beat(self):
+        self.blank(self.SCRIPT)
+        self.edit(op="add_beat", beat={"plain": "A", "nth": 0}, name="Mine")
+        names = [b["value"] for b in B.read(self.text())["blocks"] if b["kind"] == "beat"]
+        self.assertEqual(names, ["A", "Mine", "B"])
+
+    def test_add_an_act(self):
+        self.blank(self.SCRIPT)
+        data = self.edit(op="add_beat", beat={"plain": "A", "nth": 0}, name="New beat", act="Interlude")
+        self.assertIn("// act: Interlude\n// beat: New beat\n", self.text())
+        self.assertIn("Interlude", [a["act"] for a in data["plan"]["acts"]])
+
+    def test_remove_a_beat_keeps_its_shots(self):
+        self.blank(self.SCRIPT)
+        self.edit(op="remove_beat", block=self.beat_block("B"))
+        self.assertNotIn("// beat: B", self.text())
+        self.assertEqual(self.shots(), ["sh010", "sh020", "sh030"])
+
+    def test_rename_and_remove_your_own_act(self):
+        self.blank(DRAFT + "\n// act: Mine\n// beat: A\n")
+        self.edit(op="rename_act", block=self.beat_block("A"), name="Yours")
+        self.assertIn("// act: Yours\n", self.text())
+        self.edit(op="remove_act", block=self.beat_block("A"))
+        self.assertNotIn("// act:", self.text())
+        self.assertIn("// beat: A", self.text())
+
+    def test_the_structures_acts_cant_be_changed(self):
+        self.blank(self.SCRIPT)
+        self.edit(status=400, op="rename_act", block=self.beat_block("A"), name="X")
+        self.edit(status=400, op="remove_act", block=self.beat_block("A"))
+
+    def test_add_a_beat_after_one_the_script_hasnt_got_yet(self):
+        self.blank()
+        self.edit(op="add_beat", structure="Three-Act", duration="180", beat={"plain": "Debate", "nth": 0}, name="Mine")
+        names = [b["value"] for b in B.read(self.text())["blocks"] if b["kind"] == "beat"]
+        self.assertEqual(names, ["Debate", "Mine"])
+
+    def test_every_edit_can_be_undone_by_saving_the_old_text(self):
+        self.blank(self.SCRIPT)
+        before = self.text()
+        self.edit(op="delete_shot", block=self.shot_block("sh020"))
+        code, _data = A.put_source(self.ctx, {"ep": self.ep, "file": "script", "text": before, "base_hash": self.board()["hash"]})
+        self.assertEqual(code, 200)
+        self.assertEqual(self.text(), before)
 
 
 if __name__ == "__main__":

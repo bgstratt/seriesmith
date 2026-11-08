@@ -558,16 +558,90 @@ def rename_beat(doc: dict, block: int, name: str) -> None:
     target["value"] = name
 
 
-def rename_sequence(doc: dict, block: int, new_id: str) -> None:
-    """The id of the sequence at block `block`. A shot's seed is built from it (core/ir.stable_seed),
-    so new takes of its shots won't match a re-render of the old ones."""
-    target = doc["blocks"][block]
-    if target["kind"] != "sequence":
-        raise BoardError("that isn't a sequence")
-    new_id = _one_line(new_id, "A sequence id")
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+", new_id):
-        raise BoardError("a sequence id is letters, digits, dot, dash or underscore, with no spaces")
-    if any(b is not target and b["kind"] == "sequence" and b["id"] == new_id for b in doc["blocks"]):
-        raise BoardError(f"this script already has a sequence {new_id}")
-    _replace_line(target, lambda ln: ln.startswith("# "), f"# {new_id}  {target['place']}")
-    target["id"] = new_id
+def add_shot_after(doc: dict, block: int, seconds: float, action: str = "") -> str:
+    """A held shot straight after the shot at block `block`, with its cast; its id."""
+    blocks = doc["blocks"]
+    if blocks[block]["kind"] != "shot":
+        raise BoardError("that isn't a shot")
+    who = blocks[block]["shot"]["who"]
+    at = block + 1
+    sid = _new_shot_id(blocks, at)
+    lines = [f"## {sid}", "target: hold"] + ([f"who: {', '.join(who)}"] if who else [])
+    lines += [f"dur: {seconds:g}", action.strip() or "Stand-in."]
+    _insert(doc, at, "\n".join(lines) + "\n\n")
+    return sid
+
+
+def delete_shot(doc: dict, block: int) -> None:
+    """The shot at block `block` out of the script, with the lines that go with it. Its takes stay
+    on disk."""
+    if doc["blocks"][block]["kind"] != "shot":
+        raise BoardError("that isn't a shot")
+    del doc["blocks"][block]
+
+
+def add_sequence_after(doc: dict, block: int, place: str, seconds: float) -> str:
+    """A new sequence in `place` straight after the shot at block `block`, with one held shot; its
+    id. Not in the middle of a sequence: the shots after would change sequence, and their seeds."""
+    blocks = doc["blocks"]
+    if blocks[block]["kind"] != "shot":
+        raise BoardError("that isn't a shot")
+    place = _one_line(place, "A place")
+    at = block + 1
+    following = next((b["kind"] for b in blocks[at:] if b["kind"] in ("shot", "sequence")), None)
+    if following == "shot":
+        raise BoardError("this sequence carries on after that shot: add the new one after its last shot")
+    made = _insert(doc, at, f"# {_new_sequence_id(blocks)}  {place}\n\n")
+    who = blocks[block]["shot"]["who"]
+    return add_stand_ins_at(doc, at + made, seconds, who)
+
+
+def add_stand_ins_at(doc: dict, at: int, seconds: float, who: list[str]) -> str:
+    blocks = doc["blocks"]
+    sid = _new_shot_id(blocks, at)
+    lines = [f"## {sid}", "target: hold"] + ([f"who: {', '.join(who)}"] if who else [])
+    lines += [f"dur: {seconds:g}", "Stand-in."]
+    _insert(doc, at, "\n".join(lines) + "\n\n")
+    return sid
+
+
+def add_beat_after(doc: dict, beat: int, name: str, act: str | None = None) -> int:
+    """A new beat after the beat at block `beat`, opening act `act` if given; the block of its line."""
+    if doc["blocks"][beat]["kind"] != "beat":
+        raise BoardError("that isn't a beat")
+    name = _one_line(name, "A beat")
+    head = f"// act: {_one_line(act, 'An act')}\n" if act is not None else ""
+    at = _end_of_beat(doc["blocks"], beat)
+    made = _insert(doc, at, f"{head}// beat: {name}\n\n")
+    return at + made - 1
+
+
+def remove_beat(doc: dict, block: int) -> None:
+    """The beat's line, and its `// act:` if it opened one of your own. Its shots stay, and join the
+    beat before."""
+    blocks = doc["blocks"]
+    if blocks[block]["kind"] != "beat":
+        raise BoardError("that isn't a beat")
+    if block > 0 and blocks[block - 1]["kind"] == "act":
+        del blocks[block - 1:block + 1]
+    else:
+        del blocks[block]
+
+
+def _own_act_of(blocks: list[dict], beat: int) -> int:
+    if blocks[beat]["kind"] != "beat" or beat == 0 or blocks[beat - 1]["kind"] != "act":
+        raise BoardError("only an act of your own can be changed: the structure's are its own")
+    return beat - 1
+
+
+def rename_act(doc: dict, beat: int, name: str) -> None:
+    """The act of your own that the beat at block `beat` opens."""
+    target = doc["blocks"][_own_act_of(doc["blocks"], beat)]
+    name = _one_line(name, "An act")
+    _replace_line(target, lambda ln: _MARK.match(ln.strip()) is not None, f"// act: {name}")
+    target["value"] = name
+
+
+def remove_act(doc: dict, beat: int) -> None:
+    """The act's line. Its beats stay and fall in with what's around them."""
+    del doc["blocks"][_own_act_of(doc["blocks"], beat)]

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bandShare, bareBeats, clock, fillable, fillCount, meter, placeOf, positive, runWidth, seriesChoices, type BoardBeat } from "../src/lib/storyboard";
+import { bandShare, bareBeats, clock, fillable, fillCount, meter, placeOf, positive, pushed, runWidth, seriesChoices, UNDO_STEPS, type BoardBeat } from "../src/lib/storyboard";
 
 function beat(over: Partial<BoardBeat>): BoardBeat {
   return { beat: "A", plain: "A", nth: 0, block: null, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
@@ -71,6 +71,20 @@ describe("fill", () => {
 
   it("names only the beats with something to do", () => {
     expect(fillable(beats)).toEqual([{ plain: "A", nth: 0 }, { plain: "D", nth: 1 }]);
+  });
+});
+
+describe("pushed", () => {
+  it("adds on top", () => {
+    expect(pushed(["a"], "b")).toEqual(["a", "b"]);
+  });
+
+  it("drops the oldest past the limit", () => {
+    const full = Array.from({ length: UNDO_STEPS }, (_, i) => String(i));
+    const out = pushed(full, "new");
+    expect(out).toHaveLength(UNDO_STEPS);
+    expect(out[0]).toBe("1");
+    expect(out[out.length - 1]).toBe("new");
   });
 });
 
