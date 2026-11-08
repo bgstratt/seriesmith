@@ -471,7 +471,8 @@ series config, relative to the episode folder:
 "publish": { "intro": "../_titles/INTRO.mp4", "outro": "../_titles/OUTRO.mp4" }
 ```
 
-An optional `subtitle` object sets `font`,
+An optional `subtitle` object sets `font` (default Windows' Segoe Script; elsewhere the first
+of Georgia, Arial, Helvetica or DejaVu on the machine, said in the log),
 `size` and `y` (fractions of the frame height), `color`, `glow`, and the fades in seconds:
 `intro_in`, `outro_in`, `outro_out` (see `seriesmith/publish.py` for the defaults).
 The intro and outro are brought to the episode's loudness (the mix's target) by one gain each,

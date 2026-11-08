@@ -202,6 +202,15 @@ it on its own line; this format doesn't.
 where they belong. Anything phrased as a camera instruction in the source should end up
 there, not in the action.
 
+## A cold open
+
+A TV script marks its teaser with a heading of its own: `COLD OPEN` or `TEASER` before the
+first scene, and `MAIN TITLES` or `END OF COLD OPEN` (or `ACT ONE`) after it. The heading
+isn't a scene and becomes no shot: the sequences under it get `cold_open: true` under their
+`#` line, and a master puts the series intro in after the last of them (AUTHORING.md, "A cold
+open"). The `MAIN TITLES` line disappears too: the titles are a clip of their own, not
+a shot.
+
 ## Shot IDs
 
 `sh010, sh020, sh030`: tens, so `sh035` can be inserted later without renumbering anything.

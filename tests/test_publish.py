@@ -82,6 +82,24 @@ class Helpers(unittest.TestCase):
         self.assertIn("concat=n=1", g)
         self.assertNotIn("drawtext", g)
 
+    def test_title_font(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            mine = os.path.join(d, "mine.ttf")
+            open(mine, "wb").close()
+            self.assertEqual(P.title_font(mine, named=True), mine)
+            # one the series config named and isn't there: said, not replaced
+            with self.assertRaisesRegex(P.PublishError, "isn't there"):
+                P.title_font(os.path.join(d, "gone.ttf"), named=True)
+            # the default missing: the first fallback that's here
+            with mock.patch.object(P, "FONT_FALLBACKS", (os.path.join(d, "no.ttf"), mine)), \
+                    contextlib.redirect_stdout(io.StringIO()) as said:
+                self.assertEqual(P.title_font(os.path.join(d, "segoescb.ttf"), named=False), mine)
+            self.assertIn("using", said.getvalue())
+            with mock.patch.object(P, "FONT_FALLBACKS", ()), \
+                    self.assertRaisesRegex(P.PublishError, "Set publish.subtitle.font"):
+                P.title_font(os.path.join(d, "segoescb.ttf"), named=False)
+
     def test_graph_levels(self):
         # a title clip's level goes first on its own sound, never on the cut's or the silence
         cut = {"width": 960, "height": 544, "fps": 24, "duration": 10, "audio": True}

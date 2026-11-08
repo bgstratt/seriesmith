@@ -675,6 +675,11 @@ export function Timeline() {
             <i className="pi pi-flag-fill" /> {flagged.length} flagged
           </button>
         )}
+        {!coldOpen?.error && (coldOpen?.crossing?.length ?? 0) > 0 && (
+          <span className="h3-badge h3-b-moved" title={`Music plays across the cold open's end, where a master puts the intro in: ${coldOpen!.crossing!.map((c) => c.label).join(", ")}. It's cut there. End it on the cold open's last shot (a button into the titles).`}>
+            <i className="pi pi-volume-up" /> across the opening
+          </span>
+        )}
         {coldOpen?.error && (
           <span className="h3-badge h3-b-missing-refs" title={`${coldOpen.error}
 (The cold open: the shots the script marks cold_open: true, played before the opening titles in a master.)`}>
@@ -748,9 +753,19 @@ export function Timeline() {
                             onEdgeDown={onEdgeDown}
                             suppress={suppress}
                           />
+                          {coldOpen?.marked?.includes(s.shot) && !s.cut.out && (
+                            <div className={`h3-coldopen-band${coldOpen.gaps.includes(s.shot) ? " h3-coldopen-err" : ""}`}
+                              title={coldOpen.gaps.includes(s.shot)
+                                ? `${s.shot} is marked cold open but plays after a shot that isn't: ${coldOpen.error ?? ""}`
+                                : `${s.shot} is in the cold open: it plays before the opening titles (cold_open: in the script). Right-click a clip › In the cut › Cold open ends here to change where it ends`}>
+                              Cold open
+                            </div>
+                          )}
                           {coldOpen?.end === s.shot && !s.cut.out && (
                             <div className={`h3-coldopen-mark${coldOpen.error ? " h3-coldopen-err" : ""}`}
-                              title={coldOpen.error ?? `The cold open ends here: a master puts the series intro in after ${s.shot}${coldOpen.seconds != null ? ` (${fmtSeconds(coldOpen.seconds)} in)` : ""}. Right-click a clip › In the cut to move it`}>
+                              title={coldOpen.error ?? `The cold open ends here: a master puts the series intro in after ${s.shot}${coldOpen.seconds != null ? ` (${fmtSeconds(coldOpen.seconds)} in)` : ""}. Right-click a clip › In the cut to move it${coldOpen.crossing?.length ? `
+
+Music across it, cut there by the intro: ${coldOpen.crossing.map((c) => c.label).join(", ")}` : ""}`}>
                               <span>▸ Opening</span>
                             </div>
                           )}

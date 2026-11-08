@@ -584,8 +584,20 @@ The cold open against the pass's cut (`coldopen.state`): `{"shots" (the shots th
 and "seconds" (where a master puts the series intro in the assembled cut; null without a cold
 open or with an error), "gaps" (marked shots that play after one that isn't), "error" (why a
 master can't put the intro in: a gap, a dissolve across the break, every shot marked; else
-null), "frames" (the cut's length as assemble lays it)}`. Shots with no usable take are left
-out, as assemble leaves them.
+null), "frames" (the cut's length as assemble lays it), "marked" (every shot the script marks,
+in the cut or not), "crossing" (the music items of the pass's mix, not muted, that play across
+the break: `[{id, label}]`; a master cuts them there)}`. Shots with no usable take are left out
+of the run, as assemble leaves them. Master and Titles don't use `frame`: they read the break
+from the shot list assemble wrote beside the file they title (`<cut>_shots.txt`).
+
+### `GET /seriesmith/titles?ep=…`
+The opening and closing a master puts around the episode, for Play all to play: `{"intro",
+"outro" (paths for `GET /seriesmith/file`, relative to the episode, e.g.
+`../_titles/INTRO.mp4`; null for none), "title" (the script's `=` line's), "subtitle"
+(`publish.subtitle` with its defaults), "error" (why the clips can't be read, e.g. a
+`publish.intro` that isn't there; else null)}`. `GET /seriesmith/file` serves those two files
+exactly, wherever the series config puts them inside a configured root; nothing else of the
+show folder.
 
 ### `PUT /seriesmith/cold-open`
 Body `{"ep", "pass", "end": shot | null}`: the cold open marked in the script as the pass's

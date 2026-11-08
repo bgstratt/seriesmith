@@ -75,7 +75,9 @@ these are the defaults:
   fully on. Time it to the music: the moment the series title lands, or a beat after.
 - **`outro_in` and `outro_out`** are its fade in and fade out on the outro.
 - **`font`** is a font file. Choose one that's on every machine you master on, or keep a copy in
-  the show folder and give its path.
+  the show folder and give its path. Without one, the default is Windows' Segoe Script; on a
+  machine without it, the master uses the first of Georgia, Arial, Helvetica or DejaVu it finds
+  and says so. A font the series config names that isn't there stops the master, saying so.
 - **The text** is the episode's title, from the script's `=` line: change it there.
 
 ## A cold open
@@ -88,8 +90,16 @@ it. Mark it in the script, under the sequence's `#` line (or on single shots):
 cold_open: true
 ```
 
-A master plays those shots, then the intro, then the rest of the episode. The timeline shows
-an **▸ Opening** marker on the cold open's last clip, where the intro will go.
+A master plays those shots, then the intro, then the rest of the episode. On the timeline,
+each cold-open clip carries a **Cold open** band, and the last has an **▸ Opening** marker where
+the intro will go.
+
+**Watch it in Play all:** its **Titles** button plays the intro where a master puts it (after
+the cold open, else before the first shot) and the outro after the last shot, the episode's
+title drawn on them where and when the master draws it. The cut waits while one plays, so the
+timeline and the mix keep their times; **Skip** on the clip, or play, moves on. It's a preview:
+the title is in a stand-in font (the master's is a file on the machine that renders), and the
+clips play at their own level (a master brings them to the episode's).
 
 - **Set it from the timeline.** Right-click the clip the cold open should end on: **In the cut
   › Cold open ends here**. Every shot from the cut's first up to that one is marked in the
@@ -97,13 +107,16 @@ an **▸ Opening** marker on the cold open's last clip, where the intro will go.
   every other mark comes out. The old script is kept in the episode's `_history\` folder.
   **No cold open** takes them all out.
 - **It follows the cut.** The cold open is the cut's first shots, one after another. When you
-  move a clip so a marked shot plays after one that isn't, the timeline shows a red **Cold
-  open** badge (hover it for which shots), the marker turns red, and a master refuses until
-  you fix it: **Cold open ends here** on the right clip rewrites the marks to the cut as it is.
+  move a clip so a marked shot plays after one that isn't, its band turns red, the timeline
+  shows a red **Cold open** badge (hover it for which shots), and a master refuses until you
+  fix it: **Cold open ends here** on the right clip rewrites the marks to the cut as it is,
+  taking them off every shot and sequence after it.
 - **The intro goes in on a cut.** A dissolve from the cold open's last shot into the next is
   refused; take it out there.
-- **Music across the break** is cut there, as the picture is. End the cold open's music on
-  its last shot (a button on the cut is the classic way into the titles).
+- **Music across the break** is cut there, as the picture is. The timeline shows an
+  **across the opening** badge when a music item of the mix crosses it, and the master's log
+  says which. End the cold open's music on its last shot (a button on the cut is the classic
+  way into the titles); the first-pass score keeps its cues off the break.
 - **The break is read from the file being titled.** Every cut assemble writes (an export, a
   master) has its shot list beside it (`<cut>_shots.txt`), and the intro goes in where that
   list says the cold open's last shot ends, so a take a frame or two shorter than its record

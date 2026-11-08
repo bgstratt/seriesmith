@@ -994,7 +994,7 @@ sound: running footsteps on grass, fabric movement
 | `NAME (V.O., on the truck radio): line` | a voice marker and a delivery together; the note describes the voice and is never spoken |
 | `// text` | comment |
 | `// structure: Pixar Story Spine` | the episode's story structure (`docs/STORY_STRUCTURES.md`), near the top: the first-pass score reads it. A comment: nothing renders from it |
-| `// beat: Until one day…` | above the first shot of a beat (or its sequence's `#` header), the beat's name as its structure writes it: the score's sections and turns |
+| `// beat: Until one day…` | above the first shot of a beat (or its sequence's `#` header), the beat's name as its structure writes it: the score's sections and turns. A **Cold Open** or **Teaser** beat's sequences also get `cold_open: true` |
 | `// theme: show, tender` | above a shot: a theme on that moment, held low to the end of its scene (`sting` in the words: a sting on the shot). The theme is `story`, `show`, `runner` or one the series config names |
 | `// flashback` | above a sequence that's a flashback: its music an echo, thinner and further away |
 
@@ -1241,7 +1241,11 @@ cold_open: true
   refuses until it's fixed. In the editor, right-click the clip the cold open should end on,
   **In the cut › Cold open ends here**: the marks are rewritten to the cut as it is.
 - **A dissolve can't cross the break**: the titles go in on a cut.
-- Nothing else changes: Export, Play all and the mix are the cut as it is, with no titles.
+- Export and the mix are the cut as it is, with no titles; Play all's **Titles** plays the
+  intro and outro where a master puts them.
+- **Writing one:** a structure's **Cold Open** or **Teaser** beat is a cold open, and so is a
+  screenplay's `COLD OPEN` or `TEASER` heading (SCRIPT_CONVERSION.md): mark those
+  sequences, and only those.
 
 ### A picture held still: `target: hold`
 

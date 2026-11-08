@@ -187,9 +187,16 @@ def draft(root: str, pass_: str = "final", rendered: bool = False, structure: st
         if a is not None and b is not None:
             mine.append((c["id"], (a + c["in"]["frame"]) / fps, (b + c["out"]["frame"]) / fps))
     bpm_of = {t["name"]: t.get("bpm") for t in themes}
+    brk = _cold_open_end(root, shots)
     n = h = 0
     maker = None
     for c in out["cues"]:
+        if brk is not None and c["t0"] + 1e-6 < brk < c["t1"] - 1e-6:
+            # the titles go in at the cold open's end: no cue plays across it
+            span = _free(c["t0"], c["t1"], [(brk, brk)])
+            if span and span[1] - span[0] >= TRIM_MIN:
+                _trim(c, span, shots)
+                c["trim"] = "kept to one side of the cold open's end (the titles go in there)"
         over = [(cid, a, b) for cid, a, b in mine if a < c["t1"] and c["t0"] < b]
         if over:
             names = sorted({cid for cid, _, _ in over})
@@ -310,6 +317,21 @@ def mark_script(root: str, d: dict) -> bool:
         raise DraftError("the beat lines would change how the script is read: not written")
     SRC.write_source(src, text)
     return True
+
+
+def _cold_open_end(root: str, shots: list[dict]) -> float | None:
+    """Where the cold open ends on the draft's timeline (seconds: the first shot after the
+    script's `cold_open:` run at the cut's head), None without one, or when a marked shot
+    plays later (the marks need fixing first: coldopen.state says so)."""
+    from seriesmith import coldopen as CO
+    story = _story(root)
+    marked = CO.flags(story) if story else {}
+    i = 0
+    while i < len(shots) and marked.get(shots[i]["id"]):
+        i += 1
+    if i == 0 or i == len(shots) or any(marked.get(x["id"]) for x in shots[i:]):
+        return None
+    return shots[i]["t"]
 
 
 def _free(t0: float, t1: float, busy: list[tuple[float, float]]) -> tuple[float, float] | None:

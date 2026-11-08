@@ -72,6 +72,16 @@ from seriesmith import takes as T  # noqa: E402
 from seriesmith import ff as FF  # noqa: E402
 
 LEVEL = {"match": True, "under_lu": 0.0}
+# the title's font when the series config names none and the default (Windows' Segoe Script)
+# isn't on this machine: the first of these that is
+FONT_FALLBACKS = (
+    "C:/Windows/Fonts/segoesc.ttf", "C:/Windows/Fonts/georgia.ttf", "C:/Windows/Fonts/arial.ttf",
+    "/System/Library/Fonts/Supplemental/Georgia.ttf", "/Library/Fonts/Georgia.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Helvetica.ttc",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+)
 SUBTITLE = {
     "font": "C:/Windows/Fonts/segoescb.ttf",
     "size": 0.058,
@@ -162,9 +172,29 @@ def episode_title(script: str) -> str:
     return ""
 
 
+def title_font(font: str, named: bool) -> str:
+    """The font file the episode's title is drawn with: `font` when it's there. One the series
+    config named and that isn't there is an error (it says so); the default missing (it's
+    Windows') falls back to the first of FONT_FALLBACKS on this machine, saying which."""
+    if os.path.isfile(font):
+        return font
+    if named:
+        raise PublishError(f"publish.subtitle.font {font} isn't there: set it to a .ttf or .otf "
+                           f"file on this machine")
+    got = next((f for f in FONT_FALLBACKS if os.path.isfile(f)), None)
+    if not got:
+        raise PublishError(f"no font for the episode's title: the default ({font}) isn't on this "
+                           f"machine. Set publish.subtitle.font in the series config to a .ttf or "
+                           f".otf file")
+    print(f"  ! the title font {font} isn't here: using {got} (set publish.subtitle.font to choose)")
+    return got
+
+
 def publish_config(series_cfg: dict) -> dict:
-    """The series config's `publish` block with the subtitle defaults filled in."""
+    """The series config's `publish` block with the subtitle defaults filled in (`_named`:
+    what the config set itself)."""
     block = dict(series_cfg.get("publish") or {})
+    block["_named"] = dict(block.get("subtitle") or {})
     block["subtitle"] = {**SUBTITLE, **(block.get("subtitle") or {})}
     block["loudness"] = {**LEVEL, **(block.get("loudness") or {})}
     return block
@@ -603,7 +633,8 @@ def _clip(root: str, block: dict, key: str) -> str | None:
     return None
 
 
-def cold_open_split(root: str, src: str, fps: float, intro: str | None) -> int | None:
+def cold_open_split(root: str, src: str, fps: float, intro: str | None,
+                    pass_: str = "final") -> int | None:
     """Where the intro goes in the cut `src` (its frame) when the script marks a cold open,
     else None (at the start): read from the shot list assemble wrote beside it
     (`<cut>_shots.txt`, coldopen.split_in_file), so it's where the file's shots really are.
@@ -613,9 +644,18 @@ def cold_open_split(root: str, src: str, fps: float, intro: str | None) -> int |
         return None
     from seriesmith import coldopen as CO
     try:
-        return CO.split_in_file(root, os.path.splitext(src)[0] + "_shots.txt", fps)
+        at = CO.split_in_file(root, os.path.splitext(src)[0] + "_shots.txt", fps)
     except CO.ColdOpenError as e:
         raise PublishError(f"cold open: {e}") from None
+    if at is not None:
+        try:
+            cross = CO.state(root, pass_)["crossing"]
+        except (OSError, ValueError):
+            cross = []
+        if cross:
+            print(f"  ! cold open: {', '.join(c['label'] for c in cross)} "
+                  f"play{'s' if len(cross) == 1 else ''} across its end: cut there by the intro")
+    return at
 
 
 def titles(root: str) -> tuple[str | None, str | None]:
@@ -639,8 +679,7 @@ def publish(root: str, src: str | None = None, pass_: str = "final", out: str | 
     with open(cfg_path, encoding="utf-8") as f:
         block = publish_config(json.load(f))
     sub = block["subtitle"]
-    if not os.path.isfile(sub["font"]):
-        raise PublishError(f"publish.subtitle.font {sub['font']} isn't there")
+    sub["font"] = title_font(sub["font"], named=bool((block.get("_named") or {}).get("font")))
     src = os.path.abspath(src) if src else default_input(root, pass_)
     if not src or not os.path.isfile(src):
         raise PublishError("nothing to publish: assemble the episode first, "
@@ -656,7 +695,7 @@ def publish(root: str, src: str | None = None, pass_: str = "final", out: str | 
         quality = "master" if os.path.basename(os.path.dirname(src)) == "master" else "review"
 
     cut = probe(src)
-    split = cold_open_split(root, src, cut["fps"], intro)
+    split = cold_open_split(root, src, cut["fps"], intro, pass_)
     print(f"  {os.path.basename(root)}  \"{title}\"")
     print(f"    intro  {intro or '(none)'}")
     print(f"    cut    {src}  {cut['width']}x{cut['height']} {cut['fps']:g}fps "

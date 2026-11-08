@@ -1208,6 +1208,9 @@ def _in_series_home(ctx: Context, ep: str, parts: list[str]) -> bool:
       ref's live file can be another episode's pick, and its candidates are
       that episode's (refs.owner_takes).
 
+    The episode's own intro and outro (publish.titles: the series config's `publish` block, else
+    the show's `_titles` files) are served too, those two files exactly: Play all plays them.
+
     Either way the file must also be inside a configured root.
     """
     series_cfg = E.episode_series_config(ep)
@@ -1217,6 +1220,8 @@ def _in_series_home(ctx: Context, ep: str, parts: list[str]) -> bool:
     full = _real(os.path.join(ep, *[p for p in parts if p not in ("", ".")]))
     if not any(_inside(full, _real(r)) for r in load_roots(ctx)):
         return False
+    if full in {_real(c) for c in _title_clips(ep) if c}:
+        return True
     if home != _real(ep):
         return _inside(full, home)
     show = os.path.dirname(os.path.abspath(ep))
@@ -2547,6 +2552,38 @@ def post_color_match(ctx: Context, body):
         raise ApiError(400, str(e))
     except ValueError as e:
         raise ApiError(500, f"matching failed: {e}")
+
+
+def _title_clips(ep: str) -> tuple[str | None, str | None]:
+    """The episode's (intro, outro) clips (publish.titles), (None, None) when they can't be read."""
+    from seriesmith import publish as PUB
+    try:
+        return PUB.titles(ep)
+    except (PUB.PublishError, OSError, ValueError):
+        return None, None
+
+
+@handler
+def get_titles(ctx: Context, query: dict):
+    """The opening and closing a master puts around the episode, for Play all to play:
+    {"intro", "outro" (each a path for GET /seriesmith/file, relative to the episode, or null),
+    "title" (the script's `=` line's), "subtitle" (publish.subtitle with its defaults: where
+    and when the title is drawn), "error" (why the clips can't be read, else null)}."""
+    from seriesmith import publish as PUB
+    ep = check_ep(ctx, query.get("ep"))
+    out = {"intro": None, "outro": None, "title": "", "subtitle": dict(PUB.SUBTITLE), "error": None}
+    try:
+        intro, outro = PUB.titles(ep)
+    except PUB.PublishError as e:
+        return 200, {**out, "error": str(e)}
+    rel = lambda p: os.path.relpath(p, ep).replace(os.sep, "/") if p else None  # noqa: E731
+    cfg = E.episode_series_config(ep)
+    if cfg:
+        with open(cfg, encoding="utf-8") as fh:
+            out["subtitle"] = PUB.publish_config(json.load(fh))["subtitle"]
+    script = E.episode_script(ep)
+    return 200, {**out, "intro": rel(intro), "outro": rel(outro),
+                 "title": PUB.episode_title(script) if script else ""}
 
 
 @handler
@@ -6487,6 +6524,7 @@ ROUTES = [
     ("PUT", "/seriesmith/pick", put_pick, "body"),
     ("PUT", "/seriesmith/cut", put_cut, "body"),
     ("GET", "/seriesmith/cold-open", get_cold_open, "query"),
+    ("GET", "/seriesmith/titles", get_titles, "query"),
     ("PUT", "/seriesmith/cold-open", put_cold_open, "body"),
     ("GET", "/seriesmith/mix", get_mix, "query"),
     ("PUT", "/seriesmith/mix", put_mix, "body"),

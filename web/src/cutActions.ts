@@ -747,6 +747,8 @@ export async function setColdOpenEnd(end: string | null): Promise<void> {
     set((s) => ({ coldOpen: { ...s.coldOpen, [statusKey(ep, pass)]: r } }));
     if (r.changed) await refreshEpisode(ep, pass);
     if (r.error) host().toast("warn", "Cold open", r.error);
+    else if (r.crossing?.length) host().toast("warn", "Cold open: music across its end",
+      `${r.crossing.map((c) => c.label).join(", ")} play${r.crossing.length === 1 ? "s" : ""} across where the intro goes in, and a master cuts ${r.crossing.length === 1 ? "it" : "them"} there.`);
     else if (!r.changed) host().toast("info", "Cold open", end ? `Already ends on ${end}.` : "There's no cold open.");
     else host().toast("success", "Cold open", end
       ? `${r.shots.length} shot${r.shots.length === 1 ? "" : "s"} before the opening titles, through ${end}. The script is saved (the old one kept in _history).`

@@ -37,12 +37,14 @@ def state(root: str, pass_: str) -> dict:
     last shot, None for none), "frame" and "seconds" (where the titles go in the assembled
     cut; None without a cold open), "gaps" (marked shots that play after one that isn't),
     "error" (why a master can't put the titles in, else None), "frames" (the cut's length as
-    assemble lays it, to check a file against; None without a cold open)}. Shots with no usable take
-    are left out, as assemble leaves them."""
+    assemble lays it; None without a cold open), "marked" (every shot the script marks, in
+    the cut or not: the timeline's badges), "crossing" (the music items of the pass's mix that
+    play across the break, [{"id", "label"}]: a master cuts them there)}. Shots with no usable
+    take are left out of the run, as assemble leaves them."""
     story = R.episode_story(root)
     marked = flags(story) if story else {}
     out = {"shots": [], "end": None, "frame": None, "seconds": None, "gaps": [], "error": None,
-           "frames": None}
+           "frames": None, "marked": [k for k, v in marked.items() if v], "crossing": []}
     if not any(marked.values()):
         return out
     layout, fps = CU.cut_layout(root, pass_)
@@ -63,15 +65,50 @@ def state(root: str, pass_: str) -> dict:
     if not run:
         return out
     if i == len(order):
-        out["error"] = "every shot in the cut is marked cold open: the titles would have nothing after them"
+        out["error"] = (f"every shot with a take in the {pass_} cut is in the cold open, so the titles "
+                        f"would have nothing after them" + (" (render the shots after it in this pass)"
+                                                            if len(order) < len(marked) else ""))
         return out
     if layout[i].get("dissolve_in"):
         out["error"] = (f"{order[i]} dissolves in from {run[-1]}, the cold open's last shot: the "
                         f"titles go in on a cut, so take the dissolve out there")
         return out
-    o = MX.shot_origins(layout)[order[i]]
+    origins = MX.shot_origins(layout)
+    o = origins[order[i]]
     frame = o["origin"] + o["first"]
-    out.update(frame=frame, seconds=round(frame / fps, 6))
+    out.update(frame=frame, seconds=round(frame / fps, 6),
+               crossing=crossing(root, pass_, frame, origins, fps))
+    return out
+
+
+def crossing(root: str, pass_: str, frame: int, origins: dict, fps: float) -> list[dict]:
+    """The music items of the pass's mix that play across cut frame `frame` (a cold open's
+    end): [{"id", "label"}]. An item with no out point runs to its file's end (a wav's header;
+    another kind of file, when it can't be read, isn't counted)."""
+    import os
+    import wave
+    try:
+        mix = MX.check(MX.load(root).get(pass_))
+    except ValueError:
+        return []
+    ks = MX.kinds(mix)
+    out = []
+    for item in mix.get("items") or []:
+        if ks.get(item.get("track")) != "music" or item.get("mute"):
+            continue
+        s = MX.place(item["in"], origins)
+        e = MX.place(item["out"], origins) if item.get("out") else None
+        if s is None:
+            continue
+        if e is None and not item.get("out"):
+            try:
+                with wave.open(os.path.join(root, *item["path"].split("/")), "rb") as w:
+                    secs = w.getnframes() / float(w.getframerate())
+                e = s + round(max(0.0, secs - float(item.get("offset") or 0.0)) * fps)
+            except (OSError, EOFError, wave.Error):
+                continue
+        if e is not None and s < frame < e:
+            out.append({"id": item["id"], "label": item.get("label") or item["id"]})
     return out
 
 

@@ -85,6 +85,45 @@ class Episode(unittest.TestCase):
         self.assertEqual(st["frames"], 48 + 72 + 48 + 48)
         self.assertAlmostEqual(st["seconds"], 5.0)
 
+    def test_marked_and_music_across_the_break(self):
+        from seriesmith import mix as MX
+        self.write(script("cold_open: true\n"))
+        anchor = lambda s, f=0: {"shot": s, "frame": f}  # noqa: E731
+        MX.save(self.ep, {"final": {"items": [
+            {"id": "m01", "track": "music", "path": "sound/m01/t01.wav", "in": anchor("sh010"),
+             "out": anchor("sh030", 10), "label": "Diner"},
+            {"id": "m02", "track": "music", "path": "sound/m02/t01.wav", "in": anchor("sh010"),
+             "out": anchor("sh020", 72)},                  # ends on the break: not across it
+            {"id": "m03", "track": "music", "path": "sound/m03/t01.wav", "in": anchor("sh010"),
+             "out": anchor("sh040", 10), "mute": True}]}})   # muted: not heard
+        st = CO.state(self.ep, "final")
+        self.assertEqual(st["marked"], ["sh010", "sh020"])
+        self.assertEqual(st["crossing"], [{"id": "m01", "label": "Diner"}])
+
+    def test_ends_here_takes_the_later_marks_off(self):
+        # sq02 marked whole, then the cold open set to end on sh020: sq02's mark goes
+        self.write(script("cold_open: true\n").replace("# sq02  porch\n", "# sq02  porch\ncold_open: true\n"))
+        self.assertEqual(CO.state(self.ep, "final")["error"],
+                         "every shot with a take in the final cut is in the cold open, so the titles "
+                         "would have nothing after them")
+        CO.set_end(self.ep, "final", "sh020")
+        text = self.text()
+        self.assertEqual(text.count("cold_open: true"), 1)
+        self.assertIn("# sq01  porch\ncold_open: true\n", text)
+        E.build_episode(self.ep)
+        self.assertEqual(CO.state(self.ep, "final")["marked"], ["sh010", "sh020"])
+
+    def test_the_score_draft_keeps_off_the_break(self):
+        from seriesmith import scoredraft as SD
+        self.write(script("cold_open: true\n"))
+        shots = [{"id": s, "t": t} for s, t in (("sh010", 0.0), ("sh020", 2.0), ("sh030", 5.0),
+                                                ("sh040", 7.0))]
+        self.assertEqual(SD._cold_open_end(self.ep, shots), 5.0)
+        # marks out of order: no break until they're fixed
+        self.assertIsNone(SD._cold_open_end(self.ep, [shots[0], shots[2], shots[1], shots[3]]))
+        self.write(script())
+        self.assertIsNone(SD._cold_open_end(self.ep, shots))
+
     def test_a_gap_is_refused(self):
         # sh030 marked, sh020 (between it and the cut's head) not
         self.write(script("cold_open: true\n", "cold_open: false\n", "cold_open: true\n"))
@@ -161,6 +200,28 @@ class Episode(unittest.TestCase):
         self.assertEqual(code, 400)
         code, _ = A.put_cold_open(ctx, {"ep": self.ep, "pass": "final", "end": 3})
         self.assertEqual(code, 400)
+
+    def test_titles_route_and_its_files(self):
+        # the show's _titles clips: named for Play all, and served (those two files, nothing
+        # else of the show folder)
+        ctx = A.Context(os.path.join(self._tmp.name, "user"), "http://127.0.0.1:0", env={})
+        A.put_config(ctx, {"roots": [self.shows]})
+        code, t = A.get_titles(ctx, {"ep": self.ep})
+        self.assertEqual((code, t["intro"], t["outro"], t["title"]), (200, None, None, "First Light"))
+        os.makedirs(os.path.join(self.shows, "_titles"))
+        for name in ("INTRO.mp4", "OUTRO.mp4", "OTHER.mp4"):
+            F.write_text(os.path.join(self.shows, "_titles", name), "x")
+        F.write_text(os.path.join(self.shows, "private.txt"), "x")
+        code, t = A.get_titles(ctx, {"ep": self.ep})
+        self.assertEqual((t["intro"], t["outro"]), ("../_titles/INTRO.mp4", "../_titles/OUTRO.mp4"))
+        self.assertEqual(t["subtitle"]["y"], 0.56)
+        code, f = A.get_file(ctx, {"ep": self.ep, "path": t["intro"]})
+        self.assertEqual(code, 200)
+        self.assertEqual(os.path.normcase(f["path"]),
+                         os.path.normcase(os.path.join(self.shows, "_titles", "INTRO.mp4")))
+        for other in ("../_titles/OTHER.mp4", "../private.txt"):
+            code, _ = A.get_file(ctx, {"ep": self.ep, "path": other})
+            self.assertEqual(code, 400, other)
 
 
 if __name__ == "__main__":

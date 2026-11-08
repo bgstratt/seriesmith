@@ -88,6 +88,11 @@ for you to adjust: **Draft…** in the spotting sheet's head (or `seriesmith sco
   lines into the script** keeps them as `// structure:` and `// beat:` lines (comments: nothing
   re-renders), to move by hand where a beat really starts (`seriesmith score-draft --structure
   "Pixar Story Spine" --write --mark` does the same).
+- **A cold open.** The titles go in where the cold open ends (`cold_open:`, TITLES_GUIDE.md),
+  so no draft cue plays across it: one that would is kept to its longer side. A structure's
+  sting at the end of its teaser is the button into the titles. Music of your own that
+  crosses the break shows a **across the opening** badge on the timeline: a master cuts it
+  there.
 - **What you get.** Draft cues, `d01`, `d02`..., labelled *Draft:*, nothing rendered. Beats in
   a row with music are **one cue**, a section each with its mood and energy, and a `turn`
   hit where each beat starts. A cue starts about a second before the cut into its beat and

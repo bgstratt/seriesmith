@@ -365,7 +365,7 @@ groups that open beside the menu when you hover them.
 | **Make final from draft (1080p)…** | A Seedance proxy draft's final, exactly as drawn (paid; see **Finals from drafts**) |
 | **Cancel this render** | Stop a queued or running take |
 | **Upscale and post ›** | **Upscale (2x)…**, **Keep upscale**, **Remove upscale**: the take's upscale (see **Finishing**; a kept one is left alone by Master). **Post-process…**, **Remove post**: finish the upscale |
-| **In the cut ›** | **Flag to come back to** (see **Flagging clips**); **Lock in the cut** (it can't be moved, trimmed or re-picked); **Leave out of the cut** (it keeps its place in the script and its takes; Export, Play all and Master skip it); **Move left / right in the cut** (`Alt+←` / `Alt+→`); **Clear trims**; **Cold open ends here** (every shot from the cut's first through this one plays before the opening titles: written into the script as `cold_open:`, the old one kept in `_history`; the timeline marks the clip **▸ Opening**, red with a **Cold open** badge when a marked shot plays after one that isn't) and **No cold open** ([TITLES_GUIDE.md](/titles)) |
+| **In the cut ›** | **Flag to come back to** (see **Flagging clips**); **Lock in the cut** (it can't be moved, trimmed or re-picked); **Leave out of the cut** (it keeps its place in the script and its takes; Export, Play all and Master skip it); **Move left / right in the cut** (`Alt+←` / `Alt+→`); **Clear trims**; **Cold open ends here** (every shot from the cut's first through this one plays before the opening titles: written into the script as `cold_open:`, the old one kept in `_history`; each cold-open clip carries a **Cold open** band and the last an **▸ Opening** marker; a band turns red, with a **Cold open** badge in the timeline's head, when a marked shot plays after one that isn't, and an **across the opening** badge says music crosses the break) and **No cold open** ([TITLES_GUIDE.md](/titles)) |
 | **Fades and dissolve ›** | **Fade in from black**, **Fade out to black**, **Dissolve from the clip before**: each on at 12 frames, or off (see **Fades and dissolves**) |
 | **Colour ›** | **Match the sequence to this by** skin, frame or luma (see **A clip's colour**) |
 | **Frames ›** | **Use previous shot's last frame as first frame** (continuity: chain this shot onto the one before); **Use this frame as the next shot's first frame** (the same, pushed forward); **Hold this frame after it…** (a freeze frame); **Character or place from this frame…** (in the viewer, at a frame); **Generate first frame** / **Clear keyframe** (make or drop its opening still) |
@@ -1182,7 +1182,10 @@ or a ref's candidate in the viewer, Play all, the gallery's picture or shot. Two
 by side zoom together, so the same detail stays in both; a new take or picture starts whole,
 and Play all keeps its zoom from shot to shot.
 
-**Play all** has its own **Loop** (the cut starts over at the end; remembered).
+**Play all** has its own **Loop** (the cut starts over at the end; remembered) and **Titles**
+(remembered): the intro and outro a master puts on, played where it puts them (the intro after
+the cold open, else before the first shot), the episode's title drawn on them. The cut waits
+while one plays; **Skip**, or play, moves on ([TITLES_GUIDE.md](/titles)).
 
 **Full screen** (the button by Close, or `F`) puts the viewer on the whole screen, its
 controls with it; `F` or `Esc` brings it back. The sidebar's right edge and the timeline's

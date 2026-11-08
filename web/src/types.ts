@@ -3158,6 +3158,23 @@ export interface ColdOpenState {
   gaps: string[];
   /** why a master can't put the intro in, else null */
   error: string | null;
+  /** every shot the script marks cold open (the timeline's badges) */
+  marked?: string[];
+  /** music items of the mix that play across the break: a master cuts them there */
+  crossing?: { id: string; label: string }[];
+}
+
+/** GET /seriesmith/titles: the opening and closing a master puts around the episode (Play all plays them). */
+export interface TitlesInfo {
+  /** paths for fileUrl, relative to the episode; null: none */
+  intro: string | null;
+  outro: string | null;
+  /** the episode's title (the script's `=` line), drawn on them */
+  title: string;
+  /** publish.subtitle: where (fractions of the frame's height) and when (seconds into the clip) */
+  subtitle: { size: number; y: number; color: string; glow: string; glow_size?: number; intro_in: [number, number];
+              outro_in: [number, number]; outro_out: [number, number] };
+  error: string | null;
 }
 
 export interface CueSummary {
