@@ -3079,7 +3079,8 @@ def get_storyboard(ctx: Context, query: dict):
 def post_storyboard_edit(ctx: Context, body):
     """An edit from the storyboard, saved like the script editor's (`base_hash`, 409 when the file
     changed; the old script to history; a rebuild): `op` is `add` (one stand-in on `beat`), `fill`
-    (`beats`: each up to its target, or up to `each` shots), `place` (`block`, `place`) or `cast` (`block`, `who`)."""
+    (`beats`: each up to its target, or up to `each` shots), `place` (`block`, `place`), `cast` (`block`, `who`), `structure` (`name`), `rename_beat` or
+    `rename_sequence` (`block`, `name`)."""
     from seriesmith.core import blocking as BL
     from seriesmith.core import board as BD
     body = body_dict(body)
@@ -3138,8 +3139,14 @@ def post_storyboard_edit(ctx: Context, body):
             if not isinstance(who, list) or not all(isinstance(w, str) for w in who):
                 raise ApiError(400, "who must be a list of subject ids")
             BD.set_cast(doc, int(body.get("block")), who)
+        elif op == "structure":
+            BD.set_structure(doc, body.get("name"))
+        elif op == "rename_beat":
+            BD.rename_beat(doc, int(body.get("block")), body.get("name"))
+        elif op == "rename_sequence":
+            BD.rename_sequence(doc, int(body.get("block")), body.get("name"))
         else:
-            raise ApiError(400, "op must be add, fill, place or cast")
+            raise ApiError(400, "op must be add, fill, place, cast, structure, rename_beat or rename_sequence")
     except (BD.BoardError, IndexError, TypeError, ValueError) as e:
         raise ApiError(400, str(e)) from None
     saved = P.H.save_source(ep, "script", BD.text_of(doc), base_hash)

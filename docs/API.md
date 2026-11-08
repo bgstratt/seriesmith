@@ -1101,7 +1101,9 @@ editor's saves are: 409 when the script's hash isn't `base_hash`, the old script
 rebuild. `op` is `add` (`beat: {"plain", "nth"}`, optionally `place`: one held stand-in at the end
 of the beat, its line written first if the script hasn't got it), `fill` (`beats: [{"plain",
 "nth"}]`: each up to its target, or up to `each` shots), `place` (`block`, `place`: a sequence's location) or `cast`
-(`block`, `who`: on that sequence's empty stand-ins only). The first edit also writes the script's
+(`block`, `who`: on that sequence's empty stand-ins only), `structure` (`name`: the script's
+`// structure:` line; its beats stay and match what they match), `rename_beat` or `rename_sequence`
+(`block`, `name`; a sequence's id goes into its shots' seeds). The first edit also writes the script's
 `// structure:` and `// duration:`. Answers as the GET does, with `made` (new shot ids), `check` and
 `build`.
 

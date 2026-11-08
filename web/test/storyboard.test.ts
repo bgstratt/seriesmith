@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { bandShare, bareBeats, clock, fillable, fillCount, meter, placeOf, positive, runWidth, seriesChoices, type BoardBeat } from "../src/lib/storyboard";
 
 function beat(over: Partial<BoardBeat>): BoardBeat {
-  return { beat: "A", plain: "A", nth: 0, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
+  return { beat: "A", plain: "A", nth: 0, block: null, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
     target_shots: null, target_seconds: null, thin: false, runs: [], ...over };
 }
 

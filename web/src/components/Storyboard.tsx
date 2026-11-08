@@ -12,6 +12,7 @@ import {
 } from "../lib/storyboard";
 import { statusKey, useApp } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
+import { EpisodeSelect } from "./ShotsTab";
 
 export function StoryboardWindow() {
   const open = useApp((s) => s.storyboardOpen);
@@ -25,7 +26,33 @@ function placeName(id: string): string {
   return id.replace(/_/g, " ");
 }
 
-interface Picked { block: number; place: string; who: string[] }
+interface Picked { block: number; id: string; place: string; who: string[]; rendered: number }
+
+/** Text that's committed on Enter or leaving the field; Escape puts it back. */
+function NameField({ value, busy, commit, cancel, className, size }: {
+  value: string;
+  busy: boolean;
+  commit: (text: string) => void;
+  cancel?: () => void;
+  className?: string;
+  size?: number;
+}) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const done = () => {
+    const next = text.trim();
+    if (next && next !== value) commit(next);
+    else { setText(value); cancel?.(); }
+  };
+  return (
+    <input className={className ?? "h3-in"} size={size} value={text} disabled={busy} autoFocus={!!cancel}
+      onChange={(e) => setText(e.target.value)} onBlur={done} onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") { setText(value); cancel?.(); }
+      }} />
+  );
+}
 
 function Run({ run, selected, pick, thumbs }: {
   run: BoardRun;
@@ -70,12 +97,17 @@ function Beat({ beat, biggest, picked, pick, busy, edit, thumbs }: {
   const named = beat.plain === null ? null : { plain: beat.plain, nth: beat.nth };
   const left = fillCount([beat]);
   const point = beat.point !== undefined;
+  const [renaming, setRenaming] = useState(false);
+  const block = beat.block;
   return (
     <div className="h3-sb-beat">
       <div className={`h3-sb-band${point ? " h3-sb-point" : ""}${beat.thin ? " h3-sb-thin" : ""}${beat.plain !== null && !beat.known ? " h3-sb-own" : ""}`}
         style={{ width: bandShare(beat.target_shots, biggest) }}
-        title={beat.guidance ? `${name}${place ? ` (${place})` : ""}: ${beat.guidance}` : name}>
-        <span className="h3-sb-name">{name}</span>
+        title={`${beat.guidance ? `${name}${place ? ` (${place})` : ""}: ${beat.guidance}` : name}${block !== null ? "\nDouble-click its name to rename it." : ""}`}>
+        {renaming && block !== null
+          ? <NameField className="h3-sb-rename" value={name} busy={busy} cancel={() => setRenaming(false)}
+              commit={(text) => { setRenaming(false); edit({ op: "rename_beat", block, name: text }); }} />
+          : <span className="h3-sb-name" onDoubleClick={() => block !== null && setRenaming(true)}>{name}</span>}
         <span className="h3-sb-count">{meter(beat)}</span>
       </div>
       {beat.guidance && <div className="h3-small h3-muted h3-sb-guide">{beat.guidance}</div>}
@@ -106,6 +138,13 @@ function EditBar({ choices, picked, busy, edit, close }: {
   return (
     <div className="h3-row h3-sb-editbar h3-small">
       {!choices && <span className="h3-muted">Reading the series config…</span>}
+      <label className="h3-row" title="The sequence's id in the script">Sequence
+        <NameField value={picked.id} busy={busy} size={8} commit={(name) => {
+          if (picked.rendered && !window.confirm(
+            `${picked.rendered} of this sequence's shots have takes. A shot's seed is built from its sequence's id, so new takes won't match a re-render of the old ones. Rename it to ${name}?`)) return;
+          edit({ op: "rename_sequence", block: picked.block, name });
+        }} />
+      </label>
       {choices && (
         <>
           <label className="h3-row">Place
@@ -180,6 +219,8 @@ function Storyboard({ ep }: { ep: string }) {
   const [choices, setChoices] = useState<SeriesChoices | null>(null);
   const [busy, setBusy] = useState(false);
   const [seeded, setSeeded] = useState(false);
+  // the show's own format the script opened with: still offered after changing away from it
+  const [ownFormat, setOwnFormat] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -211,6 +252,7 @@ function Storyboard({ ep }: { ep: string }) {
   useEffect(() => {
     if (seeded || !data) return;
     setSeeded(true);
+    if (data.plan.structure && !data.plan.structure_known) setOwnFormat(data.plan.structure);
     if (data.plan.duration) setMinutes(String(Math.round((data.plan.duration / 60) * 100) / 100));
   }, [data, seeded]);
 
@@ -237,6 +279,7 @@ function Storyboard({ ep }: { ep: string }) {
       setErr(null);
       if (e.op === "place") setPicked((p) => (p ? { ...p, place: e.place } : p));
       if (e.op === "cast") setPicked((p) => (p ? { ...p, who: e.who } : p));
+      if (e.op === "rename_sequence") setPicked((p) => (p ? { ...p, id: e.name } : p));
       void refreshEpisode(ep);
     } catch (x) {
       setErr((x as Error).message);
@@ -269,11 +312,16 @@ function Storyboard({ ep }: { ep: string }) {
       defaultRect={() => ({ x: 40, y: 48, w: Math.min(1280, window.innerWidth - 80), h: Math.min(820, window.innerHeight - 96) })}>
       <div className="h3-col h3-sb" style={{ height: "100%" }}>
         <div className="h3-row h3-sb-controls">
+          <EpisodeSelect compact />
           <label className="h3-row" title={scriptStructure
-            ? (data?.plan.structure_known ? "The script's // structure: line" : "The script names this show's own format: its beats are shown, with no targets")
+            ? `Changes the script's // structure: line. Beats keep their names: the ones that match this structure take its acts and targets, the rest stay as the script has them.${data?.plan.structure_known ? "" : " A show's own format has no targets."}`
             : "Written to the script with the first edit"}>Structure
-            <select value={chosen} disabled={!!scriptStructure} onChange={(e) => setStructure(e.target.value)}>
-              {!names.includes(chosen) && <option value={chosen}>{chosen}</option>}
+            <select value={chosen} disabled={busy} onChange={(e) => {
+              if (scriptStructure) void edit({ op: "structure", name: e.target.value });
+              else setStructure(e.target.value);
+            }}>
+              {ownFormat && <option value={ownFormat}>{ownFormat} (this show's own)</option>}
+              {!names.includes(chosen) && chosen !== ownFormat && <option value={chosen}>{chosen}</option>}
               {names.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
@@ -319,7 +367,8 @@ function Storyboard({ ep }: { ep: string }) {
                 toggle={() => setClosed((c) => ({ ...c, [key]: !c[key] }))}
                 picked={picked?.block ?? null}
                 pick={(run) => run.block !== null && setPicked({
-                  block: run.block, place: run.place, who: [...new Set(run.shots.flatMap((s) => s.who))] })}
+                  block: run.block, id: run.sequence, place: run.place, who: [...new Set(run.shots.flatMap((s) => s.who))],
+                  rendered: run.shots.filter((s) => thumbs.has(s.id)).length })}
                 edit={(e) => void edit(e)} fill={fill} />
             );
           })}

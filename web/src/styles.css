@@ -1467,7 +1467,8 @@
 .h3-sb-num { width: 64px; }
 .h3-sb-warnings { padding: 6px 10px 0; color: var(--h3-queued); }
 .h3-sb-warnings ul { margin: 4px 0 0; padding-left: 18px; }
-.h3-sb-board { flex: 1; min-height: 0; overflow: auto; padding: 8px 10px 16px; }
+.h3-sb-board { flex: 1; min-height: 0; overflow: auto; padding: 8px 10px 16px; margin: 0 8px 14px 0; } /* clear of the window's resize corner */
+.h3-sb-rename { flex: 1; min-width: 0; height: 16px; padding: 0 3px; font-size: 11px; border: 0; border-radius: 2px; color: var(--h3-fg); background: var(--h3-bg2); }
 .h3-sb-act { margin-bottom: 14px; }
 .h3-sb-acthead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; border-bottom: 1px solid var(--h3-border); }
 .h3-sb-acthead:hover { background: var(--h3-hover); }

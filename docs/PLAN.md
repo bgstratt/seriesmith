@@ -2465,8 +2465,12 @@ To build, each ending in something that runs:
       script. Still to come: a script with shots and no beats shows them under "Before any beat"
       and new beats land after them; offer `spotting.layout`'s guess instead. Choosing a place for
       a new sequence on a beat.
-- [ ] **Your own acts and beats.** Add, rename and remove them on the board; a structure is where
-      it starts, not a limit.
+- [ ] **Your own acts and beats.** A structure is where it starts, not a limit. In (2026-11-08):
+      changing the structure (only the `// structure:` line: beats match what they match, the rest
+      stay as the script has them), renaming a beat or a sequence (double-click; a sequence's id
+      goes into its shots' seeds, so the board warns when it has takes), the episode picker. To
+      come, on a right-click menu with the `+` kept: add and remove beats and acts, a shot after
+      a shot, delete a shot, a new sequence in a chosen place.
 - [ ] **Generation.** A new episode from the board through `POST /seriesmith/episode/new`
       (`template: "form"`), a third start in the New Episode Wizard beside "write" and "xml", the
       unplaced sequences' reuse and words-only location above. Checked: `check` and `build` pass

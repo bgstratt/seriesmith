@@ -520,3 +520,54 @@ def set_cast(doc: dict, block: int, who: list[str]) -> int:
         target["shot"] = _shot_view(keep)
         changed += 1
     return changed
+
+
+def _one_line(value: str, what: str) -> str:
+    text = value.strip() if isinstance(value, str) else ""
+    if not text or "\n" in text or "\r" in text:
+        raise BoardError(f"{what} needs to be one line of text")
+    return text
+
+
+def _replace_line(block: dict, is_it, line: str) -> None:
+    for i, raw in enumerate(block["lines"]):
+        if is_it(raw):
+            block["lines"][i] = line + raw[len(raw.rstrip("\r\n")):]
+            return
+
+
+def set_structure(doc: dict, name: str) -> None:
+    """The structure the script says it follows: its beats stay as they are and match what they
+    match. Only the line changes."""
+    name = _one_line(name, "A structure")
+    for block in doc["blocks"]:
+        if block["kind"] == "structure":
+            _replace_line(block, lambda ln: _MARK.match(ln.strip()) is not None, f"// structure: {name}")
+            block["value"] = name
+            return
+    _insert(doc, 1, f"// structure: {name}\n")
+
+
+def rename_beat(doc: dict, block: int, name: str) -> None:
+    """The beat line at block `block`."""
+    target = doc["blocks"][block]
+    if target["kind"] != "beat":
+        raise BoardError("that isn't a beat")
+    name = _one_line(name, "A beat")
+    _replace_line(target, lambda ln: _MARK.match(ln.strip()) is not None, f"// beat: {name}")
+    target["value"] = name
+
+
+def rename_sequence(doc: dict, block: int, new_id: str) -> None:
+    """The id of the sequence at block `block`. A shot's seed is built from it (core/ir.stable_seed),
+    so new takes of its shots won't match a re-render of the old ones."""
+    target = doc["blocks"][block]
+    if target["kind"] != "sequence":
+        raise BoardError("that isn't a sequence")
+    new_id = _one_line(new_id, "A sequence id")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", new_id):
+        raise BoardError("a sequence id is letters, digits, dot, dash or underscore, with no spaces")
+    if any(b is not target and b["kind"] == "sequence" and b["id"] == new_id for b in doc["blocks"]):
+        raise BoardError(f"this script already has a sequence {new_id}")
+    _replace_line(target, lambda ln: ln.startswith("# "), f"# {new_id}  {target['place']}")
+    target["id"] = new_id

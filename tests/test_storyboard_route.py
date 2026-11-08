@@ -205,6 +205,43 @@ class TestStoryboardRoutes(unittest.TestCase):
         self.blank()
         self.edit(status=400, op="fill", beats=[{"plain": "A", "nth": 0}], each=0)
 
+    def test_change_the_structure_keeps_every_beat(self):
+        self.blank(DRAFT + "// structure: Porch Lights\n\n// beat: Cold Open\n# sq01  porch\n\n## sh010\ndur: 2\nA.\n\n// beat: Climax\n## sh020\ndur: 2\nB.\n")
+        data = self.edit(op="structure", name="Three-Act", duration="180")
+        self.assertIn("// structure: Three-Act", self.text())
+        self.assertNotIn("Porch Lights", self.text())
+        rows = self.rows(data)
+        cold = next(b for b in rows if b["plain"] == "Cold Open")
+        climax = next(b for b in rows if b["plain"] == "Climax")
+        self.assertEqual((cold["known"], cold["target_shots"], cold["shots"]), (False, None, 1))
+        self.assertEqual((climax["known"], climax["target_shots"], climax["shots"]), (True, 7, 1))
+        self.assertEqual(len(rows), 12)
+        self.assertEqual(len(self.edit(op="structure", name="Porch Lights", duration="180")["plan"]["acts"]), 1)
+
+    def test_rename_a_beat(self):
+        self.blank(DRAFT + "// beat: Old Name\n# sq01  porch\n\n## sh010\ndur: 2\nA.\n")
+        block = self.rows(self.board())[0]["block"]
+        self.edit(op="rename_beat", block=block, name="New Name")
+        self.assertIn("// beat: New Name\n", self.text())
+        self.assertNotIn("Old Name", self.text())
+
+    def test_rename_a_sequence(self):
+        self.blank(DRAFT + "\n# sq01  porch\n\n## sh010\ndur: 2\nA.\n")
+        block = self.rows(self.board())[0]["runs"][0]["block"]
+        self.edit(op="rename_sequence", block=block, name="sq_intro")
+        self.assertIn("# sq_intro  porch\n", self.text())
+
+    def test_bad_renames(self):
+        self.blank(DRAFT + "\n// beat: A\n# sq01  porch\n\n## sh010\ndur: 2\nA.\n\n# sq02  porch\n\n## sh020\ndur: 2\nB.\n")
+        row = self.rows(self.board())[0]
+        first, second = row["runs"][0]["block"], row["runs"][1]["block"]
+        self.edit(status=400, op="rename_sequence", block=first, name="sq02")
+        self.edit(status=400, op="rename_sequence", block=first, name="has space")
+        self.edit(status=400, op="rename_sequence", block=row["block"], name="sq09")
+        self.edit(status=400, op="rename_beat", block=second, name="x")
+        self.edit(status=400, op="rename_beat", block=row["block"], name="  ")
+        self.edit(status=400, op="structure", name="")
+
 
 if __name__ == "__main__":
     unittest.main()

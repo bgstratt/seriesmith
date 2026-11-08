@@ -59,6 +59,8 @@ export interface BoardBeat {
   plain: string | null;
   /** which time this name comes in the script */
   nth: number;
+  /** its line in the script; null until it has one */
+  block: number | null;
   known: boolean;
   in_script: boolean;
   guidance: string;
@@ -106,7 +108,10 @@ export type StoryboardEdit =
   | { op: "add"; beat: { plain: string; nth: number }; place?: string }
   | { op: "fill"; beats: { plain: string; nth: number }[]; each?: number }
   | { op: "place"; block: number; place: string }
-  | { op: "cast"; block: number; who: string[] };
+  | { op: "cast"; block: number; who: string[] }
+  | { op: "structure"; name: string }
+  | { op: "rename_beat"; block: number; name: string }
+  | { op: "rename_sequence"; block: number; name: string };
 
 /** 12:34, or 1:02:03 from an hour. */
 export function clock(seconds: number): string {
