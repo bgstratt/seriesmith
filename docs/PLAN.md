@@ -2413,9 +2413,12 @@ To build, each ending in something that runs:
       it) into `structures.json`. The Pixar Spine's optional "(And the moral is…)" is named without
       its brackets in the outline table, so the two don't match: it takes the last act from the
       beat before it, and has no guidance.
-- [ ] **The arithmetic.** Stdlib, in `core/`, beside `spotting.py`: structure + duration -> beats
-      with shot counts and seconds, the point beats' minimums, the merge warnings. Tests at 3, 7,
-      22 and 100 minutes.
+- [x] **The arithmetic** (2026-11-08). `core/blocking.py`, stdlib: structure + duration -> acts,
+      beats, shot counts and seconds. A beat's share of the shots is its share of the story (at
+      least one each, largest remainder); every shot is one length, so the beats add up to the
+      duration. A beat at a point gets one shot under 5 minutes and two from there. A beat coming
+      to under 1.5 shots is flagged to merge. Tests at 3, 7, 22 and 100 minutes
+      (`tests/test_blocking.py`).
 - [ ] **The window, up to generation.** On `FloatingWindow`: structure, duration, the live preview
       as act rows, beat bands, sequence boxes and tiles; a place and a cast per box, a beat split
       across places. It has to stay usable at a feature's 1,700 tiles (act rows collapse, tiles
