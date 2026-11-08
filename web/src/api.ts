@@ -25,7 +25,7 @@ import type {
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
   LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
-  AmbienceBed, FxShot, FxShotSummary, DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake, ColdOpenState, TitlesInfo,
+  AmbienceBed, FxShot, FxShotSummary, DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake, ColdOpenState, TitlesInfo, FontsInfo, SoundKind, SoundListing, SoundTakeDetail,
   ScoreDraftResult,
 } from "./types";
 import { comboChoices } from "./lib/targets";
@@ -374,6 +374,12 @@ export interface Api {
   pickFx?(req: { ep: string; pass: Pass; shot: string; take: number | null }): Promise<{ mix: Mix }>;
   /** GET /seriesmith/titles: the intro and outro a master puts around the episode, and its title. */
   getTitles?(ep: string): Promise<TitlesInfo>;
+  /** GET /seriesmith/fonts: the server's font files, and (with `font`) the file that name finds. */
+  getFonts?(ep: string | null, font?: string): Promise<FontsInfo>;
+  /** GET /seriesmith/sound/gallery: the gallery's Sound tab, every take of the episode's sound. */
+  soundGallery?(ep: string, pass: Pass): Promise<SoundListing>;
+  /** GET /seriesmith/sound/gallery/take: what one sound take was made with (fetched when it opens). */
+  soundTake?(ep: string, pass: Pass, kind: SoundKind, id: string, take: number): Promise<SoundTakeDetail>;
   /** GET /seriesmith/cold-open: the cold open against the pass's cut (where a master's intro goes). */
   getColdOpen?(ep: string, pass: Pass): Promise<ColdOpenState>;
   /** PUT /seriesmith/cold-open: the cold open marked in the script as the cut has it, every shot up to `end`
@@ -913,6 +919,12 @@ export function createHttpApi(t: Transport): Api {
                marked: Array.isArray(r?.marked) ? r.marked : [], crossing: Array.isArray(r?.crossing) ? r.crossing : [] };
     },
     getTitles: (ep) => get<TitlesInfo>(`/seriesmith/titles?${qs({ ep })}`),
+    getFonts: (ep, font) => get<FontsInfo>(`/seriesmith/fonts?${qs({ ep, font })}`),
+    soundGallery: async (ep, pass) => {
+      const r = await get<Partial<SoundListing>>(`/seriesmith/sound/gallery?${qs({ ep, pass })}`);
+      return { sections: Array.isArray(r?.sections) ? r.sections : [], errors: Array.isArray(r?.errors) ? r.errors : [] };
+    },
+    soundTake: (ep, pass, kind, id, take) => get<SoundTakeDetail>(`/seriesmith/sound/gallery/take?${qs({ ep, pass, kind, id, take: String(take) })}`),
     putColdOpen: (ep, pass, end) => call("PUT", "/seriesmith/cold-open", { ep, pass, end }),
     cues: async (ep, pass) => {
       const r = await get<Partial<{ cues: CueSummary[]; unreadable: { id: string; error: string }[] }>>(`/seriesmith/cues?${qs(pass ? { ep, pass } : { ep })}`);

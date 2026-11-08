@@ -2,7 +2,7 @@
 // in one grid (a section per ref or shot), and the order its viewer steps
 // through with the arrow keys.
 
-import type { EpisodeStatus, OwnerTake, Pass, Ref, RefTake, ShotStatus, TakeSummary } from "../types";
+import type { EpisodeStatus, OwnerTake, Pass, Ref, RefTake, ShotStatus, SoundKind, TakeSummary } from "../types";
 import { tn } from "./format";
 import { PANO_VIEW, REF_GROUPS, SHEET_VIEW, TOUR_VIEW, VIEWS, groupOf, hasViews, passesFilter, pickedOf, takesOf, type RefGroupId } from "./refs";
 
@@ -10,7 +10,7 @@ import { PANO_VIEW, REF_GROUPS, SHEET_VIEW, TOUR_VIEW, VIEWS, groupOf, hasViews,
 export type GalleryGroup = Exclude<RefGroupId, "voices">;
 export const GALLERY_GROUPS = REF_GROUPS.filter((g) => g.id !== "voices") as { id: GalleryGroup; label: string }[];
 
-export type GalleryKind = "refs" | "shots";
+export type GalleryKind = "refs" | "shots" | "sound";
 
 export interface GalleryScope {
   kind: GalleryKind;
@@ -28,6 +28,10 @@ export interface GalleryScope {
   series: boolean;
   /** the search box: words each picture shown has (searchRefSections, searchShotSections) */
   query?: string;
+  /** sound: one kind (its chip), or null for every kind */
+  sound?: SoundKind | null;
+  /** sound: one cue, place, shot, voice or line (a section's id), or null; it wins over `sound` */
+  section?: string | null;
 }
 
 export interface GalleryItem {

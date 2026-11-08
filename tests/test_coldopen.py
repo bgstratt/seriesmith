@@ -223,6 +223,27 @@ class Episode(unittest.TestCase):
             code, _ = A.get_file(ctx, {"ep": self.ep, "path": other})
             self.assertEqual(code, 400, other)
 
+    def test_fonts_route(self):
+        # the machine's fonts, and the file a name finds (a relative path from series.json's folder)
+        from unittest import mock
+        from seriesmith import publish as PUB
+        ctx = A.Context(os.path.join(self._tmp.name, "user"), "http://127.0.0.1:0", env={})
+        A.put_config(ctx, {"roots": [self.shows]})
+        fonts = os.path.join(self._tmp.name, "Fonts")
+        os.makedirs(fonts)
+        F.write_text(os.path.join(fonts, "Georgia.ttf"), "x")
+        F.write_text(os.path.join(fonts, "readme.txt"), "x")
+        F.write_text(os.path.join(self.ep, "Title.otf"), "x")
+        with mock.patch.object(PUB, "font_dirs", lambda: [fonts]):
+            code, r = A.get_fonts(ctx, {})
+            self.assertEqual((code, r["fonts"], r["found"]), (200, ["Georgia.ttf"], None))
+            _, r = A.get_fonts(ctx, {"ep": self.ep, "font": "georgia"})
+            self.assertEqual(r["found"], os.path.join(fonts, "Georgia.ttf"))
+            _, r = A.get_fonts(ctx, {"ep": self.ep, "font": "Title.otf"})
+            self.assertEqual(os.path.normcase(r["found"]), os.path.normcase(os.path.join(self.ep, "Title.otf")))
+            _, r = A.get_fonts(ctx, {"ep": self.ep, "font": "gone.ttf"})
+            self.assertEqual((r["font"], r["found"]), ("gone.ttf", None))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3324,3 +3324,61 @@ export interface CueResult {
   /** the series config's themes, to pick from (absent from older servers) */
   themes?: SeriesTheme[];
 }
+
+/** GET /seriesmith/fonts: the font files on the machine the server runs on. */
+export interface FontsInfo {
+  /** their file names, sorted */
+  fonts: string[];
+  /** the font asked about, and the file a master would draw the title with (null: not found) */
+  font: string | null;
+  found: string | null;
+}
+
+/** The gallery's Sound tab (GET /seriesmith/sound/gallery): a kind of the episode's sound. */
+export type SoundKind = "music" | "ambience" | "effects" | "voices" | "lines";
+
+/** One finished take of a sound, in the Sound tab's grid. */
+export interface SoundItem {
+  /** `kind|id|take` */
+  key: string;
+  take: number;
+  /** the file it plays, relative to the episode */
+  path: string;
+  /** the one in use: in the pass's mix (a cue's, a shot's effects), picked (a bed, a voice, a line) */
+  use: boolean;
+  model: string | null;
+  seed: number | string | null;
+  /** when it was made */
+  made: string | null;
+  seconds: number | null;
+  /** music: the series theme this take is */
+  theme?: string | null;
+  /** a line's words, a voice sample's */
+  text?: string | null;
+  /** a line's voice */
+  who?: string | null;
+}
+
+/** A cue, a place's bed, a shot's effects, a voice or a line: its takes, newest first. */
+export interface SoundSection {
+  kind: SoundKind;
+  /** the cue id, `ambience:<place>`, the shot, `voice:<id>`, the line id */
+  id: string;
+  name: string;
+  note: string;
+  items: SoundItem[];
+  queued: number;
+  failed: number;
+}
+
+export interface SoundListing {
+  sections: SoundSection[];
+  /** a kind that couldn't be read (the rest is still listed) */
+  errors: { kind: SoundKind; error: string }[];
+}
+
+/** GET /seriesmith/sound/gallery/take: what one take was made with. */
+export interface SoundTakeDetail {
+  prompt: string | null;
+  rows: [string, string][];
+}

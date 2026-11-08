@@ -115,7 +115,8 @@ export type FieldKind =
   | "backend"
   | "lora"            // one LoRA (name[:strength] | none), from what the video model loads
   | "model"           // a model file the video model can load
-  | "picture";        // a picture's path, typed or browsed for
+  | "picture"         // a picture's path, typed or browsed for
+  | "font";           // a font file: a name from the server's font folders, or a path
 
 export interface Field {
   path: Path;
@@ -131,6 +132,11 @@ export interface Field {
   when?: (raw: Raw) => boolean;
   /** shown under "More" */
   more?: boolean;
+  /** a number field shown and typed as a percentage of the stored fraction */
+  percent?: boolean;
+  /** a number field typed as seconds before a clip's end, stored as a one-second fade
+   * [start, end] counted back from it ([-4, -3] for 4) */
+  beforeEnd?: boolean;
 }
 
 export interface Section {
@@ -138,6 +144,8 @@ export interface Section {
   title: string;
   help: string;
   fields: Field[];
+  /** its page on the docs site (docs.seriesmith.com) */
+  doc?: string;
 }
 
 const AUDIO_MODES: Choice[] = [
@@ -153,7 +161,7 @@ export const SECTIONS: Section[] = [
     help: "The show's name and how every episode renders by default.",
     fields: [
       { path: ["series", "title"], label: "Title", kind: "text", placeholder: "First Light",
-        help: "The series title, written on the intro and outro of every master." },
+        help: "The series title: the show's name." },
       { path: ["series", "id"], label: "Id", kind: "text", placeholder: "first_light",
         help: "A short name with no spaces. Seeds come from it, with the episode and shot ids: change it and every shot renders differently." },
       { path: ["series", "fps"], label: "Frames per second", kind: "number", min: 1, max: 60, step: 1, placeholder: "24",
@@ -246,12 +254,21 @@ export const SECTIONS: Section[] = [
   {
     id: "publish",
     title: "Intro and outro",
-    help: "The show's opening and closing clips, made once for the series; every master and publish puts the episode between them, its title written under the series title.",
+    help: "The show's opening and closing clips, made once for the series with the series title in them; every master and publish puts the episode between them and writes the episode's title on them.",
+    doc: "titles",
     fields: [
       { path: ["publish", "intro"], label: "Intro clip", kind: "text", placeholder: "../_titles/INTRO.mp4",
         help: "Relative to the episode. Empty: the show folder's _titles/INTRO.mp4 when there is one." },
       { path: ["publish", "outro"], label: "Outro clip", kind: "text", placeholder: "../_titles/OUTRO.mp4",
         help: "Relative to the episode. Empty: the show folder's _titles/OUTRO.mp4 when there is one." },
+      { path: ["publish", "subtitle", "font"], label: "Episode title font", kind: "font", placeholder: "segoescb.ttf",
+        help: "The font the episode's title is drawn in: a font file's name (found in the font folders of the machine that masters), or a path to one (a relative path starts at the folder holding series.json). Empty: Segoe Script, else Georgia, Arial, Helvetica or DejaVu." },
+      { path: ["publish", "subtitle", "size"], label: "Episode title size (% of the frame's height)", kind: "number", percent: true, min: 1, max: 30, step: 0.1, placeholder: "5.8",
+        help: "How tall the episode title's letters are, as a percentage of the picture's height." },
+      { path: ["publish", "subtitle", "intro_in"], label: "Episode title appears (seconds before the intro ends)", kind: "number", beforeEnd: true, min: 0.5, max: 600, step: 0.5, placeholder: "4",
+        help: "When the episode's title starts to fade in, counted back from the end of the intro: it's fully on a second later and stays until the episode starts, however long the intro is (a montage too)." },
+      { path: ["publish", "subtitle", "y"], label: "Episode title position (% down from the top)", kind: "number", percent: true, min: 0, max: 100, step: 1, placeholder: "56",
+        help: "Where the top of the episode title sits, measured down from the top of the picture: 50 is the middle, 56 just below it. Line it up with the space the series title leaves; it's centred across." },
     ],
   },
 ];
@@ -306,6 +323,9 @@ export function newSeries(title: string): Raw {
 export function shown(raw: Raw, f: Field): string {
   const v = getPath(raw, f.path);
   if (v === undefined || v === null) return "";
+  if (typeof v === "number" && f.percent) return String(Math.round(v * 1000) / 10);
+  // seconds before the end; times counted from the start ([4, 5]) aren't this field's to show
+  if (f.beforeEnd) return Array.isArray(v) && typeof v[0] === "number" && v[0] < 0 ? String(-v[0]) : "";
   if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return String(v);
   return JSON.stringify(v);
 }
@@ -316,7 +336,9 @@ export function parsed(f: Field, text: string): unknown {
   if (f.kind === "number") {
     if (text.trim() === "") return undefined;
     const n = Number(text);
-    return Number.isFinite(n) ? n : undefined;
+    if (!Number.isFinite(n)) return undefined;
+    if (f.beforeEnd) return n > 0 ? [-n, n > 1 ? 1 - n : 0] : undefined;
+    return f.percent ? Math.round(n * 10) / 1000 : n;
   }
   return text;
 }

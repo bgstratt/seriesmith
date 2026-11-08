@@ -3222,7 +3222,8 @@ export function openGallery(scope: Partial<GalleryScope> = {}) {
   const st = s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined;
   const open = next.kind === "refs"
     ? (next.ref ? liveKey(gallerySections(refs, next, s.pass), next.ref) : null)
-    : (next.shot ? cutKey(shotSections(st, next, s.pass), next.shot) : null);
+    : next.kind === "shots" ? (next.shot ? cutKey(shotSections(st, next, s.pass), next.shot) : null)
+    : null;
   set({ gallery: { ...next, open, at: open }, menu: null });
 }
 

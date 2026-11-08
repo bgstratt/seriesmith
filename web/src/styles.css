@@ -644,7 +644,8 @@
 .h3-coldopen-band.h3-coldopen-err { background: color-mix(in srgb, var(--h3-failed) 85%, transparent); }
 /* Play all's intro or outro, over the picture (Titles) */
 .h3-titles-clip { position: absolute; inset: 0; z-index: 5; background: #000; container-type: size; }
-.h3-titles-clip > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+/* visible: the cut's stage hides its videos but the one on (.h3-cutstage video) */
+.h3-titles-clip > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; visibility: visible; }
 .h3-titles-text {
   position: absolute; left: 0; right: 0; text-align: center; pointer-events: none; line-height: 1;
   font-family: "Segoe Script", "Brush Script MT", "Apple Chancery", cursive;
@@ -1437,3 +1438,25 @@
   position: absolute; top: 0; bottom: 0; box-sizing: border-box;
   background: color-mix(in srgb, var(--h3-region) 18%, transparent); border-left: 1px dashed var(--h3-region); border-right: 1px dashed var(--h3-region);
 }
+
+/* the gallery's Sound tab: a waveform tile per take, the open take's big waveforms */
+.h3-sndgal-tiles { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
+.h3-root .h3-sndgal-tile {
+  position: relative; display: flex; flex-direction: column; gap: 4px; padding: 6px; cursor: pointer;
+  background: var(--h3-bg3); border: 1px solid var(--h3-border); border-radius: 6px;
+}
+.h3-sndgal-tile:hover { outline: 2px solid var(--h3-border); outline-offset: -2px; }
+.h3-sndgal-tile.h3-sel { outline: 2px solid var(--h3-accent); outline-offset: -2px; }
+.h3-sndgal-tile.h3-live { border-color: var(--h3-ok); }
+.h3-sndgal-tile.h3-ticked { outline: 3px solid var(--h3-accent); outline-offset: -3px; }
+.h3-sndgal-tile-head { gap: 6px; padding-left: 20px; min-height: 16px; }
+.h3-sndgal-tile-head > .h3-gal-in, .h3-sndgal-tile-head > .h3-gal-up { font-size: 9px; line-height: 12px; padding: 0 3px; border-radius: 2px; color: #fff; }
+.h3-sndgal-tile-foot { min-height: 14px; }
+.h3-sndgal-tile:hover .h3-gal-tick, .h3-sndgal-tile.h3-picking .h3-gal-tick, .h3-sndgal-tile.h3-ticked .h3-gal-tick { opacity: 1; }
+.h3-root .h3-sndgal-tile .h3-gal-dl { bottom: 4px; right: 4px; width: 22px; height: 22px; }
+.h3-sndgal-tile:hover .h3-gal-dl { opacity: 1; }
+.h3-sndgal-stage { align-items: center; overflow: auto; }
+.h3-sndgal-big { position: relative; padding-top: 18px; border-radius: 4px; }
+.h3-sndgal-big.h3-on { box-shadow: 0 0 0 2px var(--h3-accent); }
+.h3-sndgal-big .h3-pane-label { top: 0; left: 0; }
+.h3-sndgal-playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--h3-accent); pointer-events: none; }

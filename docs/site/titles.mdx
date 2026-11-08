@@ -57,17 +57,19 @@ config's `publish` block, relative to the episode folder:
 
 ## The episode's title: where and how it's drawn
 
-The `subtitle` object in `publish` sets how the episode's title looks. Every key is optional;
-these are the defaults:
+Series settings' **Intro and outro** section sets the episode title's font, size and position,
+and when it appears on the intro (**Episode title font**, **Episode title size**, **Episode
+title position**, **Episode title appears**); the rest is in the series config's `publish` block, as `subtitle` (the form keeps what it doesn't
+show). Every key is optional; these are the defaults:
 
 ```json
 "publish": {
   "subtitle": {
-    "font": "C:/Windows/Fonts/segoescb.ttf",
+    "font": "segoescb.ttf",
     "size": 0.058,
     "y": 0.56,
     "color": "#F4E6D0", "glow": "#FFB45A@0.8", "glow_size": 0.008,
-    "intro_in": [4.0, 5.0],
+    "intro_in": [-4.0, -3.0],
     "outro_in": [0.0, 1.0],
     "outro_out": [4.5, 5.5]
   }
@@ -75,12 +77,27 @@ these are the defaults:
 ```
 
 - **`size` and `y`** are fractions of the frame's height: the text's height, and where its top
-  sits (0.56 is just below the middle). Line `y` up with the space the series title leaves.
-- **`intro_in`** is when, in seconds into the intro, the title starts to fade in and when it's
-  fully on. Time it to the music: the moment the series title lands, or a beat after.
+  sits, measured down from the top of the picture (0.56 is just below the middle). The title is
+  always centred across. Line `y` up with the space the series title leaves. Series settings
+  shows both as percentages (5.8 and 56).
+- **`intro_in`** is when the title starts to fade in and when it's fully on. It stays on until
+  the episode starts. Negative times count back from the intro's end: the default, `[-4, -3]`,
+  starts the fade 4 seconds before the end, so the title comes in at the same moment before
+  the episode whatever the intro's length. A montage intro of 40 seconds plays without it until
+  its last 4. Series settings' **Episode title appears (seconds before the intro ends)** sets it (4 is
+  the default; the fade is a second long). Times of 0 or more count from the intro's start
+  instead (`[4, 5]`: 4 seconds in): use those to time it to the music, the moment the series
+  title lands or a beat after.
 - **`outro_in` and `outro_out`** are its fade in and fade out on the outro.
-- **`font`** is a font file. Choose one that's on every machine you master on, or keep a copy in
-  the show folder and give its path. Without one, the default is Windows' Segoe Script; on a
+- **`font`** is a font file, given one of three ways:
+  - **its file name**, `georgia.ttf` (or just `georgia`, any case): found in the font folders of
+    the machine that masters (Windows' own and your user's, macOS' and Linux's). Series
+    settings lists the ones there as you type and says which file it found, or that there's none.
+  - **a path relative to the show folder** (the one holding `series.json`), `fonts/Title.otf`:
+    a copy kept with the show, so every machine that masters it has it. The surest choice.
+  - **a full path**, `C:/Windows/Fonts/segoescb.ttf`.
+
+  Without one, the default is Windows' Segoe Script; on a
   machine without it, the master uses the first of Georgia, Arial, Helvetica or DejaVu it finds
   and says so. A font the series config names that isn't there stops the master, saying so.
 - **The text** is the episode's title, from the script's `=` line: change it there.

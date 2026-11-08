@@ -2587,6 +2587,27 @@ def get_titles(ctx: Context, query: dict):
 
 
 @handler
+def get_fonts(ctx: Context, query: dict):
+    """The font files on the machine the server runs on, for the title's font: {"fonts" (their
+    file names, sorted), "font", "found" (with `font`: the file it names, as a master finds it
+    (publish.find_font: a path, relative ones from the folder holding the episode's
+    series.json, or a file name in the font folders), else null)}."""
+    from seriesmith import publish as PUB
+    fonts = PUB.installed_fonts()
+    out = {"fonts": sorted({os.path.basename(p) for p in fonts.values()}, key=str.lower),
+           "font": None, "found": None}
+    font = (query.get("font") or "").strip()
+    if font:
+        home = None
+        if query.get("ep"):
+            cfg = E.episode_series_config(check_ep(ctx, query.get("ep")))
+            home = os.path.dirname(cfg) if cfg else None
+        out["font"] = font
+        out["found"] = PUB.find_font(font, home, fonts)
+    return 200, out
+
+
+@handler
 def get_cold_open(ctx: Context, query: dict):
     """The cold open against the pass's cut (coldopen.state): {"shots", "end", "frame",
     "seconds", "gaps", "error", "frames"}: the shots the script marks `cold_open:` that open
@@ -3195,6 +3216,37 @@ def get_fx(ctx: Context, query: dict):
     except ValueError as e:
         raise ApiError(409, f"{MX.MIX_FILE} doesn't read: {e}")
     return 200, FXM.shot_takes(ep, pass_, shot, mix)
+
+
+@handler
+def get_sound_gallery(ctx: Context, query: dict):
+    """The gallery's Sound tab (soundgallery.listing): `{ep, pass}` -> {"sections": a section per
+    cue, place, shot, voice and line with takes, each take's file and whether it's the one in
+    use; "errors"}. From the takes' records alone; what one was made with is
+    GET /seriesmith/sound/gallery/take, when it's opened."""
+    from seriesmith import soundgallery as SG
+    ep = check_ep(ctx, query.get("ep"))
+    return 200, SG.listing(ep, check_pass(query.get("pass")))
+
+
+@handler
+def get_sound_gallery_take(ctx: Context, query: dict):
+    """What one sound take was made with (soundgallery.take_detail): `{ep, pass, kind, id,
+    take}` -> {"prompt", "rows": [[label, value]]}. 404 for a take that isn't there."""
+    from seriesmith import soundgallery as SG
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    kind, sid = query.get("kind") or "", query.get("id") or ""
+    if kind not in SG.KINDS:
+        raise ApiError(400, f"kind must be one of {', '.join(SG.KINDS)}")
+    try:
+        take = int(query.get("take") or "")
+    except ValueError:
+        raise ApiError(400, "take must be a number") from None
+    try:
+        return 200, SG.take_detail(ep, pass_, kind, sid, take)
+    except KeyError as e:
+        raise ApiError(404, str(e.args[0]) if e.args else "no such take") from None
 
 
 @handler
@@ -6525,6 +6577,7 @@ ROUTES = [
     ("PUT", "/seriesmith/cut", put_cut, "body"),
     ("GET", "/seriesmith/cold-open", get_cold_open, "query"),
     ("GET", "/seriesmith/titles", get_titles, "query"),
+    ("GET", "/seriesmith/fonts", get_fonts, "query"),
     ("PUT", "/seriesmith/cold-open", put_cold_open, "body"),
     ("GET", "/seriesmith/mix", get_mix, "query"),
     ("PUT", "/seriesmith/mix", put_mix, "body"),
@@ -6543,6 +6596,8 @@ ROUTES = [
     ("POST", "/seriesmith/cue/repaint", post_cue_repaint, "body"),
     ("GET", "/seriesmith/fx", get_fx, "query"),
     ("GET", "/seriesmith/fx/shots", get_fx_shots, "query"),
+    ("GET", "/seriesmith/sound/gallery", get_sound_gallery, "query"),
+    ("GET", "/seriesmith/sound/gallery/take", get_sound_gallery_take, "query"),
     ("POST", "/seriesmith/fx/render", post_fx_render, "body"),
     ("POST", "/seriesmith/fx/pick", post_fx_pick, "body"),
     ("POST", "/seriesmith/voices", post_voices, "body"),

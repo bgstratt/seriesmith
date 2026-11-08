@@ -469,9 +469,10 @@ Assemble, master and publish cut with ffmpeg. You don't need to install it:
     `brew install ffmpeg`).
 
 **Titles.** Publish writes the episode's title under the series title on the series'
-intro and outro clips, with one font file for every episode. The default is
-`C:\Windows\Fonts\segoescb.ttf`; set `publish.subtitle.font` in the series config to
-any `.ttf` or `.otf` to use another. The intro and outro clips themselves are yours to
+intro and outro clips, with one font file for every episode. The default is Windows' Segoe
+Script (`segoescb.ttf`); set the title font in Series settings' **Intro and outro**
+(`publish.subtitle.font`) to another font's file name, or a `.ttf` or `.otf` kept in the show
+folder ([TITLES_GUIDE.md](TITLES_GUIDE.md)). The intro and outro clips themselves are yours to
 make, once per series ([COMMANDS.md](COMMANDS.md)).
 
 ## 360s and turned views

@@ -957,7 +957,7 @@ function TitlesClip({ ep, path, kind, info, onEnd }: {
   useEffect(() => {
     let raf = 0;
     const tick = () => {
-      if (vid.current && text.current) text.current.style.opacity = String(titleAlpha(kind, info.subtitle, vid.current.currentTime));
+      if (vid.current && text.current) text.current.style.opacity = String(titleAlpha(kind, info.subtitle, vid.current.currentTime, vid.current.duration));
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);

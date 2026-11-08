@@ -33,10 +33,14 @@ import { EpisodeSelect } from "./ShotsTab";
 import { useTargets } from "./Targets";
 import { useScrub } from "./Thumb";
 import { FullscreenButton, Transport, toggleFullscreen, useSync } from "./Viewer";
+import { SoundGalleryWindow } from "./SoundGallery";
 
 const RECT_KEY = "seriesmith.gallery.rect";
 const LAYOUT_KEY = "seriesmith.gallery.layout";
 const SIZE_KEY = "seriesmith.gallery.size";
+/** the Sound tab's window shares the gallery's place and its tile size */
+export const GALLERY_RECT_KEY = RECT_KEY;
+export const GALLERY_SIZE_KEY = SIZE_KEY;
 
 type Layout = "sections" | "flow";
 /** a row's height, px: the tiles fill each row at their own shapes */
@@ -112,14 +116,14 @@ function useSharedTakes(ep: string | null): { got: SharedTakes; load: (r: Ref) =
   return useMemo(() => ({ got, load }), [got, load]);
 }
 
-function defaultGalleryRect(): Rect {
+export function defaultGalleryRect(): Rect {
   const W = window.innerWidth || 1280;
   const H = window.innerHeight || 800;
   return { x: 24, y: 40, w: Math.max(480, W - 48), h: Math.max(360, H - 80) };
 }
 
 /** A choice remembered in this browser. */
-function usePref<T extends string>(key: string, allowed: readonly T[], fallback: T): [T, (v: T) => void] {
+export function usePref<T extends string>(key: string, allowed: readonly T[], fallback: T): [T, (v: T) => void] {
   const [v, setV] = useState<T>(() => {
     try {
       const x = localStorage.getItem(key) as T | null;
@@ -182,6 +186,7 @@ export function Gallery() {
   const g = useApp((s) => s.gallery);
   const ep = useApp((s) => s.ep);
   if (!g) return null;
+  if (g.kind === "sound") return <SoundGalleryWindow ep={ep} g={g} />;
   return <GalleryWindow ep={ep} g={g} />;
 }
 
@@ -332,9 +337,11 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
     <>
       <b>Gallery</b>
       <EpisodeSelect compact />
-      <span className="h3-seg" title="The refs' pictures, or the shots' takes">
+      <span className="h3-seg" title="The refs' pictures, the shots' takes, or the episode's sound">
         <button className={!shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "refs", ...WIDE, picksOnly: false })}>Refs</button>
         <button className={shots ? "h3-on" : ""} onClick={() => updateGallery({ kind: "shots", ...WIDE, picksOnly: false })}>Shots</button>
+        <button title="Every take of the episode's sound: music (theme songs among it), ambience beds, effects, voices and lines"
+          onClick={() => updateGallery({ kind: "sound", ...WIDE, sound: null, section: null, picksOnly: false })}>Sound</button>
       </span>
       {/* how it's shown: wraps inside itself, so full screen and close stay top right */}
       <span className="h3-gal-view-tools">
@@ -590,7 +597,7 @@ function save(url: string, name: string) {
 
 /** The selection saved: one file as itself, more as one zip the server makes
  * (POST /seriesmith/download), named after the episode. */
-async function downloadAll(ep: string | null, files: string[]): Promise<void> {
+export async function downloadAll(ep: string | null, files: string[]): Promise<void> {
   if (!ep || !files.length) return;
   if (files.length === 1) return save(api().fileUrl(ep, files[0]), baseName(files[0]));
   const name = `${baseName(ep)}-gallery-${files.length}`;

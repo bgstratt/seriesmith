@@ -32,11 +32,11 @@ check fails), the whole thing is re-encoded instead and the reason is printed;
       "intro": "../_titles/INTRO.mp4",
       "outro": "../_titles/OUTRO.mp4",
       "subtitle": {
-        "font": "C:/Windows/Fonts/segoescb.ttf",
+        "font": "segoescb.ttf",  # a file name in the font folders, or a path
         "size": 0.058,           # text height, a fraction of the frame height
         "y": 0.56,               # top of the text, a fraction of the frame height
         "color": "#F4E6D0", "glow": "#FFB45A@0.8", "glow_size": 0.008,
-        "intro_in": [4.0, 5.0],  # seconds into the intro: fade starts, fully on
+        "intro_in": [-4.0, -3.0],  # fade starts, fully on: seconds before the intro ends (or into it, >= 0)
         "outro_in": [0.0, 1.0],  # seconds into the outro: fade in ...
         "outro_out": [4.5, 5.5]  # ... and out
       },
@@ -74,22 +74,20 @@ from seriesmith import ff as FF  # noqa: E402
 LEVEL = {"match": True, "under_lu": 0.0}
 # the title's font when the series config names none and the default (Windows' Segoe Script)
 # isn't on this machine: the first of these that is
+# the title's font when the default isn't on this machine: file names, found in its font folders
 FONT_FALLBACKS = (
-    "C:/Windows/Fonts/segoesc.ttf", "C:/Windows/Fonts/georgia.ttf", "C:/Windows/Fonts/arial.ttf",
-    "/System/Library/Fonts/Supplemental/Georgia.ttf", "/Library/Fonts/Georgia.ttf",
-    "/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Helvetica.ttc",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    "/usr/share/fonts/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationSerif-Regular.ttf",
+    "segoesc.ttf", "georgia.ttf", "arial.ttf", "Helvetica.ttc",
+    "DejaVuSerif.ttf", "DejaVuSans.ttf", "LiberationSerif-Regular.ttf",
 )
+FONT_EXTS = (".ttf", ".otf", ".ttc")
 SUBTITLE = {
-    "font": "C:/Windows/Fonts/segoescb.ttf",
+    "font": "segoescb.ttf",
     "size": 0.058,
     "y": 0.56,
     "color": "#F4E6D0",
     "glow": "#FFB45A@0.8",
     "glow_size": 0.008,
-    "intro_in": [4.0, 5.0],
+    "intro_in": [-4.0, -3.0],   # before the intro's end (negative), so a montage's length doesn't matter
     "outro_in": [0.0, 1.0],
     "outro_out": [4.5, 5.5],
 }
@@ -172,16 +170,67 @@ def episode_title(script: str) -> str:
     return ""
 
 
-def title_font(font: str, named: bool) -> str:
-    """The font file the episode's title is drawn with: `font` when it's there. One the series
-    config named and that isn't there is an error (it says so); the default missing (it's
-    Windows') falls back to the first of FONT_FALLBACKS on this machine, saying which."""
-    if os.path.isfile(font):
-        return font
+def font_dirs() -> list[str]:
+    """This machine's font folders: Windows' (the system's and the user's), macOS', Linux's."""
+    home = os.path.expanduser("~")
+    dirs = [os.path.join(os.environ.get("WINDIR") or "C:\\Windows", "Fonts")]
+    if os.environ.get("LOCALAPPDATA"):
+        dirs.append(os.path.join(os.environ["LOCALAPPDATA"], "Microsoft", "Windows", "Fonts"))
+    dirs += ["/System/Library/Fonts", "/System/Library/Fonts/Supplemental", "/Library/Fonts",
+             os.path.join(home, "Library", "Fonts"),
+             "/usr/share/fonts", "/usr/local/share/fonts", os.path.join(home, ".fonts"),
+             os.path.join(home, ".local", "share", "fonts")]
+    return [d for d in dirs if os.path.isdir(d)]
+
+
+def installed_fonts() -> dict[str, str]:
+    """Every font file in the font folders (and their subfolders, as Linux keeps them): its
+    lower-case file name -> its path, the first found winning."""
+    found: dict[str, str] = {}
+    for d in font_dirs():
+        for dirpath, _dirs, files in os.walk(d):
+            for f in files:
+                if os.path.splitext(f)[1].lower() in FONT_EXTS:
+                    found.setdefault(f.lower(), os.path.join(dirpath, f))
+    return found
+
+
+def find_font(font: str, home: str | None = None, fonts: dict[str, str] | None = None) -> str | None:
+    """The font file `font` names, or None: a full path as it is; a relative path (one with a
+    folder in it) from `home`, the folder holding series.json; a bare file name in `home`,
+    else in this machine's font folders, any case, its extension optional (georgia finds
+    georgia.ttf)."""
+    if os.path.isabs(font):
+        return font if os.path.isfile(font) else None
+    if home:
+        path = os.path.normpath(os.path.join(home, font))
+        if os.path.isfile(path):
+            return path
+    if os.path.dirname(font):
+        return None
+    if fonts is None:
+        fonts = installed_fonts()
+    name = font.lower()
+    for cand in (name,) + tuple(name + e for e in FONT_EXTS):
+        if cand in fonts:
+            return fonts[cand]
+    return None
+
+
+def title_font(font: str, named: bool, home: str | None = None) -> str:
+    """The font file the episode's title is drawn with: `font` when it's there (find_font: a
+    path, or a file name in the font folders). One the series config named and that isn't
+    there is an error (it says so); the default missing (it's Windows') falls back to the
+    first of FONT_FALLBACKS on this machine, saying which."""
+    got = find_font(font, home)
+    if got:
+        return got
     if named:
         raise PublishError(f"publish.subtitle.font {font} isn't there: set it to a .ttf or .otf "
-                           f"file on this machine")
-    got = next((f for f in FONT_FALLBACKS if os.path.isfile(f)), None)
+                           f"file on this machine (a file name in its font folder, or a path; a "
+                           f"relative one starts at the folder holding series.json)")
+    fonts = installed_fonts()
+    got = next((g for g in (find_font(f, fonts=fonts) for f in FONT_FALLBACKS) if g), None)
     if not got:
         raise PublishError(f"no font for the episode's title: the default ({font}) isn't on this "
                            f"machine. Set publish.subtitle.font in the series config to a .ttf or "
@@ -237,6 +286,14 @@ def probe(path: str) -> dict:
 # ---------------------------------------------------------------------------
 # the filter graphs
 # ---------------------------------------------------------------------------
+
+def from_end(pair: list, duration: float) -> list:
+    """A fade's [start, end] in seconds into the clip: as it is when neither is negative, else
+    both count back from the clip's end ([-4, -3] on an 8 s clip is [4, 5]; 0 is the end)."""
+    if not any(v < 0 for v in pair):
+        return list(pair)
+    return [max(0.0, duration + v) for v in pair]
+
 
 def alpha_expr(fade_in: list | None, fade_out: list | None = None) -> str:
     """drawtext's alpha over t: 0 before the fade in, 1 held, 0 after the fade out."""
@@ -309,7 +366,8 @@ def filter_graph(cut: dict, intro: dict | None, outro: dict | None, sub: dict,
         i += 1
     if intro:
         lines += titled(f"{i}:v", "in", sub, w, h, fps, intro["duration"],
-                        alpha_expr(sub["intro_in"]), matrix=intro.get("color_space") or "")
+                        alpha_expr(from_end(sub["intro_in"], intro["duration"])),
+                        matrix=intro.get("color_space") or "")
         parts.append("[inv]")
         pieces.append((i, intro["audio"], intro["duration"], levels.get("intro")))
         i += 1
@@ -462,7 +520,7 @@ def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub:
     why = copy_blocker(cut)
     if why:
         return why
-    titles = [(intro, "intro", alpha_expr(sub["intro_in"])),
+    titles = [(intro, "intro", alpha_expr(from_end(sub["intro_in"], probe(intro)["duration"])) if intro else ""),
               (outro, "outro", alpha_expr(sub["outro_in"], sub["outro_out"]))]
     made: dict[str, str] = {}
     used = None
@@ -679,7 +737,8 @@ def publish(root: str, src: str | None = None, pass_: str = "final", out: str | 
     with open(cfg_path, encoding="utf-8") as f:
         block = publish_config(json.load(f))
     sub = block["subtitle"]
-    sub["font"] = title_font(sub["font"], named=bool((block.get("_named") or {}).get("font")))
+    sub["font"] = title_font(sub["font"], named=bool((block.get("_named") or {}).get("font")),
+                             home=os.path.dirname(cfg_path))
     src = os.path.abspath(src) if src else default_input(root, pass_)
     if not src or not os.path.isfile(src):
         raise PublishError("nothing to publish: assemble the episode first, "

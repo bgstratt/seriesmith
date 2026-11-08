@@ -129,7 +129,7 @@ folders. Under it, the Shots toolbar, its buttons in groups, left to right:
 | pencil | **Edit the selected shot** as a form |
 | sliders | **Inspect the selected shot** |
 | file-edit | **Edit the episode's script** — opens the Script window |
-| cog | **Series settings** — the series config as a form |
+| cog | **Series settings** — the series config as a form; a section with a guide has a **Docs ↗** link to its page on the docs site |
 | book | **Edit the series config** (`series.json`) as text |
 | volume-up | **Recording** — attach a dialogue recording and time the script against it (`align`). Lit when the episode has one. For a song, its **Vocal stem** part (optional, off by default) makes the singing's stem on local ComfyUI, aligns **from the vocal stem**, and lets **dub shots hear the vocal stem** (RECORDED_DIALOGUE.md) |
 | play | **Play all** — the cut, played from its takes, no export needed |
@@ -1192,15 +1192,16 @@ in this browser.
 
 ## The gallery
 
-Every picture of the episode's refs, or every take of its shots, large, in one window: where
-the sidebar shows one ref or one shot at a time, small, the gallery shows them all, every
-version with the one in use badged, and steps through them with the arrow keys.
+Every picture of the episode's refs, every take of its shots, or every take of its sound,
+large, in one window: where the sidebar shows one ref or one shot at a time, small, the
+gallery shows them all, every version with the one in use badged, and steps through them with
+the arrow keys.
 
 ![The gallery: the Dean episode's characters and places in Flow](site/images/gallery.jpg)
 
 **Opening it.** In Refs: double-click a ref (on its live picture), a group's header (on
 that group), or **Gallery** (every ref). In Shots: double-click a sequence's header (on that
-sequence), or **Gallery** (every take). Inside, **Refs / Shots** switches between them, and
+sequence), or **Gallery** (every take). Inside, **Refs / Shots / Sound** switches between them, and
 the episode list switches episode with it open.
 
 **The grid.** In Refs, chips for the groups (**Everything**, Characters, Props & vehicles,
@@ -1249,6 +1250,33 @@ a range; with some ticked a click ticks), and the header says how many, with **D
 `<episode>-gallery-<n>.zip`, made by the server (pictures whole, a take's video, or its
 upscale under 2x). The selection is kept as you change what's shown, and cleared with the
 episode.
+
+**Sound.** The **Sound** tab is the episode's sound, a section per cue, place, shot, voice
+and line, each take a waveform with its length, newest first:
+
+- **Music**: each cue's takes, theme songs among them (they're in the Refs tab's Music too); a
+  take that is a series theme is badged **theme**. In use: the take the cue's item in this
+  pass's mix plays, badged **in the mix**.
+- **Ambience**: each place's bed, its picked take badged **picked**.
+- **Effects**: each shot's effects for this pass, the one in the mix badged.
+- **Voices**: each voice's samples and each line's takes from a voice model, the picked one
+  badged.
+
+A video take's own sound isn't here (it's on the take), nor the stems made from other sound (a
+take's voices-only stem, a recording's vocal stem). Chips narrow it to a kind, a section's
+name to that one; **in use only**, **S / M / L** and the search (a cue's name or id, a shot,
+a place, a line's words or voice, the take, its model, **theme**, **mix**, **picked**) work as
+they do for pictures; **↻** reads the takes again (it does by itself every 10 s while some are
+on the way). Hold the pointer on a tile to hear its start. A take opened plays over the grid,
+its waveform with the playhead (click it to seek), **space** to play or pause, **← →** to the
+next. Beside it, what it was made with (read when it opens): its prompt or words, model, seed,
+when, its length; a cue's tempo asked, fitted and heard, and its score. Its buttons: **Use**
+(a cue's take into this pass's mix as the cue's item, its level fitted to the arc; a shot's
+effects into the mix; a bed, a voice sample or a line picked), **Regenerate** (one more take
+as its own window makes one: a line on a paid provider asks first, with its characters),
+**Compare with the mix's** / **the picked** (the one in use beside it, the two in step,
+**X** switching which you hear; **C**), **Download**, **Copy prompt**. Ticking and
+**Download** work as for pictures: more than one saves as a zip.
 
 **Other episodes' pictures.** A ref other episodes share (the series' `../refs/` layout)
 shows their pictures after this episode's, badged with the episode, read-only here (each

@@ -215,3 +215,16 @@ export function ModelLine({ value, onChange, target, empty = "the default", back
   }
   return <ModelSelect value={value} onChange={onChange} placeholder={empty} choices={pickers.models ?? undefined} grouped={pickers.modelFiles} />;
 }
+
+/** The docs site, where the Docs links go (the same pages as docs/ in the repo). */
+export const DOCS_URL = "https://docs.seriesmith.com";
+
+/** "Docs ↗": a page of the docs site in a new tab (a click on it doesn't fold the section it sits in). */
+export function DocLink({ page, what }: { page: string; what?: string }) {
+  return (
+    <a className="h3-small" href={`${DOCS_URL}/${page}`} target="_blank" rel="noopener noreferrer"
+      title={`${what ?? "The guide"} on the docs site (opens in your browser)`} onClick={(e) => e.stopPropagation()}>
+      Docs ↗
+    </a>
+  );
+}

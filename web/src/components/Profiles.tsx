@@ -9,6 +9,7 @@ import { lorasText, lorasValue, profileNameOk, profilesOf, setProfile, type Prof
 import type { Raw } from "../lib/seriesForm";
 import { useApp } from "../store";
 import type { LookBuilderRow, Target } from "../types";
+import { DocLink } from "./Fields";
 import { ModelOptions } from "./Targets";
 
 const NO_ROWS: LookBuilderRow[] = [];
@@ -39,7 +40,8 @@ export function ProfilesSection({ raw, onChange, videoTargets }: {
         <b>Profiles</b>{" "}
         <span className="h3-small h3-muted">
           named sets of choices a shot or sequence takes with <code>profile:</code> (a flashback, a dream): look, lens, model
-        </span>
+        </span>{" "}
+        <DocLink page="authoring#render-profiles" what="Render profiles" />
       </summary>
       <div className="h3-col" style={{ gap: 8, marginTop: 6 }}>
         {names.map((name) => {

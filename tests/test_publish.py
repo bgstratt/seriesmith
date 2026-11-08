@@ -100,6 +100,44 @@ class Helpers(unittest.TestCase):
                     self.assertRaisesRegex(P.PublishError, "Set publish.subtitle.font"):
                 P.title_font(os.path.join(d, "segoescb.ttf"), named=False)
 
+    def test_find_font(self):
+        # a path as it is; a relative one from the show folder; a bare name, any case and its
+        # extension optional, from the show folder, else the machine's font folders
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            show, fonts = os.path.join(d, "show"), os.path.join(d, "Fonts")
+            os.makedirs(os.path.join(show, "fonts"))
+            os.makedirs(os.path.join(fonts, "truetype"))
+            mine = os.path.join(show, "fonts", "Title.otf")
+            sys_font = os.path.join(fonts, "truetype", "Georgia.ttf")
+            for f in (mine, sys_font):
+                open(f, "wb").close()
+            with mock.patch.object(P, "font_dirs", lambda: [fonts]):
+                self.assertEqual(P.installed_fonts(), {"georgia.ttf": sys_font})
+                self.assertEqual(P.find_font(mine), mine)
+                self.assertEqual(P.find_font("fonts/Title.otf", show), os.path.normpath(mine))
+                self.assertIsNone(P.find_font("fonts/Title.otf"))
+                for name in ("Georgia.ttf", "georgia", "GEORGIA.TTF"):
+                    self.assertEqual(P.find_font(name, show), sys_font, name)
+                self.assertIsNone(P.find_font("nope.ttf", show))
+                self.assertIsNone(P.find_font("fonts/Georgia.ttf", show))
+                self.assertEqual(P.title_font("georgia", named=True, home=show), sys_font)
+                with self.assertRaisesRegex(P.PublishError, "folder holding series.json"):
+                    P.title_font("nope.ttf", named=True, home=show)
+
+    def test_title_from_the_intros_end(self):
+        # negative times count back from the clip's end, so a long montage intro keeps the
+        # title to its last seconds; 0 or more count from its start, as they always did
+        self.assertEqual(P.from_end([-4, -3], 8), [4, 5])
+        self.assertEqual(P.from_end([-4, -3], 40), [36, 37])
+        self.assertEqual(P.from_end([-0.5, 0], 10), [9.5, 10])
+        self.assertEqual(P.from_end([4, 5], 40), [4, 5])
+        self.assertEqual(P.from_end([-60, -59], 8), [0.0, 0.0])
+        clip = {"width": 1376, "height": 768, "fps": 24, "duration": 40, "audio": False}
+        cut = {**clip, "duration": 10}
+        g = P.filter_graph(cut, clip, None, P.SUBTITLE)
+        self.assertIn(P.alpha_expr([36, 37]), g)
+
     def test_graph_levels(self):
         # a title clip's level goes first on its own sound, never on the cut's or the silence
         cut = {"width": 960, "height": 544, "fps": 24, "duration": 10, "audio": True}

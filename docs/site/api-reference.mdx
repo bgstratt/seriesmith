@@ -580,6 +580,12 @@ The opening and closing a master puts around the episode, for Play all to play: 
 exactly, wherever the series config puts them inside a configured root; nothing else of the
 show folder.
 
+### `GET /seriesmith/fonts[?ep=…&font=…]`
+The font files on the machine the server runs on, for the title's font (Series settings):
+`{"fonts" (their file names, sorted; Windows', the user's, macOS' and Linux's font folders), "font", "found"}`. With `font`, `found` is the file a master would draw the title with
+(a path; a relative one from the folder holding the episode's `series.json`; or a file name,
+any case, the extension optional, from the font folders), else null; without it both are null.
+
 ### `PUT /seriesmith/cold-open`
 Body `{"ep", "pass", "end": shot | null}`: the cold open marked in the script as the pass's
 cut has it, every shot from the cut's first to `end` (null: none). A `#` header whose shots
@@ -830,6 +836,16 @@ or when it isn't finished). What a block's menu fetches when it opens.
 `{"shots": [{shot, takes, ok, queued, failed, picked}]}`: the shots with effects takes in the
 pass, in shot order, from their sidecars alone (no audio read). What the Refs tab's Effects
 section lists; a row's takes are `GET /seriesmith/fx` when it opens.
+
+### `GET /seriesmith/sound/gallery?ep=…&pass=…`
+The gallery's Sound tab: every finished take of the episode's sound, `{"sections": [{"kind" ("music" | "ambience" | "effects" | "voices" | "lines"), "id" (the cue, `ambience:&lt;place>`, the shot, `voice:&lt;id>`, the line), "name", "note", "queued", "failed", "items": newest first, [{"key" (`kind|id|take`), "take", "path" (relative to the episode, for `GET
+/seriesmith/file`), "use" (the one in use: a cue's or a shot's effects in the pass's mix; a bed's, voice's or line's picked one), "model", "seed", "made", "seconds", and a kind's own: "theme" (music: the series theme that take is), "text" (a line's words, a voice sample's), "who" (a line's voice)}]}], "errors": [{"kind", "error"}] (a kind that couldn't be read; the rest still listed)}`. A cue, place or voice with no take isn't listed. Read from the takes'
+records alone (sidecars, picks, `lines.json`, the mix): no audio is decoded. A video take's
+own sound isn't here, nor stems made from other sound.
+
+### `GET /seriesmith/sound/gallery/take?ep=…&pass=…&kind=…&id=…&take=…`
+What one sound take was made with, fetched when the gallery opens it: `{"prompt" (the words it was made from: a cue's or a bed's prompt, the effects' words, a line's words; or null), "rows": [[label, value]] (its model, seed, when it was made, length; a cue's tempo asked, fitted and heard and its score; an effects take's source take)}`. 404 for a take that isn't
+there, 400 for a kind that isn't one.
 
 ### `POST /seriesmith/fx/render`
 Body `{"ep", "pass", "shots": [...], "target"?, "n"?, "backend"?}`: `n` takes (1-8, default 1)
