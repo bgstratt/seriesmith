@@ -2400,6 +2400,30 @@ doesn't take `target: hold` off, or a frame with its words added would become a 
 model. The form says it's a stand-in and the model is chosen when the shot is ready. The guidance
 text must not survive into a prompt unnoticed.
 
+**Changed on seeing it (2026-11-08): guidance, not boxes to fill.** At 22 minutes the board was
+190 empty boxes for Act II alone, which reads as homework. So a beat's shot count is a target
+("0 of 93 shots, about 5:25"), not tiles. Tiles are the shots that exist; a `+` at the end of a beat
+adds one, and **Fill with stand-ins** (a beat, an act, or all of it) makes the rest for whoever
+wants the animatic. A change of duration then only moves the targets, which takes most of the
+weight off Re-fit below. Where this and the sections above differ, this wins.
+
+**The board reads and writes the script.** That one path is drafts, bringing in an existing
+script, and generation. An unfinished script is a normal script:
+
+- Tried on copies of `examples/starter`: a script with beats and empty `#` sequences, or with no
+  sequences at all, passes `check` and `build` (0:00 runtime). Comments the build doesn't know pass
+  too, and a `// beat:` with no shot under it is harmless (`read_marks` keeps only the last before
+  a shot, so the score ignores an empty beat and the board reads its own way).
+- What the board adds is comments: `// duration: 22:00` once near the top, `// act: <name>` above
+  an act's first beat, only where the act isn't the structure's own. Added beats are plain
+  `// beat:` lines; the score treats a name that isn't in the table as `other`.
+
+**A place isn't a picture.** The format does need one: `# sq01` alone fails ("needs an id and a
+location") and the id must be in the series config. But a location can be words with no picture,
+as the New Episode Wizard already makes, so a text-to-video episode never has to choose one on the
+board. A sequence with no place reuses the one before it; the first with none gets a location in
+words made for it, rather than a refusal. To try: a location with an empty description.
+
 To build, each ending in something that runs:
 
 - [x] **Act data** (2026-11-08). An `Act` column in every structure's table in
@@ -2425,15 +2449,31 @@ To build, each ending in something that runs:
       across places (`lib/storyboard.ts`: each sequence's `weight`, so a split survives a change of
       duration). Its plan lives in the window until generation. Act rows collapse; a feature's
       1,700 tiles still to be tried, and tiles drawn as they scroll in only if it needs them.
-- [ ] **Generation.** The board's script through `POST /seriesmith/episode/new` (`template: "form"`);
-      a third start in the New Episode Wizard beside "write" and "xml". Checked: `check` and `build`
-      pass on the result at every length, and Draft… runs on it.
+- [x] **The board as a document** (2026-11-08). `core/board.py`: a script as an ordered list of
+      blocks (a beat line, a sequence, a shot), each holding its own lines exactly, and acts, beats
+      and runs of a sequence as a view over them, so a script comes back byte for byte by
+      construction. `tests/test_board.py`. Tried read-only on this machine's 163 real scripts:
+      all came back exactly, the shots agreed with `story.parse_script` on the 151 it could parse
+      (actions, durations, lines), and the beats with `read_marks` on the 23 that have them.
+      Reading only so far: the edits (adding a shot, a beat, an act) come with the steps below.
+- [ ] **Targets and `+`.** A beat shows its target against its real shots; tiles are shots; `+` at
+      the end of a beat, and **Fill with stand-ins** for a beat, an act or all of it.
+- [ ] **Save draft and open a script.** The board on the open episode: reads its script (an
+      existing one, with no `// structure:`, offers `spotting.layout`'s guess), writes it through
+      `PUT /seriesmith/source` (its hash, 409 when it changed underneath).
+- [ ] **Your own acts and beats.** Add, rename and remove them on the board; a structure is where
+      it starts, not a limit.
+- [ ] **Generation.** A new episode from the board through `POST /seriesmith/episode/new`
+      (`template: "form"`), a third start in the New Episode Wizard beside "write" and "xml", the
+      unplaced sequences' reuse and words-only location above. Checked: `check` and `build` pass
+      at every length, and Draft… runs on it.
 - [ ] **Edit Shot on a stand-in.** The notice, the model chosen when ready, the guidance text
       handled; a stand-in that's built reads as built on the board.
 - [ ] **Frames.** Drop on a tile; drop a folder or a selection on a sequence or beat to fill its
       empty tiles in filename order; one action renders every held shot with a picture, and the
       animatic is in the cut. Stand-ins without a picture confirmed refused.
-- [ ] **Re-fit to duration**, as above.
+- [ ] **Re-fit to duration**, as above, and only for stand-ins made by Fill: targets follow the
+      duration on their own. Maybe not needed at all; decide when the rest is in use.
 - [ ] **Dragging shots** around the board, as on the timeline.
 - [ ] A bulk "convert this sequence" from stand-ins to a model.
 
