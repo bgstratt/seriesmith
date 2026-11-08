@@ -2323,6 +2323,115 @@ download with the key). Reading the reference moved up from step 7 (decided with
       Gemini / Vertex. Shipped as untested drafts, inert until a key is added; a user's own
       added without a release.
 
+## The storyboard: an episode blocked in from a story structure (designing; 2026-11-08)
+
+The structures shape the score (the `// structure:` and `// beat:` lines, the first-pass draft) but
+nothing yet uses them to lay out the episode. The storyboard is a window of its own, opened like
+the player or the scoring windows, with the room to see a whole episode: a structure and a
+duration go in, and a script of held stand-in shots comes out, blocked in and ready to fill.
+
+Its job is to build an episode, not to revisit one. Beats moved afterwards don't matter: the
+story has been written by then.
+
+**No LLM in seriesmith.** The board is arithmetic and forms. Whoever wants an LLM to fill a block
+in uses their own client (the script skill, `seriesmith mcp`).
+
+**The script stays the source, and its format doesn't change.** What the board shows is what's
+already there:
+
+| On the board | In the script |
+|---|---|
+| An act's row | the act its beats belong to in the structure's table; the script says nothing |
+| The structure band, spanning its shots | `// structure:` and the `// beat:` lines, as the score reads them |
+| The thin box opening a sequence (its place and cast) | the `#` header; the cast is written to each stand-in's `who:` |
+| A stand-in tile | a real shot on `target: hold` |
+| The episode's duration | the sum of the shots' `dur:` |
+
+An act is part of the structure and a beat sits inside it; a beat is not a sequence (a sequence is
+a place: STORY_STRUCTURES.md). A blocked shot:
+
+```
+// structure: Three-Act
+
+// beat: Inciting Incident
+# sq02  street
+
+## sh050
+target: hold
+who: june
+dur: 3.5
+Something breaks the status quo and creates the central problem.
+```
+
+**What a stand-in is, exactly.** `target: hold`, no picture (no `first:` line and no file at
+`refs/shots/<shot>/first.png`: a dropped picture may never reach the script), no `continuous:`,
+no dialogue, and its action still the structure's guidance word for word. Anything else counts
+as built and nothing here touches it.
+
+Tried 2026-11-08 on copies of `examples/starter`: a `#` header with no shots under it passes
+`check`; a `target: hold` shot with no picture passes `check` and `build` and gets its own
+shotlist, with or without `who:` and `size:`; a shot with no action fails `check` ("has no action
+and no dialogue"), so the guidance text is needed as well as useful. Not yet tried: rendering a
+stand-in (the target's `keyframe_required` should refuse it, free either way), and Draft… on a
+blocked episode.
+
+**Duration comes first.** It's required before any shot exists, and until the shots are made it
+only changes a preview. A beat's shots are its share of the duration divided by a typical shot
+(3 to 4 s, as "From beats to shots" says). At 3.5 s: 3 minutes is about 51 shots, 7 minutes 120,
+22 minutes 377, 100 minutes 1,714; Three-Act's Inciting Incident (2%) is one shot, 2 or 3, 7 or 8,
+34. Beats that come out under a shot or two get the merge warning. A beat at a point (Midpoint,
+Low Point: one percentage, no width) gets a minimum of a shot or two.
+
+No music-video structure: a short that follows a structure is an option the board has already.
+
+**Re-fit to duration (explicit, and last).** Never automatic. A button that shows what it will do
+("Inciting Incident +2, Rising Complications -3") and applies on confirmation. A beat's budget is
+its percentage of the new duration, less the time in its built shots; stand-ins fill what's left.
+Longer adds stand-ins at the end of the beat; shorter takes them from the end of each beat, never
+the end of the episode (that would eat the climax). A beat already over its budget is left alone
+and reported, so the episode can land over the target, and the preview says the real total.
+
+**The animatic.** A picture dropped on a tile is that shot's first frame, and it stays on
+`target: hold`: it renders for nothing, on this machine. A dropped frame also makes the shot
+built, so a re-fit leaves it alone.
+
+**Filling a shot is Edit Shot**, opened on the stand-in; it's a real shot, not a new one. Saving
+doesn't take `target: hold` off, or a frame with its words added would become a shot waiting on a
+model. The form says it's a stand-in and the model is chosen when the shot is ready. The guidance
+text must not survive into a prompt unnoticed.
+
+To build, each ending in something that runs:
+
+- [x] **Act data** (2026-11-08). An `Act` column in every structure's table in
+      STORY_STRUCTURES.md, so each is 3 to 6 rows on the board (`tests/test_structure_outline.py`
+      has the counts). Three-Act's acts, Episodic Drama's, Kishōtenketsu's and Freytag's are the
+      structure's own, Hero's Journey's the traditional Departure, Initiation, Return; the rest
+      are groupings of ours. The Fable and the Parable are a row a beat. In Medias Res's Build-Up
+      became two beats, `The Calm / Build-Up` and `The Slide`, so it could be two rows (a script
+      that says `Build-Up` still scores). `make_structures.py` carries each beat's `act`,
+      `guidance` ("what happens") and `point` (a beat at one percentage; `layout` still ignores
+      it) into `structures.json`. The Pixar Spine's optional "(And the moral is…)" is named without
+      its brackets in the outline table, so the two don't match: it takes the last act from the
+      beat before it, and has no guidance.
+- [ ] **The arithmetic.** Stdlib, in `core/`, beside `spotting.py`: structure + duration -> beats
+      with shot counts and seconds, the point beats' minimums, the merge warnings. Tests at 3, 7,
+      22 and 100 minutes.
+- [ ] **The window, up to generation.** On `FloatingWindow`: structure, duration, the live preview
+      as act rows, beat bands, sequence boxes and tiles; a place and a cast per box, a beat split
+      across places. It has to stay usable at a feature's 1,700 tiles (act rows collapse, tiles
+      drawn as they scroll in).
+- [ ] **Generation.** The board's script through `POST /seriesmith/episode/new` (`template: "form"`);
+      a third start in the New Episode Wizard beside "write" and "xml". Checked: `check` and `build`
+      pass on the result at every length, and Draft… runs on it.
+- [ ] **Edit Shot on a stand-in.** The notice, the model chosen when ready, the guidance text
+      handled; a stand-in that's built reads as built on the board.
+- [ ] **Frames.** Drop on a tile; drop a folder or a selection on a sequence or beat to fill its
+      empty tiles in filename order; one action renders every held shot with a picture, and the
+      animatic is in the cut. Stand-ins without a picture confirmed refused.
+- [ ] **Re-fit to duration**, as above.
+- [ ] **Dragging shots** around the board, as on the timeline.
+- [ ] A bulk "convert this sequence" from stand-ins to a model.
+
 ## Later
 
 - The gallery's zips (2026-10-27): kept an hour from when they're made, swept only as the next

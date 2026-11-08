@@ -11,8 +11,10 @@ table speaks of a bumper (the Sitcom) gets `"bumpers": true`. Each beat's place 
 (`"at": [from, to]`, percent) is its row's `~%` in the structure's first table that has one
 (its beats in order, named in a column the Music table's names match, a name's parenthetical
 dropped: "Plot Point 1 (Break into Two)" is "Plot Point 1"; a name seen again is its
-"(again)"; a beat at one point, "50", or with none, "—", gets none: spotting.layout leaves it
-to the beats around it).
+"(again)"; a beat at one point, "50", gets `"point": 50` instead, and one with none, "—",
+neither: spotting.layout leaves both to the beats around it). The same row gives the
+storyboard (docs/PLAN.md) the beat's `"guidance"` (the column before `~%`) and, when the
+table's first column is `Act`, its `"act"` (a cell left empty is the act above it).
 
     python tools/make_structures.py            # rewrite it
     python tools/make_structures.py --check    # exit 1 if it is out of date
@@ -40,9 +42,15 @@ def _plain(name: str) -> str:
     return SP.norm(re.sub(r"\s*\([^)]*\)\s*$", "", name.replace("**", "")))
 
 
-def _places(lines: list[str], start: int, beats: list[dict]) -> dict[int, list[int]]:
-    """Each Music-table beat's [from, to] percent (by its index), from the first `~%` table
-    after `start`; a name that appears twice is the next beat of that name each time."""
+def _text(cell: str) -> str:
+    """A table cell without its markdown emphasis."""
+    return cell.replace("*", "").strip()
+
+
+def _outline(lines: list[str], start: int, beats: list[dict]) -> dict[int, dict]:
+    """What the first `~%` table after `start` says of each Music-table beat (by its index):
+    `guidance`, and `at` or `point` and `act` when it has them; a name that appears twice is
+    the next beat of that name each time."""
     for i in range(start, len(lines)):
         if lines[i].startswith(("### ", "## ")) and i > start:
             return {}
@@ -60,15 +68,27 @@ def _places(lines: list[str], start: int, beats: list[dict]) -> dict[int, list[i
         # the column whose names are the Music table's
         col = max(range(len(hdr) - 1), key=lambda k: sum(_plain(r[k]) in want for r in rows))
         out, seen = {}, {}
+        act = ""
         for r in rows:
+            # an Act cell left empty is the act above it
+            if hdr[0] == "Act" and r[0]:
+                act = _text(r[0])
             name = _plain(r[col])
             if name not in want:
                 continue
             n = seen.get(name, 0)
             seen[name] = n + 1
-            m = re.match(r"^(\d+)\s*[–-]\s*(\d+)$", r[-1])
-            if n < len(want[name]) and m and int(m.group(2)) > int(m.group(1)):
-                out[want[name][n]] = [int(m.group(1)), int(m.group(2))]
+            if n >= len(want[name]):
+                continue
+            entry = {"guidance": _text(r[-2])}
+            if act:
+                entry["act"] = act
+            span = re.match(r"^(\d+)\s*[–-]\s*(\d+)$", r[-1])
+            if span and int(span.group(2)) > int(span.group(1)):
+                entry["at"] = [int(span.group(1)), int(span.group(2))]
+            elif re.match(r"^\d+$", r[-1]):
+                entry["point"] = int(r[-1])
+            out[want[name][n]] = entry
         return out
     return {}
 
@@ -104,10 +124,14 @@ def build(text: str) -> dict:
         while k < len(lines) and not lines[k].startswith(("**Example", "**Pitfalls", "### ", "## ", "---")):
             after.append(lines[k])
             k += 1
-        places = _places(lines, i, beats)
+        outline = _outline(lines, i, beats)
+        act = ""
         for k, b in enumerate(beats):
-            if k in places:
-                b["at"] = places[k]
+            b.update(outline.get(k, {}))
+            # a beat no outline row matches (the Spine's optional moral) is in the act before it
+            act = b.get("act", act)
+            if act:
+                b["act"] = act
         st = {"id": m.group(1), "name": m.group(2), "beats": beats}
         if "bumper" in " ".join(after).lower():
             st["bumpers"] = True
