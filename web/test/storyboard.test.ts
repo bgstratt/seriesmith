@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blockedScript } from "../src/lib/wizard";
-import { bandShare, bareBeats, clock, dropTargets, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, pushed, runtimeMinutes, runWidth, seriesChoices, UNDO_STEPS, type BoardBeat } from "../src/lib/storyboard";
+import { bandShare, bareBeats, clock, dropSide, dropTargets, shotBefore, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, pushed, runtimeMinutes, runWidth, seriesChoices, UNDO_STEPS, type BoardBeat } from "../src/lib/storyboard";
 
 function beat(over: Partial<BoardBeat>): BoardBeat {
   return { beat: "A", plain: "A", nth: 0, block: null, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
@@ -104,14 +104,45 @@ describe("frames", () => {
     expect(dropTargets(shots, false).map((s) => s.id)).toEqual(["a", "d"]);
   });
 
-  it("lets a single tile replace its own picture, on a held shot only", () => {
+  it("lets a single tile take a picture whatever model it's on", () => {
     expect(dropTargets([shots[1]], true).map((s) => s.id)).toEqual(["b"]);
-    expect(dropTargets([shots[2]], true)).toEqual([]);
+    expect(dropTargets([shots[2]], true).map((s) => s.id)).toEqual(["c"]);
   });
 
   it("renders held shots on a picture or the gray card, unless their take is up to date", () => {
     expect(heldToRender(shots, new Set())).toEqual(["a", "b"]);
     expect(heldToRender(shots, new Set(["a", "b"]))).toEqual([]);
+  });
+});
+
+describe("dropSide", () => {
+  it("sends a moved shot to the nearer side", () => {
+    expect(dropSide(0.4, true)).toBe("before");
+    expect(dropSide(0.6, true)).toBe("after");
+  });
+
+  it("makes a file a tile's picture, except near an edge", () => {
+    expect(dropSide(0.5, false)).toBeNull();
+    expect(dropSide(0.1, false)).toBe("before");
+    expect(dropSide(0.9, false)).toBe("after");
+  });
+});
+
+describe("shotBefore", () => {
+  const order = ["a", "b", "c"];
+
+  it("is the target when landing after it", () => {
+    expect(shotBefore(order, "b", "after")).toBe("b");
+  });
+
+  it("is the one before the target when landing before it", () => {
+    expect(shotBefore(order, "b", "before")).toBe("a");
+    expect(shotBefore(order, "a", "before")).toBeNull();
+  });
+
+  it("doesn't count the shot being moved", () => {
+    expect(shotBefore(order, "c", "before", "b")).toBe("a");
+    expect(shotBefore(order, "b", "after", "b")).toBeNull();
   });
 });
 

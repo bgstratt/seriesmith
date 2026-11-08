@@ -116,7 +116,8 @@ export type StoryboardEdit =
   | { op: "cast"; block: number; who: string[] }
   | { op: "structure"; name: string }
   | { op: "rename_beat"; block: number; name: string }
-  | { op: "add_after"; block: number }
+  | { op: "add_after"; block: number; before?: boolean }
+  | { op: "move_shot"; block: number; target: number; after: boolean }
   | { op: "delete_shot"; block: number }
   | { op: "add_sequence"; block: number; place: string }
   | { op: "add_beat"; beat: { plain: string; nth: number }; name: string; act?: string }
@@ -204,15 +205,33 @@ export function picturesInOrder<T extends { name: string; type: string }>(files:
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
 }
 
-/** Which shots a drop lands on: a tile takes one even over the picture it has; a sequence or a beat
- * fills its empty stand-ins and leaves the rest alone. */
-export function dropTargets<T extends Pick<BoardShot, "target" | "held_empty">>(shots: T[], single: boolean): T[] {
-  return single ? shots.filter((s) => s.target === "hold") : shots.filter((s) => s.held_empty);
+/** Which shots a drop lands on: a tile always takes it, as its first frame, as a timeline clip does;
+ * a sequence or a beat fills its empty stand-ins and leaves the rest alone. */
+export function dropTargets<T extends Pick<BoardShot, "held_empty">>(shots: T[], single: boolean): T[] {
+  return single ? shots : shots.filter((s) => s.held_empty);
 }
 
 /** The held shots that can render and have no up-to-date take: the animatic's to-do. */
 export function heldToRender<T extends Pick<BoardShot, "id" | "target" | "picture" | "card">>(shots: T[], fresh: Set<string>): string[] {
   return shots.filter((s) => s.target === "hold" && (s.picture || s.card) && !fresh.has(s.id)).map((s) => s.id);
+}
+
+export type DropSide = "before" | "after";
+
+/** Where on a tile a drop lands. A shot being moved goes to the nearer side. A file on the middle
+ * of a tile is that tile's picture (null), and only near an edge goes between shots. */
+export function dropSide(fraction: number, moving: boolean): DropSide | null {
+  if (moving) return fraction < 0.5 ? "before" : "after";
+  if (fraction < 0.25) return "before";
+  return fraction > 0.75 ? "after" : null;
+}
+
+/** The shot a moved or new one ends up right after, in the script: null at the very start. */
+export function shotBefore(order: string[], target: string, side: DropSide, moved?: string): string | null {
+  const list = order.filter((id) => id !== moved);
+  const at = list.indexOf(target);
+  if (at < 0) return null;
+  return side === "after" ? target : (list[at - 1] ?? null);
 }
 
 export interface SeriesChoices {

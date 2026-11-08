@@ -2488,11 +2488,17 @@ To build, each ending in something that runs:
       up-to-date take, free, on this machine: the animatic, in the cut. A new stand-in's
       `first.png` is a small flat gray card (`board.gray_card`, known by its bytes, so it still counts
       as empty), which a dropped picture replaces: a blocked episode renders as it is, and a title
-      card someone wrote by hand, with no picture, stays blocked. No line in the script. Undo covers the
+      card someone wrote by hand, with no picture, stays blocked. No line in the script.
+      `jobs.plan_job` takes the card away from a shot on any other model, so it can't become a first
+      frame nobody chose. A picture on a tile is its first frame whatever the shot's model. Undo covers the
       script, not pictures: an earlier picture stays a take of that keyframe.
 - [ ] **Re-fit to duration**, as above, and only for stand-ins made by Fill: targets follow the
       duration on their own. Maybe not needed at all; decide when the rest is in use.
-- [ ] **Dragging shots** around the board, as on the timeline.
+- [x] **Dragging shots** (2026-11-08). A tile drags to either side of another: the script's order,
+      and the open pass's cut after it, as the timeline's own drops do. It takes on the sequence
+      it lands in, and its seed with it. A picture on a tile's edge is a new held shot there (on
+      its middle, that tile's picture). Undo puts the script back; the cut's move has the
+      timeline's own undo.
 - [ ] A bulk "convert this sequence" from stand-ins to a model. Whoever sends a paid render owns
       having read its shots: no guard on guidance text left in place (decided 2026-11-08).
 

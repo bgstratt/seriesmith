@@ -1104,7 +1104,8 @@ of the beat, its line written first if the script hasn't got it), `fill` (`beats
 "nth"}]`: each up to its target, or up to `each` shots), `place` (`block`, `place`: a sequence's location) or `cast`
 (`block`, `who`: on that sequence's empty stand-ins only), `structure` (`name`: the script's
 `// structure:` line; its beats stay and match what they match), `rename_beat` (`block`, `name`),
-`add_after` and `delete_shot` (`block`: a shot's; a deleted shot's takes stay on disk), `add_sequence`
+`add_after` (`block`: a shot's, optionally `before`: true), `move_shot` (`block`, `target`, `after`: the script's order; the shot takes
+on the sequence it lands in, and its seed with it), `delete_shot` (`block`; its takes stay on disk), `add_sequence`
 (`block`: the shot it follows, not in the middle of a sequence; `place`), `add_beat` (`beat: {"plain",
 "nth"}`, `name`, optionally `act` to open an act of your own), `remove_beat` (`block`: its shots join
 the beat before), `lay_out` (`name`: a structure's beats laid over a script that has shots and no

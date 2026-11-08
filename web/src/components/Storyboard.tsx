@@ -4,15 +4,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { openShotForm, openStoryboard, refreshEpisode, requestRender, uploadRef } from "../actions";
+import { moveClip } from "../cutActions";
+import { dropFileOnto } from "../takeActions";
+import { gapAfter } from "../lib/takeDrop";
 import { api } from "../host";
 import { filesFromDrag } from "../lib/dropped";
 import { keyframeRefId } from "../lib/keyframes";
 import { clipTake } from "../lib/playlist";
 import {
-  bandShare, bareBeats, clock, dropTargets, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_W,
-  pushed, type BoardAct, type BoardBeat, type BoardRun, type BoardShot, type SeriesChoices, type StoryboardAnswer, type StoryboardEdit,
+  bandShare, bareBeats, clock, dropSide, dropTargets, shotBefore, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_W,
+  pushed, type DropSide, type BoardAct, type BoardBeat, type BoardRun, type BoardShot, type SeriesChoices, type StoryboardAnswer, type StoryboardEdit,
 } from "../lib/storyboard";
-import { statusKey, useApp } from "../store";
+import { statusKey, store, useApp } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
 import { EpisodeSelect } from "./ShotsTab";
 
@@ -146,7 +149,9 @@ function NameField({ value, busy, commit, cancel, className, size }: {
   );
 }
 
-type FrameDrop = (e: DragEvent, shots: BoardShot[], single: boolean) => void;
+type FrameDrop = (e: DragEvent, shots: BoardShot[], single: boolean, side?: DropSide | null) => void;
+
+const SHOT_MIME = "application/x-seriesmith-board-shot";
 
 /** Lets a drop of files land here rather than on the page behind. */
 function allowFiles(e: DragEvent) {
@@ -154,6 +159,22 @@ function allowFiles(e: DragEvent) {
     e.preventDefault();
     e.stopPropagation();
   }
+}
+
+/** The side of a tile the pointer is on, for what's being dragged over it. */
+function sideOf(e: DragEvent<HTMLElement>): DropSide | null {
+  const box = e.currentTarget.getBoundingClientRect();
+  return dropSide((e.clientX - box.left) / box.width, Array.from(e.dataTransfer.types).includes(SHOT_MIME));
+}
+
+function overTile(e: DragEvent<HTMLElement>) {
+  const types = Array.from(e.dataTransfer.types);
+  if (!types.includes("Files") && !types.includes(SHOT_MIME)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const side = sideOf(e);
+  if (side) e.currentTarget.dataset.side = side;
+  else delete e.currentTarget.dataset.side;
 }
 
 function Run({ run, selected, pick, thumbs, onShotMenu, onRunMenu, onFrames }: {
@@ -183,7 +204,9 @@ function Run({ run, selected, pick, thumbs, onShotMenu, onRunMenu, onFrames }: {
               style={thumb ? { backgroundImage: `url("${thumb}")` } : undefined}
               title={`${s.id}${s.held_empty ? " (stand-in: drop a picture on it)" : ""}: ${s.action}`} onClick={() => openShotForm({ shot: s.id, after: null })}
               onContextMenu={(e) => onShotMenu(e, s, s === run.shots[run.shots.length - 1])}
-              onDragOver={allowFiles} onDrop={(e) => onFrames(e, [s], true)} />
+              draggable onDragStart={(e) => { e.dataTransfer.setData(SHOT_MIME, s.id); e.dataTransfer.effectAllowed = "move"; }}
+              onDragOver={overTile} onDragLeave={(e) => delete e.currentTarget.dataset.side}
+              onDrop={(e) => { const side = sideOf(e); delete e.currentTarget.dataset.side; onFrames(e, [s], true, side); }} />
           );
         })}
       </div>
@@ -410,8 +433,8 @@ function Storyboard({ ep }: { ep: string }) {
   }, [ep, chosen, length, each]);
   useEffect(() => ask(), [ask]);
 
-  async function edit(e: StoryboardEdit) {
-    if (!data || !chosen || length === null || each === null) return;
+  async function edit(e: StoryboardEdit): Promise<StoryboardAnswer | null> {
+    if (!data || !chosen || length === null || each === null) return null;
     setBusy(true);
     try {
       const before = (await api().source(ep, "script")).text;
@@ -425,11 +448,46 @@ function Storyboard({ ep }: { ep: string }) {
       // deleting or adding moves the blocks the edit bar points at
       if (e.op !== "place" && e.op !== "cast") setPicked(null);
       void refreshEpisode(ep);
+      return r;
     } catch (x) {
       setErr((x as Error).message);
+      return null;
     } finally {
       setBusy(false);
     }
+  }
+
+  /** The timeline's order follows the script's for a shot just placed, as its own drops do. */
+  async function followInCut(shot: string, left: string | null) {
+    await refreshEpisode(ep);
+    const cut = store.get().status[statusKey(ep, store.get().pass)]?.shots ?? [];
+    if (cut.some((s) => s.shot === shot)) await moveClip(shot, gapAfter(cut, left));
+  }
+
+  const scriptOrder = () => (data?.plan.acts ?? []).flatMap((a) => a.beats.flatMap((b) => b.runs.flatMap((r) => r.shots)));
+
+  async function moveShot(id: string, target: BoardShot, side: DropSide) {
+    const all = scriptOrder();
+    const moved = all.find((s) => s.id === id);
+    if (!moved || moved.id === target.id) return;
+    const left = shotBefore(all.map((s) => s.id), target.id, side, id);
+    if (await edit({ op: "move_shot", block: moved.block, target: target.block, after: side === "after" })) await followInCut(id, left);
+  }
+
+  /** A picture dropped between two shots: a new held shot there, holding it. */
+  async function pictureBetween(found: Promise<File[]>, target: BoardShot, side: DropSide) {
+    const [file, ...more] = picturesInOrder(await found);
+    if (!file) { setErr("Only a picture can go between shots here."); return; }
+    const left = shotBefore(scriptOrder().map((s) => s.id), target.id, side);
+    const r = await edit({ op: "add_after", block: target.block, before: side === "before" });
+    const made = r?.made?.[0];
+    if (!made) return;
+    setBusy(true);
+    await uploadRef(keyframeRefId(made, "first"), null, file, true);
+    setBusy(false);
+    if (more.length) setErr(`One picture at a time between shots: ${file.name} was used.`);
+    if (length !== null && each !== null) setData(await api().storyboard(ep, chosen, length * 60, each));
+    await followInCut(made, left);
   }
 
   /** The script back to `text`, saved as any edit is; the file's text now goes on `onto`. */
@@ -472,7 +530,7 @@ function Storyboard({ ep }: { ep: string }) {
     const files = picturesInOrder(await found);
     const targets = dropTargets(shots, single);
     if (!files.length) { setErr("That drop has no pictures in it."); return; }
-    if (!targets.length) { setErr(single ? "Only a held shot takes a picture here." : "There are no empty stand-ins there to fill."); return; }
+    if (!targets.length) { setErr("There are no empty stand-ins there to fill."); return; }
     const pairs = targets.slice(0, single ? 1 : files.length).map((s, i) => ({ shot: s, file: files[i] })).filter((p) => p.file);
     setBusy(true);
     setErr(null);
@@ -480,7 +538,11 @@ function Storyboard({ ep }: { ep: string }) {
     let failed = 0;
     for (const { shot: target, file } of pairs) {
       setDropping(`Adding pictures: ${done + failed + 1} of ${pairs.length}`);
-      if (await uploadRef(keyframeRefId(target.id, "first"), null, file, true)) done += 1;
+      if (single) {
+        // the timeline's own drop: it also warns when the shot's model reads no first frame
+        await dropFileOnto(target.id, file);
+        done += 1;
+      } else if (await uploadRef(keyframeRefId(target.id, "first"), null, file, true)) done += 1;
       else failed += 1;
     }
     setDropping(null);
@@ -599,11 +661,19 @@ function Storyboard({ ep }: { ep: string }) {
                 picked={picked?.block ?? null}
                 pick={(run) => run.block !== null && setPicked({
                   block: run.block, place: run.place, who: [...new Set(run.shots.flatMap((s) => s.who))] })}
-                onFrames={(e, shots, single) => {
+                onFrames={(e, shots, single, side) => {
+                  const moving = e.dataTransfer.getData(SHOT_MIME);
+                  if (moving) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (single && side) void moveShot(moving, shots[0], side);
+                    return;
+                  }
                   if (!e.dataTransfer.types.includes("Files")) return;
                   e.preventDefault();
                   e.stopPropagation();
-                  void frames(filesFromDrag(e.dataTransfer), shots, single);
+                  if (single && side) void pictureBetween(filesFromDrag(e.dataTransfer), shots[0], side);
+                  else void frames(filesFromDrag(e.dataTransfer), shots, single);
                 }}
                 onShotMenu={(e, s, last) => openAt(e, { kind: "shot", shot: s, last, rendered: thumbs.has(s.id) })}
                 onRunMenu={(e, r) => openAt(e, { kind: "sequence", run: r })}

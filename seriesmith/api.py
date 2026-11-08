@@ -3098,7 +3098,7 @@ def post_storyboard_edit(ctx: Context, body):
     """An edit from the storyboard, saved like the script editor's (`base_hash`, 409 when the file
     changed; the old script to history; a rebuild): `op` is `add` (one stand-in on `beat`), `fill`
     (`beats`: each up to its target, or up to `each` shots), `place` (`block`, `place`), `cast` (`block`, `who`), `structure` (`name`), `rename_beat` (`block`,
-    `name`), `add_after`, `delete_shot` (`block`: a shot's), `add_sequence` (`block`, `place`),
+    `name`), `add_after` (`block`, optionally `before`), `move_shot` (`block`, `target`, `after`), `delete_shot` (`block`: a shot's), `add_sequence` (`block`, `place`),
     `add_beat` (`beat`, `name`, optionally `act`), `lay_out` (`name`: a structure over a script with no beats), `remove_beat`, `rename_act` or `remove_act`
     (`block`: the beat's, `name`)."""
     from seriesmith.core import blocking as BL
@@ -3167,11 +3167,13 @@ def post_storyboard_edit(ctx: Context, body):
             seconds = float(body.get("shot") or BL.TYPICAL_SHOT)
             block_at = int(body.get("block"))
             if op == "add_after":
-                made.append(BD.add_shot_after(doc, block_at, seconds))
+                made.append(BD.add_shot_after(doc, block_at, seconds, before=body.get("before") is True))
             else:
                 if place is None:
                     raise ApiError(400, "place is required")
                 made.append(BD.add_sequence_after(doc, block_at, place, seconds))
+        elif op == "move_shot":
+            BD.move_shot(doc, int(body.get("block")), int(body.get("target")), body.get("after") is True)
         elif op == "delete_shot":
             BD.delete_shot(doc, int(body.get("block")))
         elif op == "add_beat":

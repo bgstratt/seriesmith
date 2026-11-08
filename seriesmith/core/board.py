@@ -575,16 +575,41 @@ def rename_beat(doc: dict, block: int, name: str) -> None:
     target["value"] = name
 
 
-def add_shot_after(doc: dict, block: int, seconds: float, action: str = "") -> str:
-    """A held shot straight after the shot at block `block`, with its cast; its id."""
+def add_shot_after(doc: dict, block: int, seconds: float, action: str = "", before: bool = False) -> str:
+    """A held shot straight after (or `before`) the shot at block `block`, with its cast; its id."""
     blocks = doc["blocks"]
     if blocks[block]["kind"] != "shot":
         raise BoardError("that isn't a shot")
     who = blocks[block]["shot"]["who"]
-    at = block + 1
+    at = block if before else block + 1
     sid = _new_shot_id(blocks, at)
     _insert(doc, at, _stand_in(sid, who, seconds, action))
     return sid
+
+
+def move_shot(doc: dict, block: int, target: int, after: bool) -> None:
+    """The shot at block `block` to just before, or `after`, the shot at block `target`, with the
+    lines that go with it. A beat's or a sequence's line stays where it is, so the shot takes on
+    the sequence it lands in, and its seed with it (core/ir.stable_seed)."""
+    blocks = doc["blocks"]
+    moved, anchor = blocks[block], blocks[target]
+    if moved["kind"] != "shot" or anchor["kind"] != "shot":
+        raise BoardError("that isn't a shot")
+    if moved is anchor:
+        return
+    if moved["lines"] and not moved["lines"][-1].endswith(("\n", "\r")):
+        moved["lines"][-1] += "\n"
+    if moved["lines"] and moved["lines"][-1].strip():
+        moved["lines"].append("\n")
+    del blocks[block]
+    at = next(i for i, b in enumerate(blocks) if b is anchor) + (1 if after else 0)
+    before = blocks[at - 1] if at > 0 else None
+    if before and before["lines"]:
+        if not before["lines"][-1].endswith(("\n", "\r")):
+            before["lines"][-1] += "\n"
+        if before["kind"] == "shot" and before["lines"][-1].strip():
+            before["lines"].append("\n")
+    blocks.insert(at, moved)
 
 
 def delete_shot(doc: dict, block: int) -> None:

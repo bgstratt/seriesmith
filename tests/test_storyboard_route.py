@@ -431,6 +431,54 @@ class TestStoryboardRoutes(unittest.TestCase):
         with open(self.first_png("sh010"), "rb") as fh:
             self.assertEqual(fh.read(), b"mine")
 
+    def test_move_a_shot_after_another(self):
+        self.blank(self.SCRIPT)
+        self.edit(op="move_shot", block=self.shot_block("sh010"), target=self.shot_block("sh030"), after=True)
+        self.assertEqual(self.shots(), ["sh020", "sh030", "sh010"])
+
+    def test_move_a_shot_before_another(self):
+        self.blank(self.SCRIPT)
+        self.edit(op="move_shot", block=self.shot_block("sh030"), target=self.shot_block("sh010"), after=False)
+        self.assertEqual(self.shots(), ["sh030", "sh010", "sh020"])
+
+    def test_a_moved_shot_takes_on_the_beat_and_sequence_it_lands_in(self):
+        self.blank(self.SCRIPT)
+        data = self.edit(op="move_shot", block=self.shot_block("sh030"), target=self.shot_block("sh010"), after=True)
+        beats = {b["plain"]: [s["id"] for r in b["runs"] for s in r["shots"]] for b in self.rows(data)}
+        self.assertEqual(beats["A"], ["sh010", "sh030", "sh020"])
+        self.assertEqual(beats["B"], [])
+        self.assertEqual(data["build"]["ok"], True)
+
+    def test_moving_a_shot_keeps_every_line_of_it(self):
+        self.blank(DRAFT + "\n# sq01  porch\n\n// theme: show, tender\n## sh010\n// note\ndur: 2\nA.\n\n## sh020\ndur: 2\nB.")
+        self.edit(op="move_shot", block=self.shot_block("sh010"), target=self.shot_block("sh020"), after=True)
+        written = self.text()
+        self.assertLess(written.index("## sh020"), written.index("// theme: show, tender"))
+        self.assertIn("// theme: show, tender\n## sh010\n// note\ndur: 2\nA.\n", written)
+        self.assertIn("B.\n\n", written)
+
+    def test_moving_onto_itself_changes_nothing(self):
+        self.blank(self.SCRIPT)
+        before = self.text()
+        self.edit(op="move_shot", block=self.shot_block("sh010"), target=self.shot_block("sh010"), after=True)
+        self.assertEqual(self.text(), before)
+
+    def test_move_needs_shots(self):
+        self.blank(self.SCRIPT)
+        self.edit(status=400, op="move_shot", block=self.beat_block("A"), target=self.shot_block("sh010"), after=True)
+        self.edit(status=400, op="move_shot", block=self.shot_block("sh010"), target=self.beat_block("A"), after=True)
+
+    def test_add_a_shot_before_a_shot(self):
+        self.blank(self.SCRIPT)
+        made = self.edit(op="add_after", block=self.shot_block("sh020"), before=True)["made"]
+        self.assertEqual(self.shots(), ["sh010", made[0], "sh020", "sh030"])
+
+    def test_a_shot_added_before_a_beats_first_stays_in_that_beat(self):
+        self.blank(self.SCRIPT)
+        data = self.edit(op="add_after", block=self.shot_block("sh030"), before=True)
+        row = next(b for b in self.rows(data) if b["plain"] == "B")
+        self.assertEqual(len(row["runs"][0]["shots"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

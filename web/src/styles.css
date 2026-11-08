@@ -1507,3 +1507,5 @@
 .h3-sb-menu { position: fixed; z-index: 9999; min-width: 200px; }
 .h3-sb-menu .h3-sb-menuchoice { padding-left: 28px; }
 .h3-sb-menuask { display: flex; flex-direction: column; gap: 3px; padding: 4px 8px 6px; }
+.h3-sb-tile[data-side="before"] { box-shadow: -3px 0 0 var(--h3-accent); }
+.h3-sb-tile[data-side="after"] { box-shadow: 3px 0 0 var(--h3-accent); }
