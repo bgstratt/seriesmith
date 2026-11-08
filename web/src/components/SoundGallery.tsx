@@ -10,6 +10,7 @@ import { closeGallery, copyText, generateRef, pickRef, report, updateGallery } f
 import { loadCues } from "../cueActions";
 import { api, host } from "../host";
 import { fmtWhen, tn } from "../lib/format";
+import { confirmPaid } from "../lib/paid";
 import { SOUND_CHIPS, clock, inUse, soundSections, useLabel } from "../lib/soundGallery";
 import { loadMix, makeBed, makeEffects, pickMixFx } from "../mixActions";
 import { useApp, type GalleryState } from "../store";
@@ -539,7 +540,7 @@ function useText(s: SoundSection, it: SoundItem, pass: Pass): string {
 
 function regenTitle(s: SoundSection): string {
   switch (s.kind) {
-    case "music": return `One more take of ${s.id} on its model, a new seed, planned against the cut as it is now (a hosted model is paid)`;
+    case "music": return `One more take of ${s.id} on its model, a new seed, planned against the cut as it is now${s.paid ? " (paid: it asks first)" : ""}`;
     case "effects": return `One more effects take for ${s.id}, from the take the cut plays now`;
     case "ambience": return "One more take of this place's bed, a new seed";
     case "voices": return "One more sample of this voice, a new seed";
@@ -571,6 +572,7 @@ async function putInUse(ep: string, pass: Pass, s: SoundSection, it: SoundItem):
 async function regenerate(ep: string, pass: Pass, s: SoundSection): Promise<void> {
   try {
     if (s.kind === "music") {
+      if (!confirmPaid(s.paid, `Render one more take of ${s.name}?`)) return;
       const r = await api().renderCue({ ep, pass, cue: s.id, takes: 1 });
       host().toast("info", `${s.id}: ${r.queued.length} take${r.queued.length === 1 ? "" : "s"} queued`, "Each is measured as it lands.");
     } else if (s.kind === "effects") {

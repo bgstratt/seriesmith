@@ -375,7 +375,8 @@ function CueBody({ ep, v, res, sel, setSel, tab, brush, setBrush, help }: {
           </label>
           <input className="h3-in" type="number" min={1} max={16} value={count} style={{ width: 46 }} aria-label="Takes to render"
             onChange={(e) => setCount(Math.max(1, Math.min(16, Math.round(Number(e.target.value) || 1))))} />
-          <button className="h3-btn h3-primary" style={{ width: "auto" }} title="Render this many takes of the cue, each its own seed; they are measured and ranked as they land"
+          <button className={`h3-btn ${res.paid ? "h3-paid" : "h3-primary"}`} style={{ width: "auto" }}
+            title={`Render this many takes of the cue, each its own seed; they are measured and ranked as they land${res.paid ? `. ${res.paid}: it asks first` : ""}`}
             onClick={() => void renderCue(count)}>
             <i className="pi pi-play" /> Render {count} take{count === 1 ? "" : "s"}
           </button>

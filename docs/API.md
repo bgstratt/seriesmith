@@ -901,7 +901,7 @@ the shot, `voice:<id>`, the line), "name", "note", "queued", "failed", "items": 
 /seriesmith/file`), "use" (the one in use: a cue's or a shot's effects in the pass's mix; a
 bed's, voice's or line's picked one), "model", "seed", "made", "seconds", and a kind's own:
 "theme" (music: the series theme that take is), "text" (a line's words, a voice sample's),
-"who" (a line's voice)}]}], "errors": [{"kind", "error"}] (a kind that couldn't be read; the
+"who" (a line's voice)}], "paid" (music: as `GET /seriesmith/cue`'s)}], "errors": [{"kind", "error"}] (a kind that couldn't be read; the
 rest still listed)}`. A cue, place or voice with no take isn't listed. Read from the takes'
 records alone (sidecars, picks, `lines.json`, the mix): no audio is decoded. A video take's
 own sound isn't here, nor stems made from other sound.
@@ -966,7 +966,10 @@ cut; `bpm` is then null). `unreadable` lists the cues left out because their spe
 (`[{"id", "error"}]`: a model this version doesn't have, say). 400 for a pass that isn't one.
 
 ### `GET /seriesmith/cue?ep=…&pass=…&cue=…`
-`{"spec", "plan", "plan_error", "takes"}`. `plan` is what it would be asked now: `target`,
+`{"spec", "plan", "plan_error", "takes", "themes", "paid"}`. `paid` is where a take of it is
+billed, in words (a hosted model on Comfy Router or a provider of yours, or a workflow that
+runs a Comfy partner node), or null on your own GPU: the editor asks before it renders or
+repaints one. `plan` is what it would be asked now: `target`,
 `fps`, `span` (seconds), `hits` (`[{id, name, kind, must, t, at, ends?}]`, `t` seconds from
 its in point, `at` the mix's anchor; `ends`: a drop on its out point, the music's end, neither
 fitted nor measured),

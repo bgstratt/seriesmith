@@ -46,6 +46,9 @@ class SoundGalleryTest(unittest.TestCase):
         T.write_json(os.path.join(self.ep, "series.json"), {
             "series": {"id": "t", "title": "T"}, "style": {"look": "film"}, "subjects": {},
             "locations": {"diner": {"description": "a diner", "ambience": "room tone of a diner"}}})
+        T.write_json(os.path.join(self.ep, "shotlist", "shotlist.json"), {
+            "episode": "ep01", "defaults": {"width": 64, "height": 64, "fps": 24},
+            "shots": [{"id": "sh010", "length": 48, "audio_policy": "generate"}]})
         T.write_json(os.path.join(self.ep, "shotlist", "shots.json"), {
             "episode": "ep01", "sequences": [{"id": "sq01", "location": "diner", "shots": [{"id": "sh010"}]}]})
         # a cue with three takes: two finished, one queued; the second in the final mix
@@ -113,6 +116,25 @@ class SoundGalleryTest(unittest.TestCase):
         T.write_json(os.path.join(self.ep, "series.json"), cfg)
         m = next(s for s in SG.listing(self.ep, "final")["sections"] if s["id"] == "m01")
         self.assertEqual({i["take"]: i["theme"] for i in m["items"]}, {2: None, 1: "opening"})
+
+    def test_where_a_take_is_billed(self):
+        # a model on your own GPU isn't; a hosted one (Router, a provider) or a partner node is,
+        # and the cue (and its Sound tab section) says so, for the editor to ask first
+        from seriesmith import targets as TG
+        self.assertIsNone(TG.billing(TG.load_target("stable_audio3")))
+        self.assertIn("Comfy Router", TG.billing(TG.load_target("pika_music")))
+        self.assertIn("partner node", TG.billing(TG.load_target("minimax_music3_cloud")))
+        m = next(s for s in SG.listing(self.ep, "final")["sections"] if s["id"] == "m01")
+        self.assertIsNone(m["paid"])
+        CU.save_spec(self.ep, {"id": "m01", "in": anchor("sh010"), "out": anchor("sh010", 48), "label": "Opening",
+                               "model": "pika_music"})
+        m = next(s for s in SG.listing(self.ep, "final")["sections"] if s["id"] == "m01")
+        self.assertIn("Pika Music runs on Comfy Router", m["paid"])
+        ctx = A.Context(os.path.join(self._tmp.name, "user"), "http://127.0.0.1:0", env={})
+        A.put_config(ctx, {"roots": [self.shows]})
+        code, got = A.get_cue(ctx, {"ep": self.ep, "pass": "final", "cue": "m01"})
+        self.assertEqual(code, 200)
+        self.assertIn("Comfy Router", got["paid"])
 
     def test_take_detail(self):
         d = SG.take_detail(self.ep, "final", "music", "m01", 2)

@@ -172,6 +172,25 @@ def service_of(spec: dict) -> str:
     """The provider of the user's own a target.json names ("": none; it's on Router or local)."""
     block = spec.get("api")
     return str(block.get("service") or "") if isinstance(block, dict) else ""
+
+
+def billing(target) -> str | None:
+    """Where a render on `target` is billed, in words, or None when it isn't (your own GPU):
+    a hosted model (Comfy Router, or a provider of the user's), or a workflow that runs a Comfy
+    partner node. What the editor shows before it sends one."""
+    if target is None:
+        return None
+    name = target.short or target.label
+    if is_hosted(target.spec):
+        service = service_of(target.spec)
+        if service:
+            from seriesmith import providers as PR
+            who = (PR.definitions().get(service) or {}).get("label") or service
+            return f"{name} runs on {who}: each take is billed to your account there"
+        return f"{name} runs on Comfy Router: each take is billed to your Comfy account"
+    if runs_partner(target):
+        return f"{name} runs a Comfy partner node: each take is billed to your Comfy account"
+    return None
 # A target that renders a ComfyUI workflow runs where that workflow can: your
 # own ComfyUI, Comfy Cloud (with Cloud's own nodes in place of seriesmith's:
 # seriesmith/cloud.py; what Cloud hasn't, it says when the job starts), or a

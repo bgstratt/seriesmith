@@ -3323,6 +3323,8 @@ export interface CueResult {
   takes: CueTake[];
   /** the series config's themes, to pick from (absent from older servers) */
   themes?: SeriesTheme[];
+  /** where a take of it is billed, in words; null on your own GPU (the editor asks first when it's set) */
+  paid?: string | null;
 }
 
 /** GET /seriesmith/fonts: the font files on the machine the server runs on. */
@@ -3369,6 +3371,8 @@ export interface SoundSection {
   items: SoundItem[];
   queued: number;
   failed: number;
+  /** music: where a take of the cue is billed, in words; null (or absent) on your own GPU */
+  paid?: string | null;
 }
 
 export interface SoundListing {

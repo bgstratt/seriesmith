@@ -27,6 +27,7 @@ from seriesmith import fx as FX
 from seriesmith import lines as LN
 from seriesmith import mix as MX
 from seriesmith import refs as R
+from seriesmith import targets as TG
 
 KINDS = ("music", "ambience", "effects", "voices", "lines")
 
@@ -70,8 +71,27 @@ def _themes(ep: str) -> dict[tuple[str, int], str]:
     return out
 
 
+def _billing(ep: str, spec: dict, series: dict | None, seen: dict) -> str | None:
+    """targets.billing for the cue's model, each model looked at once."""
+    try:
+        tid = CU.model_for(spec, series or {})
+    except (CU.CueError, ValueError):
+        return None
+    if tid not in seen:
+        try:
+            seen[tid] = TG.billing(TG.load_target(tid))
+        except (TG.TargetError, ValueError, OSError):
+            seen[tid] = None
+    return seen[tid]
+
+
 def music(ep: str, pass_: str) -> list[dict]:
     themes = _themes(ep)
+    try:
+        series = CU.J.series_config(ep)
+    except Exception:  # noqa: BLE001 - no series config: each cue's own model, else the default
+        series = None
+    seen: dict = {}
     out = []
     for spec in CU.list_cues(ep):
         cid = spec["id"]
@@ -88,7 +108,7 @@ def music(ep: str, pass_: str) -> list[dict]:
         label = spec.get("label") or cid
         out.append({"kind": "music", "id": cid, "name": label if label == cid else f"{label} ({cid})",
                     "note": "song" if spec.get("kind") == "song" else "", "items": items,
-                    **_counts([t.get("status") for t in takes])})
+                    "paid": _billing(ep, spec, series, seen), **_counts([t.get("status") for t in takes])})
     return out
 
 

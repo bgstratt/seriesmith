@@ -2896,8 +2896,9 @@ def get_cue(ctx: Context, query: dict):
     seconds, the fitted tempo, bars, sections, arc and the model's prompt; null with
     `plan_error` when its anchors aren't in the cut) and `takes`, best first, each with
     `stale`: what has moved in the cut since it was rendered, in words, and `seconds`: a
-    finished take's length (its wav; null for the rest); and `themes`, the series config's
-    (cue.theme_list), for the theme to be picked from."""
+    finished take's length (its wav; null for the rest); `themes`, the series config's
+    (cue.theme_list), for the theme to be picked from; and `paid`: where a take of it is
+    billed, in words (targets.billing), or null on your own GPU: the editor asks first."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query.get("pass"))
     spec = _cue_spec(ep, query.get("cue"))
@@ -2913,8 +2914,12 @@ def get_cue(ctx: Context, query: dict):
         t["stale"] = CU.stale(t, full) if full else []
         t["seconds"] = CU.take_seconds(ep, t)
         t["placed"] = pass_ if t["take"] == in_mix else None
+    try:
+        paid = TG.billing(TG.load_target(full["target"] if full else CU.model_for(spec, J.series_config(ep))))
+    except (TG.TargetError, ValueError, OSError):
+        paid = None
     return 200, {"spec": spec, "plan": _plan_summary(full) if full else None,
-                 "plan_error": why, "takes": takes, "themes": CU.theme_list(ep)}
+                 "plan_error": why, "takes": takes, "themes": CU.theme_list(ep), "paid": paid}
 
 
 @handler
