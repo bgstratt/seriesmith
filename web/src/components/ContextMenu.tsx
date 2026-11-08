@@ -46,6 +46,8 @@ export function ContextMenu() {
   const curPass = useApp((s) => s.pass);
   const st = useApp((s) => (s.ep && s.menu ? s.status[statusKey(s.ep, s.menu.pass)] : undefined));
   const cutSt = useApp((s) => (s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined));
+  // the cold open (the In the cut group's Cold open ends here): with the other hooks, before any return
+  const coldOpen = useApp((s) => (s.ep ? s.coldOpen[statusKey(s.ep, s.pass)] : undefined));
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number; flip: boolean; up: boolean } | null>(null);
   const { list: targets, seriesDefault } = useTargets();
@@ -101,7 +103,6 @@ export function ContextMenu() {
   const shot = st?.shots.find((x) => x.shot === menu.shot);
   const take = menu.take != null ? shot?.takes.find((t) => t.take === menu.take) : undefined;
   const cutShot = cutSt?.shots.find((x) => x.shot === menu.shot);
-  const coldOpen = useApp((s) => (s.ep ? s.coldOpen[statusKey(s.ep, s.pass)] : undefined));
   const isCut = !!take && !!cutShot && cutShot.cut.take === take.take && cutShot.cut.pass === menu.pass;
   const videos = (shot?.takes ?? []).filter((t) => t.mp4);
   const other = menu.take != null
