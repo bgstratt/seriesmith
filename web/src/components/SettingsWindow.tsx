@@ -206,6 +206,25 @@ function SettingsBody({ server }: { server: boolean }) {
     }
   }
 
+  async function putKey(value: string | null, what: string) {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      const v = await call("PUT", { api_key: value });
+      setView(v);
+      if (v.sdk) setSdk(v.sdk);
+      setKey("");
+      await refreshBackends();
+      void loadTargets(true);
+      setNote(what);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const env = view?.from_env ?? {};
   const video = (targets?.targets ?? []).filter((t) => t.kind === "video" && !t.draft);
   const images = (targets?.targets ?? []).filter((t) => t.kind === "image" && !t.draft);
@@ -268,6 +287,21 @@ function SettingsBody({ server }: { server: boolean }) {
             </button>
             <span className="h3-small h3-muted">Features installs models, node packs and tools: H3 at full quality, voices, upscale, post, ffmpeg.</span>
           </div>
+          <div className="h3-form">
+            <label htmlFor="sm-set-hf" title="For the gated downloads (FLUX, LTX-2.5) in Features: huggingface.co, Settings, Access Tokens (read)">Hugging Face token</label>
+            {env.hf_token ? (
+              <span className="h3-small h3-muted">Set by the environment ({env.hf_token}): change it there.</span>
+            ) : (
+              <div className="h3-row" style={{ gap: 4 }}>
+                <input id="sm-set-hf" className="h3-in h3-grow h3-mono" type="password" autoComplete="off" value={hfToken}
+                  placeholder={view?.settings.hf_token ? "a new token replaces the one saved" : "hf_… (for gated model downloads)"}
+                  onChange={(e) => setHfToken(e.target.value)} />
+                {view?.settings.hf_token && (
+                  <button className="h3-btn" disabled={busy} onClick={() => void save({ hf_token: null }, "Token removed")}>Remove</button>
+                )}
+              </div>
+            )}
+          </div>
           <details open={!!(view?.settings.ffmpeg_dir || view?.settings.comfyui_dir)}>
             <summary className="h3-small">Folders (ffmpeg, ComfyUI)</summary>
             <div className="h3-form" style={{ marginTop: 6 }}>
@@ -300,50 +334,32 @@ function SettingsBody({ server }: { server: boolean }) {
 
         <section className="h3-card">
           <div className="h3-card-head">
-            <span className="h3-card-title h3-grow">Comfy account</span>
-            {view && (
-              <span className={`h3-status${view.settings.api_key ? " h3-s-ok" : ""}`}>
-                {view.settings.api_key ? "key set · Cloud and Router" : "no key"}
-              </span>
-            )}
+            <span className="h3-card-title h3-grow">External accounts</span>
           </div>
-          <div className="h3-form">
-            <label htmlFor="sm-set-key">API key</label>
+          <span className="h3-small h3-muted">
+            The services that render for you, each with its own key. Paid use is billed to that account.
+          </span>
+          <div className="h3-row h3-wrap h3-small" style={{ gap: 6 }}>
+            <b style={{ minWidth: 110 }} title="Comfy Cloud (any graph, on Comfy's GPUs) and Comfy Router (hosted models: Seedance, Krea 2, ...), from one key">
+              Comfy Cloud &amp; Router
+            </b>
             {env.api_key ? (
-              <span className="h3-small h3-muted">Set by the environment ({env.api_key}): change it there.</span>
+              <span className="h3-muted">Key set by the environment ({env.api_key}): change it there.</span>
             ) : (
-              <div className="h3-row" style={{ gap: 4 }}>
-                <input id="sm-set-key" className="h3-in h3-grow h3-mono" type="password" autoComplete="off" value={key}
+              <>
+                <input id="sm-set-key" aria-label="Comfy API key" className="h3-in h3-mono h3-grow" style={{ minWidth: 160 }} type="password" autoComplete="off" value={key}
                   placeholder={view?.settings.api_key ? "a new key replaces the one saved" : "comfyui-…"}
                   onChange={(e) => setKey(e.target.value)} />
+                <button className="h3-btn" disabled={busy || !key.trim()} onClick={() => void putKey(key.trim(), "Key saved")}>Save key</button>
                 {view?.settings.api_key && (
                   <button className="h3-btn" disabled={busy} onClick={() => {
-                    if (window.confirm("Remove the saved API key? Comfy Cloud and Comfy Router stop until a key is set again.")) void save({ api_key: null }, "Key removed");
+                    if (window.confirm("Remove the saved Comfy API key? Comfy Cloud, Comfy Router and deployments stop until a key is set again.")) void putKey(null, "Key removed");
                   }}>Remove</button>
                 )}
-              </div>
+              </>
             )}
-            <label htmlFor="sm-set-hf" title="For the gated downloads (FLUX, LTX-2.5) in Features: huggingface.co, Settings, Access Tokens (read)">Hugging Face token</label>
-            {env.hf_token ? (
-              <span className="h3-small h3-muted">Set by the environment ({env.hf_token}): change it there.</span>
-            ) : (
-              <div className="h3-row" style={{ gap: 4 }}>
-                <input id="sm-set-hf" className="h3-in h3-grow h3-mono" type="password" autoComplete="off" value={hfToken}
-                  placeholder={view?.settings.hf_token ? "a new token replaces the one saved" : "hf_… (for gated model downloads)"}
-                  onChange={(e) => setHfToken(e.target.value)} />
-                {view?.settings.hf_token && (
-                  <button className="h3-btn" disabled={busy} onClick={() => void save({ hf_token: null }, "Token removed")}>Remove</button>
-                )}
-              </div>
-            )}
-            <label htmlFor="sm-set-limit">Paid runs</label>
-            <div className="h3-row h3-wrap" style={{ gap: 8 }}>
-              <input id="sm-set-limit" className="h3-in" type="number" min={0} step={1} style={{ width: 90 }} value={limit}
-                placeholder="no limit" onChange={(e) => setLimit(e.target.value)} />
-              <span className="h3-small h3-muted">a session, then it stops and asks</span>
-            </div>
+            {view && !view.settings.api_key && !env.api_key && <a className="h3-link" href="https://platform.comfy.org" target="_blank" rel="noreferrer">get a key</a>}
           </div>
-          <ProvidersCard />
           {view?.settings.api_key && sdk && sdk.status !== "ready" && (
             <div className="h3-col" style={{ gap: 4 }}>
               <span className="h3-status">Cloud and Router need Comfy's SDK in this Python</span>
@@ -353,17 +369,31 @@ function SettingsBody({ server }: { server: boolean }) {
               </div>
             </div>
           )}
-          <span className="h3-small h3-muted">
-            From your Comfy account (platform.comfy.org, API keys). It turns on Comfy Cloud (any graph, on Comfy's GPUs) and
-            Comfy Router (hosted models: Seedance, Krea 2, ...), which uploads its input pictures through Cloud. Paid use is billed
-            to that account. The paid-run limit counts runs on Cloud, Router or a deployment; empty: no limit (reset the count in Jobs).
-          </span>
           <details>
             <summary className="h3-small">Comfy Cloud address (leave it unless told otherwise)</summary>
             <div className="h3-form" style={{ marginTop: 6 }}>
               {url("cloud_url", "Address", "Leave it unless Comfy tells you otherwise.")}
             </div>
           </details>
+          <ProvidersCard />
+        </section>
+
+        <section className="h3-card">
+          <div className="h3-card-head">
+            <span className="h3-card-title h3-grow">Paid runs</span>
+          </div>
+          <div className="h3-form">
+            <label htmlFor="sm-set-limit">Limit</label>
+            <div className="h3-row h3-wrap" style={{ gap: 8 }}>
+              <input id="sm-set-limit" className="h3-in" type="number" min={0} step={1} style={{ width: 90 }} value={limit}
+                placeholder="no limit" onChange={(e) => setLimit(e.target.value)} />
+              <span className="h3-small h3-muted">a session, then it stops and asks</span>
+            </div>
+          </div>
+          <span className="h3-small h3-muted">
+            Counts every run that is billed: on Comfy Cloud, Router, a deployment or a provider. Empty: no limit (reset the
+            count in Jobs).
+          </span>
         </section>
 
         <section className="h3-card">
@@ -386,7 +416,7 @@ function SettingsBody({ server }: { server: boolean }) {
           ))}
           <span className="h3-small h3-muted">
             A model built into a Comfy deployment of its own (its address ends .run.comfy.app). Each shows up in Render on as
-            deployment:&lt;model&gt;; it uses the API key above.
+            deployment:&lt;model&gt;; it uses the Comfy key under External accounts.
           </span>
         </section>
 

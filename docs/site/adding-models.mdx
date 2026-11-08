@@ -51,9 +51,14 @@ model…**:
 
 ### A model on another API
 
-For a model on a provider you have your own account with, such as Atlas Cloud. Video, image and
-voice models. Music on a provider comes built in rather than added here: Eleven Music and Suno v6 are in the cue
-window's model list, and only need the provider's key. A voice model on ElevenLabs takes a speaker per character:
+For a model on a provider you have your own account with, such as Atlas Cloud. A provider isn't
+of a kind: one account can serve video, pictures, voices and music, and you add it once. Each model
+on it says what it **makes** (**Video**, **Image**, **Voice** or **Music**), as each lands somewhere
+else in the app; what it takes in (a first frame, pictures, a voice sample, lyrics) is read from its
+reference. Eleven Music and Suno v6 come built in, in the cue window's model list, and only need the
+provider's key. Another music model is added here as **Music**: its description, lyrics (a field of
+their own, or after the description), length and instrumental switch are found in its reference, and
+**Prompt & mapping** shows the request on one of the episode's cues (make one first). A voice model on ElevenLabs takes a speaker per character:
 choose it on the character's voice row, hear each one's free preview, and generating is refused
 until there is one. Picking the provider here also lets you **listen to its voices** before you have
 a key: its own voices play with none, and its whole library takes the key, or browse it on its site.
@@ -71,7 +76,8 @@ A model you save appears in the model list; until then, a provider's models are 
    values and limits come from those docs, and only Seedance 2.5 reference-to-video has been proved
    by a real take. Higgsfield's list holds Seedance 2.5, MiniMax H3, Kling 3.0 Pro, Soul, Soul
    Cinema and Grok Image 2.0, none yet proved. Its key is pasted as copied from
-   open.higgsfield.ai. Otherwise, type the model's id as the provider's docs give it. Where the id
+   open.higgsfield.ai. Otherwise, type the model's id as the provider's docs give it, and say
+   what it makes: **Video**, **Image** or **Voice**. Where the id
    is in the provider's address, as on Higgsfield and fal, a docs page's address gives you the id
    too: on Higgsfield, the model's page on docs.higgsfield.ai (open.higgsfield.ai's draw themselves
    in the browser). Runway's list holds Gen-4.5, Gen-4 Turbo, MiniMax H3 Max, Hailuo 3.0, Seedance
@@ -96,7 +102,8 @@ A model you save appears in the model list; until then, a provider's models are 
 5. **Save it as a draft**, and probe one take. That's a paid render, and it's the only thing that
    proves the mapping, because no reference says everything a model will refuse.
 
-**A provider that isn't listed:** choose **Add a provider** in the Provider menu.
+**A provider that isn't listed:** choose **Add a provider** in the Provider menu, or **Add a
+provider…** under Settings' **External accounts** (it opens this, on that form).
 
 1. **Paste the request that starts a generation**: the address of its docs page, the example cURL
    from it, its OpenAPI document, or that document's address. A docs page is read when its HTML has

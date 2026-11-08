@@ -205,6 +205,90 @@ class TheRoute(WithEpisode):
         self.assertEqual(self.ctx.runner.tracks, 1)
 
 
+# a music model added from its API reference (apispec.propose, kind "music"), as the two shipped ones
+# would be read from their docs' example requests
+ELEVEN_EXAMPLE = {"prompt": "a calm piano", "music_length_ms": 30000, "force_instrumental": False, "model_id": "music_v2_5"}
+SUNO_EXAMPLE = {"model": "suno/chirp-v6", "custom": True, "style": "pop", "prompt": "[Verse] la la",
+                "duration": 120, "instrumental": False}
+
+
+class Proposed(TheRoute):
+    def propose(self, service, model, example):
+        from seriesmith import apispec as AS
+        got = AS.propose(service, model, json.dumps(example), "music")
+        spec = dict(got["proposal"], id=f"my_{service}_music")
+        return got, spec
+
+    def plan_on(self, spec, **kw):
+        with TG.trying(spec["id"], None, spec):
+            t = TG.load_target(spec["id"], "music")
+            p = CU.plan(self.root, "final", self.spec(model=spec["id"], **kw), {})
+            return p, *CU.hosted_call(t, p, 7)
+
+    def test_an_eleven_shaped_request_reads_as_eleven_music(self):
+        got, spec = self.propose("elevenlabs", "music_v2_5", ELEVEN_EXAMPLE)
+        self.assertEqual((spec["kind"], spec["code"], spec["draft"]), ("music", "builtin:api_music", True))
+        ins = spec["api"]["inputs"]
+        self.assertEqual(ins["prompt"], "prompt")
+        self.assertNotIn("lyrics", ins)                       # no field: they go after the description
+        self.assertEqual((ins["seconds"]["name"], ins["seconds"]["scale"]), ("music_length_ms", 1000))
+        self.assertEqual(ins["instrumental"], "force_instrumental")
+        # its music way and an audio file, as the shipped Eleven Music has them
+        self.assertEqual(spec["api"]["values"], {"type": "audio", "use": "music"})
+        self.assertEqual(got["unplaced"], [])
+        # a song: lyrics in the prompt, the switch off; a score: the switch on
+        _, model, args = self.plan_on(spec, **SONG)
+        self.assertEqual(model, "music_v2_5")
+        self.assertIn("Lyrics:\n[Verse]\nporch light on", args["prompt"])
+        self.assertNotIn("force_instrumental", args)
+        p, _, args = self.plan_on(spec)
+        self.assertIs(args["force_instrumental"], True)
+        self.assertGreaterEqual(args["music_length_ms"], p["ask_seconds"] * 1000)
+        self.assertEqual(args[ROUTING]["values"]["use"], "music")
+
+    def test_a_suno_shaped_request_takes_the_style_and_its_lyrics_apart(self):
+        got, spec = self.propose("atlas", "suno/chirp-v6", SUNO_EXAMPLE)
+        ins = spec["api"]["inputs"]
+        self.assertEqual((ins["prompt"], ins["lyrics"]), ("style", "prompt"))
+        self.assertEqual(ins["seconds"]["name"], "duration")
+        self.assertEqual(spec["api"]["values"], {"endpoint": "generateAudio", "type": "audio"})
+        _, _, args = self.plan_on(spec, **SONG)
+        self.assertEqual(args["prompt"], "[Verse]\nporch light on\nleave it on\n\n[Chorus]\ncome on home")
+        self.assertNotIn("Lyrics:", args["style"])
+        self.assertNotIn("instrumental", args)
+
+    def test_a_reference_with_nothing_to_describe_it_is_refused(self):
+        from seriesmith import apispec as AS
+        with self.assertRaises(AS.SpecError):
+            AS.propose("atlas", "m/n", json.dumps({"duration": 30}), "music")
+
+    def test_it_saves_and_is_offered_for_songs(self):
+        _, spec = self.propose("elevenlabs", "music_v2_5", ELEVEN_EXAMPLE)
+        # saved into the show (a user-scope save in a test would land beside the tests' settings)
+        self.do(A.put_targets_custom, {"ep": self.root, "target": spec, "scope": "show"})
+        t = TG.load_target(spec["id"], "music", root=self.root)
+        self.assertEqual((t.kind, TG.service_of(t.spec)), ("music", "elevenlabs"))
+        self.assertTrue(t.capabilities()["lyrics"])
+        listed = self.do(A.get_targets, {"ep": self.root, "kind": "music"})["targets"]
+        self.assertIn(spec["id"], [x["id"] for x in listed])
+
+    def test_the_wizard_reads_it_and_the_panel_shows_its_request_on_a_cue(self):
+        got = self.do(A.post_provider_read_spec, {"ep": self.root, "service": "elevenlabs", "model": "music_v2_5",
+                                                "kind": "music", "text": json.dumps(ELEVEN_EXAMPLE)})
+        spec = dict(got["proposal"], id="my_eleven_music")
+        # no cue yet: said
+        self.assertIn("no cues", self.do(A.post_targets_prompt_preview,
+                                         {"ep": self.root, "target": spec}, 404)["error"])
+        self.do(A.put_cue, {"ep": self.root, "cue": {"id": "m01", "in": anchor("sh010"), "out": anchor("sh020", 60),
+                                                     "bpm": 92, **SONG}})
+        v = self.do(A.post_targets_prompt_preview, {"ep": self.root, "target": spec})
+        self.assertEqual((v["kind"], v["shot"]), ("music", "m01"))
+        self.assertEqual([c["id"] for c in v["cues"]], ["m01"])
+        self.assertIn("Lyrics:", v["arguments"]["prompt"])
+        self.assertEqual({r["role"]: r["field"] for r in v["rows"]}["seconds"], "music_length_ms")
+        self.assertEqual(v["calls"][0]["url"].split("/")[-1], "music")
+
+
 @unittest.skipUnless(HAVE_FF, "ffmpeg isn't installed")
 class BothTracks(WithEpisode):
     def setUp(self):

@@ -11,6 +11,7 @@ authenticates. YAML isn't read (stdlib only): the message says to paste JSON.
 from __future__ import annotations
 
 import json
+import math
 import re
 import shlex
 import urllib.parse
@@ -253,6 +254,67 @@ def _proposed_voice(named: str, doc: dict) -> dict:
         "router": {"model": named, "inputs": inputs}}, "mapped": {}, "unplaced": [], "warnings": []}
 
 
+# a music model's request, by what its fields are commonly called (first found wins)
+MUSIC_DESCRIPTION = ("prompt", "style", "description", "caption", "tags", "text", "input")
+MUSIC_LYRICS = ("lyrics", "lyric")
+MUSIC_LENGTH = ("duration", "seconds", "length", "music_length_ms", "duration_ms", "length_ms",
+                "audio_duration", "duration_seconds", "length_seconds")
+MUSIC_INSTRUMENTAL = ("instrumental", "force_instrumental", "make_instrumental", "is_instrumental")
+
+
+def _proposed_music(named: str, doc: dict) -> dict:
+    """A music model read from its reference: a description in (the cue told as a paragraph), a
+    song's lyrics in a field of their own or after it, a length, an instrumental switch, a seed
+    (generic/api_music.py; cue.hosted_call places each). A model with both `style` and `prompt` and
+    no lyrics field takes the description as its style and the lyrics as its prompt (Suno's custom
+    mode). A length named in milliseconds (`_ms`) is scaled."""
+    got = RI.schema_fields(doc)
+    fields = {f["path"]: f for f in got["fields"] if "." not in f["path"]}
+    first = (lambda names: next((n for n in names if n in fields), None))
+    lyrics = first(MUSIC_LYRICS)
+    if not lyrics and "style" in fields and "prompt" in fields:
+        words, lyrics = "style", "prompt"
+    else:
+        words = next((n for n in MUSIC_DESCRIPTION if n in fields and n != lyrics), None)
+    if not words:
+        raise SpecError("that music model's reference has no field for its description: "
+                        + ", ".join(MUSIC_DESCRIPTION))
+    inputs: dict = {"prompt": words}
+    mapped = {"prompt": words}
+    if lyrics:
+        inputs["lyrics"] = mapped["lyrics"] = lyrics
+    lo, hi = 1.0, 600.0
+    length = first(MUSIC_LENGTH)
+    if length:
+        f = fields[length]
+        scale = 1000 if length.endswith("ms") else 1
+        lo = float(f["min"]) / scale if f.get("min") is not None else lo
+        hi = float(f["max"]) / scale if f.get("max") is not None else hi
+        inputs["seconds"] = {"name": length, "min": max(1, math.ceil(lo)), "max": max(1, math.floor(hi)),
+                             **({"scale": scale} if scale != 1 else {})}
+        mapped["seconds"] = length
+    switch = first(MUSIC_INSTRUMENTAL)
+    if switch:
+        inputs["instrumental"] = mapped["instrumental"] = switch
+    if "seed" in fields:
+        inputs["seed"] = {"name": "seed", "max": int(fields["seed"].get("max") or 2147483647)}
+        mapped["seed"] = "seed"
+    placed = set(mapped.values())
+    warnings = []
+    if not length:
+        warnings.append("No length field was found: the model makes its own length, and the cue plays "
+                        "its span of it.")
+    return {"proposal": {
+        "id": "x", "kind": "music", "label": named, "short": named, "code": "builtin:api_music",
+        "capabilities": {"mode": "t2m", "tempo": "text", "structure": "story", "lyrics": True,
+                         "max_seconds": hi},
+        "template": {"default_seconds": min(max(30.0, lo), hi), "min_seconds": lo, "max_seconds": hi},
+        "presets": {"final": {"model": named, "takes": 2}, "proxy": {"model": named, "takes": 1}},
+        "router": {"model": named, "inputs": inputs}},
+        "mapped": mapped, "unplaced": [r for r in got["required"] if r not in placed and "." not in r],
+        "warnings": warnings}
+
+
 def propose(service: str, model: str, text: str, kind: str = "video", path: str | None = None,
             base: dict | None = None) -> dict:
     """{"proposal": target.json, "mapped", "unplaced", "warnings", "form", "paths", "schema",
@@ -278,6 +340,7 @@ def propose(service: str, model: str, text: str, kind: str = "video", path: str 
     named = model if "/" in model else f"{service}/{model}"
     try:
         made = (_proposed_voice(named, doc) if kind == "audio" else
+                _proposed_music(named, doc) if kind == "music" else
                 RI.propose_image(named, doc) if kind == "image" else RI.propose(named, doc, base=base))
         schema = RI.schema_fields(doc)
     except RI.RouterInspectError as e:
@@ -298,10 +361,14 @@ def propose(service: str, model: str, text: str, kind: str = "video", path: str 
     for gone in named_in_steps:
         block.get("arguments", {}).pop(gone, None)
     values = {}
-    endpoint = (defs[service].get("endpoints") or {}).get(kind)
+    endpoints = defs[service].get("endpoints") or {}
+    # music is sound: a provider's audio address serves it unless it names one of its own
+    endpoint = endpoints.get(kind) or (endpoints.get("audio") if kind == "music" else None)
     if endpoint:
         values["endpoint"] = endpoint
-    values["type"] = kind
+    values["type"] = "audio" if kind == "music" else kind
+    if kind == "music" and "music" in (defs[service].get("ways") or {}):
+        values["use"] = "music"                  # its own way for music (ElevenLabs' /v1/music)
     text_endpoint = (defs[service].get("endpoints") or {}).get(f"{kind}_text")
     if text_endpoint:
         block["values_text"] = {"endpoint": text_endpoint}

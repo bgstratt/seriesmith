@@ -97,6 +97,9 @@ export function CustomTargets({ list }: { list: TargetList | null }) {
   const [open, setOpen] = useState(false);
   const [routerOpen, setRouterOpen] = useState(false);
   const [apiOpen, setApiOpen] = useState(false);
+  // opened from Settings' External accounts: Add a model from another API, expanded
+  const handoff = useApp((s) => s.missingPanel?.api ?? null);
+  useEffect(() => { if (handoff) setApiOpen(true); }, [handoff]);
   const mine = useMemo(() => customTargets(list), [list]);
   const shipped = useMemo(() => (list?.targets ?? []).filter((t) => t.shipped_draft), [list]);
   // an opened wizard is brought into view (the window is usually scrolled to the table)
@@ -115,7 +118,7 @@ export function CustomTargets({ list }: { list: TargetList | null }) {
       </div>
       {routerOpen && <RouterWizard onClose={() => setRouterOpen(false)} />}
       {open && <Wizard onClose={() => setOpen(false)} />}
-      {apiOpen && <ApiModelWizard onClose={() => setApiOpen(false)} />}
+      {apiOpen && <ApiModelWizard key={JSON.stringify(handoff ?? {})} start={handoff ?? undefined} onClose={() => setApiOpen(false)} />}
       {!open && !routerOpen && !apiOpen && (
         <div className="h3-row h3-wrap" style={{ gap: 6 }}>
           <button className="h3-btn h3-primary" title="Pick one from Router's catalog: seriesmith reads its schema and proposes how a shot goes in"

@@ -1196,7 +1196,8 @@ def validate_spec(spec: dict, graph: dict | None = None,
                    f"starting with a letter")
     hosted_image = TG.is_hosted(spec) and spec.get("kind") == "image"
     hosted_voice = TG.is_hosted(spec) and spec.get("kind") == "audio" and spec.get("code") == "builtin:router_audio"
-    if spec.get("kind") and spec["kind"] not in ("video", "image") and not hosted_voice:
+    hosted_music = TG.is_hosted(spec) and spec.get("kind") == "music" and spec.get("code") == "builtin:api_music"
+    if spec.get("kind") and spec["kind"] not in ("video", "image") and not (hosted_voice or hosted_music):
         out.append(f"kind must be 'video' or 'image' for a target made from a workflow, "
                    f"not {spec['kind']!r}")
     if spec.get("kind") == "image" and not TG.is_hosted(spec) and spec.get("code") != "builtin:workflow_image":
@@ -1221,7 +1222,8 @@ def validate_spec(spec: dict, graph: dict | None = None,
         inputs = r.get("inputs")
         if not isinstance(inputs, dict) or not inputs.get("prompt"):
             out.append("router.inputs must say where the prompt goes")
-        code = "builtin:router_audio" if hosted_voice else "builtin:router_image" if hosted_image else "builtin:router_video"
+        code = ("builtin:router_audio" if hosted_voice else "builtin:api_music" if hosted_music
+                else "builtin:router_image" if hosted_image else "builtin:router_video")
         if spec.get("code") not in (None, code):
             out.append(f"a Router {spec.get('kind', 'video')} target's code is {code}")
         return out

@@ -124,6 +124,10 @@ IMAGE_ROLES = {
     "ratio": "The shape", "resolution": "The size (1K, 2K)", "size": "The size (WxH)",
     "width": "The width", "height": "The height", "seed": "The seed",
 }
+MUSIC_ROLES = {
+    "prompt": "The description", "lyrics": "The lyrics", "seconds": "The length",
+    "instrumental": "Instrumental (no voice)", "seed": "The seed",
+}
 NOT_A_FIELD = ("via",)                    # how pictures go in: no field of the request
 
 
@@ -154,7 +158,7 @@ def _at(args, path: str):
 def rows(t: "TG.Target", args: dict | None) -> list[dict]:
     """One per value a hosted model can take: what it is, where it goes, what it comes to here."""
     inputs = TG.hosted_block(t.spec).get("inputs") or {}
-    known = IMAGE_ROLES if t.kind == "image" else VIDEO_ROLES
+    known = IMAGE_ROLES if t.kind == "image" else MUSIC_ROLES if t.kind == "music" else VIDEO_ROLES
     out = []
     for role in list(known) + [k for k in inputs if k not in known and k not in NOT_A_FIELD]:
         spec = inputs.get(role)
@@ -249,6 +253,8 @@ def preview(root: str, target_id: str, pass_: str = "proxy", shot: str | None = 
         return _preview_image(root, target_id, fields, spec, problems, changed, ref, view, required)
     if kind == "audio" and TG.is_hosted(spec or saved.spec):
         return _preview_voice(root, target_id, fields, spec, problems, changed, ref, required)
+    if kind == "music" and TG.is_hosted(spec or saved.spec):
+        return _preview_music(root, target_id, pass_, fields, spec, problems, changed, ref, required)
     if kind != "video":
         raise PreviewError(f"{target_id} is a {kind} model: its prompts aren't templated yet")
 
@@ -398,6 +404,57 @@ def _without_prompt(overrides: dict, sid: str) -> dict:
                 strip(v)
     strip(shot)
     return ov
+
+
+def _preview_music(root, target_id, pass_, fields, spec, problems, changed, cue_id, required) -> dict:
+    """A hosted music model on one of the episode's cues (`cue_id`, else its first song, else its
+    first cue): the cue planned on it as a render plans it, the description it's told and its
+    request (cue.hosted_call). `shot` in the answer is the cue's id."""
+    from seriesmith import cue as CU
+    from seriesmith.backends.router import ROUTING
+    cues = CU.list_cues(root)
+    if not cues:
+        raise PreviewError("this episode has no cues to try it on: make one in the cue window")
+    pick = next((c for c in cues if c["id"] == cue_id), None) or next(
+        (c for c in cues if c.get("kind") == "song"), cues[0])
+    with TG.trying(target_id, fields, spec):
+        t = TG.load_target(target_id, "music", root=root)
+        out = {"ok": True, "id": t.id, "kind": "music", "label": t.label, "scope": TG.scope_of(t.folder),
+               "hosted": True, "shot": pick["id"], "pass": pass_, "editable": False, "problems": problems,
+               "changed": changed, "shipped": _own_image(t), "parts": [], "request_parts": [],
+               "template": "", "request": TP.request_template(t, "image"),
+               "cues": [{"id": c["id"], "label": c.get("label") or c["id"], "kind": c.get("kind") or "score"}
+                        for c in cues]}
+        _mapping(t, out, None, required)
+        # planned on the pass asked, else the other (an episode built for one pass only)
+        p, why = None, ""
+        for each in (pass_, *(x for x in T.PASSES if x != pass_)):
+            try:
+                p = CU.plan(root, each, {**pick, "model": t.id})
+                out["pass"] = each
+                break
+            except (CU.CueError, FileNotFoundError) as e:
+                why = why or str(e)
+        if p is None:
+            out.update(ok=False, why=why)
+            return out
+        out["prompt"] = out["sent"] = p["prompt"]["prompt"]
+        try:
+            model, args = CU.hosted_call(t, p, 1)
+        except Exception as e:                            # noqa: BLE001  said in the panel
+            out["request_error"] = f"{e}" if isinstance(e, ValueError) else f"{e.__class__.__name__}: {e}"
+            return out
+        service = TG.service_of(t.spec)
+        if service:
+            from seriesmith import providers as PR
+            from seriesmith.backends.http import planned_calls
+            d = PR.definitions().get(service)
+            if d:
+                out["calls"] = planned_calls(d, model, args)
+        routing = args.pop(ROUTING, None)
+        out.update(model=model, arguments=plain(args), **({"routing": routing} if routing else {}))
+        _mapping(t, out, out["arguments"], required)
+    return out
 
 
 def _request(t: "TG.Target", job, out: dict) -> None:

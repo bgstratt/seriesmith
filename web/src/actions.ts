@@ -26,7 +26,7 @@ import { buildError, changedShots, needsAlignBuild, resultSummary, scriptClash, 
 import {
   detailKey, keepDetails, persistPrefs, statusKey, store, uploadKey, type AppState, type BackendInfo, type BrowseState,
   type ClipAudioState,
-  type CompareMode, type RefTakeRef, type ShotFormOpen, type VoiceClipState, SIMPLE_KEY,
+  type CompareMode, type MissingPanelState, type RefTakeRef, type ShotFormOpen, type VoiceClipState, SIMPLE_KEY,
 } from "./store";
 import type {
   AlignEvent, VocalsEvent, AlignJob, AlignMissing, AlignRequest, AlignResult, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
@@ -128,8 +128,10 @@ export async function refreshReadiness(): Promise<void> {
 
 /** Open the What's missing window, for one target or (null) all of them.
  * Readiness older than a minute is re-checked. */
-export function openMissing(target: string | null = null) {
-  set({ missingPanel: { target }, menu: null });
+/** The Models window, on `target`'s row (null: the list); `api`: Add a model from another API
+ * opened (from Settings: on a provider, or with Add a provider open). */
+export function openMissing(target: string | null = null, api?: MissingPanelState["api"]) {
+  set({ missingPanel: { target, ...(api ? { api } : {}) }, menu: null });
   const at = get().readinessAt;
   if (!at || Date.now() - at > 60_000) void loadTargets(true);
 }

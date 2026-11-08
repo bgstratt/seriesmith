@@ -246,6 +246,8 @@ export interface Toast {
 /** The What's missing window: one target's files, or (target null) every target. */
 export interface MissingPanelState {
   target: string | null;
+  /** Add a model from another API opened from Settings: on a provider, or with Add a provider open */
+  api?: { service?: string; addProvider?: boolean };
 }
 
 /** A file being uploaded into a ref slot (drag and drop, or the file picker). */

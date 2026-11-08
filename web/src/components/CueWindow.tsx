@@ -1460,7 +1460,7 @@ function CueInspector({ ep, pass, res, target, targets, presets, sel, sections, 
       {field("Model", (
         <select className="h3-in" aria-label="Music model" value={spec.model ?? ""} onChange={(e) => edit({ model: e.target.value || undefined })}>
           <option value="">the default{plan && !spec.model ? ` (${targets.find((t) => t.id === plan.target)?.short ?? plan.target})` : ""}</option>
-          {targets.filter((t) => spec.kind !== "song" || t.capabilities?.lyrics).map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          {targets.filter((t) => spec.kind !== "song" || t.capabilities?.lyrics).map((t) => <option key={t.id} value={t.id}>{t.label}{t.draft ? " (draft: probe a take)" : ""}</option>)}
         </select>
       ), target?.capabilities?.structure === "story" ? "It takes the arc as a story told in words, the tempo in the text"
         : target?.capabilities?.structure === "plan" ? "It plans the song itself (sections and bars, as ABC), its tempo set to the cue's; then sings the lyrics to that plan"

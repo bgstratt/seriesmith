@@ -1138,21 +1138,26 @@ where things are. What it would lose to a restart, it doesn't:
   failed, saying so, so a stuck ComfyUI doesn't hold its lane for good.
 - **A full disk.** A job that needs more room than is free where its files go (a render
   1 GB, an upscale or post 3 GB) is refused before anything is reserved.
-- **Paid runs.** Runs on Comfy Cloud, Router or a deployment are counted (**paid runs**
+- **Paid runs.** Runs on Comfy Cloud, Router, a deployment or a provider of yours are counted (**paid runs**
   in the Jobs window's title, with **reset**); a batch of them asks first, and **Settings**
   can cap them per session.
 
 ## Settings
 
 **Settings** in the top bar (on top of seriesmith Shots inside ComfyUI) is this machine's
-own, never the series': the **Comfy API key** (from platform.comfy.org; it turns on Comfy
-Cloud and Comfy Router, and paid use is billed to that account), the Cloud address, **Paid
-runs per session** (the cap; empty is none; under the key, while Comfy's SDK installs for
-Cloud and Router, how that is going, with **Install** if it failed), where your **ComfyUI** is, the **Video
+own, never the series'. **External accounts** has a row for each service that renders for
+you, with its own key: **Comfy Cloud & Router** first (the Comfy API key, from
+platform.comfy.org; paid use is billed to that account; under it, while Comfy's SDK installs
+for Cloud and Router, how that is going; the Cloud address), then each API provider (Atlas
+Cloud, ElevenLabs, ...: its key, **get a key** and its **docs**), and **Add a provider…**,
+which opens Models on **Add a model from another API** with its provider form open (as in
+[ADDING_MODELS.md](ADDING_MODELS.md)), its first model following. **Paid runs** is the cap per session on
+every billed run (Cloud, Router, a deployment or a provider; empty is none). **This computer**
+has where your **ComfyUI** is, the **Video
 model** and **Picture model** a series naming none renders on (what seriesmith found
 installed in ComfyUI, unless you pick one), whether local renders go **through
 comfy-api-proxy** (advanced; off: straight to ComfyUI), **Features…** (below), the
-**Hugging Face token** for gated downloads, **Folders** (your own ffmpeg; ComfyUI's
+**Hugging Face token** for gated downloads in Features, **Folders** (your own ffmpeg; ComfyUI's
 folder, when it can't be asked), **Use from an LLM (MCP)** (how to add this install to an LLM
 client you use: its command line, the JSON block, the command itself, each to copy, with a
 read-only switch; nothing is installed and nothing runs until the client starts it:

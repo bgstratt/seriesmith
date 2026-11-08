@@ -3,8 +3,8 @@
 // a proposed mapping, looked over in the same Prompt & mapping panel, saved as a draft.
 
 import { useEffect, useMemo, useState } from "react";
-import { saveCustomTarget } from "../actions";
-import type { ProviderDraft, ProviderRow, ProviderSpecRead } from "../api";
+import { openMissing, openSettings, saveCustomTarget } from "../actions";
+import type { ModelMakes, ProviderDraft, ProviderRow, ProviderSpecRead } from "../api";
 import { api } from "../host";
 import { useApp } from "../store";
 import { PromptMapping, type PanelEdits } from "./PromptMapping";
@@ -300,35 +300,52 @@ export function AddProvider({ onSaved, onCancel }: {
   );
 }
 
-/** The providers on this machine: a key for each (never shown again). Adding one is in the Models
- * window, where its first model follows. */
+/** What a model on a provider makes, as the wizard offers it: each lands somewhere else in the app. */
+const MAKES: ModelMakes[] = ["video", "image", "audio", "music"];
+const MAKES_LABEL: Record<ModelMakes, string> = { video: "Video", image: "Image", audio: "Voice", music: "Music" };
+const MAKES_HINT: Record<ModelMakes, string> = {
+  video: "A shot: words, and a first frame, reference pictures or sound if it takes them",
+  image: "A picture (refs and keyframes): words, and pictures to edit if it takes them",
+  audio: "A character's voice: their lines in, a recording out (a sample of them, if it copies one)",
+  music: "Cues and songs (the cue window): a description, lyrics, a length",
+};
+
+/** How Settings opens the Models window's API-model wizard: on a provider, or with Add a provider open. */
+export interface ApiWizardStart {
+  service?: string;
+  /** the Add a provider form open in it */
+  addProvider?: boolean;
+}
+
+/** The providers on this machine, under Settings' External accounts: a key for each (never shown
+ * again). Adding one, or a model on one, is the Models window's Add a model from another API. */
 export function ProvidersCard() {
   const { rows, setRows, err, setErr } = useProviders();
   return (
     <div className="h3-col" style={{ gap: 4 }}>
-      <div className="h3-h">
-        API providers
-        <span className="h3-muted h3-small" style={{ textTransform: "none", fontWeight: 400 }}>
-          {" "}— keys stay on this machine, and go only to that provider's own address
-        </span>
-      </div>
       {!rows && !err && <div className="h3-small h3-muted"><i className="pi pi-spin pi-spinner" /> Reading the providers…</div>}
       {(rows ?? []).map((r) => (
         <ProviderKey key={r.id} row={r} onChanged={setRows} onError={setErr} />
       ))}
       {err && <div className="h3-small h3-err">{err}</div>}
-      <div className="h3-small h3-muted">To add a provider: Models, then Add a model from another API.</div>
+      <div className="h3-row h3-wrap h3-small" style={{ gap: 6 }}>
+        <button className="h3-btn" title="Models, with Add a model from another API open on a new provider: its docs page, a cURL or an OpenAPI document read into one, then its first model"
+          onClick={() => { openSettings(false); openMissing(null, { addProvider: true }); }}>
+          <i className="pi pi-plus" /> Add a provider…
+        </button>
+        <span className="h3-muted">Keys stay on this machine, and go only to that provider's own address.</span>
+      </div>
     </div>
   );
 }
 
 /** A model on a provider: its reference pasted, its mapping proposed and looked over, saved as a draft. */
-export function ApiModelWizard({ onClose }: { onClose: () => void }) {
+export function ApiModelWizard({ onClose, start }: { onClose: () => void; start?: ApiWizardStart }) {
   const saving = useApp((s) => !!s.busy["target-save"]);
   const { rows, setRows, err: listErr, setErr: setListErr } = useProviders();
-  const [service, setService] = useState("");
+  const [service, setService] = useState(start?.service ?? "");
   const [model, setModel] = useState("");
-  const [kind, setKind] = useState<"video" | "image" | "audio">("video");
+  const [kind, setKind] = useState<ModelMakes>("video");
   const [text, setText] = useState("");
   const [path, setPath] = useState("");
   const [busy, setBusy] = useState(false);
@@ -339,7 +356,7 @@ export function ApiModelWizard({ onClose }: { onClose: () => void }) {
   const [json, setJson] = useState("");
   const [scope, setScope] = useState<"user" | "show">("user");
   const [blocked, setBlocked] = useState(false);
-  const [addingProvider, setAddingProvider] = useState(false);
+  const [addingProvider, setAddingProvider] = useState(!!start?.addProvider);
   const row = (rows ?? []).find((x) => x.id === service);
   const listed = row?.catalog ?? [];
   // a model on the provider's list needs nothing pasted
@@ -404,16 +421,22 @@ export function ApiModelWizard({ onClose }: { onClose: () => void }) {
       </div>
       <div className="h3-row h3-wrap h3-small" style={{ gap: 6 }}>
         <label className="h3-row" style={{ gap: 4 }}>Provider
-          <select className="h3-in" value={service} onChange={(e) => {
-            if (e.target.value === "+") setAddingProvider(true);
-            else setService(e.target.value);
+          {/* the menu says what's open: a provider, or Add a provider while its form is */}
+          <select className="h3-in" value={addingProvider ? "+" : service} onChange={(e) => {
+            if (e.target.value === "+") {
+              setAddingProvider(true);
+              return;
+            }
+            setAddingProvider(false);
+            setService(e.target.value);
+            setR(null);
           }}>
             <option value="">(choose)</option>
             {(rows ?? []).map((x) => <option key={x.id} value={x.id}>{x.label}{x.has_key ? "" : " (no key yet)"}</option>)}
             <option value="+">Add a provider…</option>
           </select>
         </label>
-        {listed.length > 0 && (
+        {!addingProvider && listed.length > 0 && (
           <label className="h3-row" style={{ gap: 4 }} title="Models whose docs have been read: nothing to paste">From its list
             <select className="h3-in" style={{ maxWidth: 240 }} value={fromList?.id ?? ""}
               onChange={(e) => {
@@ -423,24 +446,35 @@ export function ApiModelWizard({ onClose }: { onClose: () => void }) {
                 setR(null);
               }}>
               <option value="">(another model)</option>
-              {(["video", "image", "audio"] as const).filter((k) => listed.some((m) => m.kind === k)).map((k) => (
-                <optgroup key={k} label={k === "video" ? "Video" : k === "image" ? "Image" : "Voice"}>
+              {MAKES.filter((k) => listed.some((m) => m.kind === k)).map((k) => (
+                <optgroup key={k} label={MAKES_LABEL[k]}>
                   {listed.filter((m) => m.kind === k).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
                 </optgroup>
               ))}
             </select>
           </label>
         )}
-        <label className="h3-row h3-grow" style={{ gap: 4 }}>Model id
-          <input className="h3-in h3-mono h3-grow" spellCheck={false} value={model} placeholder="the id the provider knows it by"
-            onChange={(e) => setModel(e.target.value)} />
-        </label>
-        <span className="h3-seg">
-          {(["video", "image"] as const).map((k) => (
-            <button key={k} className={kind === k ? "h3-on" : ""} onClick={() => setKind(k)}>{k === "video" ? "Video" : k === "image" ? "Image" : "Voice"}</button>
-          ))}
-        </span>
+        {!addingProvider && (
+          <>
+            <label className="h3-row h3-grow" style={{ gap: 4 }}>Model id
+              <input className="h3-in h3-mono h3-grow" spellCheck={false} value={model} placeholder="the id the provider knows it by"
+                onChange={(e) => setModel(e.target.value)} />
+            </label>
+            <span className="h3-seg" title="What the model makes. What it takes in (pictures, a sample, lyrics) is read from its reference.">
+              {MAKES.map((k) => (
+                <button key={k} className={kind === k ? "h3-on" : ""} title={MAKES_HINT[k]}
+                  onClick={() => { setKind(k); setR(null); }}>{MAKES_LABEL[k]}</button>
+              ))}
+            </span>
+          </>
+        )}
       </div>
+      {addingProvider && (
+        <div className="h3-small h3-muted">
+          First the provider: the account side (its address, how it takes your key, how it answers and takes
+          pictures). Its first model follows, from the same request.
+        </div>
+      )}
       {addingProvider && (
         <AddProvider onCancel={() => setAddingProvider(false)} onSaved={(saved, pid, m, reference) => {
           setRows(saved);
@@ -452,6 +486,7 @@ export function ApiModelWizard({ onClose }: { onClose: () => void }) {
         }} />
       )}
       {listErr && <div className="h3-small h3-err">{listErr}</div>}
+      {!addingProvider && <>
       {row && !row.has_key && <ProviderKey row={row} onChanged={setRows} onError={setListErr} />}
       {row?.voices && (
         <details className="h3-small">
@@ -526,7 +561,9 @@ export function ApiModelWizard({ onClose }: { onClose: () => void }) {
           )}
           <PromptMapping key={String(r.proposal.id)} kind={kind} spec={draft} onEdit={setEdits} onBlocked={setBlocked} />
           <div className="h3-row" style={{ gap: 6 }}>
-            <span className="h3-small h3-muted h3-grow">Saved as a draft: probe one take (paid), look at it, then enable it.</span>
+            <span className="h3-small h3-muted h3-grow">{kind === "music"
+              ? "Saved as a draft: pick it for a cue in the cue window and render one take (paid), listen, then enable it."
+              : "Saved as a draft: probe one take (paid), look at it, then enable it."}</span>
             <select className="h3-in" value={scope} onChange={(e) => setScope(e.target.value as "user" | "show")}
               title="Every show: kept beside seriesmith's settings. This show: in its targets folder.">
               <option value="user">for every show</option>
@@ -539,6 +576,7 @@ export function ApiModelWizard({ onClose }: { onClose: () => void }) {
           </div>
         </>
       )}
+      </>}
     </div>
   );
 }

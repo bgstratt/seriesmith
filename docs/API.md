@@ -4565,7 +4565,10 @@ a hosted model's mapping, `target` is a hosted model's target.json not saved yet
 and `limits` the limit changes to apply to it. `required` (the schema's) adds `unfilled`, and `count`
 adds `takes_on_model` and `samples` (a shot of each kind to try: dialogue, voiceover, several
 subjects, silent, with a first frame, without one). An image model takes `ref` and `view` in place
-of `shot`.
+of `shot`, a voice model `ref` (a character with a voice), and a hosted music model `ref` as one of
+the episode's cues (default: its first song, else its first cue; 404 with none): the cue is planned
+on the model as a render plans it (on the other pass when this one isn't built), `shot` is the cue's
+id, and `cues` lists the episode's (`[{id, label, kind}]`).
 
 Returns `{ok, why?, id, label, scope, hosted, shot, pass, editable, changed, template, request,
 shipped: {template, request, inputs, arguments}, problems: {template, request}, parts, request_parts,
@@ -4679,7 +4682,7 @@ shares its base's voice (**400**). A hosted voice take without a speaker is refu
 ### `POST /seriesmith/providers/read-spec`
 
 A model's API reference read into a proposed target, nothing saved or sent to the provider. Body
-`{service, model, kind? (video, image or audio), text, path?}`: `text` is an OpenAPI document or its address, an example
+`{service, model, kind? (video, image, audio (a voice) or music), text, path?}`: `text` is an OpenAPI document or its address, an example
 cURL, an example request's JSON, or a docs page's address. Returns `{proposal, mapped, unplaced,
 warnings, form, paths, schema, auth?, limits, model}`. An OpenAPI document with several requests and
 no `path` returns `proposal: null` and the `paths` to choose from. A key in a pasted cURL isn't kept,

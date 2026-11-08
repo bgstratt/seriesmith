@@ -4604,8 +4604,8 @@ def post_provider_read_spec(ctx: Context, body):
     from seriesmith import providers as PR
     body = body_dict(body)
     kind = body.get("kind") or "video"
-    if kind not in ("video", "image", "audio"):
-        raise ApiError(400, "kind is video, image or audio")
+    if kind not in ("video", "image", "audio", "music"):
+        raise ApiError(400, "kind is video, image, audio (a voice) or music")
     text = body.get("text") or ""
     if not isinstance(text, str):
         raise ApiError(400, "text is the API's reference")

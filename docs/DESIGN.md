@@ -304,7 +304,13 @@ prompt. Three things, kept apart because each is reused differently:
   (OpenAI's `/content` does; a signed link doesn't).
 - **A model**: which provider, which model id (by shot where one model has several: Atlas's
   text, image and reference-to-video ids), its limits, and where each value goes (the
-  `inputs` form Router targets already use).
+  `inputs` form Router targets already use). A provider is of no kind; a model says what it
+  makes (video, image, a voice, music: 2026-11-07), because each goes somewhere else in the app
+  (a shot, a ref, a character's lines, a cue), and what it takes in is read from its reference.
+  Audio is all words (or a sample) in and sound out; voice and music differ in payload and in
+  where the take lands. A music model is the `inputs` a cue fills (description, lyrics,
+  length, instrumental, seed: cue.hosted_call) and one shared writer (`generic/api_music`);
+  on a provider with a `ways.music`, it takes that way.
 - **A prompt profile**: how a model family wants its prompt, shared across providers:
   Seedance's wording is the same on Router, BytePlus and Atlas.
 

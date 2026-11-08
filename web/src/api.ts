@@ -104,7 +104,7 @@ export interface ProviderRow {
   env_name: string;
   docs: string;
   /** the models its docs have been read for: picked rather than pasted */
-  catalog: { id: string; label: string; kind: "video" | "image" | "audio"; note?: string }[];
+  catalog: { id: string; label: string; kind: ModelMakes; note?: string }[];
   key_url?: string;
   voices?: { browse: string; lists: { id: string; label: string; free: boolean; searches: boolean }[] } | null;
   definition: Record<string, unknown>;
@@ -215,8 +215,13 @@ export interface ModelSchema {
 }
 
 /** POST /seriesmith/targets/prompt-preview: a model's prompt on one shot, or ref. */
+/** What a model on a provider makes: a shot, a picture, a character's voice, or music (cues and songs). */
+export type ModelMakes = "video" | "image" | "audio" | "music";
+
 export interface PromptPreview {
   ok: boolean;
+  /** a music model: the episode's cues to try it on (`shot` is the cue's id) */
+  cues?: { id: string; label: string; kind: string }[];
   why?: string;
   id: string;
   kind?: string;

@@ -230,8 +230,10 @@ export function PromptMapping({ id, kind = "video", spec, limits, onEdit, onBloc
   const ep = useApp((s) => s.ep);
   const saving = useApp((s) => !!s.busy["prompt-save"]);
   const st = useStatus();
-  const onRef = kind === "image" || kind === "audio";
-  const refs = useRefs(onRef ? ep : null);
+  // a music model is tried on one of the episode's cues (the preview lists them), no template
+  const music = kind === "music";
+  const onRef = kind === "image" || kind === "audio" || music;
+  const refs = useRefs(onRef && !music ? ep : null);
   const [shot, setShot] = useState("");
   const [pass, setPass] = useState<"proxy" | "final">("proxy");
   const [tab, setTab] = useState<"prompt" | "fields">(onRef ? "fields" : "prompt");
@@ -314,7 +316,7 @@ export function PromptMapping({ id, kind = "video", spec, limits, onEdit, onBloc
 
   if (err && !view) return <div className="h3-small h3-err">{err}</div>;
   if (!view || template === null || request === null) {
-    return <div className="h3-small h3-muted"><i className="pi pi-spin pi-spinner" /> Reading the {kind === "image" ? "ref" : kind === "audio" ? "character" : "shot"}…</div>;
+    return <div className="h3-small h3-muted"><i className="pi pi-spin pi-spinner" /> Reading the {kind === "image" ? "ref" : kind === "audio" ? "character" : music ? "cue" : "shot"}…</div>;
   }
   const shipped = own.current ?? view.shipped;
   const dirty = !!saved && (template !== saved.template || request !== saved.request
@@ -368,7 +370,11 @@ export function PromptMapping({ id, kind = "video", spec, limits, onEdit, onBloc
     <div className="h3-col" style={{ gap: 8 }}>
       <div className="h3-row h3-wrap h3-small" style={{ gap: 8 }}>
         <span>Try on</span>
-        {image ? (
+        {music ? (
+          <select className="h3-in" aria-label="Cue" value={shot || view.shot} onChange={(e) => setShot(e.target.value)} style={{ maxWidth: 220 }}>
+            {(view.cues ?? []).map((c) => <option key={c.id} value={c.id}>{c.label}{c.kind === "song" ? " (song)" : ""}</option>)}
+          </select>
+        ) : image ? (
           <select className="h3-in" value={shot || view.shot} onChange={(e) => setShot(e.target.value)} style={{ maxWidth: 180 }}>
             {(refs ?? []).filter((r) => (kind === "audio") === (r.kind === "voice")).map((r) => <option key={r.id} value={r.id}>{r.name || r.id}</option>)}
           </select>
