@@ -2762,18 +2762,22 @@ def get_cues(ctx: Context, query: dict):
     check, [{"id", "error"}]."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query["pass"]) if query.get("pass") is not None else None
-    items = {}
-    if pass_:
+    # each pass's mix items by id, read once: what a cue has in the mix is the mix's, not
+    # its takes' record of a pick (an item deleted from the mix leaves that behind)
+    mixes = {}
+    for p in PASSES:
         try:
-            items = {i["id"]: i for i in MX.check(MX.load(ep).get(pass_)).get("items") or []}
+            mixes[p] = {i["id"]: i for i in MX.check(MX.load(ep).get(p)).get("items") or []}
         except ValueError:
-            items = {}
+            mixes[p] = {}
+    items = mixes[pass_] if pass_ else {}
     out = []
     for spec in CU.list_cues(ep):
         takes = CU.list_takes(ep, spec["id"])
         row = {"spec": spec, "takes": len(takes),
                "ok": sum(1 for t in takes if t.get("status") == "ok"),
-               "placed": sorted({t["placed"] for t in takes if t.get("placed")})}
+               "placed": sorted(p for p in PASSES
+                                if CU.item_take(mixes[p].get(spec["id"]), spec["id"]) is not None)}
         if pass_:
             row.update(_cue_state(ep, pass_, spec, takes, items.get(spec["id"])))
         out.append(row)
@@ -2810,9 +2814,13 @@ def get_cue(ctx: Context, query: dict):
     except CU.CueError as e:
         full, why = None, str(e)
     takes = CU.ranked(CU.list_takes(ep, spec["id"]))
+    # in the mix is what the mix holds, not the sidecar's record of a pick (an item deleted
+    # from the mix leaves that record behind)
+    in_mix = CU.mix_take(ep, pass_, spec["id"])
     for t in takes:
         t["stale"] = CU.stale(t, full) if full else []
         t["seconds"] = CU.take_seconds(ep, t)
+        t["placed"] = pass_ if t["take"] == in_mix else None
     return 200, {"spec": spec, "plan": _plan_summary(full) if full else None,
                  "plan_error": why, "takes": takes, "themes": CU.theme_list(ep)}
 

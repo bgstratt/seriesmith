@@ -832,6 +832,19 @@ class RouteTest(unittest.TestCase):
         self.assertIsNone(secs[2])
         self.assertGreater(secs[1], p["bars"] * p["bar"] * 0.9)
         self.assertLess(secs[1], p["bars"] * p["bar"] * 1.2)
+        # in the mix is the mix's: picked, it is; its item deleted from the mix, it isn't,
+        # though the take's record of the pick stays
+        placed = lambda: {t["take"]: t["placed"] for t in self.call(  # noqa: E731
+            A.get_cue, {"ep": self.ep, "pass": "final", "cue": "m01"})["takes"]}
+        listed = lambda: next(c for c in self.call(A.get_cues, {"ep": self.ep})["cues"]  # noqa: E731
+                              if c["spec"]["id"] == "m01")["placed"]
+        self.call(A.post_cue_pick, {"ep": self.ep, "pass": "final", "cue": "m01", "take": 1})
+        self.assertEqual((placed()[1], listed()), ("final", ["final"]))
+        mix = MX.load(self.ep)
+        mix["final"]["items"] = [i for i in mix["final"]["items"] if i["id"] != "m01"]
+        MX.save(self.ep, mix)
+        self.assertEqual(CU.list_takes(self.ep, "m01")[0]["placed"], "final")
+        self.assertEqual((placed()[1], listed()), (None, []))
         # a model that can't repaint
         CU.update(self.ep, "m01", 1, target="stable_audio3")
         self.assertIn("can't make bars", self.call(A.post_cue_repaint, body, 409)["error"])

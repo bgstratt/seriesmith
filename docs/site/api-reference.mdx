@@ -853,7 +853,8 @@ prompt.
 
 ### `GET /seriesmith/cues?ep=…[&pass=…]`
 `{"cues": [{"spec", "takes", "ok", "placed"}]}`: each cue's spec, how many takes it has, how
-many finished, and the passes whose mix it's in. With `pass` (the spotting sheet's list), each
+many finished, and the passes whose mix plays one of its takes (read from the mixes: a take picked
+and then taken out of the mix isn't in it). With `pass` (the spotting sheet's list), each
 is also planned against that pass's cut: `bpm` (the fitted tempo), `in_mix` (the take its item
 in the pass's mix plays, null: none), `stale` (what has moved under that take since it was
 rendered, in words; `[]` when nothing has or none is in the mix), `stale_takes` (the finished
@@ -896,7 +897,8 @@ rendered (its sidecar's `rendered_for`: the span, each hit, the tempo, the theme
 `[]` when nothing has (a `{"cue"}` theme now resolving to another take than the one it was
 rendered with is stale: "the theme is m01 t03, not m01 t02"), and `seconds`: a finished take's
 length (its `tNN.wav`, read from its header; a YuE2 song runs as long as its plan, past the
-cue's grid; null for a take not finished, or one whose wav can't be read). A take rendered with a theme has
+cue's grid; null for a take not finished, or one whose wav can't be read). Each take's `placed` is the pass when that pass's
+mix plays it, else null: read from the mix, so a take picked and then taken out of the mix isn't. A take rendered with a theme has
 `theme` (`{label, use, from?}`: the take or file it heard, and for a `{"cue"}` theme how that
 take was found, `strength` and `staged` (`{stretch, bars, seconds}`: how it was fitted) when it
 was rendered from; a repaint of it hears the same take, whatever is picked since); a YuE2 take
