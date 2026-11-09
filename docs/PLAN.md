@@ -1926,10 +1926,8 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
   of Ballroom's take (same file), removed again leaving Ballroom's at one link. What doesn't
   come back from our own export: the beds and per-shot effects as plain items (they're
   computed, not stored), voices-only as per-shot stems, and the ducking (off).
-- [ ] **Next: Describe shots.** Each action line is its clip's name. A vision model reading each
-  take (a few frames) could write the shot's action, who's in it and its size, so a shot can be
-  rendered again from words; and the cast and locations it finds proposed for the series
-  config. Not at import: a model, its cost and a review step.
+- Dropped (2026-11-09): **Describe shots**, a vision model writing each imported clip's action. No
+  LLM goes into the application. Each action line stays its clip's name.
 - [ ] Later, if wanted: V2+ as cutaways (split V1 under them), clip speed (timeremap), the
   linked audio's slip, a second sequence chosen (`--sequence`), FCPXML (Final Cut Pro X's
   own format), EDL.
