@@ -13,7 +13,7 @@ import { keyframeRefId } from "../lib/keyframes";
 import { videoTargets } from "../lib/targets";
 import { clipTake } from "../lib/playlist";
 import {
-  bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_W,
+  bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_W,
   pushed, type DropSide, type BoardAct, type BoardBeat, type BoardRun, type BoardShot, type SeriesChoices, type StoryboardAnswer, type StoryboardEdit,
 } from "../lib/storyboard";
 import { statusKey, store, useApp } from "../store";
@@ -42,7 +42,8 @@ type Menu =
 
 /** Right-click on anything on the board. The name fields stand in for a prompt, which ComfyUI's
  * desktop app doesn't have. */
-function BoardMenu({ menu, choices, busy, edit, close, rename }: {
+function BoardMenu({ menu, choices, busy, edit, close, rename, fresh }: {
+  fresh: Set<string>;
   menu: Menu;
   choices: SeriesChoices | null;
   busy: boolean;
@@ -56,8 +57,14 @@ function BoardMenu({ menu, choices, busy, edit, close, rename }: {
     : menu.kind === "beat" ? menu.beat.runs.flatMap((r) => r.shots)
     : menu.kind === "act" ? menu.act.beats.flatMap((b) => b.runs.flatMap((r) => r.shots)) : []);
   const run = (e: StoryboardEdit) => () => { edit(e); close(); };
+  const group = menu.kind === "sequence" ? menu.run.shots
+    : menu.kind === "beat" ? menu.beat.runs.flatMap((r) => r.shots)
+    : menu.kind === "act" ? menu.act.beats.flatMap((b) => b.runs.flatMap((r) => r.shots)) : [];
+  const wanted = toGenerate(group, fresh);
   const convert = (
     <>
+      <button disabled={busy || !wanted.length} title={wanted.length ? "Render the shots here with no up-to-date take, each on its own model" : "Every shot here has an up-to-date take"}
+        onClick={() => { requestRender(wanted, true, `Generate ${wanted.length} shots`); close(); }}><i className="pi pi-play" /> Generate ({wanted.length})</button>
       <button disabled={busy || !held.length} title={held.length ? "Change these held shots' model. Read them first: a stand-in's action is what the model is sent." : "No held shots here"}
         onClick={() => setAsking("convert")}><i className="pi pi-video" /> Convert held shots ({held.length})…</button>
       {asking === "convert" && (
@@ -88,6 +95,9 @@ function BoardMenu({ menu, choices, busy, edit, close, rename }: {
           <>
             <div className="h3-menu-head">{menu.shot.id}{menu.shot.held_empty ? " (stand-in)" : ""}</div>
             <button onClick={() => { openShotForm({ shot: menu.shot.id, after: null }); close(); }}><i className="pi pi-pencil" /> Edit shot…</button>
+            <button disabled={busy} title="Render this shot on its own model" onClick={() => { requestRender([menu.shot.id], true, `Generate ${menu.shot.id}`); close(); }}>
+              <i className="pi pi-play" /> {fresh.has(menu.shot.id) ? "Generate again" : "Generate"}
+            </button>
             <button disabled={busy} onClick={run({ op: "add_after", block: menu.shot.block })}><i className="pi pi-plus" /> Add a stand-in after</button>
             <button disabled={busy || !menu.last} title={menu.last ? "" : "Only after a sequence's last shot: a new one in the middle would move the shots after it"}
               onClick={() => setAsking("place")}><i className="pi pi-map-marker" /> New sequence after…</button>
@@ -672,7 +682,7 @@ function Storyboard({ ep }: { ep: string }) {
         )}
         {menu && (
           <BoardMenu menu={menu} choices={choices} busy={busy} edit={(e) => void edit(e)} close={() => setMenu(null)}
-            rename={(b) => setRenamingBeat(b.block)} />
+            rename={(b) => setRenamingBeat(b.block)} fresh={rendered.current} />
         )}
         <div className="h3-sb-board">
           {plan?.acts.map((act, i) => {

@@ -67,12 +67,13 @@ has worked on keeps its own cast.
 
 ## Right-click
 
-- **A shot:** edit it, add a stand-in after it, start a new sequence after it (from the
+- **A shot:** edit it, generate it, add a stand-in after it, start a new sequence after it (from the
   sequence's last shot only), or delete it. A deleted shot's takes stay on disk.
-- **A sequence's bar:** a new sequence after it, in a place you choose; convert its held shots.
+- **A sequence's bar:** a new sequence after it, in a place you choose; generate its shots or
+  convert its held shots.
 - **A beat's bar:** rename it (or double-click its name), add a beat after it, remove it (its
-  shots join the beat before), convert its held shots.
-- **An act's row:** add an act after it, convert its held shots. Rename or remove the acts you
+  shots join the beat before), generate its shots, or convert its held shots.
+- **An act's row:** add an act after it, generate its shots, or convert its held shots. Rename or remove the acts you
   added; a structure's own acts keep their names.
 
 Renaming a beat means the score no longer recognises it from the structure's table, so it gets
@@ -108,6 +109,13 @@ the model would be sent. A paid model charges for that render like any other.
 
 A gray card is never sent to a real model. A dropped picture is: FL2VA uses it as the first
 frame, and a reference model ignores it unless the shot asks for one.
+
+## Generating
+
+Right-click a shot and choose **Generate** to render it on its own model, in the pass that's
+open. On a sequence, beat or act, **Generate** renders the shots there with no up-to-date take,
+and leaves the rest. Each is a normal render: it asks before a batch of paid ones, and says when
+a shot is missing what it needs.
 
 ## Undo
 

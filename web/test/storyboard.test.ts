@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blockedScript } from "../src/lib/wizard";
-import { bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, pushed, runtimeMinutes, runWidth, seriesChoices, UNDO_STEPS, type BoardBeat } from "../src/lib/storyboard";
+import { bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, pushed, runtimeMinutes, runWidth, seriesChoices, UNDO_STEPS, type BoardBeat } from "../src/lib/storyboard";
 
 function beat(over: Partial<BoardBeat>): BoardBeat {
   return { beat: "A", plain: "A", nth: 0, block: null, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
@@ -143,6 +143,12 @@ describe("shotBefore", () => {
   it("doesn't count the shot being moved", () => {
     expect(shotBefore(order, "c", "before", "b")).toBe("a");
     expect(shotBefore(order, "b", "after", "b")).toBeNull();
+  });
+});
+
+describe("toGenerate", () => {
+  it("leaves out shots with an up-to-date take", () => {
+    expect(toGenerate([{ id: "a" }, { id: "b" }], new Set(["a"]))).toEqual(["b"]);
   });
 });
 

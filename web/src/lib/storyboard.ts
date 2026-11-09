@@ -222,6 +222,11 @@ export function heldIds(shots: Pick<BoardShot, "id" | "target">[]): string[] {
   return shots.filter((s) => s.target === "hold").map((s) => s.id);
 }
 
+/** The shots without an up-to-date take: what Generate does for a sequence, a beat or an act. */
+export function toGenerate(shots: Pick<BoardShot, "id">[], fresh: Set<string>): string[] {
+  return shots.filter((s) => !fresh.has(s.id)).map((s) => s.id);
+}
+
 export type DropSide = "before" | "after";
 
 /** Where on a tile a drop lands. A shot being moved goes to the nearer side. A file on the middle
