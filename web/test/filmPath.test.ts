@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filmStep, nameOfId, scriptForEpisode, scriptNames, scriptShots } from "../src/lib/filmPath";
+import { agentInstructions, filmStep, nameOfId, scriptForEpisode, scriptNames, scriptShots } from "../src/lib/filmPath";
 import { withScriptNames } from "../src/lib/wizard";
 
 const SCRIPT = `= ep09  The Pier
@@ -78,4 +78,14 @@ describe("the step an episode is on", () => {
   it("stays on the board while shots have no model", () => expect(filmStep({ ...f, held: 1, unrendered: 2 })).toBe(3));
   it("films what has no take", () => expect(filmStep({ ...f, unrendered: 2 })).toBe(4));
   it("is ready to watch", () => expect(filmStep(f)).toBe(5));
+});
+
+describe("the instructions for your agent", () => {
+  it("name the folder, and save the series config before the script", () => {
+    const text = agentInstructions("C:\\shows\\ep01");
+    expect(text).toContain("C:\\shows\\ep01");
+    expect(text).toContain("every character, prop, vehicle and location");
+    expect(text.indexOf("save_source it with its hash")).toBeLessThan(text.lastIndexOf("save_source it with its hash"));
+    expect(text.indexOf("check_source the series config")).toBeLessThan(text.indexOf("check_source the script"));
+  });
 });

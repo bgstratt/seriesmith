@@ -4,8 +4,8 @@
 
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { generateMissing, loadRefs, openFilmPath, openSeriesForm, openSource, openStoryboard, playAll, requestRender } from "../actions";
-import { api } from "../host";
-import { FILM_STEPS, filmStep, scriptShots, type FilmFacts, type FilmStep } from "../lib/filmPath";
+import { api, host } from "../host";
+import { agentInstructions, FILM_STEPS, filmStep, scriptShots, type FilmFacts, type FilmStep } from "../lib/filmPath";
 import { statusKey, store, useApp } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
 
@@ -20,6 +20,7 @@ function FilmPath({ ep }: { ep: string }) {
   const refs = useApp((s) => s.refs[ep]);
   const [script, setScript] = useState<string | null>(null);
   const [chosen, setChosen] = useState<FilmStep | null>(null);
+  const [showAsk, setShowAsk] = useState(false);
 
   useEffect(() => {
     if (!refs) void loadRefs(ep);
@@ -45,6 +46,16 @@ function FilmPath({ ep }: { ep: string }) {
   };
   const now = filmStep(facts);
   const step = chosen ?? now;
+
+  // the page over plain http on a network has no clipboard: the text is shown to copy by hand
+  const copyAsk = async () => {
+    try {
+      await navigator.clipboard.writeText(agentInstructions(ep));
+      host().toast("success", "Copied", "Paste it into your agent.");
+    } catch {
+      setShowAsk(true);
+    }
+  };
 
   const openExport = (e: MouseEvent<HTMLButtonElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -82,9 +93,13 @@ function FilmPath({ ep }: { ep: string }) {
                   <>
                     <span id="sm-guide-waiting">Waiting for the script. This moves on by itself when it's saved.</span>
                     <span className="h3-small h3-muted">
-                      Write it with the script-writing skill in the agent you already use, connected with <code>seriesmith mcp</code>,
-                      and have it save the script to this episode with <code>save_source</code>:
+                      Write it with the script-writing skill in the agent you already use, connected with <code>seriesmith mcp</code>.
+                      These instructions tell it where the episode is, and to add the cast and places to the series config too:
                     </span>
+                    <div className="h3-row h3-wrap">
+                      <button id="sm-guide-copy-ask" className="h3-btn h3-primary" onClick={() => void copyAsk()}><i className="pi pi-copy" /> Copy instructions for your agent</button>
+                    </div>
+                    {showAsk && <textarea id="sm-guide-ask" className="h3-in h3-mono h3-small" rows={9} readOnly value={agentInstructions(ep)} />}
                     <code className="h3-small h3-mono" style={{ userSelect: "all", wordBreak: "break-all" }}>{ep}</code>
                   </>
                 )}

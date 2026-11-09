@@ -81,3 +81,19 @@ export function filmStep(f: FilmFacts): FilmStep {
   if (f.unrendered) return 4;
   return 5;
 }
+
+/** What to paste into your own agent to have it write this episode, over seriesmith's MCP tools.
+ * The series config goes first: the script is checked against the one on disk. */
+export function agentInstructions(ep: string): string {
+  return [
+    "Use the seriesmith script-writing skill to write this episode. Ask me what it's about if I haven't said.",
+    "",
+    `The episode folder is: ${ep}`,
+    "",
+    "With the seriesmith MCP tools, in this order:",
+    '1. read_source for file "series" and for file "script". Keep each one\'s hash.',
+    "2. Write the script, and add every character, prop, vehicle and location it names to the series config. Keep what's already there.",
+    '3. check_source the series config, then save_source it with its hash.',
+    '4. check_source the script and fix what it reports, then save_source it with its hash.',
+  ].join("\n");
+}
