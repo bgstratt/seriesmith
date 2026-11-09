@@ -717,3 +717,23 @@ def lay_out(doc: dict, structure: str, typical: float) -> int:
         _insert(doc, at, f"// beat: {_plain_name(placed[sid])}\n", blank_before=False)
     set_structure(doc, structure)
     return len(placed)
+
+
+def convert_shots(doc: dict, shots: list[str], target: str | None) -> int:
+    """These shots' `target: hold` to `target` (None: the line goes, so they take the series'
+    default model); shots on any other model are left alone. How many changed."""
+    wanted, changed = set(shots), 0
+    for block in doc["blocks"]:
+        if block["kind"] != "shot" or block["shot"]["id"] not in wanted or block["shot"]["target"] != "hold":
+            continue
+        kept: list[str] = []
+        for raw in block["lines"]:
+            if re.match(r"^target\s*:", raw):
+                if target is not None:
+                    kept.append(f"target: {target}" + raw[len(raw.rstrip("\r\n")):])
+            else:
+                kept.append(raw)
+        block["lines"] = kept
+        block["shot"] = _shot_view(kept)
+        changed += 1
+    return changed

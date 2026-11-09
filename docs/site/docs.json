@@ -39,10 +39,11 @@
           "tutorials/voices",
           "tutorials/editing-an-episode",
           "tutorials/finishing",
-          "tutorials/gallery"
+          "tutorials/gallery",
+          "tutorials/storyboard"
         ]
       },
-      { "group": "Using seriesmith", "pages": ["editor", "import-xml", "sound", "scoring", "music-video", "titles", "commands"] },
+      { "group": "Using seriesmith", "pages": ["editor", "storyboard", "import-xml", "sound", "scoring", "music-video", "titles", "commands"] },
       { "group": "Setup in detail", "pages": ["full-setup", "install", "setup"] },
       {
         "group": "Guides",

@@ -2492,15 +2492,16 @@ To build, each ending in something that runs:
       `jobs.plan_job` takes the card away from a shot on any other model, so it can't become a first
       frame nobody chose. A picture on a tile is its first frame whatever the shot's model. Undo covers the
       script, not pictures: an earlier picture stays a take of that keyframe.
-- [ ] **Re-fit to duration**, as above, and only for stand-ins made by Fill: targets follow the
-      duration on their own. Maybe not needed at all; decide when the rest is in use.
+- [x] **Re-fit to duration: dropped** (2026-11-08). Targets follow the duration on their own.
 - [x] **Dragging shots** (2026-11-08). A tile drags to either side of another: the script's order,
       and the open pass's cut after it, as the timeline's own drops do. It takes on the sequence
       it lands in, and its seed with it. A picture on a tile's edge is a new held shot there (on
       its middle, that tile's picture). Undo puts the script back; the cut's move has the
       timeline's own undo.
-- [ ] A bulk "convert this sequence" from stand-ins to a model. Whoever sends a paid render owns
-      having read its shots: no guard on guidance text left in place (decided 2026-11-08).
+- [x] **Convert held shots** (2026-11-08). Right-click a sequence, beat or act: its held shots'
+      `target: hold` to a model or the series default, nothing else. Whoever sends a paid render owns
+      having read its shots: no guard on guidance text left in place.
+- [x] **Docs** (2026-11-08). `docs/STORYBOARD.md`, the tutorial `docs/site/tutorials/storyboard.mdx`.
 
 ## Later
 

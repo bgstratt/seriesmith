@@ -789,6 +789,12 @@ timeline or the shot list has no frame to take, so there it only says where to g
 **Use the frame as it is** skips the edit. It all goes on the queue; the Refs tab shows the
 candidates as they arrive, and any view can be made again from there.
 
+### The storyboard
+
+**Storyboard…** in the Shots tab plans an episode from a story structure: each beat's target
+against its real shots, held stand-ins, an animatic from dropped pictures, and converting to a
+model. It edits the script directly. See [STORYBOARD.md](STORYBOARD.md).
+
 ## Refs
 
 Used heavily at the start of a series and rarely afterwards, if the references come out

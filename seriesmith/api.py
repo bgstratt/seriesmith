@@ -3098,7 +3098,7 @@ def post_storyboard_edit(ctx: Context, body):
     """An edit from the storyboard, saved like the script editor's (`base_hash`, 409 when the file
     changed; the old script to history; a rebuild): `op` is `add` (one stand-in on `beat`), `fill`
     (`beats`: each up to its target, or up to `each` shots), `place` (`block`, `place`), `cast` (`block`, `who`), `structure` (`name`), `rename_beat` (`block`,
-    `name`), `add_after` (`block`, optionally `before`), `move_shot` (`block`, `target`, `after`), `delete_shot` (`block`: a shot's), `add_sequence` (`block`, `place`),
+    `name`), `add_after` (`block`, optionally `before`), `move_shot` (`block`, `target`, `after`), `convert` (`shots`, `target`), `delete_shot` (`block`: a shot's), `add_sequence` (`block`, `place`),
     `add_beat` (`beat`, `name`, optionally `act`), `lay_out` (`name`: a structure over a script with no beats), `remove_beat`, `rename_act` or `remove_act`
     (`block`: the beat's, `name`)."""
     from seriesmith.core import blocking as BL
@@ -3172,6 +3172,16 @@ def post_storyboard_edit(ctx: Context, body):
                 if place is None:
                     raise ApiError(400, "place is required")
                 made.append(BD.add_sequence_after(doc, block_at, place, seconds))
+        elif op == "convert":
+            names, model = body.get("shots"), body.get("target") or None
+            if not isinstance(names, list) or not all(isinstance(s, str) for s in names):
+                raise ApiError(400, "shots must be a list of shot ids")
+            if model is not None:
+                try:
+                    TG.load_target(model, "video", root=ep)
+                except Exception:  # noqa: BLE001  whatever it was, it isn't a model to render on
+                    raise ApiError(400, f"{model!r} is not a video model") from None
+            BD.convert_shots(doc, names, model)
         elif op == "move_shot":
             BD.move_shot(doc, int(body.get("block")), int(body.get("target")), body.get("after") is True)
         elif op == "delete_shot":

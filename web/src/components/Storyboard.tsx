@@ -10,9 +10,10 @@ import { gapAfter } from "../lib/takeDrop";
 import { api } from "../host";
 import { filesFromDrag } from "../lib/dropped";
 import { keyframeRefId } from "../lib/keyframes";
+import { videoTargets } from "../lib/targets";
 import { clipTake } from "../lib/playlist";
 import {
-  bandShare, bareBeats, clock, dropSide, dropTargets, shotBefore, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_W,
+  bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_W,
   pushed, type DropSide, type BoardAct, type BoardBeat, type BoardRun, type BoardShot, type SeriesChoices, type StoryboardAnswer, type StoryboardEdit,
 } from "../lib/storyboard";
 import { statusKey, store, useApp } from "../store";
@@ -49,8 +50,26 @@ function BoardMenu({ menu, choices, busy, edit, close, rename }: {
   close: () => void;
   rename: (beat: BoardBeat) => void;
 }) {
-  const [asking, setAsking] = useState<"beat" | "act" | "rename" | "place" | null>(null);
+  const [asking, setAsking] = useState<"beat" | "act" | "rename" | "place" | "convert" | null>(null);
+  const models = videoTargets(useApp((s) => s.targets)).filter((t) => t.id !== "hold");
+  const held = heldIds(menu.kind === "sequence" ? menu.run.shots
+    : menu.kind === "beat" ? menu.beat.runs.flatMap((r) => r.shots)
+    : menu.kind === "act" ? menu.act.beats.flatMap((b) => b.runs.flatMap((r) => r.shots)) : []);
   const run = (e: StoryboardEdit) => () => { edit(e); close(); };
+  const convert = (
+    <>
+      <button disabled={busy || !held.length} title={held.length ? "Change these held shots' model. Read them first: a stand-in's action is what the model is sent." : "No held shots here"}
+        onClick={() => setAsking("convert")}><i className="pi pi-video" /> Convert held shots ({held.length})…</button>
+      {asking === "convert" && (
+        <div className="h3-sb-models">
+          <button className="h3-sb-menuchoice" disabled={busy} onClick={run({ op: "convert", shots: held, target: null })}>The series' default</button>
+          {models.map((t) => (
+            <button key={t.id} className="h3-sb-menuchoice" disabled={busy} onClick={run({ op: "convert", shots: held, target: t.id })}>{t.label || t.id}</button>
+          ))}
+        </div>
+      )}
+    </>
+  );
   const named = menu.kind === "beat" && menu.beat.plain !== null ? { plain: menu.beat.plain, nth: menu.beat.nth } : null;
   const lastBeat = menu.kind === "act" ? menu.act.beats[menu.act.beats.length - 1] : null;
   const lastNamed = lastBeat && lastBeat.plain !== null ? { plain: lastBeat.plain, nth: lastBeat.nth } : null;
@@ -93,6 +112,7 @@ function BoardMenu({ menu, choices, busy, edit, close, rename }: {
               {asking === "place" && last && choices && choices.places.map((p) => (
                 <button key={p} className="h3-sb-menuchoice" disabled={busy} onClick={run({ op: "add_sequence", block: last.block, place: p })}>{placeName(p)}</button>
               ))}
+              {convert}
             </>
           );
         })()}
@@ -104,6 +124,7 @@ function BoardMenu({ menu, choices, busy, edit, close, rename }: {
             {asking === "beat" && ask("The new beat's name", (name) => edit({ op: "add_beat", beat: named, name }))}
             <button disabled={busy || menu.beat.block === null} title="Its shots stay and join the beat before"
               onClick={run({ op: "remove_beat", block: menu.beat.block ?? -1 })}><i className="pi pi-trash" /> Remove beat</button>
+            {convert}
           </>
         )}
         {menu.kind === "act" && (
@@ -116,6 +137,7 @@ function BoardMenu({ menu, choices, busy, edit, close, rename }: {
             {asking === "rename" && opener !== null && ask("Its new name", (name) => edit({ op: "rename_act", block: opener, name }))}
             <button disabled={busy || !menu.act.own || opener === null} title="Its beats stay"
               onClick={run({ op: "remove_act", block: opener ?? -1 })}><i className="pi pi-trash" /> Remove act</button>
+            {convert}
           </>
         )}
       </div>

@@ -479,6 +479,27 @@ class TestStoryboardRoutes(unittest.TestCase):
         row = next(b for b in self.rows(data) if b["plain"] == "B")
         self.assertEqual(len(row["runs"][0]["shots"]), 2)
 
+    HELD = DRAFT + "\n# sq01  porch\n\n## sh010\ntarget: hold\ndur: 2\nA.\n\n## sh020\ntarget: wan22_i2v\ndur: 2\nB.\n\n## sh030\ntarget: hold\ndur: 2\nC.\n"
+
+    def test_convert_held_shots_to_a_model(self):
+        self.blank(self.HELD)
+        self.edit(op="convert", shots=["sh010", "sh020"], target="ltx2")
+        written = self.text()
+        self.assertIn("## sh010\ntarget: ltx2\n", written)
+        self.assertIn("## sh020\ntarget: wan22_i2v\n", written)
+        self.assertIn("## sh030\ntarget: hold\n", written)
+
+    def test_convert_to_the_series_default_takes_the_line_away(self):
+        self.blank(self.HELD)
+        self.edit(op="convert", shots=["sh010"], target=None)
+        self.assertIn("## sh010\ndur: 2\n", self.text())
+
+    def test_convert_refuses_what_isnt_a_video_model(self):
+        self.blank(self.HELD)
+        self.edit(status=400, op="convert", shots=["sh010"], target="no_such_model")
+        self.edit(status=400, op="convert", shots="sh010", target="ltx2")
+        self.assertIn("## sh010\ntarget: hold\n", self.text())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -119,6 +119,7 @@ export type StoryboardEdit =
   | { op: "add_after"; block: number; before?: boolean }
   | { op: "move_shot"; block: number; target: number; after: boolean }
   | { op: "delete_shot"; block: number }
+  | { op: "convert"; shots: string[]; target: string | null }
   | { op: "add_sequence"; block: number; place: string }
   | { op: "add_beat"; beat: { plain: string; nth: number }; name: string; act?: string }
   | { op: "remove_beat"; block: number }
@@ -214,6 +215,11 @@ export function dropTargets<T extends Pick<BoardShot, "held_empty">>(shots: T[],
 /** The held shots that can render and have no up-to-date take: the animatic's to-do. */
 export function heldToRender<T extends Pick<BoardShot, "id" | "target" | "picture" | "card">>(shots: T[], fresh: Set<string>): string[] {
   return shots.filter((s) => s.target === "hold" && (s.picture || s.card) && !fresh.has(s.id)).map((s) => s.id);
+}
+
+/** The ids of the held shots among these: what Convert would change. */
+export function heldIds(shots: Pick<BoardShot, "id" | "target">[]): string[] {
+  return shots.filter((s) => s.target === "hold").map((s) => s.id);
 }
 
 export type DropSide = "before" | "after";

@@ -31,6 +31,7 @@ PAGES = [
     ("docs/SCRIPT_CONVERSION.md", "script-conversion", "A spec-format screenplay scene worked all the way through to shots."),
     ("docs/STORY_STRUCTURES.md", "story-structures", "Story structures for outlining an episode from scratch: each one's beats, their share of the runtime, and how beats become shots."),
     ("docs/EDITOR.md", "editor", "The editor page: shots, takes, refs, the cut and the queue, every button and key."),
+    ("docs/STORYBOARD.md", "storyboard", "An episode planned from a story structure: targets per beat, held stand-in shots, an animatic from dropped pictures, and converting to a model."),
     ("docs/IMPORT_XML.md", "import-xml", "An edit from Premiere, Resolve or Final Cut 7 (an FCP7 XML) as a new show: a shot per clip, its footage the take, the cut and its sound kept."),
     ("docs/SOUND_GUIDE.md", "sound", "The episode's sound in order: voices only, a bed for each place, a shot's effects, a score drafted from the script's beats, themes across a show, the mix and its stems."),
     ("docs/SCORING.md", "scoring", "Music made to fit the cut: hits, cues, the cue window's tabs, choosing a take, the levels; an episode scored as the example."),

@@ -1509,3 +1509,4 @@
 .h3-sb-menuask { display: flex; flex-direction: column; gap: 3px; padding: 4px 8px 6px; }
 .h3-sb-tile[data-side="before"] { box-shadow: -3px 0 0 var(--h3-accent); }
 .h3-sb-tile[data-side="after"] { box-shadow: 3px 0 0 var(--h3-accent); }
+.h3-sb-models { max-height: 240px; overflow: auto; }
