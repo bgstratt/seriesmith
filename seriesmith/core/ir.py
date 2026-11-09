@@ -133,6 +133,14 @@ class Shot:
     look: str | None = None          # its profile's look words; the action opens with them
     overlap: int | None = None       # `overlap:`: frames of the previous clip a latent holds
     legacy: list = field(default_factory=list)   # old forms read, for `seriesmith check`
+    cold_open: bool | None = None    # `cold_open:` on the shot (None: its sequence's)
+
+    def in_cold_open(self, seq: "Sequence | None" = None) -> bool:
+        """Whether the shot plays before the opening titles (docs/TITLES_GUIDE.md): its
+        own `cold_open:`, else its sequence's."""
+        if self.cold_open is not None:
+            return self.cold_open
+        return bool(seq is not None and seq.cold_open)
 
     def continues(self, seq: "Sequence | None" = None) -> str | None:
         """How this shot follows the previous one (CONTINUOUS), else None: its
@@ -171,6 +179,8 @@ class Shot:
         _put_choice(d, self)
         if self.continuous:
             d["continuous"] = self.continuous
+        if self.cold_open is not None:
+            d["cold_open"] = self.cold_open
         if self.unparsed:
             d["unparsed"] = dict(self.unparsed)
         return d
@@ -190,7 +200,8 @@ class Shot:
                    target=d.get("target"), profile=d.get("profile"),
                    first=d.get("first"), last=d.get("last"),
                    continuous=d.get("continuous"), overlap=d.get("overlap"), sla=d.get("sla"),
-                   lens=d.get("lens"), look=d.get("look"), legacy=list(d.get("legacy") or []))
+                   lens=d.get("lens"), look=d.get("look"), legacy=list(d.get("legacy") or []),
+                   cold_open=d.get("cold_open"))
 
 
 @dataclass
@@ -212,6 +223,7 @@ class Sequence:
     lens: str | None = None          # its shots' default `lens:`
     overlap: int | None = None       # its shots' default `overlap:`
     legacy: list = field(default_factory=list)
+    cold_open: bool = False          # `cold_open:` under the `#` header: its shots open the episode
 
     def multishot_groups(self) -> list[list[Shot]]:
         """The runs of shots rendered as one generation (docs/MULTISHOT.md): a
@@ -235,6 +247,8 @@ class Sequence:
         d = {"id": self.id, "location": self.location, "continuous": self.continuous or False,
              "overrides": dict(self.overrides), "source": dict(self.source)}
         _put_choice(d, self)
+        if self.cold_open:
+            d["cold_open"] = True
         if self.unparsed:
             d["unparsed"] = dict(self.unparsed)
         d["shots"] = [s.to_json() for s in self.shots]
@@ -252,7 +266,8 @@ class Sequence:
                    unparsed=dict(d.get("unparsed", {})),
                    target=d.get("target"), profile=d.get("profile"),
                    first=d.get("first"), last=d.get("last"), overlap=d.get("overlap"),
-                   sla=d.get("sla"), lens=d.get("lens"), legacy=list(d.get("legacy") or []))
+                   sla=d.get("sla"), lens=d.get("lens"), legacy=list(d.get("legacy") or []),
+                   cold_open=bool(d.get("cold_open")))
 
 
 @dataclass

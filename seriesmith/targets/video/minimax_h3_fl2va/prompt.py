@@ -119,19 +119,16 @@ def build_prompt(shot, seq, series_cfg: dict, policy: str = "generate") -> str:
             label = f"The off-screen voice of {name(d.speaker)} {spk[d.speaker]}"
         else:
             label = f"The same off-screen voice {spk[d.speaker]}"
-        verb = {"vo": "says in an off-screen voiceover",
-                "os": "says from off-screen, outside the frame"}.get(d.mode, "says")
-        deliv = (d.delivery or "").strip()
-        # A delivery note next to <d> gets read aloud as part of the line (a
-        # V.O. "on the truck radio", "crisp, without missing a beat"), so it
-        # goes with the speaker instead.
-        if deliv:
-            label, deliv = f"{label}, {deliv},", ""
-        mods = (["in the recorded voice"] if recorded else []) + ([deliv] if deliv else [])
-        line = (f"{label} {verb}{''.join(', ' + m for m in mods)}: "
-                f"<d>[English] {d.line}</d>")
+        # "says" is the last thing before the words: told after it, how a line is said gets read
+        # aloud as part of it, or an off-screen line goes to whoever is on screen
+        how = [x for x in ((d.delivery or "").strip(),
+                           {"vo": "in an off-screen voiceover",
+                            "os": "from off-screen, outside the frame"}.get(d.mode, ""),
+                           "in the recorded voice" if recorded else "") if x]
+        lead = f"{label}, {', '.join(how)}," if how else label
+        line = f"{lead} says: <d>[English] {d.line}</d>"
         if d.mode == "vo" and d.speaker in on_screen:
-            # the spec's clause, only when there is a mouth on screen to keep shut
+            # only when there is a mouth on screen to keep shut
             line += " while their lips remain completely closed."
         parts.append(line)
     if shot.text:

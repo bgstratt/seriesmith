@@ -248,7 +248,7 @@ class PromptTest(unittest.TestCase):
         # on the sheet: named in the prose, not described again
         self.assertIn("Ada and the diner kettle are in frame.", second)
         self.assertNotIn("grey bob", second)
-        self.assertIn('Ada, in a voice that is dry, quick and precise, says, warmly: "Tea?"',
+        self.assertIn('Ada, in a voice that is dry, quick and precise, warmly, says: "Tea?"',
                       second)
         self.assertNotIn("<", p)
 

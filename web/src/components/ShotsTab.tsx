@@ -9,7 +9,7 @@ import {
   upscaleBadge,
 } from "../lib/format";
 import { missingShots, passProgress, progressLine, progressTitle, staleReasons, staleShots } from "../lib/progress";
-import { shotTarget, takeTargetBadge, targetBadges } from "../lib/targets";
+import { findTarget, isHosted, listDefaultTarget, shotTarget, takeTargetBadge, targetBadges } from "../lib/targets";
 
 import { renderingTakes, statusKey, store, useApp } from "../store";
 import { ModeSwitch, SimplePanel } from "./SimplePanel";
@@ -160,8 +160,14 @@ function BuildBar() {
   const st = useStatus();
   const renderBusy = useApp((s) => Object.keys(s.busy).some((k) => k.startsWith("render|")));
   const [open, setOpen] = useState(true);
+  const { list: models } = useTargets();
   if (!ep) return null;
   const missing = missingShots(st?.shots);
+  // a model that bills someone: this button doesn't look like the free one
+  const paidMissing = (st?.shots ?? []).filter((x) => missing.includes(x.shot)).some((x) => {
+    const t = findTarget(models, shotTarget(x, listDefaultTarget(models) ?? ""));
+    return !!t && isHosted(t);
+  });
   // P2: shots whose newest take is stale for a reason a re-render settles
   const stale = staleShots(st?.shots);
   const why = staleReasons(st?.shots);
@@ -199,7 +205,7 @@ function BuildBar() {
         )}
       </div>
       <button
-        className="h3-btn h3-primary h3-wide-btn"
+        className={`h3-btn ${paidMissing ? "h3-paid" : "h3-primary"} h3-wide-btn`}
         disabled={!missing.length || renderBusy}
         title={missing.length ? `Queue a ${pass} take for each shot without one: ${missing.join(", ")}` : "Every shot has a take"}
         onClick={() => requestRender(missing, false, "Generate missing")}

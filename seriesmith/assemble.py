@@ -981,8 +981,8 @@ def main(argv: list[str] | None = None) -> int:
             missing.append((e.shot, why))
             rows.append(("missing", e, why))
             continue
-        # where this clip's sound comes from (cut.json's `audio`; else a shot's dub:
-        # takes.cut_dub_spec): the file it plays, or None when there is nothing
+        # where this clip's sound comes from (cut.json's `audio`; else a dub its take wasn't
+        # rendered to: takes.cut_dub_spec): the file it plays, or None when there is nothing
         # to play (it goes silent)
         ov_sound = T.load_overrides(root)
         audio_spec = e.audio or T.cut_dub_spec(root, e.shot, T.shot_sound(ov_sound, e.shot), sc,

@@ -25,7 +25,7 @@ import type {
   WorkflowFile, WorkflowInstallResult,
   PromoteHashes, PromotePlan, PromoteResult, ShotPreview, SourceCheck, SourceDoc, SourceFile, SourceHash, SourceSaveRequest, SourceSaveResult, OwnerTake, PresetList, RelightRequest, RelightResult,
   LookPreset, OwnPresetRequest, PresetPictureSource, RelightPreset, ImportedShotTake, TakeCopyRequest, TakeImportRequest, TakeUploadRequest,
-  AmbienceBed, FxShot, FxShotSummary, DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake,
+  AmbienceBed, FxShot, FxShotSummary, DubSources, ShotSound, Mix, MixResult, CuePreset, CueResult, CueSpec, CueSummary, CueTake, ColdOpenState, TitlesInfo, FontsInfo, SoundKind, SoundListing, SoundTakeDetail,
   ScoreDraftResult,
 } from "./types";
 import { comboChoices } from "./lib/targets";
@@ -81,6 +81,185 @@ export interface RouterDryRun {
   arguments?: Record<string, unknown>;
   routing?: Record<string, unknown>;
   prompt_chars?: { written: number };
+}
+
+/** One value a prompt template can use, as it is on the shot being looked at. */
+export interface PromptPart {
+  name: string;
+  about: string;
+  value: string;
+}
+
+/** GET /seriesmith/providers: a provider of the user's own. The key itself never comes back. */
+export interface ProviderRow {
+  id: string;
+  label: string;
+  base_url: string;
+  source: "shipped" | "yours";
+  /** written from its docs, and not yet proved by a real render */
+  untested: boolean;
+  has_key: boolean;
+  key_hint?: string;
+  key_from_env: string | null;
+  env_name: string;
+  docs: string;
+  /** the models its docs have been read for: picked rather than pasted */
+  catalog: { id: string; label: string; kind: ModelMakes; note?: string }[];
+  key_url?: string;
+  voices?: { browse: string; lists: { id: string; label: string; free: boolean; searches: boolean }[] } | null;
+  definition: Record<string, unknown>;
+}
+
+/** POST /seriesmith/providers/read-spec: a model's API reference read into a proposed target. */
+export interface LineTake {
+  take: number;
+  status: "running" | "ok" | "failed";
+  text: string;
+  source?: string;
+  voice_name?: string;
+  file?: string;
+  seconds?: number;
+  error?: string;
+}
+
+export interface LineRow {
+  id: string;
+  shot: string;
+  who: string;
+  name: string;
+  text: string;
+  chars: number;
+  status: "missing" | "ok" | "changed";
+  speaker: { id: string; name?: string; preview?: string } | null;
+  picked?: number | null;
+  takes: LineTake[];
+}
+
+/** GET /seriesmith/lines */
+export interface LinesPlan {
+  available: boolean;
+  why?: string;
+  target: string | null;
+  label: string;
+  service: string;
+  lines: LineRow[];
+  paid?: boolean;
+  characters: { who: string; name: string; lines: number; chars: number; speaker: LineRow["speaker"]; to_make?: { lines: number; chars: number };
+    source?: { status: "running" | "ok" | "failed"; name?: string; error?: string; lines?: number; cut?: number; unheard?: string[]; notes?: string[] } | null }[];
+  to_make: { lines: number; chars: number };
+  no_speaker: string[];
+  recording: string | null;
+  can_lay: boolean;
+}
+
+export interface ProviderVoice {
+  id: string;
+  name: string;
+  preview: string;
+  about: string;
+  category: string;
+  labels: Record<string, string>;
+}
+
+export interface ProviderSpecRead {
+  model?: string;
+  form: "openapi" | "curl" | "example" | "catalog";
+  /** the requests of an OpenAPI document; with no proposal, one to choose */
+  paths: string[];
+  proposal: Record<string, unknown> | null;
+  unplaced?: string[];
+  warnings?: string[];
+  schema?: ModelSchema;
+  auth?: Record<string, unknown>;
+}
+
+/** POST /seriesmith/providers/draft: a provider set up from what its docs give. */
+export interface ProviderDraft {
+  form: Record<string, unknown>;
+  definition: Record<string, unknown>;
+  /** what's left to fill in */
+  problems: string[];
+  notes?: string[];
+  /** the model the pasted request names */
+  model?: string;
+  paths?: string[];
+}
+
+/** One call a job on a provider would make: nothing is sent, and the key shows as how it goes. */
+export interface PlannedCall {
+  what: string;
+  method: string;
+  url: string;
+  key: string;
+  sends?: unknown;
+  takes?: unknown;
+  until?: unknown;
+  answers?: string;
+}
+
+/** One value a hosted model takes, where it goes, and what it comes to on the shot. */
+export interface MappingRow {
+  role: string;
+  what: string;
+  spec: unknown;
+  field: string;
+  now: unknown;
+}
+
+/** POST /seriesmith/targets/schema: the fields a Router model's schema has. */
+export interface ModelSchema {
+  available: boolean;
+  why?: string;
+  required: string[];
+  fields: { path: string; type: string; required: boolean; values?: unknown[]; min?: number; max?: number; about?: string }[];
+}
+
+/** POST /seriesmith/targets/prompt-preview: a model's prompt on one shot, or ref. */
+/** What a model on a provider makes: a shot, a picture, a character's voice, or music (cues and songs). */
+export type ModelMakes = "video" | "image" | "audio" | "music";
+
+export interface PromptPreview {
+  ok: boolean;
+  /** a music model: the episode's cues to try it on (`shot` is the cue's id) */
+  cues?: { id: string; label: string; kind: string }[];
+  why?: string;
+  id: string;
+  kind?: string;
+  label: string;
+  scope: string;
+  hosted: boolean;
+  shot: string;
+  pass: string;
+  /** false: the model writes its own prompt (H3's fields), shown and not edited */
+  editable: boolean;
+  /** this show has saved a change to it */
+  changed: boolean;
+  template: string;
+  request: string;
+  shipped: { template: string; request: string; inputs?: Record<string, unknown>; arguments?: Record<string, unknown> };
+  problems: { template: string[]; request: string[] };
+  rows?: MappingRow[];
+  calls?: PlannedCall[];
+  /** a provider model's fields, read from the reference pasted when it was added */
+  schema?: ModelSchema;
+  inputs?: Record<string, unknown>;
+  fixed_arguments?: Record<string, unknown>;
+  /** what the model's schema requires and nothing fills */
+  unfilled?: string[];
+  /** a shot of each kind to try it on */
+  samples?: Record<string, string>;
+  parts: PromptPart[];
+  request_parts: PromptPart[];
+  prompt?: string;
+  sent?: string;
+  limit?: number | null;
+  overridden?: boolean;
+  entry?: Record<string, unknown>;
+  model?: string;
+  arguments?: Record<string, unknown>;
+  routing?: Record<string, unknown>;
+  request_error?: string;
+  takes_on_model?: number;
 }
 
 /** A Seedance draft its shot's final can be made from (GET /seriesmith/drafts). */
@@ -193,9 +372,22 @@ export interface Api {
     queued: { shot: string; take: number; job: string }[]; skipped: { shot: string; why: string }[] }>;
   /** POST /seriesmith/fx/pick: a shot's effects take into the pass's mix (null: out). */
   pickFx?(req: { ep: string; pass: Pass; shot: string; take: number | null }): Promise<{ mix: Mix }>;
+  /** GET /seriesmith/titles: the intro and outro a master puts around the episode, and its title. */
+  getTitles?(ep: string): Promise<TitlesInfo>;
+  /** GET /seriesmith/fonts: the server's font files, and (with `font`) the file that name finds. */
+  getFonts?(ep: string | null, font?: string): Promise<FontsInfo>;
+  /** GET /seriesmith/sound/gallery: the gallery's Sound tab, every take of the episode's sound. */
+  soundGallery?(ep: string, pass: Pass): Promise<SoundListing>;
+  /** GET /seriesmith/sound/gallery/take: what one sound take was made with (fetched when it opens). */
+  soundTake?(ep: string, pass: Pass, kind: SoundKind, id: string, take: number): Promise<SoundTakeDetail>;
+  /** GET /seriesmith/cold-open: the cold open against the pass's cut (where a master's intro goes). */
+  getColdOpen?(ep: string, pass: Pass): Promise<ColdOpenState>;
+  /** PUT /seriesmith/cold-open: the cold open marked in the script as the cut has it, every shot up to `end`
+   * (null: none); a history copy of the script kept, and rebuilt. */
+  putColdOpen?(ep: string, pass: Pass, end: string | null): Promise<ColdOpenState & { changed: boolean }>;
   /** GET /seriesmith/cues: the episode's music cues, each its spec and take counts; with
    * `pass`, each planned against that pass's cut too (its tempo, the take in the mix, what's stale). */
-  cues(ep: string, pass?: Pass): Promise<{ cues: CueSummary[] }>;
+  cues(ep: string, pass?: Pass): Promise<{ cues: CueSummary[]; unreadable?: { id: string; error: string }[] }>;
   /** GET /seriesmith/cue: a cue's spec, its plan against the pass's cut, its takes best first. */
   getCue(ep: string, pass: Pass, cue: string): Promise<CueResult>;
   /** PUT /seriesmith/cue: write a cue's spec; answers it as stored. */
@@ -394,6 +586,38 @@ export interface Api {
   putTargetLimits(ep: string | null, id: string, limits: Partial<Limits> | null): Promise<{ ok: boolean; id: string; path: string; target: Target }>;
   routerModels(ep: string | null): Promise<{ models: RouterCatalogModel[] }>;
   routerDryRun(req: { ep: string; target: Record<string, unknown> | string; limits?: Partial<Limits> | null; shot?: string | null; pass?: string; ref?: string | null; view?: string | null }): Promise<RouterDryRun>;
+  /** What a model's prompt comes to on a shot, with the templates as they stand. Nothing is saved or sent. */
+  promptPreview(req: { ep: string; id?: string; target?: Record<string, unknown>; limits?: Record<string, unknown>; shot?: string | null; ref?: string | null; pass?: string; template?: string; request?: string; inputs?: Record<string, unknown>; arguments?: Record<string, unknown>; required?: string[]; count?: boolean }): Promise<PromptPreview>;
+  /** Save how a model's prompt is written and where its values go, for this show; empty goes back to the model's own. */
+  putTargetPrompt(ep: string, id: string, template: string, request: string, inputs?: Record<string, unknown>, args?: Record<string, unknown>): Promise<{ ok: boolean; id: string; path: string; changed: boolean }>;
+  providers(): Promise<{ providers: ProviderRow[] }>;
+  putProvider(definition: Record<string, unknown>): Promise<{ ok: boolean; id: string; providers: ProviderRow[] }>;
+  /** Write-only: null removes it. */
+  putProviderKey(id: string, key: string | null): Promise<{ ok: boolean; id: string; providers: ProviderRow[] }>;
+  draftProvider(req: { text?: string; answer?: string; poll?: string; poll_answer?: string; path?: string; form?: Record<string, unknown> }): Promise<ProviderDraft>;
+  /** One read that starts nothing. The key isn't kept. */
+  checkProvider(definition: Record<string, unknown>, key: string): Promise<{ reached: boolean; key_ok: boolean; proves_key?: boolean; status: number | null; says: string }>;
+  readProviderSpec(req: { service: string; model: string; kind?: string; text: string; path?: string }): Promise<ProviderSpecRead>;
+  /** What an episode's lines are, and what generating them would make: costs nothing. */
+  lines(ep: string, target?: string | null): Promise<LinesPlan>;
+  /** Paid: `confirm_chars` is the total the person was shown. */
+  generateLines(req: { ep: string; confirm_chars: number; lines?: string[]; who?: string; target?: string }): Promise<{ queued: { line: string; take: number; job: string }[]; errors: { line: string; error: string }[] }>;
+  /** A character's whole file, cut into a take per line: costs nothing but Whisper. */
+  characterLines(ep: string, who: string, file: File): Promise<{ job: unknown }>;
+  pickLine(ep: string, line: string, take: number): Promise<{ ok: boolean }>;
+  /** Line a shot's dub up with the take the cut plays: Whisper hears both, nothing is rendered. */
+  lineUpSound(ep: string, pass: Pass, shot: string): Promise<{ job: unknown }>;
+  /** A take rendered to its dub: the cut plays the dub, or what the model gave back. */
+  setDubModelSound(ep: string, shot: string, on: boolean): Promise<{ ok: boolean; on: boolean }>;
+  /** How far a shot's dub is slid in the cut, in seconds. */
+  setSoundOffset(ep: string, shot: string, offset: number): Promise<{ ok: boolean; offset: number }>;
+  layLines(ep: string): Promise<{ path: string; seconds: number; lines: number; timed: boolean; notes: string[] }>;
+  /** A provider's speakers: one read that costs nothing. */
+  providerVoices(req: { service: string; list?: string; search?: string; after?: string }): Promise<{ voices: ProviderVoice[]; next: string }>;
+  /** Null `id` takes the speaker away. */
+  putProviderVoice(req: { ep: string; subject: string; service: string; id: string | null; name?: string; preview?: string }): Promise<{ ok: boolean; changed: boolean }>;
+  /** The fields a Router model's schema has (free, kept an hour). */
+  modelSchema(model: string): Promise<ModelSchema>;
   /** Phase 12b: remove one. */
   deleteCustomTarget(ep: string, id: string): Promise<CustomTargetResult>;
   /** Phase 12c: stop being a draft (a probe render proved it), or go back to one. */
@@ -688,9 +912,23 @@ export function createHttpApi(t: Transport): Api {
       const r = await get<Partial<MixBeats>>(`/seriesmith/mix/beats?${qs({ ep, pass })}`);
       return { items: Array.isArray(r?.items) ? r.items : [], recording: r?.recording ?? null };
     },
+    getColdOpen: async (ep, pass) => {
+      const r = await get<Partial<ColdOpenState>>(`/seriesmith/cold-open?${qs({ ep, pass })}`);
+      return { shots: Array.isArray(r?.shots) ? r.shots : [], end: r?.end ?? null, frame: r?.frame ?? null,
+               seconds: r?.seconds ?? null, gaps: Array.isArray(r?.gaps) ? r.gaps : [], error: r?.error ?? null,
+               marked: Array.isArray(r?.marked) ? r.marked : [], crossing: Array.isArray(r?.crossing) ? r.crossing : [] };
+    },
+    getTitles: (ep) => get<TitlesInfo>(`/seriesmith/titles?${qs({ ep })}`),
+    getFonts: (ep, font) => get<FontsInfo>(`/seriesmith/fonts?${qs({ ep, font })}`),
+    soundGallery: async (ep, pass) => {
+      const r = await get<Partial<SoundListing>>(`/seriesmith/sound/gallery?${qs({ ep, pass })}`);
+      return { sections: Array.isArray(r?.sections) ? r.sections : [], errors: Array.isArray(r?.errors) ? r.errors : [] };
+    },
+    soundTake: (ep, pass, kind, id, take) => get<SoundTakeDetail>(`/seriesmith/sound/gallery/take?${qs({ ep, pass, kind, id, take: String(take) })}`),
+    putColdOpen: (ep, pass, end) => call("PUT", "/seriesmith/cold-open", { ep, pass, end }),
     cues: async (ep, pass) => {
-      const r = await get<Partial<{ cues: CueSummary[] }>>(`/seriesmith/cues?${qs(pass ? { ep, pass } : { ep })}`);
-      return { cues: Array.isArray(r?.cues) ? r.cues : [] };
+      const r = await get<Partial<{ cues: CueSummary[]; unreadable: { id: string; error: string }[] }>>(`/seriesmith/cues?${qs(pass ? { ep, pass } : { ep })}`);
+      return { cues: Array.isArray(r?.cues) ? r.cues : [], unreadable: Array.isArray(r?.unreadable) ? r.unreadable : [] };
     },
     getCue: async (ep, pass, cue) => {
       const r = await get<Partial<CueResult> & { spec: CueSpec }>(`/seriesmith/cue?${qs({ ep, pass, cue })}`);
@@ -932,6 +1170,33 @@ export function createHttpApi(t: Transport): Api {
     }),
     putTargetLimits: (ep, id, limits) => call("PUT", "/seriesmith/targets/limits", { ...(ep ? { ep } : {}), id, limits }),
     routerDryRun: (req) => call("POST", "/seriesmith/targets/router-dryrun", req),
+    promptPreview: (req) => call("POST", "/seriesmith/targets/prompt-preview", req),
+    putTargetPrompt: (ep, id, template, request, inputs, args) => call("PUT", "/seriesmith/targets/prompt", {
+      ep, id, template, request, ...(inputs ? { inputs } : {}), ...(args ? { arguments: args } : {}),
+    }),
+    modelSchema: (model) => call("POST", "/seriesmith/targets/schema", { model }),
+    providers: () => get("/seriesmith/providers"),
+    putProvider: (definition) => call("PUT", "/seriesmith/providers", { definition }),
+    putProviderKey: (id, key) => call("PUT", "/seriesmith/providers/key", { id, key }),
+    readProviderSpec: (req) => call("POST", "/seriesmith/providers/read-spec", req),
+    providerVoices: ({ service, list, search, after }) => call("GET", `/seriesmith/providers/voices?service=${encodeURIComponent(service)}${list ? `&list=${encodeURIComponent(list)}` : ""}${search ? `&search=${encodeURIComponent(search)}` : ""}${after ? `&after=${encodeURIComponent(after)}` : ""}`),
+    putProviderVoice: (req) => call("PUT", "/seriesmith/refs/provider-voice", req),
+    lines: (ep, target) => call("GET", `/seriesmith/lines?ep=${encodeURIComponent(ep)}${target ? `&target=${encodeURIComponent(target)}` : ""}`),
+    generateLines: (req) => call("POST", "/seriesmith/lines/generate", req),
+    characterLines: (ep, who, file) => {
+      const form = new FormData();
+      form.append("ep", ep);
+      form.append("who", who);
+      form.append("file", file, file.name);
+      return postForm("/seriesmith/lines/character", form);
+    },
+    pickLine: (ep, line, take) => call("POST", "/seriesmith/lines/pick", { ep, line, take }),
+    lineUpSound: (ep, pass, shot) => call("POST", "/seriesmith/sound/line_up", { ep, pass, shot }),
+    setSoundOffset: (ep, shot, offset) => call("PUT", "/seriesmith/sound/offset", { ep, shot, offset }),
+    setDubModelSound: (ep, shot, on) => call("PUT", "/seriesmith/sound/model", { ep, shot, on }),
+    layLines: (ep) => call("POST", "/seriesmith/lines/lay", { ep }),
+    draftProvider: (req) => call("POST", "/seriesmith/providers/draft", req),
+    checkProvider: (definition, key) => call("POST", "/seriesmith/providers/check", { definition, key }),
     routerModels: (ep) => get(`/seriesmith/router/models?${qs({ ep: ep || undefined })}`),
     deleteCustomTarget: (ep, id) => call("DELETE", `/seriesmith/targets/custom?${qs({ ep, id })}`),
     setTargetDraft: (ep, id, draft) => call("PUT", "/seriesmith/targets/custom", { ep, id, draft }),

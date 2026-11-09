@@ -1,0 +1,80 @@
+{
+  "id": "elevenlabs",
+  "label": "ElevenLabs",
+  "untested": true,
+  "docs": "https://elevenlabs.io/docs/api-reference",
+  "base_url": "https://api.elevenlabs.io",
+  "auth": {
+    "type": "header",
+    "name": "xi-api-key"
+  },
+  "parallel": 2,
+  "steps": [
+    {
+      "method": "POST",
+      "url": "/v1/text-to-speech/{voice}",
+      "json": {
+        "model_id": "$model",
+        "...": "$args"
+      },
+      "response": "bytes"
+    }
+  ],
+  "result": {
+    "type": "audio"
+  },
+  "timed": {
+    "steps": [
+      {
+        "method": "POST",
+        "url": "/v1/text-to-speech/{voice}/with-timestamps",
+        "json": {
+          "model_id": "$model",
+          "...": "$args"
+        }
+      }
+    ],
+    "result": {
+      "inline": "audio_base64",
+      "mime": "audio/mpeg",
+      "type": "audio"
+    }
+  },
+  "ways": {
+    "music": {
+      "steps": [
+        {
+          "method": "POST",
+          "url": "/v1/music",
+          "json": {
+            "model_id": "$model",
+            "...": "$args"
+          },
+          "response": "bytes"
+        }
+      ],
+      "result": {
+        "type": "audio"
+      }
+    }
+  },
+  "check": "/v1/models",
+  "key_url": "https://elevenlabs.io/app/settings/api-keys",
+  "voices": {
+    "browse": "https://elevenlabs.io/voice-library",
+    "id": "voice_id",
+    "name": "name",
+    "preview": "preview_url",
+    "about": "description",
+    "category": "category",
+    "labels": "labels",
+    "label_fields": ["gender", "age", "accent", "descriptive", "use_case", "language"],
+    "lists": [
+      {"id": "own", "label": "Its own voices", "url": "/v1/voices", "list": "voices", "free": true},
+      {"id": "library", "label": "Its library, most used first", "url": "/v1/shared-voices?page_size=100&sort=cloned_by_count",
+       "list": "voices", "search_param": "search", "page_param": "page", "has_more": "has_more"},
+      {"id": "yours", "label": "Your account's", "url": "/v2/voices?page_size=100", "list": "voices",
+       "search_param": "search", "next": "next_page_token", "next_param": "next_page_token"}
+    ]
+  }
+}

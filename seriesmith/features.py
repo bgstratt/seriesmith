@@ -89,12 +89,19 @@ PACKS: dict[str, dict] = {
     "ComfyUI-PromptRelay": {
         "repo": "https://github.com/kijai/ComfyUI-PromptRelay",
         "classes": ["PromptRelayEncode"]},
+    "ComfyUI-Drama3": {
+        "repo": "https://github.com/PedroMarinhoDev/ComfyUI-Drama3",
+        "classes": ["Drama3Loader", "Drama3CodecLoader", "Drama3EncodeVoice", "Drama3Generate",
+                    "Drama3Decode", "Qwen3ASRLoader", "Qwen3ASRTranscribe"]},
+    "ComfyUI-Qwen-TTS": {
+        "repo": "https://github.com/flybirdxx/ComfyUI-Qwen-TTS",
+        "classes": ["FB_Qwen3TTSVoiceDesign", "FB_Qwen3TTSVoiceClone"]},
 }
 
 # The node classes seriesmith's graphs use (the shipped targets' workflows and
 # target.json, and the graphs built in Python: upscale, post, refs, chain) that
 # are ComfyUI's own, each found in ComfyUI's source (nodes.py, comfy_extras/,
-# comfy_api_nodes/; checked 2026-11-02; SamplerCustom and SaveText 2026-11-03). Nothing to install but a newer ComfyUI:
+# comfy_api_nodes/; checked 2026-11-02; SamplerCustom and SaveText 2026-11-03; Fish Audio's 2026-11-07). Nothing to install but a newer ComfyUI:
 # a missing one says so. tests/test_features.py fails on a class a graph adds
 # that is neither one of these, seriesmith's own, nor a pack's above.
 CORE_CLASSES = frozenset({
@@ -116,6 +123,7 @@ CORE_CLASSES = frozenset({
     "MiniMaxH3ImageToVideo", "MiniMaxH3ReferenceToVideo", "MiniMaxH3SigmaShift",
     "MiniMaxMusic3TextEncode", "EmptyMiniMaxMusic3LatentAudio",
     "ComfyCloudMiniMaxMusic3TextToAudioNode",
+    "FishAudioTextToSpeech", "FishAudioInstantVoiceClone",
     "ModelPatchLoader", "ModelSamplingAuraFlow", "ModelSamplingSD3", "OpticalFlowLoader",
     "QwenImage21Cache", "RandomNoise", "RebatchImages", "ReferenceLatent", "ReferenceMultiLatent",
     "ReferenceTimbreAudio", "RegexReplace", "RepeatImageBatch", "ResizeAndPadImage",
@@ -156,6 +164,9 @@ class Item:
     label: str = ""                # hub: what it is, in words
     alt: str = ""                  # model: the same file in torch's hub folder (its path
                                    # there), which counts as installed too
+    dir: str = ""                  # hub (into a models folder): the folder the repo goes
+                                   # in there, when its pack doesn't read it by the repo's
+                                   # name (ComfyUI-Qwen-TTS: models/qwen-tts/<model>/)
 
     @property
     def key(self) -> str:
@@ -261,7 +272,7 @@ def fetch_items(target) -> list[Item]:
     for repo, f in getattr(target, "fetches", {}).items():
         out.append(Item("hub", repo, folder=f["into"], url=f"{HC.HF}/{repo}",
                         files=tuple(f.get("files") or ()), extra=tuple(f.get("extra") or ()),
-                        label=f.get("label") or ""))
+                        label=f.get("label") or "", dir=f.get("dir") or ""))
     return out
 
 
@@ -328,17 +339,29 @@ def _edit_models() -> str:
     words runs on any of them), by their short names."""
     from seriesmith import targets as TG
     return ", ".join(t.short for t in TG.list_targets("image")
-                     if TG.can_edit(t) and not t.spec.get("router") and not t.draft)
+                     if TG.can_edit(t) and not TG.is_hosted(t.spec) and not t.draft)
 
 
 def _hosted_models(kind: str) -> list:
     from seriesmith import targets as TG
-    return [t for t in TG.list_targets(kind) if t.spec.get("router")]
+    return [t for t in TG.list_targets(kind) if TG.is_hosted(t.spec)]
 
 
 def _names(targets: list) -> str:
     """Their short names, each once (Seedance's four sizes are one)."""
     return ", ".join(dict.fromkeys(t.short for t in targets))
+
+
+def _download_of(tid: str, name: str) -> list[Item]:
+    """One file a target records the download of but no pass wants by name (a larger
+    quantisation it prefers once it's there: Drama 3's), as a model item. Status from the
+    file alone."""
+    from seriesmith import targets as TG
+    try:
+        d = TG.download_for(TG.load_target(tid), name, None)
+    except Exception:                                     # noqa: BLE001  not here (a trimmed install)
+        return []
+    return [Item("model", name, folder=d["folder"], url=d.get("url") or "")] if d.get("folder") else []
 
 
 def _lora_of(tid: str, name: str) -> Item:
@@ -462,6 +485,42 @@ def catalog() -> list[Feature]:
                 "A voice per character, that `clone` shots speak in: ComfyUI-LTXVideo and three LTX-2.5 "
                 "files (gated). H3 FL2VA's clone shots make their lines with it too.",
                 [_pack("ComfyUI-LTXVideo")] + _target_items("ltx2_voice"), restart=True),
+        Feature("sound.voice_drama3", "sound", "Voices (Fish Audio Drama 3)",
+                "A character's voice cloned from their sample, line by line (the voice model "
+                "Drama 3): PedroMarinhoDev's ComfyUI-Drama3, the W4A8 experts (24.6 GB), its codec "
+                "and Qwen3-ASR, which hears the sample's words. On a 32 GB card or larger the "
+                "experts run in VRAM: fast, little RAM. On a smaller one (24 GB or less) they "
+                "stay in system RAM, which wants about 32 GB free besides everything else running: "
+                "short of that, ComfyUI frees the model after each take to make room, so every "
+                "take loads it again (half a minute more each) and the machine runs out of RAM. "
+                "Fish Audio Community License: free under USD 500k yearly revenue, credit \"Built "
+                "with Fish Audio\", no real person's voice without consent.",
+                [_pack("ComfyUI-Drama3")] + _target_items("drama3"), restart=True),
+        Feature("sound.voice_drama3_w6a8", "sound", "Drama 3 W6A8 (larger, steadier)",
+                "Drama 3's W6A8 experts, 32.7 GB: used in place of W4A8 once they're here, and "
+                "they fall silent less often with real voice clips. Too big for a 32 GB card's "
+                "VRAM, so the experts stay in system RAM: about 40 GB free besides everything else "
+                "running, or each take loads the model again and the machine runs out of RAM. "
+                "With less, keep W4A8 (delete this file to go back to it).",
+                _download_of("drama3", "drama3_w6a8experts_bf16.safetensors")),
+        Feature("sound.voice_drama3_int8", "sound", "Drama 3 int8 (largest offered)",
+                "Drama 3's int8 experts, 38.7 GB: used in place of the others once they're here; "
+                "the fastest on cards under 24 GB. In VRAM only on a 48 GB card or larger; "
+                "otherwise in system RAM: about 48 GB free besides everything else running, or each "
+                "take loads the model again and the machine runs out of RAM. With less, keep W4A8 "
+                "(delete this file to go back to it).",
+                _download_of("drama3", "drama3_int8experts_bf16.safetensors")),
+        Feature("sound.voice_qwen3", "sound", "Voices (Qwen3-TTS)",
+                "A character's voice designed from their description, then cloned from their "
+                "sample (the voice model Qwen3-TTS): flybirdxx's ComfyUI-Qwen-TTS and three "
+                "models (about 9 GB) into models/qwen-tts. Apache 2.0. On transformers 5.21 or "
+                "later its cloning needs the pack's fix for the Mimi encoder "
+                "(flybirdxx/ComfyUI-Qwen-TTS#115).",
+                [_pack("ComfyUI-Qwen-TTS")] + _target_items("qwen3_tts"), restart=True),
+        Feature("sound.voice_fishaudio", "sound", "Voices (Fish Audio Drama 3 on Comfy; paid)",
+                "Drama 3 hosted, through ComfyUI's Fish Audio partner nodes: a character's voice "
+                "cloned from their sample, paid per take, nothing to download; a Comfy API key "
+                "in Settings.", [Item("key", "api_key")]),
         target_feature("sound.score", "sound", "stable_audio3", "Music cues (Stable Audio 3 Medium)",
                        "Score's default: an instrumental cue from its words, on ComfyUI's own nodes."),
         Feature("sound.score_theme", "sound", "A theme's melody score (SheetSage2)",
@@ -783,7 +842,7 @@ def missing_core(known) -> dict[str, list[str]]:
         return {}
     users: dict[str, list[str]] = {c: [] for c in gone}
     for t in TG.list_targets():
-        if t.spec.get("router"):
+        if TG.is_hosted(t.spec):
             continue
         try:
             need = E.target_nodes(t)

@@ -17,6 +17,7 @@ import { anyOutOfOrder } from "../lib/cutEdit";
 import { fmtClock, realStale, tn } from "../lib/format";
 import { frameAt } from "../lib/keyframes";
 import { useZoom } from "../lib/zoom";
+import { cssColor, titleAlpha } from "../lib/titles";
 import {
   atOutPoint, baseIn, clipOffset, cutTime, fadeLevel, fileTime, locate, nextVideo, totalDuration, type PlayItem,
 } from "../lib/playlist";
@@ -27,8 +28,8 @@ import { useMixAudio } from "./MixAudio";
 import { PANO_VIEW, TOUR_VIEW, takesOf, viewLabel, viewOf } from "../lib/refs";
 import { HoldUseBar } from "./TourSection";
 import { shotTarget, takeTargetBadge, targetLabel } from "../lib/targets";
-import { store, useApp, type CompareMode, type ViewerState } from "../store";
-import type { Pass, RefTake, TakeSummary } from "../types";
+import { statusKey, store, useApp, type CompareMode, type ViewerState } from "../store";
+import type { Pass, RefTake, TakeSummary, TitlesInfo } from "../types";
 import { FloatingWindow, defaultViewerRect } from "./FloatingWindow";
 import { aspectOf, useShotStatus, useStatus } from "./hooks";
 import { useTargets } from "./Targets";
@@ -487,6 +488,8 @@ interface Engine {
 }
 
 const LOOP_ALL_KEY = "seriesmith.playall.loop";
+// Play all plays the master's intro and outro around the cut (remembered)
+const TITLES_KEY = "seriesmith.playall.titles";
 
 /**
  * Plays the playlist through two <video> elements: the one on screen, and a
@@ -501,7 +504,8 @@ const LOOP_ALL_KEY = "seriesmith.playall.loop";
  * window and the spotting sheet use it. `onKey` sees a key first (true: it
  * took it); , and . step a frame.
  */
-export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>, onKey?: (e: KeyboardEvent) => boolean) {
+export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>, onKey?: (e: KeyboardEvent) => boolean,
+                             opts?: { titles?: boolean }) {
   const onKeyRef = useRef(onKey);
   onKeyRef.current = onKey;
   const items = useApp((s) => currentPlaylist(s));
@@ -526,6 +530,29 @@ export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>
   };
   const st = useStatus();
   const cp = useApp((s) => s.cutPlay);
+  // the opening and closing (docs/TITLES_GUIDE.md), when asked for: the intro at the cold open's
+  // end (else before the first clip), the outro after the last. The cut's clock waits while one
+  // plays, so the mix and the timeline keep their times; a master is the same order.
+  const withTitles = !!opts?.titles;
+  const [titles, setTitles] = useState<TitlesInfo | null>(null);
+  useEffect(() => {
+    const fetchTitles = api().getTitles;
+    if (!withTitles || !fetchTitles) return;
+    let live = true;
+    fetchTitles(ep).then((r) => { if (live) setTitles(r); }).catch(() => { if (live) setTitles(null); });
+    return () => { live = false; };
+  }, [ep, withTitles]);
+  const coldOpen = useApp((s) => (st ? s.coldOpen[statusKey(ep, st.pass)] : undefined));
+  const titlesRef = useRef({ on: false, intro: null as string | null, outro: null as string | null, end: null as string | null, at: 0 });
+  titlesRef.current = {
+    on: withTitles && !!titles, intro: titles?.intro ?? null, outro: titles?.outro ?? null,
+    end: coldOpen && !coldOpen.error ? coldOpen.end : null,
+    at: coldOpen && !coldOpen.error ? coldOpen.seconds ?? 0 : 0,
+  };
+  const [inter, setInter] = useState<"intro" | "outro" | null>(null);
+  const interRef = useRef<"intro" | "outro" | null>(null);
+  // whether each has played since the playhead last went back before it
+  const playedTitles = useRef({ intro: false, outro: false });
   const audioMode = useApp((s) => s.cutAudio);
   const upscaled = useApp((s) => s.upscaled);
   // the clips whose take has a fresh upscale (Play all's 2x plays them)
@@ -641,6 +668,29 @@ export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>
     }
   }, [loadSlot]);
 
+  /** An intro or outro on, the cut's clock stopped under it (the mix stops with it). */
+  const startTitles = useCallback((kind: "intro" | "outro") => {
+    interRef.current = kind;
+    playedTitles.current[kind] = true;
+    setInter(kind);
+    store.set((s) => ({ cutPlay: { ...s.cutPlay, playing: false, rate: 1 } }));
+  }, []);
+  /** It's over (or skipped): the intro carries on into the cut, the outro ends it. */
+  const endTitles = useCallback(() => {
+    const kind = interRef.current;
+    if (!kind) return;
+    interRef.current = null;
+    setInter(null);
+    const e = eng.current;
+    if (kind === "intro") {
+      if (titlesRef.current.end && e.items[e.idx]?.shot === titlesRef.current.end && e.idx + 1 < e.items.length) show(e.idx + 1, 0);
+      store.set((s) => ({ cutPlay: { ...s.cutPlay, playing: true, rate: 1 } }));
+    } else {
+      const last = e.items[e.items.length - 1];
+      if (last) reportCutPos(totalDuration(e.items), last.shot, true);
+    }
+  }, [show]);
+
   // the clock: follow the clip on screen, cut to the next at its out point
   useEffect(() => {
     let raf = 0;
@@ -681,7 +731,15 @@ export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>
             offset = e.cardOffset;
             done = playing.current && offset >= it.dur;
           }
-          if (done) {
+          const T = titlesRef.current;
+          if (playing.current && T.on && T.intro && !T.end && e.idx === 0 && offset < 0.15 && !playedTitles.current.intro) {
+            // no cold open: the intro before the first clip
+            startTitles("intro");
+          } else if (done && T.on && T.intro && T.end === it.shot && !playedTitles.current.intro) {
+            startTitles("intro");
+          } else if (done && e.idx + 1 >= e.items.length && T.on && T.outro && !playedTitles.current.outro) {
+            startTitles("outro");
+          } else if (done) {
             if (e.idx + 1 < e.items.length) {
               show(e.idx + 1, 0);
             } else if (loopRef.current && e.items.length) {
@@ -714,13 +772,18 @@ export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [fps, show]);
+  }, [fps, show, startTitles]);
 
   // seek requests (Play all, Play from here, a click on the timeline or the ruler, the slider)
   const seekN = cp.seek?.n;
   useEffect(() => {
     if (seekN == null) return;
     const t = store.get().cutPlay.seek?.t ?? 0;
+    if (interRef.current) {
+      interRef.current = null;
+      setInter(null);
+    }
+    playedTitles.current = { intro: t > titlesRef.current.at + 0.05, outro: false };
     const { index, offset } = locate(eng.current.items, t);
     if (index >= 0) show(index, offset);
     const a = au.current;
@@ -730,6 +793,10 @@ export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>
   // play / pause / shuttle speed
   const cpRate = cp.rate ?? 1;
   useEffect(() => {
+    if (cp.playing && interRef.current) {
+      endTitles();
+      return;
+    }
     const e = eng.current;
     const it = e.items[e.idx];
     e.lastT = performance.now();
@@ -811,6 +878,7 @@ export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>
   return {
     items, st, cp, fps, total, v0, v1, au, shown, track, ts, recording, sync, audioClips, anyUpscale, upscaledCount, upscaled,
     loopAll, toggleLoopAll, cur, cutFilter, veil, jump, missingCount, speed, driftTitle, cpRate,
+    titles, inter, endTitles, coldOpen,
   };
 }
 
@@ -862,6 +930,9 @@ export function CutStage({ ep, e, pass, className = "" }: { ep: string; e: CutEn
           </span>
         )}
         {!items.length && <div className="h3-empty-state">The cut is empty.</div>}
+        {e.inter && e.titles?.[e.inter] && (
+          <TitlesClip ep={ep} path={e.titles[e.inter]!} kind={e.inter} info={e.titles} onEnd={e.endTitles} />
+        )}
       </div>
       {track && (
         <audio
@@ -875,9 +946,61 @@ export function CutStage({ ep, e, pass, className = "" }: { ep: string; e: CutEn
   );
 }
 
+/** The intro or outro over Play all's picture, the episode's title on it where and when a master
+ * draws it (in a stand-in font: the master's is a file on the server). Its sound plays as the clip
+ * has it; a master brings it to the episode's loudness. */
+function TitlesClip({ ep, path, kind, info, onEnd }: {
+  ep: string; path: string; kind: "intro" | "outro"; info: TitlesInfo; onEnd: () => void;
+}) {
+  const vid = useRef<HTMLVideoElement>(null);
+  const text = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      if (vid.current && text.current) text.current.style.opacity = String(titleAlpha(kind, info.subtitle, vid.current.currentTime, vid.current.duration));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [kind, info]);
+  const sub = info.subtitle;
+  return (
+    <div className="h3-titles-clip" onClick={(ev) => ev.stopPropagation()}>
+      <video ref={vid} src={api().fileUrl(ep, path)} autoPlay playsInline onEnded={onEnd}
+        onError={() => { console.warn("seriesmith play all: the", kind, "can't play"); onEnd(); }} />
+      {info.title && (
+        <div ref={text} className="h3-titles-text"
+          style={{ top: `${sub.y * 100}%`, fontSize: `${sub.size * 100}cqh`, color: cssColor(sub.color),
+                   textShadow: `0 0 ${Math.max(2, sub.glow_size ? sub.glow_size * 400 : 4)}px ${cssColor(sub.glow)}`, opacity: 0 }}>
+          {info.title}
+        </div>
+      )}
+      <span className="h3-pane-label">{kind === "intro" ? "Intro" : "Outro"} (as a master puts it on)</span>
+      <button className="h3-btn h3-titles-skip" onClick={onEnd} title="Skip it (or press play)">Skip <i className="pi pi-step-forward" /></button>
+    </div>
+  );
+}
+
 function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
   const winRef = useRef<HTMLDivElement>(null);
-  const e = useCutEngine(ep, winRef);
+  const [withTitles, setWithTitles] = useState(() => {
+    try {
+      return localStorage.getItem(TITLES_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleTitles = () => {
+    const next = !withTitles;
+    setWithTitles(next);
+    try {
+      localStorage.setItem(TITLES_KEY, next ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
+  const e = useCutEngine(ep, winRef, undefined, { titles: withTitles });
+  const noTitles = withTitles && e.titles && !e.titles.intro && !e.titles.outro;
   const {
     items, cp, total, ts, recording, sync, audioClips, anyUpscale, upscaledCount, upscaled,
     loopAll, toggleLoopAll, cur, jump, missingCount, driftTitle,
@@ -919,6 +1042,12 @@ function CutPlayer({ ep, v }: { ep: string; v: ViewerState }) {
         <button className="h3-btn h3-icon" title="Next shot (→)" onClick={() => jump(1)}><i className="pi pi-step-forward" /></button>
         <button className={`h3-btn h3-icon${loopAll ? " h3-on" : ""}`} title={loopAll ? "Loop: the cut starts over at the end (on)" : "Loop: start the cut over at the end"}
           onClick={toggleLoopAll}><i className="pi pi-replay" /></button>
+        <button className={`h3-btn${withTitles ? " h3-on" : ""}`}
+          title={noTitles ? "Titles: this episode has no intro or outro (_titles/INTRO.mp4 and OUTRO.mp4 in the show folder, or the series config's publish block)"
+            : `Titles: play the intro and outro as a master puts them on, the episode's title drawn on them: the intro ${e.coldOpen?.end && !e.coldOpen.error ? `after the cold open (${e.coldOpen.end})` : "before the first shot"}, the outro after the last (remembered). Skip one with the button on it, or play.`}
+          onClick={toggleTitles}>
+          <i className="pi pi-ticket" /> Titles{noTitles ? " (none)" : ""}
+        </button>
         <input type="range" min={0} max={total || 1} step={0.01} value={Math.min(cp.pos, total)} onChange={(e) => seekCut(Number(e.target.value))} />
         <span className="h3-mono h3-muted">{fmtClock(cp.pos)} / {fmtClock(total)}</span>
         {anyUpscale && (

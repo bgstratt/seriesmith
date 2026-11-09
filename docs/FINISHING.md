@@ -470,6 +470,16 @@ series config, relative to the episode folder:
 "publish": { "intro": "../_titles/INTRO.mp4", "outro": "../_titles/OUTRO.mp4" }
 ```
 
-An optional `subtitle` object sets `font`,
+An optional `subtitle` object sets `font` (a font file's name, found in the machine's font
+folders, or a path, a relative one from the show folder; default Windows' Segoe Script,
+elsewhere the first of Georgia, Arial, Helvetica or DejaVu on the machine, said in the log),
 `size` and `y` (fractions of the frame height), `color`, `glow`, and the fades in seconds:
-`intro_in`, `outro_in`, `outro_out` (see `seriesmith/publish.py` for the defaults).
+`intro_in` (negative: counted back from the intro's end, the default `[-4, -3]`), `outro_in`,
+`outro_out` (see `seriesmith/publish.py` for the defaults; TITLES_GUIDE.md for each).
+The intro and outro are brought to the episode's loudness (the mix's target) by one gain each,
+their peaks held under its ceiling; `"loudness": {"under_lu": 1.5}` sits them under it, and
+`{"match": false}` leaves them as they came. With a cold open (the script's `cold_open:`), the
+intro goes in after it, the cut split there (copied when the split is on a clip's first frame,
+as an assembled cut's always is). [TITLES_GUIDE.md](TITLES_GUIDE.md) goes through it in order:
+where the clips go, an intro per season or episode, the title's place and timing, a cold open,
+the loudness, and a montage intro made as an episode of its own.

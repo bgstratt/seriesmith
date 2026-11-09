@@ -16,7 +16,7 @@ import {
   KEYS, ORCH_FAMILIES, SCORE_SECTIONS, SONG_SECTIONS, sectionChoice, aceBeats, addPoint, arcFlags, arcPoints, arcSpec, barBeat, barSpan, barsInSpan, barsLabel, clipsOver, compLabel, drawnPoints, dynamics,
   applyPreset, editableSections, gridOf, mergeSections, nextSectionName, presetBars, presetGroups, presetReplaces, presetShape, sectionAt, splitPoint, withEnergies, heldCells, hitChip, impliedPoints, keyChoice, levelY, levelsAsEnergy, mergeStroke, meterText, moveEdge, movePoint, newCueId, newCueSpan,
   orchestraRows, paintOrchestra, parseMeter, patchSection, presetPoints, ranks, removePoint, renameFamily, sectionsFromArc, sectionWords, smoothPoints, snapBeat,
-  snapToHits, splitSection, strokeLevel, ORCH_STEP, tauX, trimOrchestra, withSpec, wordsOffArc, xTau, yLevel,
+  snapToHits, splitSection, strokeLevel, ORCH_STEP, takeRun, tauX, trimOrchestra, viewSeconds, withSpec, wordsOffArc, xTau, yLevel,
   songBlocks, songSummary, melodyText, themeLabel, themeModel, themeTakes, themeUseText, repaintLabel, repaintWhy,
 } from "../src/lib/cue";
 import { MUSIC_TARGETS } from "../src/mock/mockCue";
@@ -132,6 +132,18 @@ describe("the cue's grid", () => {
     expect(snapBeat(g, 1.1)).toBe(1);
     expect(snapBeat(g, -3)).toBe(-0.5);
     expect(snapBeat(g, 99)).toBe(11.5);
+  });
+
+  it("runs as long as its longest take: a song longer than the cue is shown whole", () => {
+    const ok = (seconds: number | null, downbeat = 0.5) => ({ status: "ok", seconds, measured: { downbeat } });
+    // a take runs from its first bar line (the grid's start) to its end
+    expect(takeRun(ok(30.5))).toBe(30);
+    expect(takeRun(ok(null))).toBe(0);
+    expect(takeRun({ status: "queued", seconds: 40 })).toBe(0);
+    // the grid's 12 s, unless a take runs past it
+    expect(viewSeconds(g, [])).toBe(12);
+    expect(viewSeconds(g, [ok(10), ok(null)])).toBe(12);
+    expect(viewSeconds(g, [ok(10), ok(30.5)])).toBe(30);
   });
 });
 

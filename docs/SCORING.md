@@ -88,6 +88,11 @@ for you to adjust: **Draft…** in the spotting sheet's head (or `seriesmith sco
   lines into the script** keeps them as `// structure:` and `// beat:` lines (comments: nothing
   re-renders), to move by hand where a beat really starts (`seriesmith score-draft --structure
   "Pixar Story Spine" --write --mark` does the same).
+- **A cold open.** The titles go in where the cold open ends (`cold_open:`, TITLES_GUIDE.md),
+  so no draft cue plays across it: one that would is kept to its longer side. A structure's
+  sting at the end of its teaser is the button into the titles. Music of your own that
+  crosses the break shows a **across the opening** badge on the timeline: a master cuts it
+  there.
 - **What you get.** Draft cues, `d01`, `d02`..., labelled *Draft:*, nothing rendered. Beats in
   a row with music are **one cue**, a section each with its mood and energy, and a `turn`
   hit where each beat starts. A cue starts about a second before the cut into its beat and
@@ -166,6 +171,17 @@ take lyrics). Set it top right in the inspector, with:
   - **MiniMax Music 3** for a song: its words come through clearest, and it's free for
     commercial use under $20M yearly revenue; its tempo follows the song, not your bpm. Also on
     Comfy Cloud (**MiniMax Music 3 Cloud**, paid per take, a Comfy API key in Settings).
+  - **Eleven Music** and **Suno v6**, for score or a song, need no GPU: each runs on your own
+    account with the provider, its key in Settings, and is paid per run. Score is sent as
+    instrumental. A song needs lyrics in its sections, or it's stopped before anything is paid.
+    Suno's score has been proved by a real take; its songs and all of Eleven Music are written from the
+    providers' docs and not yet proved. They take the tempo as words, so a cue with hits to land is safer on ACE-Step.
+    - **Eleven Music** (ElevenLabs): its docs say it's cleared for nearly all commercial uses,
+      depending on your plan ([its terms](https://elevenlabs.io/music-terms)).
+    - **Suno v6** (Atlas Cloud, $0.132 a run as read 2026-11-06): each run returns two tracks and
+      both become takes, so **Takes** counts runs. **Check the licence before you release
+      anything made with it:** this reaches Suno through resellers, and Suno's commercial terms
+      are written for its own plans.
 - **Theme**: a melody carried from cue to cue (below: *Carrying a theme*).
 - **Tempo** in bpm (the fit may move it up to 8 % to land the hits; tick **fixed** to stop that),
   **Meter** (4/4, 3/4, 6/8, 7/8, or your own), **Key** (pick one, or leave it to the model),
@@ -338,7 +354,10 @@ a take on a 5090) and is measured as it does:
 
 The list is **ranked**: #1 best lands the must-land hits and follows the arc. It can't hear
 whether the music is any good, so **listen to the top two or three** (▶) and **Pick** the one you
-like. Picking puts it on the Music track from the cue's in point to its out point, with volume
+like. ▶ plays the whole take, the playhead running over the grid and the window scrolling with it
+when you've zoomed in; a take longer than the cue (a YuE2 song runs as long as the song it
+writes) is shown whole, its part past the cue's out point hatched. Picking puts it on the Music
+track from the cue's in point to its out point, with volume
 points that pull its loudness toward the arc (a drop really drops). Render again for eight more
 if none is right; the models vary a lot from take to take, which is why it makes eight.
 

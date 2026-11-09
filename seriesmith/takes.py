@@ -477,12 +477,16 @@ def latest_usable(takes: list[Take]) -> Take | None:
 # the model's under it)} where a dub's source is
 #
 #   {"from": "track"}                      the shot's window of the recording
-#   {"from": "take", "pass": p, "take": n} a take of the shot's sound (either pass)
+#   {"from": "take", "pass": p, "take": n} a take's sound (either pass), this shot's, or
+#                                          with "shot" another's
 #   {"from": "dub", "take": n}             a generated dub track
+#   {"from": "line"}                       the shot's lines (lines.py), their picked takes
 #
-# One choice, for the next render and the cut alike: a shot on dub plays its dub in the cut and
-# export (cut_dub_spec), and generate and clone play the take's own. A cut entry's `audio`
-# (Replace audio, Adjust, silence) is on purpose, and wins over this.
+# One choice, for the next render and the cut alike: a shot on dub plays its dub in the cut, and
+# generate and clone play the take's own (cut_dub_spec). A take rendered to the dub also has what
+# the model gave back, the voice and whatever it made around that, in its mp4 and `_h3.wav`: heard
+# in the take's preview, and in the cut if asked for that shot (dub_model_sound). A
+# cut entry's `audio` (Adjust, another source, silence) is on purpose, and wins over this.
 #
 # Dub tracks are the shot rendered tiny on a voice model for its sound only
 # (jobs.RenderRequest.dub_track), kept as takes of their own in
@@ -492,7 +496,7 @@ def latest_usable(takes: list[Take]) -> Take | None:
 
 DUB_FOLDER = "dub"
 SOUND_MODES = ("generate", "clone", "dub")
-DUB_FROM = ("track", "take", "dub")
+DUB_FROM = ("track", "take", "dub", "line")
 
 
 def shot_sound(data: dict, shot_id: str) -> dict | None:
@@ -512,7 +516,7 @@ def check_sound(sound) -> dict | None:
         return out
     src = sound.get("dub")
     if not isinstance(src, dict) or src.get("from") not in DUB_FROM:
-        raise ValueError("a dub names its track: sound.dub.from is track, take or dub")
+        raise ValueError("a dub names its track: sound.dub.from is track, take, dub or line")
     d = {"from": src["from"]}
     if src["from"] in ("take", "dub"):
         n = src.get("take")
@@ -523,6 +527,10 @@ def check_sound(sound) -> dict | None:
         if src.get("pass") not in PASSES:
             raise ValueError(f"sound.dub.pass must be one of {', '.join(PASSES)}")
         d["pass"] = src["pass"]
+        if src.get("shot") is not None:
+            if not isinstance(src["shot"], str) or not src["shot"]:
+                raise ValueError("sound.dub.shot must be a shot's id")
+            d["shot"] = src["shot"]
     out["dub"] = d
     # the model's own sound laid under the voice (dub_keep_foley), or the voice
     # alone (dub); kept only when off, so the default stays as it was
@@ -567,28 +575,55 @@ def dub_source(root: str, shot_id: str, src: dict) -> tuple[str | None, str]:
     source is the shot's window of the recording, not a file: (None, "track")."""
     if src.get("from") == "track":
         return None, "the recorded track"
+    if src.get("from") == "line":
+        from seriesmith import lines as LN       # imported on demand
+        return LN.shot_sound_file(root, shot_id), "its lines"
     if src.get("from") == "dub":
         t = get_take(root, PASSES[0], shot_id, int(src["take"]), DUB_FOLDER)
         label = f"dub track {int(src['take'])}"
     else:
-        t = get_take(root, src["pass"], shot_id, int(src["take"]))
-        label = f"t{int(src['take']):02d}" + ("" if src["pass"] == PASSES[0] else f" ({src['pass']})")
+        other = src.get("shot") or shot_id
+        t = get_take(root, src["pass"], other, int(src["take"]))
+        label = (f"{other} " if other != shot_id else "") + f"t{int(src['take']):02d}" + (
+            "" if src["pass"] == PASSES[0] else f" ({src['pass']})")
     if t is None or not t.usable:
         return None, label
     return take_sound(t), label
 
 
 def dub_offset(data: dict, shot_id: str) -> float:
-    """How far a shot's dub is slid in the cut, in seconds (overrides.json `dub_offset`). Apart from
-    `sound`: it changes no render, so nothing goes stale."""
+    """How far a shot's dub is slid in the cut, in seconds, to line up with a take it wasn't rendered
+    to (Line up with the take). Apart from `sound`: it changes no render, so nothing goes stale."""
     v = (data.get("dub_offset") or {}).get(shot_id)
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
 
 
+def set_dub_offset(data: dict, shot_id: str, seconds: float | None) -> dict:
+    block = data.setdefault("dub_offset", {})
+    if seconds:
+        block[shot_id] = round(float(seconds), 3)
+    else:
+        block.pop(shot_id, None)
+    if not block:
+        data.pop("dub_offset", None)
+    return data
+
+
 def dub_model_sound(data: dict, shot_id: str) -> bool:
     """Whether the cut plays what the model gave back with a take rendered to the shot's dub (the voice,
-    and the effects or music it made around that), not the dub (overrides.json `dub_model_sound`)."""
+    and the effects or music it made around that), not the dub. Changes no render."""
     return bool((data.get("dub_model_sound") or {}).get(shot_id))
+
+
+def set_dub_model_sound(data: dict, shot_id: str, on: bool) -> dict:
+    block = data.setdefault("dub_model_sound", {})
+    if on:
+        block[shot_id] = True
+    else:
+        block.pop(shot_id, None)
+    if not block:
+        data.pop("dub_model_sound", None)
+    return data
 
 
 def rendered_to_dub(root: str, sound: dict | None, shot_id: str, sidecar: dict | None) -> bool:
@@ -597,7 +632,12 @@ def rendered_to_dub(root: str, sound: dict | None, shot_id: str, sidecar: dict |
     if not sound or sound.get("mode") != "dub":
         return False
     made = (sidecar or {}).get("sound") or {}
-    return made.get("mode") == "dub" and made.get("dub") == sound.get("dub")
+    if made.get("mode") != "dub" or made.get("dub") != sound.get("dub"):
+        return False
+    if sound["dub"].get("from") == "line":
+        from seriesmith import lines as LN       # imported on demand
+        return (sidecar or {}).get("dub_lines") == LN.shot_sound_id(root, shot_id)
+    return True
 
 
 def cut_dub_spec(root: str, shot_id: str, sound: dict | None, sidecar: dict | None, entry: dict | None,
@@ -615,7 +655,7 @@ def cut_dub_spec(root: str, shot_id: str, sound: dict | None, sidecar: dict | No
     src = sound["dub"]
     out: dict | None = None
     if src["from"] == "track":
-        from seriesmith.targets import held_audio as HA      # imported on demand
+        from seriesmith.targets import held_audio as HA
         rec = (entry or {}).get("audio_in") is not None and HA.dub_recording({"defaults": entry.get("_defaults") or {}}, entry)
         if rec:
             out = {"source": "file", "path": str(rec).replace(os.sep, "/"), "start": float(entry["audio_in"])}

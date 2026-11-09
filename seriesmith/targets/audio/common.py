@@ -114,6 +114,34 @@ def voice_line(story, subject: str, seconds: float | None = None,
     return " ".join(head + [ln for ln in lines if ln in chosen]), "script"
 
 
+def words_line(story, subject: str, seconds: float | None = None, pace: str = "normal",
+               name: str | None = None, held: bool = False) -> tuple[str, str]:
+    """voice_line for a model that's sent the words alone (a provider's
+    speaker, or a local model that clones a clip): the character's own lines
+    with no opener, as there's no held head for a continuation to skip."""
+    return voice_line(story, subject, seconds, pace, None, False)
+
+
+def words_prompt(name: str, voice: str = "", design: str = "", line: str = "",
+                 seconds: float | None = None) -> str:
+    """voice_prompt for such a model: the words and nothing else (a
+    description would be read aloud)."""
+    return _clean(line) or NEUTRAL_LINE
+
+
+def voice_description(name: str, voice: str = "", design: str = "") -> str:
+    """How a character sounds, for a model told it apart from the words (Qwen
+    VoiceDesign's instruct): the first sentence of their design, as
+    voice_prompt has it, and the series config's `voice` line."""
+    parts = []
+    who = _clean(design).rstrip(".")
+    if who:
+        parts.append(_sentence(f"{_clean(name) or 'The speaker'} is {who.split('. ')[0]}"))
+    if _clean(voice):
+        parts.append(_sentence(f"Voice: {_clean(voice)}"))
+    return " ".join(parts)
+
+
 def voice_prompt(name: str, voice: str = "", design: str = "", line: str = "",
                  seconds: float | None = None) -> str:
     """The brief for one generated voice sample. `name` is the character's,

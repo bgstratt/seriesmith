@@ -46,6 +46,23 @@ describe("series settings form", () => {
     expect(shown(raw, f)).toBe("24");
   });
 
+  it("the title's time on the intro is typed as seconds before its end", () => {
+    const f = SECTIONS.flatMap((s) => s.fields).find((x) => x.path.join(".") === "publish.subtitle.intro_in")!;
+    expect(parsed(f, "4")).toEqual([-4, -3]);
+    expect(parsed(f, "0.5")).toEqual([-0.5, 0]);
+    expect(parsed(f, "")).toBeUndefined();
+    expect(shown({ publish: { subtitle: { intro_in: [-6, -5] } } }, f)).toBe("6");
+    expect(shown({ publish: { subtitle: { intro_in: [4, 5] } } }, f)).toBe("");
+  });
+
+  it("the title's size and position are typed as percentages, stored as fractions", () => {
+    const f = SECTIONS.flatMap((s) => s.fields).find((x) => x.path.join(".") === "publish.subtitle.y")!;
+    expect(parsed(f, "56")).toBe(0.56);
+    expect(parsed(f, "5.8")).toBe(0.058);
+    expect(parsed(f, "")).toBeUndefined();
+    expect(shown({ publish: { subtitle: { y: 0.058 } } }, f)).toBe("5.8");
+  });
+
   it("slugs a title into an id", () => {
     expect(slug("Porchlights: Season Two!")).toBe("porchlights_season_two");
     expect(slug("Café Noir")).toBe("cafe_noir");

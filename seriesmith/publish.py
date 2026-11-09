@@ -32,15 +32,23 @@ check fails), the whole thing is re-encoded instead and the reason is printed;
       "intro": "../_titles/INTRO.mp4",
       "outro": "../_titles/OUTRO.mp4",
       "subtitle": {
-        "font": "C:/Windows/Fonts/segoescb.ttf",
+        "font": "segoescb.ttf",  # a file name in the font folders, or a path
         "size": 0.058,           # text height, a fraction of the frame height
         "y": 0.56,               # top of the text, a fraction of the frame height
         "color": "#F4E6D0", "glow": "#FFB45A@0.8", "glow_size": 0.008,
-        "intro_in": [4.0, 5.0],  # seconds into the intro: fade starts, fully on
+        "intro_in": [-4.0, -3.0],  # fade starts, fully on: seconds before the intro ends (or into it, >= 0)
         "outro_in": [0.0, 1.0],  # seconds into the outro: fade in ...
         "outro_out": [4.5, 5.5]  # ... and out
-      }
+      },
+      "loudness": {"match": true, "under_lu": 0}
     }
+
+The title clips' sound is brought to the episode's loudness (the mix's target,
+mix.loudness_target: -16 LUFS, -1 dBTP unless set): each measured by loudnorm
+and moved by one gain to the target less `under_lu` (a theme tucked under the
+episode: 1-2), held under the ceiling by the mix's true-peak limiter when that
+gain would cross it. `"match": false` leaves them as they came. The cut's own
+sound is never touched: its mix brought it to the target already.
 
 Every `subtitle` key is optional; the values above are the defaults, and
 `intro` / `outro` default to the _titles files. Stdlib only; needs ffmpeg and
@@ -63,14 +71,23 @@ from seriesmith import edit as E  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import ff as FF  # noqa: E402
 
+LEVEL = {"match": True, "under_lu": 0.0}
+# the title's font when the series config names none and the default (Windows' Segoe Script)
+# isn't on this machine: the first of these that is
+# the title's font when the default isn't on this machine: file names, found in its font folders
+FONT_FALLBACKS = (
+    "segoesc.ttf", "georgia.ttf", "arial.ttf", "Helvetica.ttc",
+    "DejaVuSerif.ttf", "DejaVuSans.ttf", "LiberationSerif-Regular.ttf",
+)
+FONT_EXTS = (".ttf", ".otf", ".ttc")
 SUBTITLE = {
-    "font": "C:/Windows/Fonts/segoescb.ttf",
+    "font": "segoescb.ttf",
     "size": 0.058,
     "y": 0.56,
     "color": "#F4E6D0",
     "glow": "#FFB45A@0.8",
     "glow_size": 0.008,
-    "intro_in": [4.0, 5.0],
+    "intro_in": [-4.0, -3.0],   # before the intro's end (negative), so a montage's length doesn't matter
     "outro_in": [0.0, 1.0],
     "outro_out": [4.5, 5.5],
 }
@@ -153,10 +170,82 @@ def episode_title(script: str) -> str:
     return ""
 
 
+def font_dirs() -> list[str]:
+    """This machine's font folders: Windows' (the system's and the user's), macOS', Linux's."""
+    home = os.path.expanduser("~")
+    dirs = [os.path.join(os.environ.get("WINDIR") or "C:\\Windows", "Fonts")]
+    if os.environ.get("LOCALAPPDATA"):
+        dirs.append(os.path.join(os.environ["LOCALAPPDATA"], "Microsoft", "Windows", "Fonts"))
+    dirs += ["/System/Library/Fonts", "/System/Library/Fonts/Supplemental", "/Library/Fonts",
+             os.path.join(home, "Library", "Fonts"),
+             "/usr/share/fonts", "/usr/local/share/fonts", os.path.join(home, ".fonts"),
+             os.path.join(home, ".local", "share", "fonts")]
+    return [d for d in dirs if os.path.isdir(d)]
+
+
+def installed_fonts() -> dict[str, str]:
+    """Every font file in the font folders (and their subfolders, as Linux keeps them): its
+    lower-case file name -> its path, the first found winning."""
+    found: dict[str, str] = {}
+    for d in font_dirs():
+        for dirpath, _dirs, files in os.walk(d):
+            for f in files:
+                if os.path.splitext(f)[1].lower() in FONT_EXTS:
+                    found.setdefault(f.lower(), os.path.join(dirpath, f))
+    return found
+
+
+def find_font(font: str, home: str | None = None, fonts: dict[str, str] | None = None) -> str | None:
+    """The font file `font` names, or None: a full path as it is; a relative path (one with a
+    folder in it) from `home`, the folder holding series.json; a bare file name in `home`,
+    else in this machine's font folders, any case, its extension optional (georgia finds
+    georgia.ttf)."""
+    if os.path.isabs(font):
+        return font if os.path.isfile(font) else None
+    if home:
+        path = os.path.normpath(os.path.join(home, font))
+        if os.path.isfile(path):
+            return path
+    if os.path.dirname(font):
+        return None
+    if fonts is None:
+        fonts = installed_fonts()
+    name = font.lower()
+    for cand in (name,) + tuple(name + e for e in FONT_EXTS):
+        if cand in fonts:
+            return fonts[cand]
+    return None
+
+
+def title_font(font: str, named: bool, home: str | None = None) -> str:
+    """The font file the episode's title is drawn with: `font` when it's there (find_font: a
+    path, or a file name in the font folders). One the series config named and that isn't
+    there is an error (it says so); the default missing (it's Windows') falls back to the
+    first of FONT_FALLBACKS on this machine, saying which."""
+    got = find_font(font, home)
+    if got:
+        return got
+    if named:
+        raise PublishError(f"publish.subtitle.font {font} isn't there: set it to a .ttf or .otf "
+                           f"file on this machine (a file name in its font folder, or a path; a "
+                           f"relative one starts at the folder holding series.json)")
+    fonts = installed_fonts()
+    got = next((g for g in (find_font(f, fonts=fonts) for f in FONT_FALLBACKS) if g), None)
+    if not got:
+        raise PublishError(f"no font for the episode's title: the default ({font}) isn't on this "
+                           f"machine. Set publish.subtitle.font in the series config to a .ttf or "
+                           f".otf file")
+    print(f"  ! the title font {font} isn't here: using {got} (set publish.subtitle.font to choose)")
+    return got
+
+
 def publish_config(series_cfg: dict) -> dict:
-    """The series config's `publish` block with the subtitle defaults filled in."""
+    """The series config's `publish` block with the subtitle defaults filled in (`_named`:
+    what the config set itself)."""
     block = dict(series_cfg.get("publish") or {})
+    block["_named"] = dict(block.get("subtitle") or {})
     block["subtitle"] = {**SUBTITLE, **(block.get("subtitle") or {})}
+    block["loudness"] = {**LEVEL, **(block.get("loudness") or {})}
     return block
 
 
@@ -198,6 +287,14 @@ def probe(path: str) -> dict:
 # the filter graphs
 # ---------------------------------------------------------------------------
 
+def from_end(pair: list, duration: float) -> list:
+    """A fade's [start, end] in seconds into the clip: as it is when neither is negative, else
+    both count back from the clip's end ([-4, -3] on an 8 s clip is [4, 5]; 0 is the end)."""
+    if not any(v < 0 for v in pair):
+        return list(pair)
+    return [max(0.0, duration + v) for v in pair]
+
+
 def alpha_expr(fade_in: list | None, fade_out: list | None = None) -> str:
     """drawtext's alpha over t: 0 before the fade in, 1 held, 0 after the fade out."""
     def ramp(a: float, b: float) -> str:  # 0 at a, 1 at b
@@ -235,40 +332,60 @@ def titled(label: str, out: str, sub: dict, w: int, h: int, fps: float,
     ]
 
 
-def sound_graph(pieces: list[tuple[int, bool, float]], silence: int, first: int = 0) -> list[str]:
-    """(input, has sound, seconds) per piece -> each cut or padded to its picture,
-    in one rate and layout, joined into [a]."""
+def sound_graph(pieces: list[tuple], silence: int, first: int = 0) -> list[str]:
+    """(input, has sound, seconds[, level]) per piece -> each cut or padded to its
+    picture, in one rate and layout, joined into [a]; `level` (clip_level's filter)
+    goes first on a piece with sound."""
     fmt = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo"
     lines, labels = [], ""
-    for n, (idx, has, secs) in enumerate(pieces, first):
+    for n, (idx, has, secs, *rest) in enumerate(pieces, first):
         src = idx if has else silence
-        lines.append(f"[{src}:a]{fmt},apad,atrim=0:{secs:.6f},asetpts=PTS-STARTPTS[a{n}]")
+        level = (rest[0] + ",") if has and rest and rest[0] else ""
+        lines.append(f"[{src}:a]{level}{fmt},apad,atrim=0:{secs:.6f},asetpts=PTS-STARTPTS[a{n}]")
         labels += f"[a{n}]"
     lines.append(f"{labels}concat=n={len(pieces)}:v=0:a=1[a]")
     return lines
 
 
-def filter_graph(cut: dict, intro: dict | None, outro: dict | None, sub: dict) -> str:
-    """The full re-encode. Inputs in order: [intro], cut, [outro], silence. Output [v] [a]."""
+def filter_graph(cut: dict, intro: dict | None, outro: dict | None, sub: dict,
+                 levels: dict | None = None, split: int | None = None) -> str:
+    """The full re-encode. Inputs in order: [intro], cut, [outro], silence. Output [v] [a].
+    `levels`: clip_level's filter for "intro" and "outro". `split` (a cold open's end, in
+    the cut's frames): the inputs are cut, [intro], cut again, [outro], silence, and the
+    intro plays between the cut's frames before `split` and the rest."""
+    levels = levels or {}
     w, h, fps = cut["width"], cut["height"], cut["fps"]
     lines, parts, pieces, i = [], [], [], 0
-    silence = int(intro is not None) + 1 + int(outro is not None)
+    silence = int(intro is not None) + 1 + int(outro is not None) + int(split is not None)
+    tags = ",".join(ASM.to_bt709(cut.get("color_space") or ""))
+    if split is not None:
+        at = split / fps
+        lines.append(f"[{i}:v]setsar=1,{tags},trim=end_frame={split},setpts=PTS-STARTPTS[cv0]")
+        parts.append("[cv0]")
+        pieces.append((i, cut["audio"], at))
+        i += 1
     if intro:
         lines += titled(f"{i}:v", "in", sub, w, h, fps, intro["duration"],
-                        alpha_expr(sub["intro_in"]), matrix=intro.get("color_space") or "")
+                        alpha_expr(from_end(sub["intro_in"], intro["duration"])),
+                        matrix=intro.get("color_space") or "")
         parts.append("[inv]")
-        pieces.append((i, intro["audio"], intro["duration"]))
+        pieces.append((i, intro["audio"], intro["duration"], levels.get("intro")))
         i += 1
-    lines.append(f"[{i}:v]setsar=1,{','.join(ASM.to_bt709(cut.get('color_space') or ''))}[cv]")
+    if split is not None:
+        lines.append(f"[{i}:v]setsar=1,{tags},trim=start_frame={split},setpts=PTS-STARTPTS[cv]")
+        pieces.append((i, cut["audio"], cut["duration"] - at,
+                       f"atrim=start={at:.6f},asetpts=PTS-STARTPTS"))
+    else:
+        lines.append(f"[{i}:v]setsar=1,{tags}[cv]")
+        pieces.append((i, cut["audio"], cut["duration"]))
     parts.append("[cv]")
-    pieces.append((i, cut["audio"], cut["duration"]))
     i += 1
     if outro:
         lines += titled(f"{i}:v", "out", sub, w, h, fps, outro["duration"],
                         alpha_expr(sub["outro_in"], sub["outro_out"]),
                         matrix=outro.get("color_space") or "")
         parts.append("[outv]")
-        pieces.append((i, outro["audio"], outro["duration"]))
+        pieces.append((i, outro["audio"], outro["duration"], levels.get("outro")))
     lines.append(f"{''.join(parts)}concat=n={len(parts)}:v=1:a=0[v]")
     lines += sound_graph(pieces, silence)
     return ";\n".join(lines)
@@ -380,14 +497,30 @@ def check_joins(out: str, pieces: list[tuple[str, dict]]) -> str | None:
     return None
 
 
+def split_picture(pic: str, frames: int, at: int, tmp: str) -> tuple[str, str] | str:
+    """The cut's picture (copied out, `frames` long) in two at frame `at`, each copied:
+    (head, tail), or why it can't be (`at` isn't a keyframe: every clip assemble writes
+    starts on one, so a cold open ending on a clip's last frame always is)."""
+    r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", pic, "-map", "0:v:0", "-c", "copy",
+             "-f", "segment", "-segment_frames", str(at), "-reset_timestamps", "1",
+             "-segment_format", "mp4", "part%d.mp4"], cwd=tmp)
+    head, tail = os.path.join(tmp, "part0.mp4"), os.path.join(tmp, "part1.mp4")
+    if r.returncode != 0 or not os.path.isfile(tail):
+        return f"the cut couldn't be split at the cold open's end: {r.stderr.strip()[-300:]}"
+    if probe(head)["frames"] != at or probe(tail)["frames"] != frames - at:
+        return f"the cold open's end (frame {at}) isn't a keyframe of the cut"
+    return head, tail
+
+
 def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub: dict,
-                 out: str, tmp: str) -> str | None:
+                 out: str, tmp: str, levels: dict | None = None,
+                 split: int | None = None) -> str | None:
     """Intro + cut + outro with the cut's picture copied. Writes `out` and
     returns None, or returns why it couldn't (and writes nothing)."""
     why = copy_blocker(cut)
     if why:
         return why
-    titles = [(intro, "intro", alpha_expr(sub["intro_in"])),
+    titles = [(intro, "intro", alpha_expr(from_end(sub["intro_in"], probe(intro)["duration"])) if intro else ""),
               (outro, "outro", alpha_expr(sub["outro_in"], sub["outro_out"]))]
     made: dict[str, str] = {}
     used = None
@@ -419,16 +552,34 @@ def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub:
              pic_only], cwd=tmp)
     if r.returncode != 0:
         return f"the cut's picture couldn't be copied out: {r.stderr.strip()[-300:]}"
-    order = ([made["intro"]] if intro else []) + [pic_only] + ([made["outro"]] if outro else [])
-    sounds = ([intro] if intro else []) + [src] + ([outro] if outro else [])
+    levels = levels or {}
+    # (picture, sound, what it is): the cut's head and tail around the intro when a cold
+    # open ends at `split`, else the cut whole
+    parts: list[tuple[str, str, str]] = []
+    if split is not None:
+        halves = split_picture(pic_only, cut["frames"], split, tmp)
+        if isinstance(halves, str):
+            return halves
+        parts.append((halves[0], src, "head"))
+    if intro:
+        parts.append((made["intro"], intro, "intro"))
+    parts.append((halves[1], src, "tail") if split is not None else (pic_only, src, "cut"))
+    if outro:
+        parts.append((made["outro"], outro, "outro"))
+    order = [pic for pic, _, _ in parts]
+    sounds = [snd for _, snd, _ in parts]
     infos = {p: (cut if p == pic_only else probe(p)) for p in order}
     with open(os.path.join(tmp, "join.txt"), "w", encoding="utf-8") as f:
         for p in order:
             f.write(f"file '{p.replace(os.sep, '/')}'\n")
     pieces = []
-    for i, (pic, snd) in enumerate(zip(order, sounds), 1):
+    for i, (pic, snd, kind) in enumerate(parts, 1):
+        if kind == "tail":
+            pre = f"atrim=start={split / cut['fps']:.6f},asetpts=PTS-STARTPTS"
+        else:
+            pre = levels.get(kind)
         pieces.append((i, probe(snd)["audio"] if snd != src else cut["audio"],
-                       infos[pic]["frames"] / cut["fps"]))
+                       infos[pic]["frames"] / cut["fps"], pre))
     silence = len(order) + 1
     with open(os.path.join(tmp, "sound_graph.txt"), "w", encoding="utf-8") as f:
         f.write(";\n".join(sound_graph(pieces, silence)))
@@ -452,18 +603,20 @@ def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub:
     if why:
         return why
     shutil.move(joined, out)
-    print(f"    picture copied; title clips encoded at assemble's {used} quality, "
+    print(f"    picture copied{' (split at the cold open)' if split is not None else ''}; "
+          f"title clips encoded at assemble's {used} quality, "
           f"sound re-encoded")
     return None
 
 
 def publish_reencode(src: str, cut: dict, intro: str | None, outro: str | None, sub: dict,
-                     out: str, tmp: str, quality: str) -> None:
+                     out: str, tmp: str, quality: str, levels: dict | None = None,
+                     split: int | None = None) -> None:
     pi, po = (probe(intro) if intro else None), (probe(outro) if outro else None)
     with open(os.path.join(tmp, "graph.txt"), "w", encoding="utf-8") as f:
-        f.write(filter_graph(cut, pi, po, sub))
+        f.write(filter_graph(cut, pi, po, sub, levels, split))
     cmd = [*FF.tool("ffmpeg"), "-y", "-v", "error"]
-    for p in (intro, src, outro):
+    for p in ((src, intro, src, outro) if split is not None else (intro, src, outro)):
         if p:
             cmd += ["-i", p]
     cmd += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
@@ -476,6 +629,43 @@ def publish_reencode(src: str, cut: dict, intro: str | None, outro: str | None, 
         raise PublishError(f"ffmpeg failed:\n{r.stderr.strip()}")
     shutil.move(os.path.join(tmp, "out.mp4"), out)
     print(f"    re-encoded at {quality} quality")
+
+
+# ---------------------------------------------------------------------------
+# the title clips' loudness
+# ---------------------------------------------------------------------------
+
+def loudness_target(root: str, pass_: str, series_cfg: dict) -> dict:
+    """The loudness the episode's export is held to (its pass's mix's, else the
+    series config's, else mix.LOUDNESS)."""
+    from seriesmith import mix as MX
+    try:
+        mix = MX.load(root).get(pass_)
+    except (OSError, ValueError):
+        mix = None
+    return MX.loudness_target(mix if isinstance(mix, dict) else None, series_cfg)
+
+
+def clip_level(path: str, target: dict, under_lu: float = 0.0) -> tuple[str | None, str]:
+    """A title clip's sound brought to `target` less `under_lu`: (the filter that does it,
+    or None to leave it; what was done, in words). One gain, as the mix's; the mix's
+    true-peak limiter (oversampled, LOSSY_MARGIN_DB under the ceiling for the AAC) when
+    the gain would cross it. A clip that can't be measured, or is silent, is left."""
+    from seriesmith import mix as MX
+    want = float(target["target_lufs"]) - float(under_lu or 0.0)
+    m = MX.measure(path, want, float(target["true_peak_db"]))
+    if not m or not (m.get("input_i", float("-inf")) > -70):
+        return None, "left as it is (silent, or it couldn't be measured)"
+    gain = want - m["input_i"]
+    words = f"{m['input_i']:g} LUFS, {gain:+.1f} dB to {want:g}"
+    level = f"volume={gain:.2f}dB"
+    hold = float(target["true_peak_db"]) - MX.LOSSY_MARGIN_DB
+    peak = m.get("input_tp", float("-inf")) + gain
+    if peak > hold:
+        level += (f",aresample={48000 * MX.TP_OVERSAMPLE},alimiter=limit={10 ** (hold / 20):.4f}"
+                  f":level=false:attack=5:release=50")
+        words += f", limited to {hold:g} dBTP (it would peak at {peak:+.1f})"
+    return level, words
 
 
 # ---------------------------------------------------------------------------
@@ -501,6 +691,31 @@ def _clip(root: str, block: dict, key: str) -> str | None:
     return None
 
 
+def cold_open_split(root: str, src: str, fps: float, intro: str | None,
+                    pass_: str = "final") -> int | None:
+    """Where the intro goes in the cut `src` (its frame) when the script marks a cold open,
+    else None (at the start): read from the shot list assemble wrote beside it
+    (`<cut>_shots.txt`, coldopen.split_in_file), so it's where the file's shots really are.
+    PublishError when the marks don't make one run at the cut's head. Without an intro
+    there's nothing to put in."""
+    if not intro:
+        return None
+    from seriesmith import coldopen as CO
+    try:
+        at = CO.split_in_file(root, os.path.splitext(src)[0] + "_shots.txt", fps)
+    except CO.ColdOpenError as e:
+        raise PublishError(f"cold open: {e}") from None
+    if at is not None:
+        try:
+            cross = CO.state(root, pass_)["crossing"]
+        except (OSError, ValueError):
+            cross = []
+        if cross:
+            print(f"  ! cold open: {', '.join(c['label'] for c in cross)} "
+                  f"play{'s' if len(cross) == 1 else ''} across its end: cut there by the intro")
+    return at
+
+
 def titles(root: str) -> tuple[str | None, str | None]:
     """The episode's (intro, outro) clips, either None when there isn't one:
     the series config's publish block, else the _titles files."""
@@ -522,8 +737,8 @@ def publish(root: str, src: str | None = None, pass_: str = "final", out: str | 
     with open(cfg_path, encoding="utf-8") as f:
         block = publish_config(json.load(f))
     sub = block["subtitle"]
-    if not os.path.isfile(sub["font"]):
-        raise PublishError(f"publish.subtitle.font {sub['font']} isn't there")
+    sub["font"] = title_font(sub["font"], named=bool((block.get("_named") or {}).get("font")),
+                             home=os.path.dirname(cfg_path))
     src = os.path.abspath(src) if src else default_input(root, pass_)
     if not src or not os.path.isfile(src):
         raise PublishError("nothing to publish: assemble the episode first, "
@@ -539,13 +754,27 @@ def publish(root: str, src: str | None = None, pass_: str = "final", out: str | 
         quality = "master" if os.path.basename(os.path.dirname(src)) == "master" else "review"
 
     cut = probe(src)
+    split = cold_open_split(root, src, cut["fps"], intro, pass_)
     print(f"  {os.path.basename(root)}  \"{title}\"")
     print(f"    intro  {intro or '(none)'}")
     print(f"    cut    {src}  {cut['width']}x{cut['height']} {cut['fps']:g}fps "
           f"{cut['duration']:.1f}s")
+    if split is not None:
+        print(f"    cold open: the intro goes in at frame {split} ({split / cut['fps']:.2f}s)")
     print(f"    outro  {outro or '(none)'}")
     print(f"    font   {sub['font']}")
     print(f"    -> {out}")
+    levels: dict[str, str] = {}
+    lv = block["loudness"]
+    if not check and lv.get("match", True):
+        with open(cfg_path, encoding="utf-8") as f:
+            target = loudness_target(root, pass_, json.load(f))
+        for kind, clip in (("intro", intro), ("outro", outro)):
+            if clip and probe(clip)["audio"]:
+                level, words = clip_level(clip, target, lv.get("under_lu") or 0.0)
+                print(f"    {kind} sound: {words}")
+                if level:
+                    levels[kind] = level
     if check:
         why = copy_blocker(cut)
         print(f"    {'picture would be re-encoded: ' + why if why else 'picture can be copied'}")
@@ -558,11 +787,12 @@ def publish(root: str, src: str | None = None, pass_: str = "final", out: str | 
         with open(os.path.join(tmp, "title.txt"), "w", encoding="utf-8") as f:
             f.write(title)
         shutil.copyfile(sub["font"], os.path.join(tmp, "font" + os.path.splitext(sub["font"])[1]))
-        why = "--reencode" if reencode else publish_copy(src, cut, intro, outro, sub, out, tmp)
+        why = "--reencode" if reencode else publish_copy(src, cut, intro, outro, sub, out, tmp,
+                                                         levels, split)
         if why:
             print(f"  ! re-encoding the whole cut: {why}")
             say("reencode", 0, None, why)
-            publish_reencode(src, cut, intro, outro, sub, out, tmp, quality)
+            publish_reencode(src, cut, intro, outro, sub, out, tmp, quality, levels, split)
     got = probe(out)
     print(f"    {got['duration']:.1f}s, {got['frames']} frames")
     print(f"  -> {out}")

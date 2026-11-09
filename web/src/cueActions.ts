@@ -8,6 +8,7 @@
 import { errText } from "./api";
 import { currentPlaylist, onCueEvent, report } from "./actions";
 import { api, host } from "./host";
+import { confirmPaid } from "./lib/paid";
 import { applyPreset, barsLabel, meterText, newCueId, newCueSpan, presetBase } from "./lib/cue";
 import { loadMix } from "./mixActions";
 import { loadCueStates, openSpotting, selectSpotCue, spotOpen } from "./spotActions";
@@ -238,6 +239,8 @@ export async function renderCue(takes?: number): Promise<boolean> {
   const o = openCueRef();
   if (!o) return false;
   await cueSettled();
+  const n = takes ?? 0;
+  if (!confirmPaid(get().cue[o.key]?.paid, `Render ${n ? `${n} take${n === 1 ? "" : "s"}` : "takes"} of ${o.cue}?`)) return false;
   try {
     const r = await api().renderCue({ ep: o.ep, pass: o.pass, cue: o.cue, ...(takes ? { takes } : {}) });
     host().toast("info", `${o.cue}: ${r.queued.length} take${r.queued.length === 1 ? "" : "s"} queued`, "Each is measured as it lands, and the list ranks them.");
@@ -315,6 +318,7 @@ export async function repaintCueTake(take: number, bars: [number, number], fresh
   if (!o) return null;
   await cueSettled();
   const tn = (n: number) => `t${String(n).padStart(2, "0")}`;
+  if (!confirmPaid(get().cue[o.key]?.paid, `Make ${barsLabel(bars)} of ${o.cue} ${tn(take)} again, as a new take?`)) return null;
   let made: number;
   try {
     made = (await api().repaintCue({ ep: o.ep, pass: o.pass, cue: o.cue, take, bars, ...(fresh ? { fresh } : {}) })).queued.take;

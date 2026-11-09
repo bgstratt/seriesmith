@@ -28,13 +28,16 @@ export function isHosted(t: Pick<Target, "capabilities">): boolean {
   return Array.isArray(b) && b.length > 0 && !b.includes("local");
 }
 
-/** Models grouped by where they run -- your GPU first, then Comfy Router --
- * each group alphabetical by its label; an empty group is left out. */
-export function byWhere<T extends Pick<Target, "id" | "label" | "capabilities">>(ts: T[]): { label: string; targets: T[] }[] {
+/** Models grouped by where they run and who bills for them -- your GPU first, then Comfy Router,
+ * then each provider of your own, by its name -- each group alphabetical by its label; an empty
+ * group is left out. */
+export function byWhere<T extends Pick<Target, "id" | "label" | "capabilities" | "service" | "service_label">>(ts: T[]): { label: string; targets: T[] }[] {
   const sorted = [...ts].sort((a, b) => (a.label || a.id).localeCompare(b.label || b.id));
+  const providers = [...new Set(sorted.filter((t) => t.service).map((t) => t.service_label || t.service!))].sort((a, b) => a.localeCompare(b));
   return [
-    { label: "Your GPU", targets: sorted.filter((t) => !isHosted(t)) },
-    { label: "Comfy Router (paid)", targets: sorted.filter(isHosted) },
+    { label: "Your GPU", targets: sorted.filter((t) => !t.service && !isHosted(t)) },
+    { label: "Comfy Router (paid)", targets: sorted.filter((t) => !t.service && isHosted(t)) },
+    ...providers.map((name) => ({ label: `${name} (paid)`, targets: sorted.filter((t) => t.service && (t.service_label || t.service) === name) })),
   ].filter((g) => g.targets.length);
 }
 
@@ -252,6 +255,12 @@ export function comboChoices(info: unknown, classType: string, field: string): s
 // ---------------------------------------------------------------------------
 
 /** A badge on a shot whose target isn't the series default (e.g. "LTX"). */
+/** A model's badge: in the paid colour when it bills someone, as its Generate buttons are. */
+function targetKindOf(list: TargetList | null | undefined, id: string): "target" | "paid" {
+  const t = findTarget(list, id);
+  return t && isHosted(t) ? "paid" : "target";
+}
+
 export function shotTargetBadge(
   s: Pick<ShotStatus, "target" | "built_target">,
   list: TargetList | null | undefined,
@@ -260,7 +269,7 @@ export function shotTargetBadge(
   const t = shotTarget(s, seriesDefault);
   if (t === seriesDefault) return null;
   const re = isRetargeted(s) ? ` ${retargetNote(list, s)}` : "";
-  return { kind: "target", label: targetShort(list, t), title: `Renders on ${targetLabel(list, t)}${re}; the series default is ${targetLabel(list, seriesDefault)}` };
+  return { kind: targetKindOf(list, t), label: targetShort(list, t), title: `Renders on ${targetLabel(list, t)}${re}; the series default is ${targetLabel(list, seriesDefault)}` };
 }
 
 /**
@@ -273,7 +282,7 @@ export function takeTargetBadge(
   list: TargetList | null | undefined,
 ): Badge | null {
   if (!t.target || t.target === shotCurrent) return null;
-  return { kind: "target", label: targetShort(list, t.target), title: `Rendered on ${targetLabel(list, t.target)}; the shot now renders on ${targetLabel(list, shotCurrent)}` };
+  return { kind: targetKindOf(list, t.target), label: targetShort(list, t.target), title: `Rendered on ${targetLabel(list, t.target)}; the shot now renders on ${targetLabel(list, shotCurrent)}` };
 }
 
 /**

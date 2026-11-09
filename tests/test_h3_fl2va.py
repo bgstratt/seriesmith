@@ -214,17 +214,17 @@ class PromptTest(unittest.TestCase):
         # subjects in words, dialogue in H3's tags, voiceover's clause
         self.assertIn("Ada is a tall woman in her thirties", by["sh010"])
         # sh020 clones: the lines are given, as a recording's are
-        self.assertIn("Ada, with a voice that is dry, quick and precise, (S1), warmly, says, in the "
-                      "recorded voice: <d>[English] You know that one whistles.</d>", by["sh020"])
-        self.assertIn("Bo (S2), whispering, says, in the recorded voice: <d>[English] That's the "
+        self.assertIn("Ada, with a voice that is dry, quick and precise, (S1), warmly, in the "
+                      "recorded voice, says: <d>[English] You know that one whistles.</d>", by["sh020"])
+        self.assertIn("Bo (S2), whispering, in the recorded voice, says: <d>[English] That's the "
                       "point.</d>", by["sh020"])
-        self.assertIn("says in an off-screen voiceover, in the recorded voice: <d>[English] Not "
+        self.assertIn("in an off-screen voiceover, in the recorded voice, says: <d>[English] Not "
                       "today.</d> while their lips remain completely closed.", by["sh030"])
         self.assertIn('Visible on-screen text reads "OPEN 24 HOURS".', by["sh010"])
         self.assertIn("non_diegetic_music: A plucky ukulele sting.", by["sh010"])
         self.assertIn("close-up frames Ada against a tightly cropped portion of", by["sh030"])
         # recorded dialogue
-        self.assertIn("says, in the recorded voice: <d>[English] Van.</d>", by["sh110"])
+        self.assertIn("in the recorded voice, says: <d>[English] Van.</d>", by["sh110"])
         self.assertIn("overall_soundscape: The only audio is the recorded dialogue", by["sh110"])
         self.assertIn("overall_soundscape: Running footsteps splashing through puddles, laid "
                       "under the recorded dialogue.", by["sh120"])

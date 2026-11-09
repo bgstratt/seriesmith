@@ -12,21 +12,6 @@ from __future__ import annotations
 from seriesmith.targets.music import common as C
 
 
-def lyrics(cue: dict) -> str:
-    if cue.get("kind") != "song":
-        return ""
-    out = []
-    for s in cue.get("sections") or []:
-        lines = [ln.strip() for ln in (s.get("lyrics") or "").splitlines() if ln.strip()]
-        if lines:
-            name = " ".join((s.get("name") or "section").split()).title()
-            out.append("\n".join([f"[{name}]"] + lines))
-    return "\n\n".join(out)
-
-
 def cue_prompt(target, cue: dict) -> dict:
-    mood = C.notes(cue)
-    text = " ".join(x for x in (C.head(cue, bpm_in_text=True), f"Mood: {mood}." if mood else "",
-                                C.story(cue)) if x)
-    return {"prompt": text, "negative": None,
-            "values": {"lyrics": lyrics(cue), "seconds": round(float(cue["seconds"]), 3)}}
+    return {"prompt": C.described(cue), "negative": None,
+            "values": {"lyrics": C.tagged_lyrics(cue), "seconds": round(float(cue["seconds"]), 3)}}

@@ -222,6 +222,11 @@ class CoverageTest(unittest.TestCase):
     FETCHING = {"MMAudioFeatureUtilsLoader": {"nvidia/bigvgan_v2_44khz_128band_512x"},
                 "HunyuanDependenciesLoader": {"google/siglip2-base-patch16-512",
                                               "laion/larger_clap_general"},
+                # ComfyUI-Qwen-TTS's loader: the model's folder and the tokenizer
+                # (nodes.py download_model_if_needed, check_and_download_tokenizer; 2026-11-07)
+                "FB_Qwen3TTSVoiceDesign": {"Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+                                           "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+                                           "Qwen/Qwen3-TTS-Tokenizer-12Hz"},
                 "SeriesmithMRT2": {"magenta-community/magenta-realtime-2",
                                    "magenta-community/magenta-realtime-2-small",
                                    "magenta-community/magenta-rt-musiccoca-torch"}}

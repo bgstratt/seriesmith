@@ -79,6 +79,7 @@ from seriesmith import takes as T
 from seriesmith import targets as TG
 from seriesmith.core import fileio as F
 from seriesmith.core import paths as P
+from seriesmith.targets import prompt_template as TP
 from seriesmith.targets.graph import abs_path as _abs, consumers as _consumers  # noqa: F401
 
 # The default video target's binding, under the names render and the routes
@@ -460,7 +461,9 @@ def check_graph(api: dict, object_info: dict | None = None) -> list[str]:
     node in the graph. With ComfyUI's /object_info (or a trimmed copy, {class:
     {"input": {"required": {...}}, "output": [...]}}), every class must be
     known, every linked slot must exist, and every required input must be set
-    (a dynamic input like ComfyMathExpression's `values` is set by `values.a`)."""
+    (a dynamic input like ComfyMathExpression's `values` is set by `values.a`;
+    one that grows from none, an autogrow with `min` 0, may be left out: Drama 3
+    Generate's `voices` with no voice to clone)."""
     out = []
     for nid, node in api.items():
         ctype = node.get("class_type")
@@ -480,8 +483,11 @@ def check_graph(api: dict, object_info: dict | None = None) -> list[str]:
                     out.append(f"{nid} ({ctype}).{name}: {src['class_type']} has no "
                                f"output {v[1]}")
         if info is not None:
-            for req in (info.get("input") or {}).get("required") or {}:
+            for req, spec in ((info.get("input") or {}).get("required") or {}).items():
                 if req not in have and not any(k.startswith(req + ".") for k in have):
+                    grows = spec[1] if isinstance(spec, list) and len(spec) > 1 and isinstance(spec[1], dict) else {}
+                    if spec and spec[0] == "COMFY_AUTOGROW_V3" and not grows.get("min"):
+                        continue
                     out.append(f"{nid} ({ctype}): required input {req!r} is not set")
     return out
 
@@ -1090,20 +1096,75 @@ def preset_hash(doc: dict, shot: dict) -> str:
     return T.content_hash({"defaults": dd, "shot": part})
 
 
+def bare_hash(shot: dict) -> str:
+    """story_hash without the prompt: whether a shot changed other than in how it's worded."""
+    return story_hash({k: v for k, v in shot.items() if k != "prompt"})
+
+
+def place_free_hash(shot: dict) -> str:
+    """story_hash without where its window sits in the recording: whether a shot changed other than
+    by moving along it."""
+    return story_hash({k: v for k, v in shot.items() if k not in ("audio_in", "audio_out")})
+
+
+def laid_fields(root: str, shot: dict) -> dict:
+    """What a take remembers of a shot whose sound is lines laid into the recording (lines.py): which
+    takes of its lines it spoke, and the shot apart from where it sits. {} for any other shot."""
+    if "audio_in" not in shot:
+        return {}
+    from seriesmith import lines as LN
+    sound = LN.laid_sound(root, shot.get("id"))
+    return {"lines_sound": sound, "place_free_hash": place_free_hash(shot)} if sound else {}
+
+
+def only_moved(root: str, doc: dict, shot: dict, sidecar: dict) -> bool:
+    """Whether a take's shot has the same lines at the same length as when it was made, and has only
+    moved along the recording, because a line before it was redone. Its take still fits: the cut plays
+    the shot's window of the recording wherever that is now."""
+    said = sidecar.get("lines_sound")
+    if not said or sidecar.get("place_free_hash") != place_free_hash(shot):
+        return False
+    from seriesmith import lines as LN
+    if said != LN.laid_sound(root, shot.get("id")):
+        return False
+    # and it's still that recording the shot would hear (a silent shot hears none of it)
+    return said == LN.SILENT or any(LN.is_recording(r.get("path")) for r in ref_slots(doc, shot))
+
+
+def mapping_changed(root: str, doc: dict, sidecar: dict) -> bool:
+    """Whether the model's prompt is written otherwise than when the take was made."""
+    tid = sidecar.get("target") or doc.get("target")
+    if not tid:
+        return False
+    try:
+        now = TP.signature(TG.load_target(tid, "video", root=root))
+    except (TG.TargetError, OSError, ValueError):
+        return False
+    return (sidecar.get("mapping_hash") or "") != now
+
+
 def stale_reasons(root: str, doc: dict, shot: dict, sidecar: dict | None) -> list[str]:
     """Why a take no longer matches what rendering this shot now would use:
     'script' (the shot changed), 'ref' (a reference file changed), 'preset'
-    (model/LoRA/steps/size defaults changed). Empty: current. A take with no
-    sidecar has no provenance and is reported as ['unknown']."""
+    (model/LoRA/steps/size defaults changed), 'mapping' (the model's prompt template changed).
+    Empty: current. A take with no sidecar has no provenance and is reported as ['unknown'].
+    A prompt that differs only because its template did is 'mapping', not 'script'; a take made
+    before it had a template can't say what else changed, and is 'mapping' alone."""
     if not sidecar:
         return ["unknown"]
     out = []
-    if sidecar.get("shot_hash") and sidecar["shot_hash"] != story_hash(shot):
-        out.append("script")
+    mapping = mapping_changed(root, doc, sidecar)
+    moved = only_moved(root, doc, shot, sidecar)
+    if sidecar.get("shot_hash") and sidecar["shot_hash"] != story_hash(shot) and not moved:
+        bare = sidecar.get("shot_bare_hash")
+        if not mapping or (bare and bare != bare_hash(shot)):
+            out.append("script")
     for r in sidecar.get("refs") or []:
         p = r.get("path")
         if not p or not (r.get("sha1") or r.get("optional")):
             continue
+        if moved and r.get("kind") == "audio":
+            continue                                # the recording changed elsewhere, not in this shot
         now = T.file_sha1(p if os.path.isabs(p) else os.path.join(root, p))
         # a file that changed; or an optional one (an LTX keyframe) the take
         # rendered without that exists now: a render would use it
@@ -1113,6 +1174,8 @@ def stale_reasons(root: str, doc: dict, shot: dict, sidecar: dict | None) -> lis
             break
     if sidecar.get("preset_hash") and sidecar["preset_hash"] != preset_hash(doc, shot):
         out.append("preset")
+    if mapping:
+        out.append("mapping")
     return out
 
 
@@ -1445,17 +1508,26 @@ def backend_choice(overrides: dict | None, shot_id: str, target: "TG.Target",
             continue
         if name == "deployment":
             name = f"deployment:{target.id}"
-        if backend_kind(name) in target.backends:
+        if name == "api":
+            name = own_backend(target)
+        if backend_kind(name) in target.backends and (backend_kind(name) != "api"
+                                                      or name == own_backend(target)):
             return name, source, ""
         if source in ("request", "override"):
             raise ValueError(f"{target.short} can't render on {name}: it runs on "
                              f"{', '.join(target.backends)}")
-        own = target.backends[0]
-        own = f"deployment:{target.id}" if own == "deployment" else own
+        own = own_backend(target)
         return own, "target", (f"{target.short} doesn't run on {name} (the {source}'s "
                                f"backend), so it renders on {own}")
+    return own_backend(target), "target", ""
+
+
+def own_backend(target: "TG.Target") -> str:
+    """The name of the backend a target runs on when nothing says otherwise."""
     own = target.backends[0]
-    return (f"deployment:{target.id}" if own == "deployment" else own), "target", ""
+    if own == "deployment":
+        return f"deployment:{target.id}"
+    return f"api:{TG.service_of(target.spec)}" if own == "api" else own
 
 
 _SCRIPT_TARGETS: dict = {}
@@ -2019,6 +2091,20 @@ def ref_files(job: Job) -> list[dict]:
     return out
 
 
+def _dub_lines_field(job: Job) -> dict:
+    """Which takes of its lines a take dubbed to its lines was rendered to."""
+    if ((job.sound or {}).get("dub") or {}).get("from") != "line":
+        return {}
+    from seriesmith import lines as LN
+    return {"dub_lines": LN.shot_sound_id(job.root, job.id)}
+
+
+def _mapping_fields(job: Job) -> dict:
+    """What a take remembers of its prompt's template, when the model has one of its own."""
+    now = TP.signature(job_target(job))
+    return {"mapping_hash": now, "shot_bare_hash": bare_hash(job.shot)} if now else {}
+
+
 def sidecar_for(job: Job) -> dict:
     d = job.doc.get("defaults", {})
     notes = list(job.notes)
@@ -2042,6 +2128,7 @@ def sidecar_for(job: Job) -> dict:
         "length_source": job.length_source,
         "shot_hash": job.shot_hash,
         "preset_hash": preset_hash(job.doc, job.shot),
+        **laid_fields(job.root, job.shot),
         "overrides": job.overridden, "override_stale": job.override_stale,
         "parent_take": job.parent_take, "note": job.note,
         "refs": ref_files(job),
@@ -2051,6 +2138,8 @@ def sidecar_for(job: Job) -> dict:
         **({"missing_note": job.missing_why} if job.missing_why else {}),
         # only when there is something to say, likewise
         **({"built_target": job.built_target} if job.retargeted else {}),
+        # the model's prompt is written its own way
+        **_mapping_fields(job),
         **({"inputs": dict(job.inputs)} if job.inputs else {}),
         # its first frame is cut again when it starts (the node fills in `continuity`)
         **({"continuity_after": dict(job.continuity)} if job.continuity else {}),
@@ -2075,6 +2164,7 @@ def sidecar_for(job: Job) -> dict:
         # take is stale against when it changes
         **({"dub_track": True} if job.dub_track else {}),
         **({"sound": dict(job.sound)} if job.sound else {}),
+        **_dub_lines_field(job),
         **({"redo_range": {k: job.redo_range[k] for k in ("take", "first", "last", "via")}}
            if job.redo_range else {}),
     }
@@ -3350,6 +3440,7 @@ def stage_inputs(job: Job, comfy=None, probe=None) -> dict:
 
 
 POLICY_OF = {"generate": "generate", "clone": "clone"}
+DUB_AIR = 0.3         # seconds a shot runs past the line it follows (trimmed in the cut if it's too long)
 
 
 def apply_sound(job: Job, sound: dict) -> None:
@@ -3384,18 +3475,23 @@ def apply_sound(job: Job, sound: dict) -> None:
             raise ValueError(f"its dub track, {label}, isn't a finished take with sound")
         from seriesmith import audiocut as AC
         level = AC.levelled(sound_file)
-        recompile_sound(job, dub, os.path.relpath(level, job.root).replace(os.sep, "/"))
+        # a line, or another shot's sound, wasn't made to this shot's length: the shot follows it
+        follows = src["from"] == "line" or (src.get("shot") or job.id) != job.id
+        long = AC.duration(level) if follows else None
+        recompile_sound(job, dub, os.path.relpath(level, job.root).replace(os.sep, "/"),
+                        seconds=long + DUB_AIR if long else None)
         job.dub_label = label
         job.notes.append(f"dubbed to {label}")
     except Exception as e:                                # noqa: BLE001  said on the job
         job.action, job.error = "error", f"can't render {job.id}'s sound as set: {e}"
 
 
-def recompile_sound(job: Job, policy: str, audio_file: str | None = None) -> None:
+def recompile_sound(job: Job, policy: str, audio_file: str | None = None,
+                    seconds: float | None = None) -> None:
     """job.shot compiled again from the build's script IR with `policy`; with
     `audio_file` (relative to the episode) a dub of that file: its window the
-    shot's own length and the file the shot's recording (and, for the compile,
-    the track it is in). Replaces job.shot, and job.prompt unless overridden."""
+    shot's own length, or `seconds`, and the file the shot's recording (and, for
+    the compile, the track it is in). Replaces job.shot, and job.prompt unless overridden."""
     import copy as _copy
     t = job_target(job)
     story, series_cfg = episode_story(job.root)
@@ -3406,8 +3502,8 @@ def recompile_sound(job: Job, policy: str, audio_file: str | None = None) -> Non
     sh.audio = policy
     if audio_file:
         shot = job.recompiled or job.shot
-        seconds = (float(shot["audio_out"]) - float(shot["audio_in"]) if "audio_in" in shot
-                   else float(shot.get("duration") or job.frames / (job.fps or 24.0)))
+        seconds = seconds or (float(shot["audio_out"]) - float(shot["audio_in"]) if "audio_in" in shot
+                              else float(shot.get("duration") or job.frames / (job.fps or 24.0)))
         sh.timing = {"audio_in": 0.0, "audio_out": round(seconds, 3)}
         # a window wants a recorded track to be in: the file is this shot's,
         # so it is the track for this compile (a series with none: Ballroom)

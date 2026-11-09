@@ -232,6 +232,31 @@ class SoundTest(unittest.TestCase):
         self.assertEqual(J.remux_dub(t), "the mp4 carries the dubbed mix")
         self.assertTrue(PK.has_audio(t.paths.mp4))
 
+    @unittest.skipUnless(FF.have("ffmpeg"), "ffmpeg not on PATH")
+    def test_every_dub_source_comes_back_with_its_sound_in_the_take(self):
+        """It came back mute for a source the check didn't name (its lines, 2026-11-05)."""
+        import json
+        import subprocess
+        import types
+        from seriesmith import peaks as PK
+        from seriesmith.backends import Output
+        from seriesmith.shotnodes import RECORD_SUFFIX
+        for dub in ({"from": "line"}, {"from": "track"}, {"from": "dub", "take": 1},
+                    {"from": "take", "pass": "final", "take": 1, "shot": "sh010"}):
+            with self.subTest(dub["from"]):
+                t = T.reserve_take(self.root, "final", "sh020", {"status": "queued", "sound": {"mode": "dub", "dub": dub}})
+                subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i", "color=black:s=64x64:d=2",
+                                "-c:v", "libx264", "-pix_fmt", "yuv420p", t.paths.mp4], check=True)
+                with open(t.paths.h3_wav, "wb") as fh:
+                    fh.write(wav_bytes(2.0))
+
+                def record(path):
+                    with open(path, "w", encoding="utf-8") as fh:
+                        json.dump({"status": "ok"}, fh)
+                run = types.SimpleNamespace(error=None, outputs=lambda: [Output("9", f"x{RECORD_SUFFIX}", "file", record)])
+                self.assertEqual(J.collect_take(t, run, "9", "succeeded"), "ok")
+                self.assertTrue(PK.has_audio(t.paths.mp4))
+
     # -- stale, and the routes ----------------------------------------------
 
     def test_a_take_with_another_sound_is_stale_and_the_routes(self):

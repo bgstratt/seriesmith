@@ -51,7 +51,7 @@ class LoadingTest(unittest.TestCase):
                                ("video", "minimax_h3_fl2va"), ("video", "pika_h3_flex"), ("video", "pika_h3_flex_fl2va"), ("video", "wan22_i2v"),
                                ("video", "seedance_2_5"),
                                ("video", "wan22_ti2v"), ("video", "wan22_vace"), ("image", "krea2"),
-                               ("music", "stable_audio3"), ("music", "ace_step15"), ("music", "yue2"), ("music", "minimax_music3"), ("music", "minimax_music3_cloud"), ("music", "mrt2"), ("music", "pika_music"),
+                               ("music", "stable_audio3"), ("music", "ace_step15"), ("music", "yue2"), ("music", "minimax_music3"), ("music", "minimax_music3_cloud"), ("music", "suno_chirp_v6"), ("music", "elevenlabs_music"), ("music", "mrt2"), ("music", "pika_music"),
                                ("ambience", "mmaudio_ambience"), ("ambience", "sa3_sfx_ambience"),
                                ("foley", "h3_foley"), ("foley", "ltx23_foley"), ("foley", "hunyuan_xl_foley"),
                                ("image", "z_image_turbo"), ("image", "flux2_klein"),
@@ -63,7 +63,8 @@ class LoadingTest(unittest.TestCase):
                                ("image", "krea_2_router"),
                                ("video", "fasth3_omni"), ("image", "fasth3_omni_still"),
                                ("image", "fibo2_dev"), ("image", "fibo2_edit_turbo"),
-                               ("audio", "ltx2_voice")})
+                               ("audio", "ltx2_voice"), ("audio", "drama3"), ("audio", "qwen3_tts"),
+                               ("audio", "fishaudio_drama3")})
         self.assertEqual([t.id for t in TG.list_targets("video") if t.id not in ROUTER],
                          ["fasth3_fl2va", "fasth3_omni", "h3_singularity", "h3_singularity_fl2va", "hold", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", H3, "pika_h3_flex", "pika_h3_flex_fl2va", "seedance_2_5",
                           "wan22_i2v", "wan22_ti2v", "wan22_vace"])
@@ -433,13 +434,13 @@ class TargetsRouteTest(ApiTest):
         by = {t["id"]: t for t in data["targets"]}
         self.assertEqual(set(by) - ROUTER, {H3, "hold", "h3_singularity", "h3_singularity_fl2va", "fasth3_fl2va", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", "pika_h3_flex", "pika_h3_flex_fl2va", "krea2",
                                    "wan22_i2v", "wan22_ti2v", "wan22_vace", "z_image_turbo",
-                                   "stable_audio3", "ace_step15", "yue2", "minimax_music3", "minimax_music3_cloud", "mrt2", "pika_music", "mmaudio_ambience", "sa3_sfx_ambience",
+                                   "stable_audio3", "ace_step15", "yue2", "minimax_music3", "minimax_music3_cloud", "mrt2", "pika_music", "suno_chirp_v6", "elevenlabs_music", "mmaudio_ambience", "sa3_sfx_ambience",
                                    "h3_foley", "ltx23_foley", "hunyuan_xl_foley",
                                    "flux2_klein", "flux2_klein_edit", "flux_kontext",
                                    "flux3_klein", "flux3_klein_turbo",
                                    "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio",
                                    "moss_image_sft", "moss_image_base",
-                                   "klein_erp_360", "ltx2_voice", "seedance_2_5", "krea_2_router",
+                                   "klein_erp_360", "ltx2_voice", "drama3", "qwen3_tts", "fishaudio_drama3", "seedance_2_5", "krea_2_router",
                                    "fasth3_omni", "fasth3_omni_still", "fibo2_dev", "fibo2_edit_turbo"})
         for tid, label, short in (("wan22_i2v", "Wan 2.2 14B I2V", "Wan I2V"),
                                   ("wan22_ti2v", "Wan 2.2 5B TI2V", "Wan 5B"),
@@ -539,7 +540,7 @@ class TargetsRouteTest(ApiTest):
         self.assertFalse(lt["capabilities"]["requires_first"])
         # Phase 9c-B: audio is a kind of its own (test_phase9c_voice)
         audio = self.ok(A.get_targets(self.ctx, {"kind": "audio"}))["targets"]
-        self.assertEqual([t["id"] for t in audio], ["ltx2_voice"])
+        self.assertEqual([t["id"] for t in audio], ["drama3", "fishaudio_drama3", "ltx2_voice", "qwen3_tts"])
         self.err(A.get_targets(self.ctx, {"kind": "sound"}), 400)
         self.assertIn(("GET", "/seriesmith/targets"), {(m, p) for m, p, _f, _t in A.ROUTES})
 

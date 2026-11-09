@@ -678,8 +678,8 @@ class DownloadsDataTest(unittest.TestCase):
         from seriesmith.backends import partner
         for t in TG.list_targets():
             named = t.named_files()
-            # hosted (Router, or a Comfy partner node in its workflow), or held here: no files
-            hosted = bool(t.spec.get("router")) or (t.binding.workflow and partner(
+            # hosted (Router, a provider, or a Comfy partner node in its workflow), or held here: no files
+            hosted = TG.is_hosted(t.spec) or (t.binding.workflow and partner(
                 J.target_workflow(t, None, None, required=True, prefer_repo=True)[0]))
             if hosted or t.spec.get("local_render"):
                 self.assertEqual((named, t.downloads), ({}, {}), t.id)

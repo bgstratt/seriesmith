@@ -3,6 +3,7 @@ import { continuityBadge } from "./continuity";
 import { missingOf, missingRefsTitle } from "./missingRefs";
 
 export type BadgeKind =
+  | "paid"
   | "moved"
   | "locked"
   | "trimmed"
@@ -66,6 +67,7 @@ const STALE_WHY: Record<string, string> = {
   target: "rendered on another target than the shot's next render uses",
   chain: "it continues the shot before it (continuous: latent), whose take in the cut changed since",
   sound: "the shot's sound (generate, clone, or the track it dubs) changed since the take",
+  mapping: "the model's prompt template changed since the take",
 };
 
 export function staleTitle(reasons: string[]): string {

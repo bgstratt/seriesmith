@@ -1601,6 +1601,40 @@ def set_voice_sample(s: Series, subject: str, rel: str) -> bool:
     return True
 
 
+def set_provider_voice(s: Series, subject: str, service: str, voice: dict | None) -> bool:
+    """Write the speaker a subject has on a provider (`subjects.<subject>.voices.<service>`: {"id",
+    "name"}; None removes it) into the series config, by the same path as a `voice_sample`. A variant
+    shares its base's voice. False when it already said that. RefError as set_voice_sample's."""
+    import json
+
+    from seriesmith import promote as P
+    from seriesmith import source as H
+    try:
+        src = H.read_source(s.ep, "series")
+        raw = json.loads(src.text)
+    except (H.SourceError, ValueError) as e:
+        raise RefError(f"the series config can't be read: {e}") from None
+    book = raw.get("subjects")
+    if not isinstance(book, dict) or not isinstance(book.get(subject), dict):
+        raise RefError(f"the series config has no subject {subject!r} to give a voice to")
+    entry = book[subject]
+    if entry.get("of"):
+        raise RefError(f"{subject!r} is a variant of {entry['of']!r} and shares its voice: "
+                       f"give the voice to {entry['of']!r} instead")
+    was = entry.get("voices") if isinstance(entry.get("voices"), dict) else {}
+    now = {k: v for k, v in was.items() if k != service}
+    if voice:
+        now[service] = voice
+    if now == was:
+        return False
+    if now:
+        entry["voices"] = now
+    else:
+        entry.pop("voices", None)
+    H.write_source(src, P.dump_series(raw, src.text))
+    return True
+
+
 def pick_take(s: Series, ref: Ref, view: str | None, take: int,
               force: bool = False, panel_height: int = 1024,
               mksheet: str | None = None) -> PickResult:
@@ -2699,6 +2733,8 @@ class GenJob:
     frames: int | None = None
     fps: float | None = None
     line: str = ""
+    held_sample: str = ""            # continue this file's voice, not the ref's live one (lines.py)
+    held_text: str = ""              # and the words that file says
     line_source: str = ""            # script | neutral | request
     edit: dict = field(default_factory=dict)     # an edit: what it started from (plan_edit)
 
@@ -3740,30 +3776,79 @@ def stage_references(s: Series, job: GenJob, comfy=None) -> dict:
     return job.inputs
 
 
+def voice_sample_text(ref: Ref) -> str:
+    """The words a voice ref's live sample says, when seriesmith knows them:
+    the timings beside it (`<sample>.words.json`, as a recording's), else the
+    line its picked take was asked to say while the sample is still that take.
+    "" when they aren't known (a sample dropped in by hand)."""
+    path = ref.file
+    if not path or not os.path.isfile(path):
+        return ""
+    words = T.read_json_copy(path + ".words.json")
+    if isinstance(words, list) and words:
+        return " ".join(str(w.get("word") or "").strip() for w in words if isinstance(w, dict)).strip()
+    block = read_picks(ref.home)["refs"].get(ref.id) or {}
+    n = block.get("take")
+    if not n or not block.get("sha1") or block.get("sha1") != T.file_sha1(path):
+        return ""
+    try:
+        t = get_take(ref, None, int(n))
+    except (UnknownRef, ValueError):
+        return ""
+    return " ".join(str((t.sidecar or {}).get("line") or "").split())
+
+
+def stage_gpu_memory(job: GenJob, backend) -> dict:
+    """The GPU memory of the ComfyUI the job goes to (bytes) in job.inputs
+    (`gpu_memory`), for a target that chooses by it (`capabilities.gpu_memory`:
+    Drama 3, whether its experts fit in VRAM). Nothing for another target, or a
+    backend that can't say (Comfy Cloud, a deployment): the target then plays
+    safe."""
+    if not (job.target.spec.get("capabilities") or {}).get("gpu_memory"):
+        return job.inputs
+    ask = getattr(backend, "gpu_memory", None)
+    got = ask() if callable(ask) else None
+    if got:
+        job.inputs = dict(job.inputs, gpu_memory=int(got))
+    return job.inputs
+
+
 def stage_voice_reference(s: Series, job: GenJob, comfy=None) -> dict:
     """Upload the voice sample an audio target copies (its speaker identity)
     to ComfyUI's input folder and record its name in job.inputs
     ({"reference_audio": "seriesmith/<sha1>.wav", "reference_seconds": 2.1}).
-    What goes up is the sample's head, cut between words (audiocut.voice_clip):
-    the target continues it, so only the voice has to be in it. Only for a
-    target whose `capabilities.reference_audio` is true and a ref whose live
-    file is on disk; otherwise nothing is staged and the target generates the
-    voice from the wording alone. Without `comfy` (a dry run) only the name is
-    worked out."""
+    What goes up is the sample cut between words (audiocut.voice_clip): its
+    head (1.5-2.5 s) for a target that continues it, so only the voice has to
+    be in it; as long as the target's `capabilities.reference_clip` ([shortest,
+    longest] seconds) for one that clones from a clip. A target that wants the
+    clip's words (`capabilities.reference_text`) gets `reference_text` too: the
+    sample's, when seriesmith knows them and the clip is the whole sample, else
+    "" (the target does without). Only for a target whose
+    `capabilities.reference_audio` is true and a ref whose live file is on
+    disk; otherwise nothing is staged and the target generates the voice from
+    the wording alone. Without `comfy` (a dry run) only the name is worked
+    out."""
     from seriesmith import audiocut as AC
     if not job.is_audio or not job.target.capabilities().get("reference_audio"):
         return job.inputs
-    path = job.ref.file
+    path = job.held_sample or job.ref.file
     if not path or not os.path.isfile(path):
         return job.inputs
+    caps = job.target.spec.get("capabilities") or {}
+    lo, hi = caps.get("reference_clip") or (AC.CLIP_MIN, AC.CLIP_MAX)
     try:
-        clip, seconds = AC.voice_clip(path)
+        clip, seconds = AC.voice_clip(path, float(lo), float(hi))
     except AC.CutError as e:
         raise NotUsable(f"{job.ref.id}: {e}") from e
     name = J.input_name(clip)
     if comfy is not None:
         comfy.upload_input(clip, name)
     job.inputs = dict(job.inputs, reference_audio=name, reference_seconds=seconds)
+    if caps.get("reference_text"):
+        total = AC.duration(path)
+        whole = total is not None and float(total) <= float(hi)    # cut short: its words aren't all in it
+        said = (job.held_text if job.held_sample else voice_sample_text(job.ref)) if whole else ""
+        job.inputs["reference_text"] = said
     job.references = [{"role": "voice", "subject": job.ref.subject,
                        "name": job.ref.name, "kind": "voice", "path": path,
                        "seconds": seconds}]
@@ -3797,7 +3882,7 @@ def queue_generate(s: Series, req: GenRequest, comfy, base=None,
     graphs: dict = {}
 
     def graph_base(t):
-        if t.spec.get("router"):
+        if TG.is_hosted(t.spec):
             return None                      # a hosted model: one call, no workflow
         if callable(base):
             return base(t.id)
@@ -4489,6 +4574,7 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
     out = {
         "id": ref.id, "key": ref.key, "scope": ref.scope, "kind": ref.kind,
         "name": ref.name, "subject": ref.subject,
+        **({"speakers": ref.entry["voices"]} if ref.is_audio and isinstance(ref.entry.get("voices"), dict) else {}),
         # a wardrobe variant keeps the subject's name (it is the same character,
         # and that name goes into every prompt), so the listing says whose
         # variant it is rather than inventing a second name for them

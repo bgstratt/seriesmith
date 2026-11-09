@@ -129,7 +129,7 @@ folders. Under it, the Shots toolbar, its buttons in groups, left to right:
 | pencil | **Edit the selected shot** as a form |
 | sliders | **Inspect the selected shot** |
 | file-edit | **Edit the episode's script** — opens the Script window |
-| cog | **Series settings** — the series config as a form |
+| cog | **Series settings** — the series config as a form; a section with a guide has a **Docs ↗** link to its page on the docs site |
 | book | **Edit the series config** (`series.json`) as text |
 | volume-up | **Recording** — attach a dialogue recording and time the script against it (`align`). Lit when the episode has one. For a song, its **Vocal stem** part (optional, off by default) makes the singing's stem on local ComfyUI, aligns **from the vocal stem**, and lets **dub shots hear the vocal stem** (RECORDED_DIALOGUE.md) |
 | play | **Play all** — the cut, played from its takes, no export needed |
@@ -238,7 +238,7 @@ Two buttons beside Build ask for work in bulk:
 | Button | What it queues |
 |---|---|
 | **Generate missing (n)** | every shot with no finished take and nothing queued — the first pass, and anything that failed |
-| **Re-render stale (n)** | every shot whose newest take is out of date: the script, a reference, the preset or the target changed since it rendered |
+| **Re-render stale (n)** | every shot whose newest take is out of date: the script, a reference, the preset, the model's prompt template or the target changed since it rendered |
 
 **Re-render stale** is the other half of the edit loop: change a line, rebuild, and the takes
 that no longer match are badged `stale` — this queues exactly those. It renders each shot at
@@ -361,7 +361,7 @@ groups that open beside the menu when you hover them.
 | **Make final from draft (1080p)…** | A Seedance proxy draft's final, exactly as drawn (paid; see **Finals from drafts**) |
 | **Cancel this render** | Stop a queued or running take |
 | **Upscale and post ›** | **Upscale (2x)…**, **Keep upscale**, **Remove upscale**: the take's upscale (see **Finishing**; a kept one is left alone by Master). **Post-process…**, **Remove post**: finish the upscale |
-| **In the cut ›** | **Flag to come back to** (see **Flagging clips**); **Lock in the cut** (it can't be moved, trimmed or re-picked); **Leave out of the cut** (it keeps its place in the script and its takes; Export, Play all and Master skip it); **Move left / right in the cut** (`Alt+←` / `Alt+→`); **Clear trims** |
+| **In the cut ›** | **Flag to come back to** (see **Flagging clips**); **Lock in the cut** (it can't be moved, trimmed or re-picked); **Leave out of the cut** (it keeps its place in the script and its takes; Export, Play all and Master skip it); **Move left / right in the cut** (`Alt+←` / `Alt+→`); **Clear trims**; **Cold open ends here** (every shot from the cut's first through this one plays before the opening titles: written into the script as `cold_open:`, the old one kept in `_history`; each cold-open clip carries a **Cold open** band and the last an **▸ Opening** marker; a band turns red, with a **Cold open** badge in the timeline's head, when a marked shot plays after one that isn't, and an **across the opening** badge says music crosses the break) and **No cold open** ([TITLES_GUIDE.md](TITLES_GUIDE.md)) |
 | **Fades and dissolve ›** | **Fade in from black**, **Fade out to black**, **Dissolve from the clip before**: each on at 12 frames, or off (see **Fades and dissolves**) |
 | **Colour ›** | **Match the sequence to this by** skin, frame or luma (see **A clip's colour**) |
 | **Frames ›** | **Use previous shot's last frame as first frame** (continuity: chain this shot onto the one before); **Use this frame as the next shot's first frame** (the same, pushed forward); **Hold this frame after it…** (a freeze frame); **Character or place from this frame…** (in the viewer, at a frame); **Generate first frame** / **Clear keyframe** (make or drop its opening still) |
@@ -1138,21 +1138,26 @@ where things are. What it would lose to a restart, it doesn't:
   failed, saying so, so a stuck ComfyUI doesn't hold its lane for good.
 - **A full disk.** A job that needs more room than is free where its files go (a render
   1 GB, an upscale or post 3 GB) is refused before anything is reserved.
-- **Paid runs.** Runs on Comfy Cloud, Router or a deployment are counted (**paid runs**
+- **Paid runs.** Runs on Comfy Cloud, Router, a deployment or a provider of yours are counted (**paid runs**
   in the Jobs window's title, with **reset**); a batch of them asks first, and **Settings**
   can cap them per session.
 
 ## Settings
 
 **Settings** in the top bar (on top of seriesmith Shots inside ComfyUI) is this machine's
-own, never the series': the **Comfy API key** (from platform.comfy.org; it turns on Comfy
-Cloud and Comfy Router, and paid use is billed to that account), the Cloud address, **Paid
-runs per session** (the cap; empty is none; under the key, while Comfy's SDK installs for
-Cloud and Router, how that is going, with **Install** if it failed), where your **ComfyUI** is, the **Video
+own, never the series'. **External accounts** has a row for each service that renders for
+you, with its own key: **Comfy Cloud & Router** first (the Comfy API key, from
+platform.comfy.org; paid use is billed to that account; under it, while Comfy's SDK installs
+for Cloud and Router, how that is going; the Cloud address), then each API provider (Atlas
+Cloud, ElevenLabs, ...: its key, **get a key** and its **docs**), and **Add a provider…**,
+which opens Models on **Add a model from another API** with its provider form open (as in
+[ADDING_MODELS.md](ADDING_MODELS.md)), its first model following. **Paid runs** is the cap per session on
+every billed run (Cloud, Router, a deployment or a provider; empty is none). **This computer**
+has where your **ComfyUI** is, the **Video
 model** and **Picture model** a series naming none renders on (what seriesmith found
 installed in ComfyUI, unless you pick one), whether local renders go **through
 comfy-api-proxy** (advanced; off: straight to ComfyUI), **Features…** (below), the
-**Hugging Face token** for gated downloads, **Folders** (your own ffmpeg; ComfyUI's
+**Hugging Face token** for gated downloads in Features, **Folders** (your own ffmpeg; ComfyUI's
 folder, when it can't be asked), **Use from an LLM (MCP)** (how to add this install to an LLM
 client you use: its command line, the JSON block, the command itself, each to copy, with a
 read-only switch; nothing is installed and nothing runs until the client starts it:
@@ -1175,7 +1180,10 @@ or a ref's candidate in the viewer, Play all, the gallery's picture or shot. Two
 by side zoom together, so the same detail stays in both; a new take or picture starts whole,
 and Play all keeps its zoom from shot to shot.
 
-**Play all** has its own **Loop** (the cut starts over at the end; remembered).
+**Play all** has its own **Loop** (the cut starts over at the end; remembered) and **Titles**
+(remembered): the intro and outro a master puts on, played where it puts them (the intro after
+the cold open, else before the first shot), the episode's title drawn on them. The cut waits
+while one plays; **Skip**, or play, moves on ([TITLES_GUIDE.md](TITLES_GUIDE.md)).
 
 **Full screen** (the button by Close, or `F`) puts the viewer on the whole screen, its
 controls with it; `F` or `Esc` brings it back. The sidebar's right edge and the timeline's
@@ -1184,15 +1192,16 @@ in this browser.
 
 ## The gallery
 
-Every picture of the episode's refs, or every take of its shots, large, in one window: where
-the sidebar shows one ref or one shot at a time, small, the gallery shows them all, every
-version with the one in use badged, and steps through them with the arrow keys.
+Every picture of the episode's refs, every take of its shots, or every take of its sound,
+large, in one window: where the sidebar shows one ref or one shot at a time, small, the
+gallery shows them all, every version with the one in use badged, and steps through them with
+the arrow keys.
 
 ![The gallery: the Dean episode's characters and places in Flow](site/images/gallery.jpg)
 
 **Opening it.** In Refs: double-click a ref (on its live picture), a group's header (on
 that group), or **Gallery** (every ref). In Shots: double-click a sequence's header (on that
-sequence), or **Gallery** (every take). Inside, **Refs / Shots** switches between them, and
+sequence), or **Gallery** (every take). Inside, **Refs / Shots / Sound** switches between them, and
 the episode list switches episode with it open.
 
 **The grid.** In Refs, chips for the groups (**Everything**, Characters, Props & vehicles,
@@ -1242,6 +1251,33 @@ a range; with some ticked a click ticks), and the header says how many, with **D
 upscale under 2x). The selection is kept as you change what's shown, and cleared with the
 episode.
 
+**Sound.** The **Sound** tab is the episode's sound, a section per cue, place, shot, voice
+and line, each take a waveform with its length, newest first:
+
+- **Music**: each cue's takes, theme songs among them (they're in the Refs tab's Music too); a
+  take that is a series theme is badged **theme**. In use: the take the cue's item in this
+  pass's mix plays, badged **in the mix**.
+- **Ambience**: each place's bed, its picked take badged **picked**.
+- **Effects**: each shot's effects for this pass, the one in the mix badged.
+- **Voices**: each voice's samples and each line's takes from a voice model, the picked one
+  badged.
+
+A video take's own sound isn't here (it's on the take), nor the stems made from other sound (a
+take's voices-only stem, a recording's vocal stem). Chips narrow it to a kind, a section's
+name to that one; **in use only**, **S / M / L** and the search (a cue's name or id, a shot,
+a place, a line's words or voice, the take, its model, **theme**, **mix**, **picked**) work as
+they do for pictures; **↻** reads the takes again (it does by itself every 10 s while some are
+on the way). Hold the pointer on a tile to hear its start. A take opened plays over the grid,
+its waveform with the playhead (click it to seek), **space** to play or pause, **← →** to the
+next. Beside it, what it was made with (read when it opens): its prompt or words, model, seed,
+when, its length; a cue's tempo asked, fitted and heard, and its score. Its buttons: **Use**
+(a cue's take into this pass's mix as the cue's item, its level fitted to the arc; a shot's
+effects into the mix; a bed, a voice sample or a line picked), **Regenerate** (one more take
+as its own window makes one: a line on a paid provider asks first, with its characters),
+**Compare with the mix's** / **the picked** (the one in use beside it, the two in step,
+**X** switching which you hear; **C**), **Download**, **Copy prompt**. Ticking and
+**Download** work as for pictures: more than one saves as a zip.
+
 **Other episodes' pictures.** A ref other episodes share (the series' `../refs/` layout)
 shows their pictures after this episode's, badged with the episode, read-only here (each
 episode keeps its own: no Pick or Regenerate, but Download, Copy prompt and Compare). They're
@@ -1282,8 +1318,8 @@ The cut as an editable track, along the bottom of the page.
 - **Ctrl + wheel** over the track zooms (or the slider).
 - **Sound** unfolds the waveforms under the cut: each clip's own sound on the dialogue lane (the
   recording's, with Play all on it), and the mix's lanes (below).
-- **What's exported** is the cut as **Play all** plays it: with its audio on **recording**, Export, 2x Export and Master use the
-  episode's recording as the dialogue, under the effects, ambience and music.
+- **What's exported** is what each shot's **Sound…** says: a shot on Dub plays its dub, Generate and Clone the clip's own sound, under
+  the effects, ambience and music. Play all's **clips** / **recording** switch is for listening, and doesn't change it.
 - **Export ▾** (the menu in the header) holds every way out of the cut: **Export**,
   **Titles** and **Premiere / Resolve XML**, each also **2x**, and **Master…**. The button
   says what's running (Assembling…, Adding titles…, Writing the XML…).
@@ -1611,7 +1647,10 @@ bars before its in point, hatched) through its tail, scrolling together:
   bars of 2/4, intro, verse, chorus · 0.6 s short of it**; hover it for the tempo the plan was
   written at and sung at) and draws its planned sections along the bottom of its waveform; a
   take made with a theme names it.
-- **Render N takes** queues that many, each its own seed; they fill in as they land.
+- **Render N takes** queues that many, each its own seed; they fill in as they land. On a model
+  that bills per take (a hosted one, or one that runs a Comfy partner node) the button is marked
+  paid and asks first, saying where it's billed; so does making bars again, and the gallery's
+  Sound tab's **Regenerate**.
 
 The panel on the right edits the **section** selected (its name; its words: instruments,
 texture, direction; its energy from and to; its lyrics, for a model that sings) or, with

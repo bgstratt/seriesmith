@@ -50,7 +50,8 @@ import uuid
 from seriesmith import targets as TG
 from seriesmith.core import framing, ir
 
-from .prompt import build_prompt
+from seriesmith.targets import prompt_template as TP
+from .prompt import build_prompt, shot_parts
 from seriesmith.targets import video_compile as VC
 from seriesmith.targets import held_audio as HA
 # the shared steps, under the names the other targets import them by from here
@@ -100,13 +101,20 @@ def _compile(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     VC.check_dub_window(ctx, shot, policy)
     layers = VC.shot_layers(series_cfg, sq, shot, ctx.profiles)
     entry = VC.entry_head(ctx, sq, shot, ep_id, loc_key, raw, layers, policy)
-    entry["prompt"] = build_prompt(shot, sq, series_cfg)
+    template = TP.shot_template(ctx.target)
+    entry["prompt"] = (TP.render(template, shot_parts(shot, sq, series_cfg)) if template
+                       else build_prompt(shot, sq, series_cfg))
     entry["negative"] = ctx.preset.extra.get("negative", "")
     entry["keyframes"] = {end: keyframe_path(shot.id, end)
                           for end in TG.keyframe_ends(RECIPE, shot, sq)}
     if policy == "clone":
         entry.update(HA.clone_entry(shot, series_cfg["subjects"]))
     return VC.entry_tail(ctx, sq, shot, entry, layers, intent, note, dur, windowed, pace)
+
+
+def prompt_parts(target, shot, sq, series_cfg: dict) -> dict:
+    """What a shot's template has to work with (promptview.editable)."""
+    return shot_parts(shot, sq, series_cfg)
 
 
 def compile_episode(target, story: ir.Episode, series_cfg: dict, pass_: str,

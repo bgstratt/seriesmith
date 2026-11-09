@@ -87,6 +87,7 @@ Stdlib only.
 """
 from __future__ import annotations
 
+import contextlib
 import contextvars
 import copy
 import functools
@@ -123,7 +124,73 @@ PASSES = ("final", "proxy")
 # Where a job can run (docs/DESIGN.md, "Backends"): your own ComfyUI, Comfy
 # Cloud, a Comfy API deployment of the target's workflow, or a hosted model
 # through Comfy Router.
-BACKENDS = ("local", "cloud", "deployment", "router")
+# `api` is a provider of the user's own (providers.py, backends/http.py): "api:<provider>".
+BACKENDS = ("local", "cloud", "deployment", "router", "api")
+
+
+def is_hosted(spec: dict) -> bool:
+    """Whether a target.json is a hosted model, rendered by a call rather than a workflow.
+    Ask this rather than looking for its block: where a model is hosted can change, and
+    what follows from being hosted (no workflow, no model files) doesn't."""
+    return spec.get("router") is not None or spec.get("api") is not None
+
+
+def runs_partner(target) -> bool:
+    """Whether a target's own workflow runs a Comfy partner node (`"_meta": {"partner":
+    true}`, backends.partner): a local job that's paid per run, on the Comfy API key."""
+    b = (target.spec.get("binding") or {}) if target is not None else {}
+    if not b.get("workflow"):
+        return False
+    path = os.path.join(target.folder, b["workflow"])
+    try:
+        with open(path, encoding="utf-8") as fh:
+            graph = json.load(fh)
+    except (OSError, ValueError):
+        return False
+    return any(isinstance(v, dict) and (v.get("_meta") or {}).get("partner") for v in graph.values())
+
+
+def hosted_block(spec: dict) -> dict:
+    """The block of a target.json saying how its hosted model is called (its model id,
+    its fixed arguments, where each value goes): {} when it has none."""
+    block = spec.get("router") if spec.get("router") is not None else spec.get("api")
+    return block if isinstance(block, dict) else {}
+
+
+def _service_json(service: str) -> dict:
+    """What a model's listing says of the provider of the user's own that runs it: its id, its name,
+    and whether its speakers can be listed. {} for a model that has none."""
+    if not service:
+        return {}
+    from seriesmith import providers as PR
+    d = PR.definitions().get(service) or {}
+    return {"service": service, "service_label": d.get("label") or service,
+            **({"service_voices": True} if PR.voices_of(d) else {})}
+
+
+def service_of(spec: dict) -> str:
+    """The provider of the user's own a target.json names ("": none; it's on Router or local)."""
+    block = spec.get("api")
+    return str(block.get("service") or "") if isinstance(block, dict) else ""
+
+
+def billing(target) -> str | None:
+    """Where a render on `target` is billed, in words, or None when it isn't (your own GPU):
+    a hosted model (Comfy Router, or a provider of the user's), or a workflow that runs a Comfy
+    partner node. What the editor shows before it sends one."""
+    if target is None:
+        return None
+    name = target.short or target.label
+    if is_hosted(target.spec):
+        service = service_of(target.spec)
+        if service:
+            from seriesmith import providers as PR
+            who = (PR.definitions().get(service) or {}).get("label") or service
+            return f"{name} runs on {who}: each take is billed to your account there"
+        return f"{name} runs on Comfy Router: each take is billed to your Comfy account"
+    if runs_partner(target):
+        return f"{name} runs a Comfy partner node: each take is billed to your Comfy account"
+    return None
 # A target that renders a ComfyUI workflow runs where that workflow can: your
 # own ComfyUI, Comfy Cloud (with Cloud's own nodes in place of seriesmith's:
 # seriesmith/cloud.py; what Cloud hasn't, it says when the job starts), or a
@@ -451,6 +518,10 @@ class Target:
         # a built-in's target.json as shipped, when this machine overrides its
         # limits (settings target_limits; _load_folder)
         self.shipped_spec: dict | None = None
+        # what a show changes of it (<show>/targets/overrides.json), and the target without
+        # them (_with_fields)
+        self.show_fields: dict = {}
+        self.before_overrides: "Target | None" = None
         self.id: str = spec["id"]
         self.kind: str = spec["kind"]
         self.label: str = spec.get("label", self.id)
@@ -643,7 +714,7 @@ class Target:
         caps = self.spec.get("capabilities") or {}
         if "moderated" in caps:
             return bool(caps["moderated"])
-        return self.backends == ["router"]
+        return self.backends in (["router"], ["api"])
 
     @property
     def reproducible(self) -> bool:
@@ -702,6 +773,8 @@ class Target:
                           # distilled vs dev), and globs it must not match
                           "keep": [str(k) for k in m.get("keep") or []],
                           "exclude": [str(x) for x in m.get("exclude") or []],
+                          # globs, best first: which substitute wins (resolve_file)
+                          "prefer": [str(x) for x in m.get("prefer") or []],
                           # the audio policies it serves (none: every shot);
                           # a shot rendering another doesn't load it
                           "policies": [str(x) for x in m.get("policies") or []]}
@@ -744,7 +817,7 @@ class Target:
         entry. A hosted model (target.json `router`) names none: its preset's
         `model` is the provider's model id, not a file."""
         out: dict[str, str] = {}
-        if self.spec.get("router"):
+        if is_hosted(self.spec):
             return out
 
         def add(name, param):
@@ -985,6 +1058,10 @@ class Target:
                 # (seriesmith.limits), changed on this machine or as shipped
                 "scope": scope_of(self.folder),
                 **({"limits": _limits_json(self)} if self.kind in ("video", "image") else {}),
+                # this show has changed how its prompt is written
+                **({"show_fields": sorted(self.show_fields)} if self.show_fields else {}),
+                # the provider of the user's own that runs it (providers.py)
+                **_service_json(service_of(self.spec)),
                 "capabilities": self.capabilities(),
                 "models": {k: {"family": v["family"], "label": modelid.family_label(v["family"]),
                                "patterns": list(v["patterns"]), "folder": v["folder"],
@@ -1242,6 +1319,9 @@ def load_target(target_id: str, kind: str | None = None, root: str | None = None
 
 
 def _load_target(target_id: str, kind: str | None, root: str | None) -> Target:
+    tried = _TRYING.get()
+    if tried and tried["id"] == target_id and tried["spec"] is not None:
+        return _with_fields(_unsaved(tried), tried["fields"])
     folders = _folders(root)
     repo_ids = {(k, n) for k, n, f in folders if not is_custom(f)}
     for k, name, folder in folders:
@@ -1252,7 +1332,7 @@ def _load_target(target_id: str, kind: str | None, root: str | None) -> Target:
         # shadowed_custom() finds any that got there another way.
         if is_custom(folder) and (k, name) in repo_ids:
             continue
-        return _load_folder(k, name, folder)
+        return _with_show_fields(_load_folder(k, name, folder), root)
     known = ", ".join(t.id for t in list_targets(kind, root)) or "none"
     raise TargetError(f"no {kind + ' ' if kind else ''}target called {target_id!r} "
                       f"(known: {known})")
@@ -1295,6 +1375,131 @@ def _load_folder(kind: str, name: str, folder: str) -> Target:
     return t
 
 
+# ---------------------------------------------------------------------------
+# what a show changes of a model: <show>/targets/overrides.json
+# ---------------------------------------------------------------------------
+
+OVERRIDES_FILE = "overrides.json"
+# what a show may change of a model it doesn't own, by its place in the target.json: how its
+# prompt is written, and where a hosted model's values go. Only these are read: a shared show
+# can't repoint a model at another model or host.
+SHOW_FIELDS = ("recipe.prompt_template", "recipe.prompt_request", "router.arguments")
+SHOW_FIELD_PREFIX = "router.inputs."
+
+
+def is_show_field(place: str) -> bool:
+    return place in SHOW_FIELDS or place.startswith(SHOW_FIELD_PREFIX)
+_OVERRIDES: dict[str, tuple[float, dict]] = {}            # show folder -> (monotonic time, its file)
+_OVERLAID: dict[tuple, tuple] = {}                        # (folder, fields) -> (base Target, Target)
+_TRYING: contextvars.ContextVar[dict | None] = contextvars.ContextVar("targets_trying", default=None)
+
+
+def overrides_path(root: str) -> str:
+    return os.path.join(show_folder(root), CUSTOM_DIR, OVERRIDES_FILE)
+
+
+def show_overrides(root: str) -> dict[str, dict]:
+    """{target id: {field: value}}: what this show changes of models it doesn't own. Read again
+    after FOLDERS_TTL; a save here clears it at once (forget_targets)."""
+    now = time.monotonic()
+    hit = _OVERRIDES.get(root)
+    if hit and now - hit[0] < FOLDERS_TTL:
+        return hit[1]
+    got = F.read_json_or(overrides_path(root), {}, want=dict)
+    got = {str(k): {f: x for f, x in v.items() if is_show_field(f)}
+           for k, v in got.items() if isinstance(v, dict)}
+    _OVERRIDES[root] = (now, got)
+    return got
+
+
+def save_show_overrides(root: str, target_id: str, fields: dict) -> str:
+    """This show's changes to one model, replaced; empty values go, none at all removes it.
+    Only is_show_field's are kept; a mapping's null stays (that value isn't sent). The path
+    written."""
+    path = overrides_path(root)
+    all_ = dict(F.read_json_or(path, {}, want=dict))
+    kept = {f: v for f, v in fields.items() if is_show_field(f)
+            and (v or (v is None and f.startswith(SHOW_FIELD_PREFIX)))}
+    if kept:
+        all_[target_id] = kept
+    else:
+        all_.pop(target_id, None)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    F.write_json(path, all_)
+    forget_targets()
+    return path
+
+
+@contextlib.contextmanager
+def trying(target_id: str, fields: dict | None = None, spec: dict | None = None):
+    """While it is open, `target_id` loads with `fields` over what is saved (and, given `spec`,
+    as that target.json, not saved yet), as a render would see it: how a change is previewed
+    before it is saved."""
+    token = _TRYING.set({"id": target_id, "fields": dict(fields or {}), "spec": spec})
+    scope = _SCOPE.set({})
+    try:
+        yield
+    finally:
+        _SCOPE.reset(scope)
+        _TRYING.reset(token)
+
+
+def _unsaved(tried: dict) -> Target:
+    """A target.json not saved yet, as a target: it has no folder of its own, so it loads from
+    a hosted model's (its code is a builtin's)."""
+    if "target" not in tried:
+        spec = tried["spec"]
+        base = _load_folder("video", "seedance_2_5", os.path.join(HERE, "video", "seedance_2_5"))
+        tried["target"] = Target(base.folder, spec)
+    return tried["target"]
+
+
+def _with_show_fields(t: Target, root: str | None) -> Target:
+    """`t` with what the show changes of it: `root`'s, else the first show in force that does.
+    A show's own target has it in its target.json, so it has none here."""
+    fields = {}
+    if not (t.custom and scope_of(t.folder) == "show"):
+        for r in ((root,) if root else ()) + thread_roots():
+            fields = show_overrides(r).get(t.id) or {}
+            if fields:
+                break
+    tried = _TRYING.get()
+    if tried and tried["id"] == t.id:
+        fields = {**fields, **tried["fields"]}
+    return _with_fields(t, fields)
+
+
+def _with_fields(t: Target, fields: dict) -> Target:
+    """A copy of `t` with `fields` (dotted places in its target.json) set; `t` for none."""
+    if not fields:
+        return t
+    key = (t.folder, t.id, json.dumps(fields, sort_keys=True))
+    hit = _OVERLAID.get(key)
+    if hit and hit[0] is t:
+        return hit[1]
+    spec = copy.deepcopy(t.spec)
+    for place, value in fields.items():
+        at = spec
+        *path, last = place.split(".")
+        # the same place whoever serves the model
+        if path[0] == "router" and spec.get("router") is None and spec.get("api") is not None:
+            path[0] = "api"
+        for name in path:
+            at = at.setdefault(name, {})
+        if value is None:
+            at.pop(last, None)
+        else:
+            at[last] = value
+    made = Target(t.folder, spec)
+    made.shipped_spec = t.shipped_spec
+    made.show_fields = dict(fields)
+    made.before_overrides = t
+    if len(_OVERLAID) > 256:
+        _OVERLAID.clear()
+    _OVERLAID[key] = (t, made)
+    return made
+
+
 def list_targets(kind: str | None = None, root: str | None = None) -> list[Target]:
     """Every target, the repo's first, then the custom ones of `root`'s show and
     of the shows this thread has open. A custom target that takes a built-in's
@@ -1313,7 +1518,7 @@ def _list_targets(kind: str | None, root: str | None) -> list[Target]:
         if is_custom(folder) and (k, name) in repo_ids:
             continue
         try:
-            out.append(_load_folder(k, name, folder))
+            out.append(_with_show_fields(_load_folder(k, name, folder), root))
         except (TargetError, OSError, ValueError, KeyError):
             continue
     return out
@@ -1341,6 +1546,8 @@ def forget_targets() -> None:
     """Drop the cache (a custom target.json was written or deleted)."""
     _CACHE.clear()
     _FOLDERS.clear()
+    _OVERRIDES.clear()
+    _OVERLAID.clear()
 
 
 def machine_default(kind: str) -> str:
@@ -1368,7 +1575,7 @@ def default_candidates(kind: str) -> list[Target]:
     order they're preferred (target.json `default_rank`): local ones only,
     never a draft or a paid hosted model."""
     out = [t for t in list_targets(kind)
-           if t.default_rank is not None and not t.draft and not t.spec.get("router")]
+           if t.default_rank is not None and not t.draft and not is_hosted(t.spec)]
     return sorted(out, key=lambda t: (t.default_rank, t.id))
 
 
@@ -2080,11 +2287,27 @@ def resolve_file(target: Target, param: str, want: str, installed: list[str],
        name)`, says the family: only for families a header can tell); a tie
        goes to the file of the same precision as `want` (fp8 / int8 / bf16 /
        fp16), then the shortest name. A candidate must keep the spec's `keep`
-       words and match none of its `exclude` globs. Never another family."""
+       words and match none of its `exclude` globs. Never another family.
+
+    A spec with `prefer` (globs, best first) ranks every installed file its
+    patterns name, `want` among them, and the first match wins: Drama 3's
+    quantisations, where `want` is the one the Features window downloads and a
+    larger one downloaded beside it is what's used."""
+    spec = spec if spec is not None else target.models.get(param)
+    if spec and spec.get("prefer"):
+        named = [n for n in installed if modelid.name_matches(n, spec["patterns"])
+                 and not modelid.name_matches(n, spec.get("exclude") or [])]
+        if named:
+            ranks = [next((i for i, p in enumerate(spec["prefer"]) if modelid.name_matches(n, [p])),
+                          len(spec["prefer"])) for n in named]
+            using = min(zip(ranks, range(len(named)), named))[2]
+            if _same_file(using, want):
+                return {"using": using, "how": "exact", "match": "file", "detail": ""}
+            return {"using": using, "how": "family", "match": "name",
+                    "detail": f"the preferred {modelid.family_label(spec['family'])} installed"}
     for name in installed:
         if _same_file(name, want):
             return {"using": name, "how": "exact", "match": "file", "detail": ""}
-    spec = spec if spec is not None else target.models.get(param)
     if not spec or not spec.get("family"):
         return None
     fam = spec["family"]

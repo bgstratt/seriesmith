@@ -4,7 +4,8 @@
 // lane), and can take a line straight out of a shot take's sound.
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";
-import { closeVoiceClip, generateRef, openVoiceClip, updateVoiceClip, voiceFromTake } from "../actions";
+import { closeVoiceClip, generateRef, loadRefs, openVoiceClip, updateVoiceClip, voiceFromTake } from "../actions";
+import { HearSpeaker, ProviderVoices } from "./ProviderVoices";
 import { api } from "../host";
 import { MAX_BINS } from "../lib/peaks";
 import { fmtSeconds, tn } from "../lib/format";
@@ -115,10 +116,93 @@ export function VoiceLive({ ep, r }: { ep: string; r: Ref }) {
  * prompt starts as the brief the target would write (the character's `voice`
  * line, their design, and a line to say).
  */
+/** The speaker a character has on the provider of its voice model: nothing is paid for until one
+ *  is picked. */
+function ProviderSpeaker({ r, service, label }: { r: Ref; service: string; label: string }) {
+  const ep = useApp((s) => s.ep);
+  const speaker = r.speakers?.[service];
+  // no speaker yet: choosing one is the next thing to do, so the list is already there
+  const [open, setOpen] = useState(!speaker);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function choose(id: string | null, name?: string, preview?: string) {
+    if (!ep || !r.subject) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api().putProviderVoice({ ep, subject: r.subject, service, id, name, ...(preview ? { preview } : {}) });
+      await loadRefs(ep);
+      if (id) setOpen(false);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="h3-col" style={{ gap: 4 }}>
+      <div className="h3-row h3-wrap h3-small" style={{ gap: 6 }}>
+        <span className="h3-muted">Speaker on {label}:</span>
+        {speaker ? <b title={speaker.id}>{speaker.name || speaker.id}</b> : <span className="h3-warn">none yet: pick one to generate</span>}
+        {speaker?.preview && <HearSpeaker url={speaker.preview} name={speaker.name || speaker.id} />}
+        <button className="h3-link" onClick={() => setOpen(!open)}>{open ? "hide" : speaker ? "change…" : "choose…"}</button>
+        {speaker && <button className="h3-link" disabled={busy} onClick={() => void choose(null)}>remove</button>}
+      </div>
+      {err && <span className="h3-small h3-err">{err}</span>}
+      {open && <ProviderVoices service={service} picked={speaker?.id} busy={busy} onPick={(id, name, preview) => void choose(id, name, preview)} />}
+    </div>
+  );
+}
+
+/** Every line this character has, as a take each, on the model its voice row is set to. Paid says
+ *  how much first; the lines appear in the Recording window, to lay and align. */
+function GenerateAllLines({ r, target, blocked }: { r: Ref; target?: string; blocked: boolean }) {
+  const ep = useApp((s) => s.ep);
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<{ ok: boolean; text: string } | null>(null);
+  if (!ep || !r.subject) return null;
+  async function go() {
+    if (!ep || !r.subject) return;
+    setBusy(true);
+    setSaid(null);
+    try {
+      const plan = await api().lines(ep, target);
+      const mine = plan.characters?.find((c) => c.who === r.subject);
+      const todo = mine?.to_make ?? { lines: 0, chars: 0 };
+      if (!mine?.lines) {
+        setSaid({ ok: false, text: `${r.name} has no lines in this script.` });
+      } else if (!todo.lines) {
+        setSaid({ ok: true, text: `Every line has a take. Open Lines & recording to hear them or redo one.` });
+      } else if (!plan.paid || confirm(`This makes ${todo.lines} paid ${todo.lines === 1 ? "line" : "lines"} (${todo.chars.toLocaleString()} characters), billed to your account. Go ahead?`)) {
+        const got = await api().generateLines({ ep, who: r.subject, confirm_chars: todo.chars, ...(target ? { target } : {}) });
+        setSaid(got.errors.length
+          ? { ok: false, text: got.errors.map((e) => `${e.line}: ${e.error}`).join("\n") }
+          : { ok: true, text: `${got.queued.length} ${got.queued.length === 1 ? "line" : "lines"} queued. They'll be in Lines & recording.` });
+      }
+    } catch (e) {
+      setSaid({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <button className="h3-btn" disabled={busy || blocked} title={blocked ? "Pick a speaker first" : `A take of each of ${r.name}'s lines in the script, one at a time, so one can be redone alone`} onClick={() => void go()}>
+        <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-list"} /> Generate all {r.name}'s lines
+      </button>
+      {said && <span className={`h3-small ${said.ok ? "h3-muted" : "h3-err"}`} style={{ whiteSpace: "pre-wrap" }}>{said.text}</span>}
+    </>
+  );
+}
+
 export function VoiceGenerateBar({ r }: { r: Ref }) {
   const busy = useApp((s) => !!s.busy[`refgen|${r.id}`] || !!s.busy[`refimport|${r.id}`]);
   const { list } = useTargets();
   const target = findTarget(list, r.effective?.target ?? undefined);
+  const service = target?.service;
+  const noSpeaker = !!service && !r.speakers?.[service];
   const max = Math.round(maxVoiceSeconds(r, target));
   const [count, setCount] = useState(1);
   const [seconds, setSeconds] = useState(() => defaultVoiceSeconds(r, target));
@@ -128,11 +212,12 @@ export function VoiceGenerateBar({ r }: { r: Ref }) {
   const line = eff?.line ?? "";
   return (
     <div className="h3-col" style={{ gap: 4 }}>
+      {service && <ProviderSpeaker r={r} service={service} label={target?.service_label ?? service} />}
       <div className="h3-row h3-wrap h3-genbar">
         <select className="h3-in" value={count} onChange={(e) => setCount(Number(e.target.value))} title="How many samples (each with its own seed)">
           {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}×</option>)}
         </select>
-        <label className="h3-row h3-small" title={`How long the sample is, ${MIN_VOICE_SECONDS}–${max} s on ${targetLabel(list, eff?.target ?? "")}. The target snaps it onto its frame grid.`}>
+        <label className="h3-row h3-small" title={service ? `About how many seconds of this character's lines to say. The words set its real length.` : `How long the sample is, ${MIN_VOICE_SECONDS}–${max} s on ${targetLabel(list, eff?.target ?? "")}. The target snaps it onto its frame grid.`}>
           <input
             className="h3-in"
             style={{ width: 58 }}
@@ -147,8 +232,8 @@ export function VoiceGenerateBar({ r }: { r: Ref }) {
         </label>
         <button
           className="h3-btn h3-primary"
-          disabled={busy || !(seconds > 0)}
-          title={`Queue ${count > 1 ? `${count} samples` : "a sample"} of about ${seconds} s with ${targetLabel(list, eff?.target ?? "")}`}
+          disabled={busy || !(seconds > 0) || noSpeaker}
+          title={noSpeaker ? "Pick a speaker first" : `Queue ${count > 1 ? `${count} samples` : "a sample"} of about ${seconds} s with ${targetLabel(list, eff?.target ?? "")}`}
           onClick={() => void generateRef({
             ref: r.id, view: null, count, seed_mode: "auto", seed: null,
             prompt: prompt.trim() || null, model: null, loras: null, steps: null, note: "", seconds,
@@ -156,6 +241,7 @@ export function VoiceGenerateBar({ r }: { r: Ref }) {
         >
           <i className={busy ? "pi pi-spin pi-spinner" : "pi pi-sparkles"} /> Generate {count > 1 ? `${count} samples` : "a sample"}
         </button>
+        <GenerateAllLines r={r} target={eff?.target ?? undefined} blocked={noSpeaker} />
         <button
           className="h3-btn"
           title="Cut a line this character already speaks in a take out of its sound, and use that as the sample (no model runs)"

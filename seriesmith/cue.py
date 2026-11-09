@@ -75,6 +75,8 @@ import math
 import os
 import re
 import subprocess
+import threading
+import wave
 
 from seriesmith import beats as B
 from seriesmith import edit as E
@@ -480,6 +482,21 @@ def list_cues(root: str) -> list[dict]:
             out.append(load_spec(root, name))
         except (FileNotFoundError, CueError):
             continue
+    return out
+
+
+def unreadable_cues(root: str) -> list[dict]:
+    """The cues list_cues leaves out because their spec doesn't check (a model that isn't on this
+    version, say): [{"id", "error"}]. A folder with no spec isn't a cue."""
+    base = os.path.join(root, SOUND_DIR)
+    out = []
+    for name in sorted(os.listdir(base)) if os.path.isdir(base) else []:
+        try:
+            load_spec(root, name)
+        except FileNotFoundError:
+            continue
+        except CueError as e:
+            out.append({"id": name, "error": str(e)})
     return out
 
 
@@ -1169,6 +1186,19 @@ def list_takes(root: str, cid: str) -> list[dict]:
     return out
 
 
+def take_seconds(root: str, sc: dict) -> float | None:
+    """A finished take's length in seconds (its wav, stretched to the cue's tempo: a YuE2 song
+    is as long as its plan, longer than the cue), read from the wav's header; None for a take
+    with no wav, or one that can't be read."""
+    if sc.get("status") != "ok" or not sc.get("file"):
+        return None
+    try:
+        with wave.open(os.path.join(root, *sc["file"].split("/")), "rb") as w:
+            return round(w.getnframes() / float(w.getframerate()), 3)
+    except (OSError, EOFError, wave.Error, ZeroDivisionError):
+        return None
+
+
 def ranked(takes: list[dict]) -> list[dict]:
     """The finished takes best first (their measured score), then the rest. A take whose
     melody score says it lost its theme (`on_theme` false) goes after those that kept it:
@@ -1178,12 +1208,25 @@ def ranked(takes: list[dict]) -> list[dict]:
     return sorted(done, key=lambda t: ((t["measured"].get("on_theme") is False), t["measured"]["score"])) + rest
 
 
+_RESERVING = threading.Lock()       # a finished run reserves its further tracks as others are queued
+
+
 def reserve(root: str, cid: str, record: dict) -> int:
     """The next take number, its sidecar written `queued` with `record`."""
     os.makedirs(cue_dir(root, cid), exist_ok=True)
-    n = max([t["take"] for t in list_takes(root, cid)] + [0]) + 1
-    F.write_json(take_paths(root, cid, n)["sidecar"], {**record, "status": "queued", "created": T.now()})
+    with _RESERVING:
+        n = max([t["take"] for t in list_takes(root, cid)] + [0]) + 1
+        F.write_json(take_paths(root, cid, n)["sidecar"], {**record, "status": "queued", "created": T.now()})
     return n
+
+
+def another_track(root: str, cid: str, n: int, track: int) -> int:
+    """A take for a further track of the run that made take `n` (a model that returns more than
+    one for a call): asked the same, its record saying which track of which take it is."""
+    sc = F.read_json_or(take_paths(root, cid, n)["sidecar"], {}) or {}
+    same = {k: sc[k] for k in ("pass", "target", "seed", "prompt", "rendered_for", "plan", "theme",
+                               "backend", "backend_job") if k in sc}
+    return reserve(root, cid, {**same, "track": track, "track_of": n})
 
 
 def update(root: str, cid: str, n: int, **fields) -> dict:
@@ -1240,24 +1283,33 @@ def graph(target, p: dict, seed: int, pass_: str) -> dict:
 
 
 def hosted_call(target, p: dict, seed: int) -> tuple[str, dict]:
-    """A hosted music model's take as one Router call: (model, arguments) from the
-    target's `router` block -- its fixed `arguments`, then each of the brief's values at
-    the field `inputs` names it: "prompt", "lyrics" (left out when empty), "seconds"
-    ({"name", "min", "max"}: whole seconds, clamped) and "seed" ({"name", "max"})."""
-    from seriesmith.targets.generic.router_video import put
-    r = target.spec["router"]
+    """A hosted music model's take as one call: (model, arguments) from the target's `router`
+    or `api` block -- its fixed `arguments`, then each of the brief's values at the field `inputs`
+    names it: "prompt", "lyrics" (left out when empty), "instrumental" (set when there are no
+    lyrics), "seconds" ({"name", "min", "max", "scale"}: whole seconds, clamped, then scaled: a
+    field in milliseconds) and "seed" ({"name", "max"}). The block's `values` ride along for
+    the provider's request (its address, which of its ways)."""
+    from seriesmith.targets.generic.request_map import ceil_seconds, field_name, place, put, put_seed
+    r = TG.hosted_block(target.spec)
     ins = r.get("inputs") or {}
     args = json.loads(json.dumps(r.get("arguments") or {}))
     brief = p["prompt"]
     vals = brief.get("values") or {}
-    put(args, ins["prompt"], brief["prompt"])
-    if ins.get("lyrics") and (vals.get("lyrics") or "").strip():
-        put(args, ins["lyrics"], vals["lyrics"])
+    place(args, ins["prompt"], prompt=brief["prompt"])
+    sung = (vals.get("lyrics") or "").strip()
+    if ins.get("lyrics") and sung:
+        place(args, ins["lyrics"], lyrics=vals["lyrics"])
+    if ins.get("instrumental") and not sung:
+        put(args, field_name(ins["instrumental"]), True)
     if ins.get("seconds") and vals.get("seconds") is not None:
-        s = ins["seconds"]
-        put(args, s["name"], max(s.get("min", 1), min(s.get("max", 3600), math.ceil(float(vals["seconds"])))))
+        how = ins["seconds"]
+        scale = how.get("scale", 1) if isinstance(how, dict) else 1
+        put(args, field_name(how), ceil_seconds(vals["seconds"], how) * scale)
     if ins.get("seed"):
-        put(args, ins["seed"]["name"], int(seed) % (int(ins["seed"].get("max") or 2147483647) + 1))
+        put_seed(args, ins["seed"], seed, 2147483647)
+    if r.get("values"):
+        from seriesmith.backends.router import ROUTING
+        args[ROUTING] = {"values": dict(r["values"])}
     return r["model"], args
 
 

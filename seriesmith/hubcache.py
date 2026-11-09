@@ -18,7 +18,10 @@ Three places, as the item's `folder` says:
                 htdemucs).
     <folder>    a ComfyUI models folder: the repo's files straight into
                 <models>/<folder>/<name>/ (a pack's own snapshot_download with
-                local_dir: ComfyUI-MMAudio's BigVGAN in models/mmaudio/nvidia/).
+                local_dir: ComfyUI-MMAudio's BigVGAN in models/mmaudio/nvidia/),
+                or <models>/<folder>/<dir>/ when the fetch names a `dir`: the
+                pack reads it by another name (ComfyUI-Qwen-TTS: the model's
+                name alone, models/qwen-tts/Qwen3-TTS-12Hz-1.7B-Base/).
 
 A repo's files are fetched one by one through installer.download (a .part,
 resumed), from the commit main names now; refs/main is written last, so a
@@ -97,7 +100,13 @@ def path_of(item, models_dir: Callable[[str], str | None] | None = None) -> str 
     if item.folder == "torch":
         return os.path.join(torch_hub_dir(), *item.name.split("/"))
     d = models_dir(item.folder) if models_dir else None
-    return os.path.join(d, *item.name.split("/")) if d else None
+    return os.path.join(d, *in_folder(item).split("/")) if d else None
+
+
+def in_folder(item) -> str:
+    """Where a repo goes in its models folder: the item's `dir` when its pack
+    reads it by another name, else the repo's own name."""
+    return getattr(item, "dir", "") or item.name
 
 
 def present(item, models_dir: Callable[[str], str | None] | None = None) -> bool | None:
@@ -119,7 +128,7 @@ def where_text(item) -> str:
         return "the Hugging Face cache"
     if item.folder == "torch":
         return "torch's hub cache"
-    return f"models/{item.folder}/{item.name}"
+    return f"models/{item.folder}/{in_folder(item)}"
 
 
 # ---------------------------------------------------------------------------
@@ -230,5 +239,5 @@ def local_models_dir(comfy_url: str | None = None) -> Callable[[str], str | None
 
 
 __all__ = ["HF", "PLACES", "check_target", "fetch_repo", "hf_cache_dir", "hf_snapshot",
-           "local_models_dir", "loopback", "missing_message", "path_of", "present",
+           "in_folder", "local_models_dir", "loopback", "missing_message", "path_of", "present",
            "repo_dir", "repo_listing", "torch_hub_dir", "where_text"]

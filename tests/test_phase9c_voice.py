@@ -42,6 +42,8 @@ from test_render import queue_generate, wav_bytes  # noqa: E402
 OBJECT_INFO = json.load(open(os.path.join(HERE, "fixtures", "workflows",
                                           "object_info_audio.json"), encoding="utf-8"))
 VOICE = "ltx2_voice"
+# every shipped audio target, in list order (its id's)
+AUDIO_TARGETS = ["drama3", "fishaudio_drama3", "ltx2_voice", "qwen3_tts"]
 HAVE_FFMPEG = FF.have("ffmpeg") is not None
 needs_ffmpeg = unittest.skipUnless(HAVE_FFMPEG, "ffmpeg not on PATH")
 
@@ -64,7 +66,7 @@ class AudioTargetTest(unittest.TestCase):
     def test_kind_and_defaults(self):
         self.assertIn("audio", TG.KINDS)
         self.assertEqual(TG.DEFAULT_TARGETS["audio"], VOICE)
-        self.assertEqual([t.id for t in TG.list_targets("audio")], [VOICE])
+        self.assertEqual([t.id for t in TG.list_targets("audio")], AUDIO_TARGETS)
         self.assertEqual(TG.audio_target(None).id, VOICE)
         self.assertEqual(TG.audio_target({"refs": {"voice_target": VOICE}}).id, VOICE)
         with self.assertRaises(ValueError):
@@ -622,9 +624,11 @@ class VoiceApiTest(ApiTest):
 
     def test_targets_kind_audio(self):
         data = self.ok(A.get_targets(self.ctx, {"kind": "audio"}))
-        self.assertEqual([t["id"] for t in data["targets"]], [VOICE])
+        self.assertEqual([t["id"] for t in data["targets"]], AUDIO_TARGETS)
         self.assertEqual(data["default"]["audio"], VOICE)
-        self.assertEqual(data["targets"][0]["capabilities"]["mode"], "t2a")
+        self.assertEqual({t["id"]: t["capabilities"]["mode"] for t in data["targets"]},
+                         {"ltx2_voice": "t2a", "drama3": "voice_clone", "qwen3_tts": "voice_clone",
+                          "fishaudio_drama3": "voice_clone"})
         self.err(A.get_targets(self.ctx, {"kind": "voice"}), 400)
 
     def test_defaults_route(self):

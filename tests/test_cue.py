@@ -725,7 +725,8 @@ class _Runner:
     def backend(self, name):
         return name if name in self.backends else None
 
-    def enqueue_cue(self, root, cid, n, graph, p, backend, call=None):
+    def enqueue_cue(self, root, cid, n, graph, p, backend, call=None, tracks=1):
+        self.tracks = tracks
         self.asked.append((cid, n, graph, backend))
         self.calls.append(call)
         return f"job{n}"
@@ -743,8 +744,8 @@ class _QRunner(_Runner):
         super().__init__()
         self.queue = type("Q", (), {"jobs": {}})()
 
-    def enqueue_cue(self, root, cid, n, graph, p, backend, call=None):
-        job = super().enqueue_cue(root, cid, n, graph, p, backend, call)
+    def enqueue_cue(self, root, cid, n, graph, p, backend, call=None, tracks=1):
+        job = super().enqueue_cue(root, cid, n, graph, p, backend, call, tracks)
         j = _Job(cid)
         j.info["ep"] = root
         self.queue.jobs[job + cid] = j
@@ -826,6 +827,24 @@ class RouteTest(unittest.TestCase):
         self.assertIn(CU.REPAINT_NODE, {v["class_type"] for v in g.values()})
         sc = self.call(A.get_cue, {"ep": self.ep, "pass": "final", "cue": "m01"})["takes"]
         self.assertEqual(next(t for t in sc if t["take"] == 2)["repaint"]["bars"], [1, 3])
+        # a finished take's length (its wav's), for the window to show the whole of it; none queued
+        secs = {t["take"]: t["seconds"] for t in sc}
+        self.assertIsNone(secs[2])
+        self.assertGreater(secs[1], p["bars"] * p["bar"] * 0.9)
+        self.assertLess(secs[1], p["bars"] * p["bar"] * 1.2)
+        # in the mix is the mix's: picked, it is; its item deleted from the mix, it isn't,
+        # though the take's record of the pick stays
+        placed = lambda: {t["take"]: t["placed"] for t in self.call(  # noqa: E731
+            A.get_cue, {"ep": self.ep, "pass": "final", "cue": "m01"})["takes"]}
+        listed = lambda: next(c for c in self.call(A.get_cues, {"ep": self.ep})["cues"]  # noqa: E731
+                              if c["spec"]["id"] == "m01")["placed"]
+        self.call(A.post_cue_pick, {"ep": self.ep, "pass": "final", "cue": "m01", "take": 1})
+        self.assertEqual((placed()[1], listed()), ("final", ["final"]))
+        mix = MX.load(self.ep)
+        mix["final"]["items"] = [i for i in mix["final"]["items"] if i["id"] != "m01"]
+        MX.save(self.ep, mix)
+        self.assertEqual(CU.list_takes(self.ep, "m01")[0]["placed"], "final")
+        self.assertEqual((placed()[1], listed()), (None, []))
         # a model that can't repaint
         CU.update(self.ep, "m01", 1, target="stable_audio3")
         self.assertIn("can't make bars", self.call(A.post_cue_repaint, body, 409)["error"])
@@ -879,6 +898,17 @@ class RouteTest(unittest.TestCase):
         why = self.call(A.get_cue, {"ep": self.ep, "pass": "final", "cue": "m01"})["takes"][0]["stale"]
         self.assertIn("door moved -24 frames", why)
         self.assertTrue(any("1.0 s shorter" in w for w in why), why)
+
+    def test_a_cue_that_doesnt_read_is_said_not_dropped(self):
+        self.call(A.put_cue, {"ep": self.ep, "cue": {"id": "m01", "in": anchor("sh010"),
+                                                     "out": anchor("sh020", 60)}})
+        F.write_json(os.path.join(CU.cue_dir(self.ep, "m02"), "spec.json"),
+                     {"id": "m02", "in": anchor("sh010"), "out": anchor("sh020", 60), "model": "not_here"})
+        os.makedirs(CU.cue_dir(self.ep, "not_a_cue"), exist_ok=True)
+        r = self.call(A.get_cues, {"ep": self.ep, "pass": "final"})
+        self.assertEqual([c["spec"]["id"] for c in r["cues"]], ["m01"])
+        self.assertEqual([u["id"] for u in r["unreadable"]], ["m02"])
+        self.assertIn("not_here", r["unreadable"][0]["error"])
 
     def test_cues_listed_against_a_pass(self):
         MX.save(self.ep, {"final": {"hits": [{"id": "h1", "name": "door", "at": anchor("sh020", 12)}]}})

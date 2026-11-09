@@ -50,6 +50,7 @@ REF = RECIPE["reference_image"]
 CONTROL = RECIPE.get("control") or {}
 
 compile_episode = C.compile_episode
+prompt_parts = C.prompt_parts
 compile_shot = C.compile_shot
 compile_without = C.compile_without
 required_refs = C.required_refs

@@ -330,6 +330,37 @@ class AssembleMixTest(unittest.TestCase):
         self.assertIn("left out", out)
         self.assertLess(self.level(MX.decode(self.out), 1.1, 1.9), -60)
 
+    def on_dub(self, shot, dub):
+        ov = T.load_overrides(self.root)
+        T.set_shot_sound(ov, shot, {"mode": "dub", "dub": dub})
+        T.save_overrides(self.root, ov)
+
+    def test_a_shot_on_dub_plays_it_in_the_export(self):
+        # sh010's take is mute; on dub to sh020's take, the cut has that sound in sh010
+        self.on_dub("sh010", {"from": "take", "shot": "sh020", "pass": "final", "take": 1})
+        self.assertGreater(self.level(self.exported(), 0.1, 0.9), -40)
+
+    def test_generate_plays_the_takes_own_sound_in_the_export(self):
+        ov = T.load_overrides(self.root)
+        T.set_shot_sound(ov, "sh010", {"mode": "generate"})
+        T.save_overrides(self.root, ov)
+        self.assertLess(self.level(self.exported(), 0.1, 0.9), -60)
+
+    def test_a_take_rendered_to_its_dub_plays_the_dub_or_the_models_sound_if_asked(self):
+        # sh020's take is the dub, loud; what the model gave back here is near silence
+        dub = {"from": "take", "shot": "sh020", "pass": "final", "take": 1}
+        self.on_dub("sh010", dub)
+        t = T.get_take(self.root, "final", "sh010", 1)
+        T.update_sidecar(t.paths.sidecar, sound={"mode": "dub", "dub": dub})
+        tone_wav(t.paths.h3_wav, 1.0, amp=1)
+        self.assertGreater(self.level(self.exported(), 0.1, 0.9), -40)
+        ov = T.load_overrides(self.root)
+        T.save_overrides(self.root, T.set_dub_model_sound(ov, "sh010", True))
+        self.assertLess(self.level(self.exported(), 0.1, 0.9), -60)
+
+    def exported(self):
+        self.assemble()
+        return MX.decode(self.out)
     def test_a_take_with_only_effects_in_its_video_plays_with_its_voice(self):
         # dub_keep_foley's mp4 holds the effects with the voice taken out: here sh020's, loud
         t = T.get_take(self.root, "final", "sh020", 1)

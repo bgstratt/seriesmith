@@ -718,3 +718,42 @@ export function lockedPickRefusal(shot: string, pass: Pass = get().pass): string
   const sh = s.status[statusKey(s.ep, pass)]?.shots.find((x) => x.shot === shot);
   return sh?.cut?.locked ? `${shot} is locked in the ${pass} cut: unlock it (its menu) to change its take` : null;
 }
+
+// ---------------------------------------------------------------------------
+// the cold open (docs/TITLES_GUIDE.md): the shots before the opening titles
+// ---------------------------------------------------------------------------
+
+/** GET /seriesmith/cold-open for the pass open, into the store (the timeline's marker, the menu). */
+export async function loadColdOpen(ep = get().ep, pass = get().pass): Promise<void> {
+  const fetch = api().getColdOpen;
+  if (!ep || !fetch) return;
+  try {
+    const r = await fetch(ep, pass);
+    const key = statusKey(ep, pass);
+    if (JSON.stringify(get().coldOpen[key]) !== JSON.stringify(r)) set((s) => ({ coldOpen: { ...s.coldOpen, [key]: r } }));
+  } catch {
+    // a server without it: no marker
+  }
+}
+
+/** The cold open as the cut has it: every shot from the cut's first to `end` (null: none), written into
+ * the script (`cold_open:`, its old text kept in _history/) and rebuilt. */
+export async function setColdOpenEnd(end: string | null): Promise<void> {
+  const { ep, pass } = get();
+  const put = api().putColdOpen;
+  if (!ep || !put) return;
+  try {
+    const r = await put(ep, pass, end);
+    set((s) => ({ coldOpen: { ...s.coldOpen, [statusKey(ep, pass)]: r } }));
+    if (r.changed) await refreshEpisode(ep, pass);
+    if (r.error) host().toast("warn", "Cold open", r.error);
+    else if (r.crossing?.length) host().toast("warn", "Cold open: music across its end",
+      `${r.crossing.map((c) => c.label).join(", ")} play${r.crossing.length === 1 ? "s" : ""} across where the intro goes in, and a master cuts ${r.crossing.length === 1 ? "it" : "them"} there.`);
+    else if (!r.changed) host().toast("info", "Cold open", end ? `Already ends on ${end}.` : "There's no cold open.");
+    else host().toast("success", "Cold open", end
+      ? `${r.shots.length} shot${r.shots.length === 1 ? "" : "s"} before the opening titles, through ${end}. The script is saved (the old one kept in _history).`
+      : "No cold open: a master opens on the titles. The script is saved (the old one kept in _history).");
+  } catch (e) {
+    host().toast("error", "Couldn't set the cold open", errText(e));
+  }
+}

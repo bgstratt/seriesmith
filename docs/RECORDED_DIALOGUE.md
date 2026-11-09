@@ -19,6 +19,71 @@ seriesmith assemble Shows\ep05 --proxy --audio master  # picture + your recordin
 
 Put the recording inside the episode folder (for example `ep05\audio\`) so the series config can point at it with a relative path. faster-whisper isn't one of seriesmith's dependencies: install it and numpy (and, with an NVIDIA card, `nvidia-cublas-cu12`) in the Python align runs from: seriesmith's own server and the command line use seriesmith's Python, the editor inside ComfyUI uses ComfyUI's ([FULL_SETUP.md](FULL_SETUP.md), "Sound: voices and recorded dialogue"). Its model is downloaded in the Features window (**Recorded dialogue** has `medium.en`, the default; each other model is a line of its own, **Whisper large-v3 (align)** and so on) into the Hugging Face cache; align reads it from there and never downloads it itself, so with the model not there it stops and says which line to download. The editor does the same from its dialogue track: attach the recording, then align (`seriesmith/track.py`).
 
+## Lines from a voice model
+
+You don't need to record anything if a voice model speaks the lines. Under **Voices with:** on the Refs tab,
+choose ElevenLabs and pick a speaker on each character's voice row, or keep LTX, which runs on your GPU and makes
+each line from the character's description. On LTX a character's lines continue its voice sample if it has one,
+else the first line made for it. **Generate all [name]'s lines** on a voice row does one character. For everyone,
+open **Or build it from each character's lines** in the **Recording** window.
+
+Three more voice models clone a character's sample instead, each from the Features window (**Sound**):
+
+- **Drama 3**: Fish Audio Drama 3 on your GPU. It hears the sample's words itself (Qwen3-ASR) and speaks
+  the line in that voice. With no sample yet, it picks a voice, steered by the character's `voice` line. Its
+  default download is W4A8 (24.6 GB); W6A8 (32.7 GB) and int8 (38.7 GB) fall silent less often, and the
+  largest one downloaded is the one used. It runs the model on the GPU when the whole file fits (W4A8 on a
+  32 GB card); otherwise it keeps most of it in system RAM, which wants about the file's size plus 8 GB free
+  besides whatever else is running. Short of that, every line loads the model again (half a minute more each)
+  and the machine runs out of RAM: keep to W4A8 then. Its licence is free under USD 500k a year and asks for "Built with Fish Audio".
+- **Qwen3-TTS**: on your GPU, about 9 GB. With no sample it designs a voice from the character's description
+  (their design and `voice` line), then clones it for every line after. Apache 2.0.
+- **Drama 3 on Comfy (paid)**: the same model on Fish Audio's servers through ComfyUI's own nodes, on your
+  Comfy API key, nothing to download. Each take is paid, and counts against Settings' paid limit.
+
+Each makes a line as long as it takes to say: there's no length to set.
+
+To build the recording from the lines:
+
+1. **Look at the total.** Every line and character is counted before anything is sent, and a character with
+   no speaker stops it.
+2. **Generate them.** That's paid on a provider, one call per line, and free on your GPU. Each line is its own
+   take, so you can redo one alone and choose between its takes.
+3. **Lay and align.** That's free. It joins the takes in script order, leaving each silent shot's `dur:` as a
+   pause, attaches the result, and aligns the shots to it. No Whisper is needed: each line is placed where it was
+   laid, using the provider's timings or, from a local model, where its take makes sound. Your script's old `dur:`
+   lines become comments, as with any align.
+
+If you change a line or its speaker, its take is marked as changed. Redoing a line can change its length, so
+lay and align again afterwards: the shots after it move, though only the redone shot goes stale.
+
+### Using it
+
+A shot on **Dub** plays its dub in the cut, in **Play all** and **Export**, and its next take lip-syncs to it. One
+choice does both. Generate and Clone play the take's own sound.
+
+- **Dub each shot to its lines**, or **to the recording**, in the same section, sets every speaking shot at once. A shot's
+  **Sound…** card changes it for that shot: its lines, the recording, a dub track, or any take's sound, its own or another
+  shot's. On its lines, the next take is as long as they are, with a little air, so it may want trimming in the cut.
+- **Until a take is rendered to it**, the cut plays the dub over the take, and the mouths won't follow. **Render to this**
+  makes a take that does. The cut goes on playing the dub. The take also keeps what the model gave back: your line
+  copied, with any effects, room or music it made around it. That costs no extra time, it's what the take's preview
+  plays, and **The cut plays** on the card switches a shot to it with no render, if there's gold in there.
+- **Line up with the take** is the cheap way: Whisper hears when each starts speaking, and the dub slides so they start
+  together. Nothing is rendered, and on some shots that's close enough.
+- **Silence** and **Adjust… / another source** on the card override all this in the cut, and change no render.
+
+### A file for each character
+
+If you have all of one character's lines in one file, from an actor or generated on a voice model's site, use
+**Use a file…** on that character's row. The file should hold one voice, nobody else, with the lines in script
+order. Whisper hears it and cuts it into a take per line, so it costs nothing. A line it can't hear gets no take
+and is listed on the character's row. Then **Lay and align** as above, mixing files and generated lines as you like,
+and redo any single line.
+
+Everything comes together in one recording, because a video model lip-syncs a shot to one sound. Two people
+talking over each other isn't handled here: it's one line at a time.
+
 ## Recording
 
 - Record the lines in script order, dry: no music under them. If there is music under them (a song), see **A recording with music: the vocal stem** below.
@@ -35,10 +100,10 @@ Put the recording inside the episode folder (for example `ep05\audio\`) so the s
 
 ## Export and Master
 
-**Play all**'s audio switch says what the cut's dialogue is, and **Export**, **2x Export** and **Master** use the same: **clips**,
-each clip's own sound, or **recording**, the episode's recording, with the mix's effects, ambience and music under it either way.
-Each clip's own sound is left out while it's on recording. On the command line that's `--audio recording`, and `--audio master` is
-the recording alone, to check sync.
+**Export**, **2x Export** and **Master** play what each shot's Sound card says (above): a shot on Dub plays its dub, and Generate and
+Clone play the clip's own sound, with the mix's effects, ambience and music under either. **Play all**'s clips/recording switch is for
+listening to the whole recording, and doesn't change them. On the command line, `--audio recording` lays the recording under the mix
+for the whole cut, and `--audio master` lays it alone, to check sync.
 
 ## Audio policy and retention
 

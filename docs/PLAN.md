@@ -1966,6 +1966,8 @@ docs/IMPORT_XML.md is the user's side, API.md `POST /seriesmith/import/xml`, COM
       Demucs), so with Demucs installed its export had no voice. The saver now puts H3's whole mix in the mp4, a
       dub of any source gets it back on a backend without that, and a take already saved that way plays its
       `_h3.wav` (`peaks.clip_audio`). Those old takes still play effects alone in Play all, which plays the mp4.
+- On this branch, each shot's Sound card says what the cut and export play (below), so Export no longer follows
+  the switch, which is for listening. `POST /seriesmith/assemble` and `/master` still take `audio`.
 - [x] A shot on dub plays its dub in the cut and export (2026-11-07, branch `h3-resample-any-take`):
       `takes.cut_dub_spec`, `edit.effective_cut_audio`, `audio_dub` in the status, assemble's clip sound. A cut
       entry's own `audio` still wins; the editor never saves the dub into cut.json, and Adjust… opens on it. Play all
@@ -2067,26 +2069,130 @@ H3 only: LTX's 2x upsampler is a stage of its own render and isn't offered.
 - It reuses the frames route the re-render has: `retarget` for the prompt, frames padded to the grid and cut back. Shot's
   length comes from the take. The compiled shotlist is kept as `.up.shotlist.json`.
 
-## Step 15 — models behind other APIs (after the Manager listing)
+## Step 15 — models behind other APIs (designed 2026-11-04; docs/DESIGN.md, section 9)
 
-Router reaches most providers through one key; some are only (or more cheaply, or
-sooner) behind their own API, a gateway (fal, Replicate, WaveSpeed, Runware), or a
-self-hosted endpoint. The same data-driven model, a different transport:
+Add any hosted model on any provider, for video, image and sound, without code: the mapping
+from a shot to the request, the prompt, how references get in, and how the result comes back
+are all data, edited in the app. First providers: ElevenLabs, fal, Runway, BytePlus
+(Seedance, Seedream), Atlas Cloud (many models, Suno among them), then OpenAI, xAI and others
+as wanted. Decided with the user 2026-11-04: generic rather than per-API; overrides belong to
+the show, keys to the machine; a voice is heard before any line is paid for. Each paid probe
+is asked for first.
 
-- [ ] **An HTTP backend** (`backends/http.py`): a request built as `router_video` /
-      `router_image` build theirs (the same `inputs` mapping), sent to the model's own
-      endpoint; then the result found by data: synchronous (the answer is the result),
-      or submit → poll → result (the job id's path in the answer, the status URL, which
-      values mean done or failed, where the files are). Reattached after a restart by its
-      job id, as Router's are; a lane per provider with its own parallel limit.
-- [ ] **Keys per provider** in this machine's settings (never the series config),
-      environment variables over them; Settings lists them, write-only like the Comfy key.
-- [ ] **Pictures:** inline (base64 / data URI) where the API takes it, else a link it can
-      fetch (the Comfy asset store while there's a Comfy key; a provider's own upload
-      route where it has one).
-- [ ] **Asset libraries** (Seedance and its resellers; 2026-10-21): the fourth way in, beside
-      inline, a link and an upload route. Register a fetchable URL, poll until it's Active,
-      send `asset://<id>`. Router does this already (`via="seedance"`,
+**1. The mapper apart from Router** (the goldens byte-identical)
+- [x] One check for "this target is hosted" (`targets.is_hosted`) and one reader of its block
+      (`targets.hosted_block`) in place of the `get("router")`-style checks across the package;
+      only `targets/__init__.py` and `limits.py` (which writes into the block) name it, and the
+      dry run's route, which takes a Router target by name (`tests/test_request_map.py` holds this).
+- [x] The mapping's functions in one place (`targets/generic/request_map.py`), from `router_video`,
+      `router_image` and `cue.hosted_call`, which now takes its prompt and lyrics in any place an
+      input can name. The Router goldens unchanged. What a request contains stays with its
+      caller; there's no one function for all three, as pictures differ too much.
+- [x] One rule for the nearest ratio (2026-11-04). Video measured the plain difference of the
+      shapes and image the difference of their logs. Plain difference favours tall ratios: on
+      Veo's `16:9` / `9:16` anything from square to 1.17 wide was sent as 9:16; and it couldn't
+      read `2.35:1`. Now the log rule for both, a tie to the ratio listed first. Requests
+      change for video shapes between two ratios: a square on Veo is now 16:9 (was 9:16), and
+      4:3 on Kling and MiniMax H3 is now 16:9 (was 1:1; an exact tie). The goldens didn't move.
+
+**2. Prompt parts and templates** (the goldens byte-identical)
+- [x] `targets/prompt_template.py`: `{part}`, and `[[...]]` sections that go whole when a part in
+      them is empty; read in one pass, so a shot's words can't act as syntax.
+- [x] The two prose writers give parts (`shot_parts`; what they share in `prose.scene_parts`), and
+      each default template reproduces today's prompt exactly: every golden unchanged.
+      `recipe.prompt_template` in a target.json changes a shot's prompt, on a Router model, a Wan
+      model or LTX-2.
+- [x] Seedance's definitions, its voices and Kling's mentions as request template values
+      (`recipe.prompt_request`), placed by the template rather than by code in `router_call`.
+      Their wording, and whether they're filled (`define`, `mention`), stay as they were.
+- [x] Prompt profiles: `recipe.prompt` names one in `presets/prompt.json` (a writer and its two
+      templates). Ships `prose`, `prose_silent` and `image` only: a `seedance` profile is worth
+      having when a second provider serves Seedance (step 4), until then it'd say what `prose` says.
+- Not templated yet: H3's `fields` writer and the other targets with a writer of their own, image
+  prompts' own wording (their request template is), and sound (step 5). A wrong template stops
+  the job and says why (`job.error`); checking one as it's saved comes with the tool (step 3).
+
+**3. The mapping tool, on Router models** (no new connections)
+- [x] The Models window: a job's values with the chosen shot's real ones, the API's fields,
+      the prompt template below, a live dry run with the key hidden, several test shots
+      (dialogue, several subjects, no keyframe); saving refused while a required field is
+      unmapped. The same screen adds a model and edits one, video and hosted image alike.
+- [x] Overrides in the show (`<show>/targets/overrides.json`: only the fields changed, only the
+      ones `targets.SHOW_FIELDS` allows, so a shared show can't repoint a model), **Back to
+      shipped**; the `mapping` stale reason (a prompt that differs only by its template is
+      `mapping`, not `script`; a take with no template stays as its sidecar was).
+- [x] First cut for a look: the **Prompt & mapping** panel (`components/PromptMapping.tsx`,
+      `seriesmith/promptview.py`), every video model, adding and editing alike: the templates, the
+      parts with the shot's values, the prompt as sent, the shotlist entry, the request.
+      A model with a writer of its own (H3, the reference-sheet LTX-2s) shows it read-only.
+
+**4. Providers, the step engine and reading an API's reference** (`backends/http.py`,
+`providers.py`, `apispec.py`, stdlib only: nothing new for `requirements.txt`). Proved on the
+hardest first: Atlas Seedance (upload first), ElevenLabs (bytes back), OpenAI (multipart in,
+download with the key). Reading the reference moved up from step 7 (decided with the user
+2026-11-04): without it, a provider can be added and its fields can't be read.
+- [x] A model read from an OpenAPI document (a URL, or pasted) by the same proposer as
+      Router's (`apispec.py`); else a pasted cURL or sample JSON (Atlas publishes per-model pages,
+      no OpenAPI file). The definition is plain data, so an LLM can draft one from a provider's
+      docs, and the validator and dry run check it. A key in a cURL is never kept.
+- [x] A provider set up from scratch in the app (`providerdraft.py`, `AddProvider`): a cURL or OpenAPI
+      document read into a form, example answers filling in more, a free key check, its first model
+      from the same request, and **The calls** showing every call a take makes.
+- [x] Provider definitions on this machine (`providers.py`, `presets/providers/` the shipped
+      untested ones); **keys per provider** in its settings (never the series config),
+      environment variables over them (`SERIESMITH_KEY_<ID>`); Settings lists them, write-only.
+- [x] Steps: request, values taken, wait condition; JSON or multipart in; JSON or bytes out.
+      Reattached after a restart by its job id, as Router's are; a lane per provider with its
+      own parallel limit; the paid limit counts them; no submit retried blind.
+- [x] Results by data: the status field, its done and failed values, where the files are,
+      failure read from the result too (fal says `COMPLETED` for a failure), links saved when the
+      take is collected.
+- [x] Several outputs as several takes (Suno's two tracks), music only for now: `api.tracks` in a target
+      says how many; each further one is its own take, recording `track` and `track_of`. One that fails
+      leaves the first standing. Video and pictures still keep the first.
+- [x] Authentication: a header, bearer or query key by data. The key goes only to the provider's
+      own host and port, a redirect elsewhere drops it, an echoed one is cut from errors.
+- [ ] Signed ways of authenticating (a JWT for Kling's old keys, then others as wanted) as named
+      methods.
+- [x] Pictures: inline (base64 / data URI) where the API takes it, a provider's upload route,
+      multipart with the request.
+- [ ] An asset library by data (Atlas turned out not to need one), and a link for an API that
+      only fetches URLs: the Comfy asset store while there's a Comfy key, or a **media host** of
+      the user's own (a bucket).
+- [x] Atlas proved live (2026-11-04): Porchlights ep02 sh630, proxy, Seedance 2.5 reference to
+      video, upload, generate, poll, download, 2:31. Two things no docs or local server showed:
+      Cloudflare's 403 (1010) for Python's default User-Agent, and `uploadMedia` answering
+      `data.download_url` where its docs say `url`. Its other models and kinds aren't proved.
+- [x] One model, several ids (`api.models`, by what's sent: Atlas's Seedance image-to-video and
+      reference-to-video). A provider's documented models as a list to pick from, needing nothing
+      pasted (`presets/providers/atlas.models.json`, read from its docs 2026-11-04; only Seedance 2.5
+      reference-to-video proved).
+- [x] From a provider's docs, read for free 2026-11-05, no key: fal's FLUX 3 Max page (its address alone
+      fills the form: the cURLs in its HTML, the OpenAPI document it links, `Key ` before the key, a
+      failed job as done with `error` beside it) and BytePlus's cURL (a list of typed items, every item
+      read). Neither proved by a real take. fal documents no plain-HTTP upload to its CDN, and takes
+      data URIs ("not recommended for files larger than a few KB", no limit stated): frames go inline.
+      BytePlus refuses a photoreal person as a URL; a face as a data URI is untested, and a direct
+      key's way into its asset library unknown (its docs pages draw themselves in the browser).
+- [x] Higgsfield shipped untested (2026-11-05, read from its docs, tried on local servers only, no key):
+      `presets/providers/higgsfield.json` and its list. A file goes by an address its answer gives, a
+      step's `body` (the file as the whole request), `headers` from an answer, and `key: false`; the
+      form offers it. Its model pages' Markdown (`<page>.md`) has the whole schema where its OpenAPI
+      document has a few models only. Status `nsfw` is a failure. No seed on its Seedance, H3 or
+      Kling; H3 only at 2K, from 5 s. An `Idempotency-Key` could make a submit safe to ask again.
+      Not proved: anything by a real take, and how its Seedance prompt names a picture.
+- [x] Runway shipped untested (2026-11-05, from its OpenAPI document, local servers only, no key):
+      `presets/providers/runwayml.json` and its list (`runwayml` because the Router's model is already
+      `runway_gen4_turbo`). What it asked of the engine: `headers` on every request to its own hosts,
+      a form posted to the address its answer gives (S3's way, `response: "none"`), `endpoints.video_text`
+      and `values_text` for a shot with no pictures, `by_size` on a ratio that's also a resolution, a
+      list's `arguments`. Its H3 is sent with `promptExpansionMode: disabled`. Not proved: a real take,
+      how its Seedance prompt names a picture, a file under its 512-byte floor (no real frame is).
+- [ ] A live paid proof of ElevenLabs (needs step 6) and OpenAI: tested against a local server
+      answering as their docs say, and marked untested until a real take comes back.
+- [ ] Router's `seedance_asset` moved onto the steps, as the proof the asset path is data.
+- [ ] **Asset libraries** (Seedance and its resellers; 2026-10-21). Register a fetchable URL,
+      poll until it's Active, send `asset://<id>`. Router does this already (`via="seedance"`,
       `RouterBackend.seedance_asset`, Comfy's `/proxy/seedance/virtual-library`) because
       BytePlus refuses a photoreal face as a plain URL; a face sent as base64 is untested.
       Atlas Cloud exposes the same BytePlus library differently: assets on
@@ -2094,25 +2200,128 @@ self-hosted endpoint. The same data-driven model, a different transport:
       `/sd/assets/<id>` for `Active` / `Failed` with `error_code`), generation on
       `api.atlascloud.ai`, a public URL only (no base64; its `model/uploadMedia` gives one
       without a Comfy key). Video and audio must be registered there; images may go inline.
-      So a preset describes the step as data (upload route, register route, status field and
-      its done/failed values, the reference's form), as the `via` on a file does today.
+      **Read 2026-11-04: Atlas's Seedance 2.5 page says the opposite of these notes:** URL and
+      Base64 are registered for you, and no page shows this route. So Atlas ships as upload,
+      generate, poll, and this item waits for an API that does need it.
       Registration validates up front (Atlas: images 300-6000 px, aspect 0.4-2.5, < 30 MB;
       video mp4/mov 2-15 s, 24-60 fps, 409,600-927,408 px; audio wav/mp3 2-15 s): its
-      refusal is the take's error, said plainly.
+      refusal is the take's error, said plainly. Atlas's docs (read 2026-11-04) show
+      `uploadMedia` but not this route: settle it from the per-model pages when building.
 - [ ] **Keep registered asset ids**, by (provider account, file sha256): an id means nothing to
       another provider. Skips the ~4-5 s per picture each Router Seedance take spends
       uploading and registering again (step 14).
 - Router's Seedance 2.5 schema takes an image or audio as URL, base64 or asset id; a video as
   URL or asset id only. Atlas's guide notes the asset step is the required way in for
   video and audio references; expect each reseller of a model to differ in exactly this.
-- [ ] **Gateway presets** for the common shapes, so a model is a pick, not a mapping:
-      fal's queue API, Replicate's predictions, OpenAI-style images, Google's Gemini /
-      Vertex, then direct providers as needed (Runway, Kling, BFL).
-- [ ] **The wizard:** a model's OpenAPI document (a URL, or pasted) read by the same
-      proposer as Router's, else a mapping started from the closest preset; dry run and
-      probe as for Router models.
 - [ ] Costs where the API reports them (often it does, in its own units, as Router's
       providers do).
+
+**5. Sound on hosted models**: each kind's job as a call as well as a graph.
+- [x] Music, songs and score (2026-11-06): `suno_chirp_v6` on Atlas (`instrumental` for score) and
+      `elevenlabs_music` (`force_instrumental`), one call a take, tested against a local server only. Shipped
+      rather than added in the wizard, as a cue model needs its prompt writer. ElevenLabs' music is a
+      way of its provider definition (`ways.music`), its address not being speech's. Suno's label says
+      its licence is unverified: Atlas runs it "via APIMart", and sources say Suno has no public API.
+- [x] Suno score, live (2026-11-06, `porchlights/ep02` cue d03, one run, listed at $0.132): asked 32 s at
+      100 BPM with a 169-character `style`; two tracks back in about 30 s, 31.96 and 32.40 s, heard at 100.1 and
+      100.19 BPM, both kept as takes, one paid run counted. One run at one tempo.
+- [ ] Still to prove live: Suno singing lyrics as written (waits for a real song), a much longer `style`
+      (Atlas states no limit), and all of Eleven Music (needs a key on this machine: the BPM in its words, a
+      prompt's lyrics sung as written).
+- [ ] Only if a prompt's words fall short: Eleven Music's composition plan (chunks with their lyrics and
+      enforced lengths), which could also carry a cue's sections.
+- Decided with the user 2026-11-06, not doing: ambience and effects on hosted models. A text-to-sound model
+  makes effects from words, not foley matched to the picture, which is what the effects track needs.
+
+**6. Voices, then lines**
+- [x] A voice per character: a provider's speaker (an id per provider, on the subject in the
+      series config: `voices.<provider>`; one private to an account fails plainly on another's),
+      listed from the provider for free with its previews, auditioned on a short sample in the
+      character's own words through the voice ref's takes (`generic/router_audio.py`, ElevenLabs'
+      list). Built on local servers only, 2026-11-05: no key, no real take. A reference sample
+      (cloning, a provider's IVC) isn't built. Tried live with no key the same day: `/v1/voices`
+      answers with its 21 voices and their previews; `/v1/shared-voices` only at a page of 3 or so,
+      with no search or later pages (401), so the library is behind the key, or on its site.
+- [x] Lines refused until the voice is picked; the count of lines and characters shown first, and
+      a generate must name the total it was shown (`lines.py`, the Recording window). 2026-11-05, on
+      local servers only: no key, no real take.
+- [x] A line per take, the words alone in the request; laid in script order, with the pauses
+      silent shots' `dur:` give, into the episode's recording; `align` windows the shots from it.
+- [x] The API's own timings where it gives them (ElevenLabs `with-timestamps`, a definition's
+      `timed` way) in place of Whisper (`<recording>.words.json`, which align reads). The mp3 they
+      come in may start a few ms late of its timings: only a real take will say if that shows.
+- [x] A character's whole file (all of Crane's lines, from an actor or a site) cut into a take per
+      line and mixed with lines made here (2026-11-05, `lines.cut_character`; heard by Whisper, tested
+      on words beside the file: no real file yet). One recording, as a video model lip-syncs to one
+      sound. People talking over each other isn't handled: Demucs splits voice from music, not voice
+      from voice.
+- [x] Generate all of a character's lines, on its voice row, as a take per line rather than one
+      file to cut (2026-11-05). A local model too (LTX's voice): from the description, continuing the
+      character's sample, else the first line made for it, leaving the ref's takes and sample alone.
+      Measured on Dean Stories ep10 through refs, by hand the same way: Whisper heard 11 of 14 whole,
+      one word-only line lost ("Goodnight."), two with words dropped or changed. A real run of this
+      button hasn't been: those were voice takes by hand.
+- [x] One choice for a shot's dialogue (decided 2026-11-05, after four unconnected places: Next take, Dub to,
+      In the cut, an episode switch): on Generate or Clone the cut plays the take's own sound; on Dub the next
+      take and the cut both play the dub (`takes.cut_dub_spec`). A take rendered to it also keeps what the model
+      gave back (`_h3.wav`: the line copied, what it made around that; the saver muxes it into the mp4, ComfyUI's
+      assets too, and `remux_dub` for a take from an older node pack), heard in the take's preview, and in the cut
+      if asked for that shot (`dub_model_sound`, no render). Proved on Dean Stories ep10 sh020 t04, local H3: the mouth matched its
+      line, from a whole-character file, 2026-11-05. Sources: its lines (`from: line`), the recording,
+      a dub track, any take's sound, another shot's too. A cut entry's own `audio` still overrides. A shot on
+      its lines or another shot's sound takes that length on its next render, with a little air. **Line up
+      with the take** (Whisper, both first words; `dub_offset`) cheats a line under a good render, free.
+      `assemble --audio recording` stays for the command line. Lay and align stay, for whole recordings and
+      to lay lines end to end. Tested on local servers and the stand-in for ComfyUI: no real dub render yet.
+- [ ] Text-to-dialogue (all the lines in one call, its segments per input) as an option for flow;
+      one line can't be redone alone there. `previous_text` / `next_text` for flow between single
+      lines. A script's delivery note as a v3/v4 tag ([whispers]): it's left out for now.
+- [x] "Generate missing" (voices, refs, shots) in the paid colour (`h3-paid`) when a model it uses
+      is hosted, 2026-11-05; voices ask first. A money total first, per provider, isn't built.
+- [x] A redone line that changes length moves what follows: those windows go stale, and the
+      shots they touch say so before anything is re-rendered (measured 2026-11-05: `script` from the
+      moved window). Aligning again keeps a silent shot's length from its window (it was 3.04 s).
+- [x] It said so too often, and each is a paid re-render if believed: every dub shot before the
+      redone line went `ref` (its whole recording's sha1 changed, its own window's sound didn't), and
+      every shot after went `script` for a window that only moved. A take on a laid recording now
+      remembers which line takes it spoke (`lines_sound`) and the shot apart from where it sits
+      (`place_free_hash`), so only a shot whose own sound or length changed goes stale. A take from
+      before this, or a recording replaced by hand, can't say what changed, and goes stale as it did.
+- [ ] Only if it proves needed: a script field for a pause between lines in one shot.
+- Replaces "ElevenLabs and the like as voice models" under "Voices before the picture".
+- [x] **Voice models that clone** (2026-11-07, decided with the user after a listening test in
+      ComfyUI): `drama3` (Fish Audio Drama 3 on PedroMarinhoDev's ComfyUI-Drama3), `qwen3_tts`
+      (Qwen3-TTS 1.7B on flybirdxx's ComfyUI-Qwen-TTS) and `fishaudio_drama3` (Drama 3 through
+      ComfyUI's Fish Audio partner nodes, paid). Each is sent the words alone and clones the
+      character's sample (`capabilities.reference_clip`: 5-20 s, 10-30 s for Fish, not LTX's
+      1.5-2.5 s head; `reference_text`: the sample's words when seriesmith knows them, the line its
+      take was asked to say or a recording's timings); Drama 3 hears them itself (Qwen3-ASR in the
+      graph). With no sample: Drama 3 picks a voice steered by the `voice` line as a bracketed
+      direction, Qwen designs one from the description (VoiceDesign's instruct). Features: Drama 3
+      with W4A8 (24.6 GB), and W6A8 / int8 offered beside it, the largest installed used (a models
+      spec's `prefer`); Qwen's three models fetched into `models/qwen-tts/<model>/` (a fetch's `dir`:
+      the pack reads them there, not under `Qwen/` as its README draws, and downloaded them by itself
+      when they weren't). A line's take on a local model is checked for fetches, and a partner node's
+      take counted against the paid limit, as a ref's is. Live through `seriesmith refs --voices`
+      (RTX 5090): every take's words right; Charming cloned at 136 Hz (Drama 3) and 119 Hz (Qwen)
+      against his sample's 122; neither read a description aloud.
+- [x] Drama 3 reloaded its 24.6 GB model for every job (23-30 s of a ~50 s take). Not the pack:
+      ComfyUI's RAM-pressure cache (its default since 0.40) frees in-use outputs over 512 MB when
+      free RAM falls under 10% of it, and with the experts in RAM (the pack's default) free RAM hit
+      0 GB on a 64 GB machine. Now `experts: auto` (2026-11-07): in VRAM when the file and 4 GiB fit
+      the GPU ComfyUI reports (refs.stage_gpu_memory, drama3/target.py experts_where), else in RAM;
+      the Features text says what RAM the in-RAM case needs. Live: the next take 13 s, no reload.
+- [ ] `fishaudio_drama3` live: not run, it's paid. Each take's Instant Voice Clone makes a private
+      voice on Fish Audio's side; ComfyUI reuses the node's output while the sample is the same, but
+      a restart makes another.
+- [ ] Qwen's cloning on transformers 5.21+ waits on flybirdxx/ComfyUI-Qwen-TTS#115 (opened
+      2026-11-07); until it merges, the pack from GitHub fails a clone with "property 'upsample' ...
+      has no setter".
+
+**7. Presets**
+- [ ] Presets as data files: fal, Replicate, ElevenLabs, Runway, BytePlus, Atlas, OpenAI, xAI,
+      Gemini / Vertex. Shipped as untested drafts, inert until a key is added; a user's own
+      added without a release.
 
 ## Later
 

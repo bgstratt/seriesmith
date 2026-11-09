@@ -553,7 +553,7 @@ def main(argv: list[str] | None = None) -> int:
                     raise RuntimeError("model files not installed: " + "; ".join(
                         R.TG.missing_message(m) for m in blocked))
                 g0 = base
-                if job.target.spec.get("router"):
+                if R.TG.is_hosted(job.target.spec):
                     g0 = None                    # a hosted model: one call, no workflow
                 elif not job.is_krea2:
                     if job.target.id not in graphs:

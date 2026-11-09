@@ -53,6 +53,40 @@ def fetch_schema(model: str, api_key: str, timeout: float = 30.0) -> dict:
         raise RouterInspectError(f"Router's schema for {model} couldn't be read: {e}") from None
 
 
+_SCHEMAS: dict[str, tuple[float, dict]] = {}
+SCHEMA_TTL = 3600.0
+
+
+def schema_fields(doc: dict) -> dict:
+    """What a model's schema asks for, for the mapping panel: {"required": [top-level names],
+    "fields": [{"path", "type", "required", "values"?, "min"?, "max"?, "about"?}]}."""
+    body = request_schema(doc)
+    required = list(body.get("required") or [])
+    out = []
+    for path, v in fields(doc, body):
+        one = {"path": path, "type": v.get("type") or "", "required": path in required}
+        if v.get("enum"):
+            one["values"] = list(v["enum"])
+        for key, name in (("minimum", "min"), ("maximum", "max")):
+            if v.get(key) is not None:
+                one[name] = v[key]
+        if v.get("description"):
+            one["about"] = str(v["description"])[:300]
+        out.append(one)
+    return {"required": required, "fields": out}
+
+
+def cached_schema_fields(model: str, api_key: str) -> dict:
+    """schema_fields of Router's schema for `model`, kept an hour (reading one is free)."""
+    import time
+    hit = _SCHEMAS.get(model)
+    if hit and time.monotonic() - hit[0] < SCHEMA_TTL:
+        return hit[1]
+    got = schema_fields(fetch_schema(model, api_key))
+    _SCHEMAS[model] = (time.monotonic(), got)
+    return got
+
+
 # -- the catalog ---------------------------------------------------------------------
 
 # what a Router model makes, from its id (the catalog doesn't say): "video" in
@@ -181,7 +215,7 @@ NAMES = {
     "first": ["firstframe", "firstframeimage", "firstframeurl", "image", "imageurl", "imgurl",
               "startimage", "imagestart", "startframe", "startimageurl", "promptimage"],
     "last": ["lastframe", "lastframeimage", "lastframeurl", "endimage", "imageend", "tailimage",
-             "endframe", "endimageurl", "imagetail"],
+             "endframe", "endimageurl", "imagetail", "lastimage"],
     "references": ["referenceimages", "referenceimage", "imageurls", "images", "referenceimageurls",
                    "refimages"],
 }
@@ -218,7 +252,7 @@ def _picture_item(doc: dict, v: dict):
 
 def _sizes(values: list[str]) -> dict:
     """final and proxy (width, height) from a model's resolutions."""
-    from seriesmith.targets.generic.router_video import size_of
+    from seriesmith.targets.generic.request_map import size_of
 
     def dims(v):
         w, h = size_of(v)
@@ -416,7 +450,7 @@ def propose(model: str, doc: dict, base: dict | None = None) -> dict:
 
     # nested fixed arguments (sampleCount under parameters) go in by path
     arguments: dict = {}
-    from seriesmith.targets.generic.router_video import put
+    from seriesmith.targets.generic.request_map import put
     for path, value in args.items():
         put(arguments, path, value)
 
@@ -516,7 +550,7 @@ def _name(m: dict) -> str:
 
 GEMINI_RATIOS = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
 _PICTURE_NAMES = ("image", "images", "imageurls", "imagelist", "inputimage", "inputimages",
-                  "referenceimages", "imageinput", "imageurl")
+                  "referenceimages", "referenceimageurls", "imageinput", "imageurl")
 
 
 def propose_image(model: str, doc: dict) -> dict:
@@ -599,9 +633,13 @@ def propose_image(model: str, doc: dict) -> dict:
                 inputs["resolution"] = {"name": path, "values": vals}
         elif leaf == "size" and t == "string" and "size" not in inputs:
             star = "*" in re.sub(r"\s", "", desc[:400]) and re.search(r"\d+\*\d+", desc)
+            under = re.search(r"\d+_\d+|width_height", desc)
             sizes = re.findall(r"\b(\d{3,4}x\d{3,4})\b", desc)
+            listed = [str(e) for e in enum or [] if re.fullmatch(r"\d+[x*_]\d+", str(e))]
             free = re.search(r"total pixels|pixel area|width and height in pixels", desc, re.I)
-            if sizes and not star and not free and len(desc) < 300:
+            if listed:
+                inputs["size"] = {"name": path, "values": listed}       # written as the API writes them
+            elif sizes and not star and not free and len(desc) < 300:
                 # a short list ("e.g., 1024x1024, 1536x1024, auto"): those, and each
                 # landscape one's portrait twin
                 vals = list(dict.fromkeys(sizes))
@@ -611,7 +649,8 @@ def propose_image(model: str, doc: dict) -> dict:
                         vals.append(f"{b}x{a}")
                 inputs["size"] = {"name": path, "values": vals}
             else:
-                inputs["size"] = {"name": path, "format": "{w}*{h}" if star else "{w}x{h}", "multiple": 16}
+                inputs["size"] = {"name": path, "multiple": 16,
+                                  "format": "{w}*{h}" if star else "{w}_{h}" if under else "{w}x{h}"}
                 # "a pixel area between 262144 (512*512) and 6553600 (2560*2560)"
                 big = [int(x) for x in re.findall(r"\b\d{5,}\b", desc)[:2]]
                 if len(big) == 2 and big[0] < big[1]:
@@ -657,7 +696,7 @@ def propose_image(model: str, doc: dict) -> dict:
         warnings.append("no size field was found: the model's own default size")
 
     arguments: dict = {}
-    from seriesmith.targets.generic.router_video import put
+    from seriesmith.targets.generic.request_map import put
     for path, value in args.items():
         put(arguments, path, value)
     placed = {str(m.get("list") or _name(m)) if isinstance(m, dict) else m
@@ -695,5 +734,5 @@ def _max_from(v: dict, default: int) -> int:
 
 
 def put_path(args: dict, path: str, value) -> None:
-    from seriesmith.targets.generic.router_video import put
+    from seriesmith.targets.generic.request_map import put
     put(args, path, value)

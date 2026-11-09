@@ -11,7 +11,7 @@ import { newCue } from "../cueActions";
 import { currentMix, makeEffects, makeVoiceStems, pickSoundFile, setShotVoicesMix, toggleSound } from "../mixActions";
 import { firstOf, voicePlays, voicesOnly } from "../lib/mix";
 import { host } from "../host";
-import { JOIN_DEFAULT, MATCH_WAYS, clearClipAudio, matchColors, nudgeClip, setJoin, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
+import { JOIN_DEFAULT, MATCH_WAYS, clearClipAudio, matchColors, nudgeClip, setColdOpenEnd, setJoin, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
 import { JOIN_KEYS } from "../lib/cutEdit";
 import { audioOf, audioWhy } from "../lib/audioSource";
 import { absPath, tn } from "../lib/format";
@@ -46,6 +46,8 @@ export function ContextMenu() {
   const curPass = useApp((s) => s.pass);
   const st = useApp((s) => (s.ep && s.menu ? s.status[statusKey(s.ep, s.menu.pass)] : undefined));
   const cutSt = useApp((s) => (s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined));
+  // the cold open (the In the cut group's Cold open ends here): with the other hooks, before any return
+  const coldOpen = useApp((s) => (s.ep ? s.coldOpen[statusKey(s.ep, s.pass)] : undefined));
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number; flip: boolean; up: boolean } | null>(null);
   const { list: targets, seriesDefault } = useTargets();
@@ -355,6 +357,18 @@ export function ContextMenu() {
       <button disabled={locked || cutIdx < 0 || cutIdx >= (cutSt?.shots.length ?? 0) - 1} title="Alt+→ in the timeline" onClick={run(() => void nudgeClip(menu.shot, 1))}>
         <i className="pi pi-arrow-right" /> Move right in the cut
       </button>
+      <div className="h3-menu-sep" />
+      <button disabled={!cutShot || !!cutShot.cut.out || !!cutShot.orphan}
+        title={`The cold open: every shot from the cut's first through ${menu.shot} plays before the opening titles, and a master puts the series intro in right after it. Written into the script as cold_open: true (on a sequence's # line when all its shots are in it), the old script kept in _history`}
+        onClick={run(() => void setColdOpenEnd(menu.shot))}>
+        <i className="pi pi-step-forward" /> Cold open ends here{coldOpen?.end === menu.shot && !coldOpen.error ? " ✓" : ""}
+      </button>
+      {(coldOpen?.end || (coldOpen?.gaps.length ?? 0) > 0) && (
+        <button title="No cold open: the master opens on the series intro. Every cold_open: line comes out of the script (the old one kept in _history)"
+          onClick={run(() => void setColdOpenEnd(null))}>
+          <i className="pi pi-times" /> No cold open
+        </button>
+      )}
       {trimmed && (
         <button disabled={locked} title={locked ? `${menu.shot} is locked` : `Back to the whole take (${cutShot!.cut.trim_in || 0} + ${cutShot!.cut.trim_out || 0} frames trimmed)`} onClick={run(() => void setTrims(menu.shot, 0, 0, `Clear ${menu.shot} trims`))}>
           <i className="pi pi-arrows-h" /> Clear trims

@@ -18,6 +18,7 @@
   --h3-rendering: #2f8fe6;
   --h3-failed: #e04848;
   --h3-stale: #e07b2b;
+  --h3-paid: #2f86d6;
   --h3-override: #9b6bdf;
   --h3-target: #1fa5a0;
   --h3-flag: #ec4899;
@@ -80,6 +81,9 @@
 .h3-root .h3-btn:hover:not(:disabled) { background: var(--h3-hover); }
 .h3-root .h3-btn:disabled { opacity: 0.5; cursor: default; }
 .h3-root .h3-btn.h3-primary { background: var(--h3-primary); border-color: var(--h3-primary); color: var(--h3-primary-fg); font-weight: 600; }
+/* a button that spends money: never the same green as one that doesn't */
+.h3-root .h3-btn.h3-paid { background: var(--h3-paid); border-color: var(--h3-paid); color: #fff; font-weight: 600; }
+.h3-root .h3-btn.h3-paid:hover:not(:disabled) { filter: brightness(1.1); background: var(--h3-paid); }
 .h3-root .h3-btn.h3-primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--h3-primary); }
 .h3-root .h3-btn.h3-danger { color: var(--h3-failed); }
 .h3-root .h3-btn.h3-icon { padding: 2px 5px; min-width: 22px; justify-content: center; }
@@ -130,6 +134,7 @@
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
 .h3-b-stale { color: var(--h3-stale); }
+.h3-b-paid { color: var(--h3-paid); }
 .h3-b-override { color: var(--h3-override); }
 .h3-b-override-stale { color: var(--h3-stale); border-style: dashed; }
 .h3-b-queued { color: var(--h3-queued); }
@@ -619,6 +624,33 @@
 /* a gallery take or a video file over the track: onto a clip, or a new shot between two */
 .h3-tl-col.h3-drop-onto { outline: 2px dashed var(--h3-accent); outline-offset: -2px; }
 .h3-drop-marker.h3-drop-new { width: 5px; margin-left: -2.5px; background: var(--h3-accent); }
+/* the cold open's end: a master puts the series intro in here (docs/TITLES_GUIDE.md) */
+.h3-coldopen-mark {
+  position: absolute; top: 0; bottom: 0; right: -1px; width: 2px; background: var(--h3-accent);
+  z-index: 5; pointer-events: auto; cursor: help;
+}
+.h3-coldopen-mark > span {
+  position: absolute; top: 2px; right: 3px; white-space: nowrap; font-size: 10px; line-height: 14px;
+  padding: 0 4px; border-radius: 3px; background: var(--h3-accent); color: #fff;
+}
+.h3-coldopen-mark.h3-coldopen-err, .h3-coldopen-mark.h3-coldopen-err > span { background: var(--h3-failed); }
+/* a cold-open clip: a band along its top (red when it plays after a shot that isn't) */
+.h3-coldopen-band {
+  position: absolute; top: 0; left: 0; right: 0; height: 12px; z-index: 4; pointer-events: auto; cursor: help;
+  background: color-mix(in srgb, var(--h3-accent) 75%, transparent); color: #fff;
+  font-size: 9px; line-height: 12px; letter-spacing: 0.06em; text-transform: uppercase; padding: 0 4px;
+  overflow: hidden; white-space: nowrap; border-radius: 3px 3px 0 0;
+}
+.h3-coldopen-band.h3-coldopen-err { background: color-mix(in srgb, var(--h3-failed) 85%, transparent); }
+/* Play all's intro or outro, over the picture (Titles) */
+.h3-titles-clip { position: absolute; inset: 0; z-index: 5; background: #000; container-type: size; }
+/* visible: the cut's stage hides its videos but the one on (.h3-cutstage video) */
+.h3-titles-clip > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; visibility: visible; }
+.h3-titles-text {
+  position: absolute; left: 0; right: 0; text-align: center; pointer-events: none; line-height: 1;
+  font-family: "Segoe Script", "Brush Script MT", "Apple Chancery", cursive;
+}
+.h3-titles-skip { position: absolute; right: 10px; bottom: 10px; }
 .h3-trim-h {
   position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 2; opacity: 0;
   background: linear-gradient(to right, transparent 2px, var(--h3-accent) 2px, var(--h3-accent) 5px, transparent 5px);
@@ -1406,3 +1438,25 @@
   position: absolute; top: 0; bottom: 0; box-sizing: border-box;
   background: color-mix(in srgb, var(--h3-region) 18%, transparent); border-left: 1px dashed var(--h3-region); border-right: 1px dashed var(--h3-region);
 }
+
+/* the gallery's Sound tab: a waveform tile per take, the open take's big waveforms */
+.h3-sndgal-tiles { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
+.h3-root .h3-sndgal-tile {
+  position: relative; display: flex; flex-direction: column; gap: 4px; padding: 6px; cursor: pointer;
+  background: var(--h3-bg3); border: 1px solid var(--h3-border); border-radius: 6px;
+}
+.h3-sndgal-tile:hover { outline: 2px solid var(--h3-border); outline-offset: -2px; }
+.h3-sndgal-tile.h3-sel { outline: 2px solid var(--h3-accent); outline-offset: -2px; }
+.h3-sndgal-tile.h3-live { border-color: var(--h3-ok); }
+.h3-sndgal-tile.h3-ticked { outline: 3px solid var(--h3-accent); outline-offset: -3px; }
+.h3-sndgal-tile-head { gap: 6px; padding-left: 20px; min-height: 16px; }
+.h3-sndgal-tile-head > .h3-gal-in, .h3-sndgal-tile-head > .h3-gal-up { font-size: 9px; line-height: 12px; padding: 0 3px; border-radius: 2px; color: #fff; }
+.h3-sndgal-tile-foot { min-height: 14px; }
+.h3-sndgal-tile:hover .h3-gal-tick, .h3-sndgal-tile.h3-picking .h3-gal-tick, .h3-sndgal-tile.h3-ticked .h3-gal-tick { opacity: 1; }
+.h3-root .h3-sndgal-tile .h3-gal-dl { bottom: 4px; right: 4px; width: 22px; height: 22px; }
+.h3-sndgal-tile:hover .h3-gal-dl { opacity: 1; }
+.h3-sndgal-stage { align-items: center; overflow: auto; }
+.h3-sndgal-big { position: relative; padding-top: 18px; border-radius: 4px; }
+.h3-sndgal-big.h3-on { box-shadow: 0 0 0 2px var(--h3-accent); }
+.h3-sndgal-big .h3-pane-label { top: 0; left: 0; }
+.h3-sndgal-playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--h3-accent); pointer-events: none; }

@@ -1,0 +1,399 @@
+{
+ "read": "2026-11-04",
+ "source": "https://www.atlascloud.ai/docs",
+ "models": [
+  {
+   "id": "bytedance/seedance-2.5/reference-to-video",
+   "label": "Seedance 2.5",
+   "kind": "video",
+   "models": {
+    "references": "bytedance/seedance-2.5/reference-to-video",
+    "frames": "bytedance/seedance-2.5/image-to-video"
+   },
+   "fields": {
+    "prompt": {
+     "type": "string"
+    },
+    "reference_images": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "image": {
+     "type": "string"
+    },
+    "last_image": {
+     "type": "string"
+    },
+    "duration": {
+     "type": "integer",
+     "minimum": 4,
+     "maximum": 30
+    },
+    "resolution": {
+     "type": "string",
+     "enum": [
+      "480p",
+      "720p",
+      "1080p"
+     ]
+    },
+    "generate_audio": {
+     "type": "boolean"
+    },
+    "ratio": {
+     "type": "string",
+     "enum": [
+      "16:9",
+      "4:3",
+      "1:1",
+      "3:4",
+      "9:16",
+      "21:9"
+     ]
+    }
+   },
+   "inputs": {
+    "references": {
+     "list": "reference_images",
+     "max": 30,
+     "max_total": 30,
+     "define": true,
+     "define_as": "@Image{n}"
+    },
+    "first": {
+     "field": "image"
+    },
+    "last": {
+     "field": "last_image"
+    },
+    "ratio": {
+     "name": "ratio",
+     "values": [
+      "16:9",
+      "4:3",
+      "1:1",
+      "3:4",
+      "9:16",
+      "21:9"
+     ],
+     "with_frames": "omit"
+    }
+   },
+   "note": "Read from Atlas's docs 2026-11-04. Its higher tiers (720p-sr, 1080p-esr, 4k-esr) aren't listed here: add them under Fields, and check what they cost."
+  },
+  {
+   "id": "kwaivgi/kling-v3.0-pro/image-to-video",
+   "label": "Kling v3.0 Pro (from a first frame)",
+   "kind": "video",
+   "required": [
+    "image"
+   ],
+   "fields": {
+    "prompt": {
+     "type": "string",
+     "maxLength": 2500
+    },
+    "negative_prompt": {
+     "type": "string"
+    },
+    "image": {
+     "type": "string"
+    },
+    "end_image": {
+     "type": "string"
+    },
+    "duration": {
+     "type": "integer",
+     "minimum": 3,
+     "maximum": 15
+    },
+    "sound": {
+     "type": "boolean"
+    },
+    "resolution": {
+     "type": "string",
+     "enum": [
+      "1080P",
+      "1440P-SR"
+     ]
+    }
+   }
+  },
+  {
+   "id": "google/veo3.1/image-to-video",
+   "label": "Veo 3.1 (from a first frame)",
+   "kind": "video",
+   "required": [
+    "prompt",
+    "image"
+   ],
+   "fields": {
+    "prompt": {
+     "type": "string"
+    },
+    "negative_prompt": {
+     "type": "string"
+    },
+    "seed": {
+     "type": "integer"
+    },
+    "image": {
+     "type": "string"
+    },
+    "last_image": {
+     "type": "string"
+    },
+    "aspect_ratio": {
+     "type": "string",
+     "enum": [
+      "16:9",
+      "9:16"
+     ]
+    },
+    "duration": {
+     "type": "integer",
+     "enum": [
+      4,
+      6,
+      8
+     ]
+    },
+    "resolution": {
+     "type": "string",
+     "enum": [
+      "720p",
+      "1080p",
+      "4k"
+     ]
+    },
+    "generate_audio": {
+     "type": "boolean"
+    }
+   },
+   "note": "Atlas's page: at 1080p or 4k, the length must be 8 seconds."
+  },
+  {
+   "id": "alibaba/wan-3.0/image-to-video",
+   "label": "Wan 3.0 (from a first frame)",
+   "kind": "video",
+   "required": [
+    "prompt",
+    "image"
+   ],
+   "fields": {
+    "prompt": {
+     "type": "string",
+     "maxLength": 20000
+    },
+    "image": {
+     "type": "string"
+    },
+    "last_image": {
+     "type": "string"
+    },
+    "seed": {
+     "type": "integer"
+    },
+    "resolution": {
+     "type": "string",
+     "enum": [
+      "1080p",
+      "720p",
+      "480p"
+     ]
+    },
+    "duration": {
+     "type": "integer",
+     "minimum": 2,
+     "maximum": 30
+    },
+    "audio": {
+     "type": "boolean"
+    }
+   }
+  },
+  {
+   "id": "minimax/hailuo-2.3/i2v-pro",
+   "label": "Hailuo 2.3 Pro (from a first frame)",
+   "kind": "video",
+   "required": [
+    "image"
+   ],
+   "fields": {
+    "prompt": {
+     "type": "string",
+     "maxLength": 2000
+    },
+    "image": {
+     "type": "string"
+    }
+   },
+   "note": "Its page lists no length, size, sound or seed: it decides those itself."
+  },
+  {
+   "id": "bytedance/seedream-v5.0-pro/text-to-image",
+   "label": "Seedream 5.0 Pro",
+   "kind": "image",
+   "required": [
+    "prompt"
+   ],
+   "fields": {
+    "prompt": {
+     "type": "string"
+    },
+    "size": {
+     "type": "string",
+     "enum": [
+      "1024*1024",
+      "1536*1536",
+      "2048*2048",
+      "2048*1152",
+      "1152*2048"
+     ]
+    },
+    "output_format": {
+     "type": "string",
+     "enum": [
+      "png",
+      "jpeg"
+     ]
+    }
+   },
+   "note": "Its page lists more sizes, and its price depends on the pixels: add others under Fields."
+  },
+  {
+   "id": "black-forest-labs/flux-2-pro/text-to-image",
+   "label": "FLUX.2 Pro",
+   "kind": "image",
+   "required": [
+    "prompt"
+   ],
+   "fields": {
+    "prompt": {
+     "type": "string"
+    },
+    "size": {
+     "type": "string",
+     "description": "width_height, e.g. 1024_1024"
+    },
+    "seed": {
+     "type": "integer"
+    },
+    "output_format": {
+     "type": "string",
+     "enum": [
+      "png",
+      "jpeg"
+     ]
+    }
+   }
+  },
+  {
+   "id": "openai/gpt-image-2/text-to-image",
+   "label": "GPT Image 2",
+   "kind": "image",
+   "required": [
+    "prompt"
+   ],
+   "fields": {
+    "prompt": {
+     "type": "string"
+    },
+    "size": {
+     "type": "string",
+     "enum": [
+      "1024x1024",
+      "1024x1536",
+      "1536x1024",
+      "2048x2048",
+      "2048x1152",
+      "1152x2048"
+     ]
+    },
+    "quality": {
+     "type": "string",
+     "enum": [
+      "low",
+      "medium",
+      "high"
+     ]
+    }
+   }
+  },
+  {
+   "id": "google/nano-banana-2/text-to-image",
+   "label": "Nano Banana 2",
+   "kind": "image",
+   "required": [
+    "prompt"
+   ],
+   "fields": {
+    "prompt": {
+     "type": "string"
+    },
+    "seed": {
+     "type": "integer"
+    },
+    "aspect_ratio": {
+     "type": "string",
+     "enum": [
+      "1:1",
+      "3:2",
+      "2:3",
+      "3:4",
+      "4:3",
+      "16:9",
+      "9:16"
+     ]
+    },
+    "resolution": {
+     "type": "string",
+     "enum": [
+      "1k",
+      "2k",
+      "4k"
+     ]
+    }
+   }
+  },
+  {
+   "id": "qwen-image-3.0/edit",
+   "label": "Qwen Image 3.0 (edits a picture)",
+   "kind": "image",
+   "required": [
+    "prompt",
+    "reference_image_urls"
+   ],
+   "fields": {
+    "prompt": {
+     "type": "string"
+    },
+    "reference_image_urls": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "size": {
+     "type": "string",
+     "description": "width_height, 512_512 to 1440_1440"
+    },
+    "n": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 4
+    },
+    "negative_prompt": {
+     "type": "string"
+    },
+    "seed": {
+     "type": "integer",
+     "minimum": 0,
+     "maximum": 2147483647
+    }
+   }
+  }
+ ]
+}

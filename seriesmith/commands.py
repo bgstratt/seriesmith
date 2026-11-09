@@ -472,7 +472,16 @@ def help_text() -> str:
     return "\n".join(lines)
 
 
+def _printable_output() -> None:
+    """Output redirected on Windows is in the code page, which has no arrow: a character it can't
+    write comes out replaced rather than stopping the command (score-draft stopped there)."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
+
+
 def main(argv: list[str] | None = None) -> int:
+    _printable_output()
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0] in HELP_FLAGS + ("help",):
         print(help_text())

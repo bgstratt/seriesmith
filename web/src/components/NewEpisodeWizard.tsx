@@ -232,7 +232,7 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
           <>
             {startNew && (
               <>
-                <Row label="Series title" help="The show's name: on the intro and outro of every master, and the start of its id.">
+                <Row label="Series title" help="The show's name, and the start of its id.">
                   <input className="h3-in" autoFocus value={title} placeholder="First Light" onChange={(e) => setTitleAll(e.target.value)} />
                 </Row>
                 <Row label="Show folder" help={`A folder of its own in ${parent}: its episodes go in it, with one refs folder beside them that they share.`}>
@@ -250,7 +250,7 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
               </div>
             )}
             {!startNew && isNewSeries && tpl && (
-              <Row label="Series title" help="The show's name: on the intro and outro of every master.">
+              <Row label="Series title" help="The show's name.">
                 <input className="h3-in" value={title} placeholder="First Light" onChange={(e) => setTitleAll(e.target.value)} />
               </Row>
             )}

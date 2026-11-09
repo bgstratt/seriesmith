@@ -19,8 +19,9 @@ Stdlib only.
 """
 from __future__ import annotations
 
-from seriesmith.core import framing
-from seriesmith.targets.video.ltx2.prompt import _and, _article, _sentence, _subject_sentence
+from seriesmith.targets import prompt_template as TP
+from seriesmith.targets.prose import scene_parts
+from seriesmith.targets.video.ltx2.prompt import _sentence
 
 
 def acting(shot, book: dict) -> list[str]:
@@ -49,47 +50,15 @@ def acting(shot, book: dict) -> list[str]:
     return out
 
 
+def shot_parts(shot, seq, series_cfg: dict) -> dict:
+    """The parts of the prose prompt for one shot, with no sound: the lines as silent
+    acting (targets.prompt_template.PARTS)."""
+    return {**scene_parts(shot, seq, series_cfg),
+            "lines": " ".join(acting(shot, series_cfg.get("subjects", {}))),
+            "spoken": "", "sound": "", "sound_words": "", "music": "", "music_words": ""}
+
+
 def build_prompt(shot, seq, series_cfg: dict) -> str:
     """The prose prompt for one shot (`shot` an core.ir.Shot, `seq` its
-    ir.Sequence)."""
-    book = series_cfg.get("subjects", {})
-    look = ((series_cfg.get("style") or {}).get("look") or "").strip().rstrip(".")
-    loc = series_cfg.get("locations", {}).get(shot.plate or seq.location, {})
-    env = (loc.get("description") or "").strip().rstrip(".")
-    parts = []
-    if look:
-        parts.append(f"Style: {look}.")
-
-    # the framing, where, and how the camera moves (static unless the script says)
-    size = framing.term(shot.size)
-    cam = framing.orbit((shot.camera or "").strip().rstrip("."),
-                        _and([(book.get(s) or {}).get("name", s) for s in shot.cast]))
-    camera = f"the camera {cam}" if cam else "the camera remains static"
-    parts.append(_sentence(f"{_article(size)}{' of ' + env if env else ''}, {camera}"))
-
-    # who is in frame, in words
-    def name_of(s: str) -> str:
-        return (book.get(s) or {}).get("name", s)
-
-    on_screen = list(shot.cast) + [p for p in shot.props if p not in shot.cast]
-    plain = []
-    for s in on_screen:
-        design = ((book.get(s) or {}).get("design") or "").strip().rstrip(".")
-        if design:
-            parts.append(_sentence(_subject_sentence(name_of(s), design, book.get(s) or {})))
-        else:
-            plain.append(name_of(s))
-    if plain:
-        parts.append(_sentence(f"{_and(plain)} {'is' if len(plain) == 1 else 'are'} in frame"))
-    if shot.extras:
-        parts.append(_sentence(f"Also in frame are {shot.extras}, unnamed background figures "
-                               f"who look nothing like "
-                               f"{_and([name_of(s) for s in shot.cast]) or 'anyone named'}"))
-
-    # the action, on-screen text, then the lines as silent acting
-    if shot.action:
-        parts.append(_sentence(shot.action))
-    if shot.text:
-        parts.append(f'Visible on-screen text reads "{shot.text}".')
-    parts += acting(shot, book)
-    return " ".join(p for p in parts if p)
+    ir.Sequence), as the silent prose profile words it."""
+    return TP.render(TP.profile("prose_silent")["template"], shot_parts(shot, seq, series_cfg))

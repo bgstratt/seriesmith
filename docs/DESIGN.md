@@ -33,7 +33,9 @@ Started from h3pipe `c5f9be0` (2026-10-09).
   can promise that.
 - **Takes and the cut.** Every render is a take, kept with a record of how it was
   made. You pick takes into a cut; overrides change one shot without touching the
-  script. The cut leaves as an mp4 (assemble), with titles (publish), as a master, or as
+  script. The cut leaves as an mp4 (assemble), with titles (publish: a cold open the script
+  marks plays before the intro, the cut split on a clip's first frame, and the intro and outro
+  brought to the episode's loudness: 2026-11-07), as a master, or as
   an FCP7 XML timeline (`assemble --xml`, nle_xml.py): the same plan, each clip its take's
   own file, for real editing in Premiere or Resolve (decided 2026-10-30: FCP7 XML alone,
   not EDL, FCPXML, AAF or OpenTimelineIO; PLAN.md says why).
@@ -289,6 +291,68 @@ restart starts warm. What depends on more than the take's files (staleness, the 
 upscale recipe match) is worked out each time. Within one answer a pass's cut is resolved
 once (`edit.cut_memo`) and each reference file looked at once (`takes.one_look`). The page
 asks for the episode it had open as it starts, and refs once the shots are in.
+
+### 9. Models behind other APIs (designed 2026-11-04; docs/PLAN.md, step 15)
+
+Any hosted model, on any provider, is added as data: no code for a provider, a model or a
+prompt. Three things, kept apart because each is reused differently:
+
+- **A provider**: its base URL, how it authenticates, how files get in (inline, upload,
+  asset library), how a job is followed and where its results are. One provider serves many
+  models (Atlas lists 336). On this machine, beside the settings, with its key: **a show
+  names a provider and never defines one**, so a shared show can't send a key to a host of its
+  choosing. A URL the provider answers with (fal's `status_url`) gets the key only on that
+  provider's own hosts, and a media download gets none unless the provider says it needs it
+  (OpenAI's `/content` does; a signed link doesn't).
+- **A model**: which provider, which model id (by shot where one model has several: Atlas's
+  text, image and reference-to-video ids), its limits, and where each value goes (the
+  `inputs` form Router targets already use). A provider is of no kind; a model says what it
+  makes (video, image, a voice, music: 2026-11-07), because each goes somewhere else in the app
+  (a shot, a ref, a character's lines, a cue), and what it takes in is read from its reference.
+  Audio is all words (or a sample) in and sound out; voice and music differ in payload and in
+  where the take lands. A music model is the `inputs` a cue fills (description, lyrics,
+  length, instrumental, seed: cue.hosted_call) and one shared writer (`generic/api_music`);
+  on a provider with a `ways.music`, it takes that way.
+- **A prompt profile**: how a model family wants its prompt, shared across providers:
+  Seedance's wording is the same on Router, BytePlus and Atlas.
+
+**A prompt is a template over a shot's parts** (`targets/prompt_template.py`). Writers give
+their parts (`style`, `framing`, `subjects`, `action`, `lines`, `sound`, ..., and the raw `look`,
+`size`, `place`, `sound_words`, ...) and a template joins them. An empty part leaves no gap, and
+a `[[...]]` section goes whole when a part in it is empty. Placeholders only: no code, no Jinja,
+so a template is safe to share. A model's default template reproduces today's prompt byte for
+byte (the goldens hold it). The shotlist's prompt stays what is sent, apart from what only the
+request knows (the pictures' numbering: `@Image 1`), which a second template places (`{prompt}`,
+`{definitions}`, `{voices}`, `{mentions}`) and the dry run shows. A profile is a writer and those
+two templates, by name (`recipe.prompt`, `presets/prompt.json`); a template in the recipe wins.
+
+**A submission is a list of steps**: an HTTP request, the values taken from its answer, and
+optionally a condition to wait for. Seedance through an asset library is upload, register,
+wait until active, generate, poll, download; a synchronous API is one step whose answer is
+the file. JSON or multipart in; JSON or the file's bytes out.
+
+**Code stays where data can't reach**: the signed ways of authenticating (a named method
+each), the step engine, and any model needing real logic (a `compile.py`, as now). A submit
+isn't retried after a timeout unless the API takes an idempotency key: the job may have
+started and been charged, and the error says so. An API that only reports through a webhook
+can't reach a local machine, and is refused plainly.
+
+**Overrides belong to the show.** A change to a mapping or a prompt template is saved in the
+show (`<show>/targets/`), so everyone working on it gets the same prompts; **Back to shipped**
+removes it. Only keys and provider definitions are per machine. Changing a mapping marks the
+takes it affects stale (`mapping`) and never overwrites them. (Limits on a shipped model are
+still per machine, `target_limits`: unchanged.)
+
+**Voices come before lines, and lines before the picture.** No line is paid for until the
+character has a picked voice: a provider's speaker (an id, per provider, on the subject in the
+series config) or a reference sample (the `voice:<subject>` ref), auditioned on a short sample
+in the character's own words. Lines are generated one per take, so one can be redone alone,
+with the words alone in the request (a delivery note gets read aloud unless the model takes
+it as a field or tag). They are laid in script order into the episode's recording, and
+`align` windows the shots from it, as for a recording of actors. Where the API gives timings
+(ElevenLabs `with-timestamps`), they replace Whisper (`align --words`). So the timing comes from
+the voices and the shots fit them; a redone line that changes length moves what follows, and
+those windows go stale.
 
 ## Package layout
 

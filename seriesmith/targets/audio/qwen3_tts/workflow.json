@@ -1,0 +1,4 @@
+{
+ "1": {"class_type": "FB_Qwen3TTSVoiceDesign", "inputs": {"text": "", "instruct": "", "model_choice": "1.7B", "device": "auto", "precision": "bf16", "language": "Auto", "seed": 0, "max_new_tokens": 2048, "top_p": 1.0, "top_k": 50, "temperature": 0.9, "repetition_penalty": 1.05, "attention": "auto", "unload_model_after_generate": true}, "_meta": {"title": "Qwen3-TTS Voice Design"}},
+ "2": {"class_type": "SaveAudio", "inputs": {"audio": ["1", 0], "filename_prefix": "seriesmith/voice"}, "_meta": {"title": "Save"}}
+}

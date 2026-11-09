@@ -14,7 +14,7 @@ paragraph from the story IR and the series config, without calling the LLM:
 
     Style: <look>. A <size> of <location description>, <camera>. <Name> is
     <design>, and <Name> is <design>. <action> <Name>, in a voice that is
-    <voice>, says, <delivery>: "<line>" ... <sound>. <music> plays underneath.
+    <voice>, <delivery>, says: "<line>" ... <sound>. <music> plays underneath.
 
 Subjects are described in words (the series config's `design`): LTX takes no
 identity reference. A shot rendered from a first-frame keyframe still carries
@@ -24,80 +24,54 @@ Stdlib only.
 """
 from __future__ import annotations
 
-from seriesmith.core import framing
+from seriesmith.targets import prompt_template as TP
+from seriesmith.targets.prose import scene_parts as _scene_parts
 from seriesmith.targets.prose import subject_sentence as _subject_sentence, sentence as _sentence, join_and as _and, article as _article  # noqa: F401
 
 
-def build_prompt(shot, seq, series_cfg: dict) -> str:
-    """The prose prompt for one shot (`shot` an core.ir.Shot, `seq` its
-    ir.Sequence)."""
+def shot_parts(shot, seq, series_cfg: dict) -> dict:
+    """The parts of the prose prompt for one shot (targets.prompt_template.PARTS)."""
     book = series_cfg.get("subjects", {})
-    # a description's own last full stop goes: the camera clause follows it
-    # ("...long soft shadows., the camera" before; the Wan writer's rule)
-    look = ((series_cfg.get("style") or {}).get("look") or "").strip().rstrip(".")
-    loc = series_cfg.get("locations", {}).get(shot.plate or seq.location, {})
-    env = (loc.get("description") or "").strip().rstrip(".")
-    parts = []
-    if look:
-        parts.append(f"Style: {look}.")
-
-    # camera first: the framing, where, and how the camera moves
-    size = framing.term(shot.size)
-    cam = framing.orbit((shot.camera or "").strip().rstrip("."),
-                        _and([(book.get(s) or {}).get("name", s) for s in shot.cast]))
-    camera = f"the camera {cam}" if cam else "the camera remains static"
-    parts.append(_sentence(f"{_article(size)}{' of ' + env if env else ''}, {camera}"))
-
-    # who is in frame, in words
-    book_name = lambda s: (book.get(s) or {}).get("name", s)  # noqa: E731
-    on_screen = list(shot.cast) + [p for p in shot.props if p not in shot.cast]
-    plain = []
-    for s in on_screen:
-        design = ((book.get(s) or {}).get("design") or "").strip().rstrip(".")
-        if design:
-            parts.append(_sentence(_subject_sentence(book_name(s), design, book.get(s) or {})))
-        else:
-            plain.append(book_name(s))
-    if plain:
-        parts.append(_sentence(f"{_and(plain)} {'is' if len(plain) == 1 else 'are'} in frame"))
-    if shot.extras:
-        parts.append(_sentence(f"Also in frame are {shot.extras}, unnamed background figures "
-                               f"who look nothing like {_and([book_name(s) for s in shot.cast]) or 'anyone named'}"))
-
-    # the action, then what is said
-    if shot.action:
-        parts.append(_sentence(shot.action))
-    if shot.text:
-        parts.append(f'Visible on-screen text reads "{shot.text}".')
+    lines, spoken = [], []
     introduced: set[str] = set()
     for d in shot.dialogue:
         e = book.get(d.speaker) or {}
         name = e.get("name", d.speaker)
         voice = (e.get("voice") or "").strip()
-        who = name
-        if d.speaker not in introduced and voice:
-            who = f"{name}, in a voice that is {voice},"
+        # who and how first, "says" last, right before the words: told after "says", how it's
+        # said gets read aloud as part of the line, or the line goes to whoever is on screen
+        how = [f"in a voice that is {voice}"] if d.speaker not in introduced and voice else []
         introduced.add(d.speaker)
-        if d.mode == "vo":
-            verb = "says in an off-screen voiceover"
-            if d.speaker in shot.cast:
-                verb += ", their lips staying closed"
-        elif d.mode == "os":
-            verb = "says from off-screen, outside the frame"
-        else:
-            verb = "says"
         delivery = (d.delivery or "").strip()
-        # A V.O./O.S. note ("on the truck radio") next to the line gets read
-        # aloud as part of it, so on those it goes with the speaker instead.
-        if delivery and d.mode in ("vo", "os"):
-            who, delivery = f"{who.rstrip(',')}, {delivery},", ""
-        line =f'{who} {verb}{", " + delivery if delivery else ""}: "{d.line.strip()}"'
-        parts.append(line[0].upper() + line[1:])
+        if delivery:
+            how.append(delivery)
+        if d.mode == "vo":
+            how.append("in an off-screen voiceover")
+            if d.speaker in shot.cast:
+                how.append("their lips staying closed")
+        elif d.mode == "os":
+            how.append("from off-screen, outside the frame")
+        who = f"{name}, {', '.join(how)}," if how else name
+        line = f'{who} says: "{d.line.strip()}"'
+        lines.append(line[0].upper() + line[1:])
+        spoken.append(f'{name}: "{d.line.strip()}"')
 
     # the soundscape and music, integrated
     sound = (shot.sound or "").strip().rstrip(".")
-    parts.append(_sentence(f"the sound is {sound}") if sound else
-                 "The ambient sound of the place follows the action.")
     music = (shot.music or "").strip().rstrip(".")
-    parts.append(_sentence(f"{music} plays underneath") if music else "There is no music.")
-    return " ".join(p for p in parts if p)
+    return {
+        **_scene_parts(shot, seq, series_cfg),
+        "lines": " ".join(lines),
+        "spoken": " ".join(spoken),
+        "sound": (_sentence(f"the sound is {sound}") if sound else
+                  "The ambient sound of the place follows the action."),
+        "sound_words": sound,
+        "music": _sentence(f"{music} plays underneath") if music else "There is no music.",
+        "music_words": music,
+    }
+
+
+def build_prompt(shot, seq, series_cfg: dict) -> str:
+    """The prose prompt for one shot (`shot` an core.ir.Shot, `seq` its
+    ir.Sequence), as the prose profile words it."""
+    return TP.render(TP.profile("prose")["template"], shot_parts(shot, seq, series_cfg))

@@ -6,7 +6,7 @@ import { Fragment, memo, useEffect, useMemo, useRef, useState, type CSSPropertie
 import {
   clearRef, copyText, discardRefTake, dismissMissingResult, dropFilesFromDrag, focusRef, generateMissing, generateRef, keyframeFromTake, loadRefs, loadRefsAfterShots, openBrowse,
   openFrameUse, openGallery, openImageCompare, openRefFile, openSeriesForm, openSubjectCard, pickRef, revertRefOverride, saveRefOverride, selectRefTake, setRefDefault, setRefsFilter, toggleRefOpen,
-  saveOwnPreset,
+  openTrackPanel, saveOwnPreset,
 } from "../actions";
 import { CARD_KINDS, type CardKind } from "../lib/seriesForm";
 import { useView } from "../lib/viewPref";
@@ -24,6 +24,7 @@ import {
 } from "../lib/imageTargets";
 import { TURN_ANGLES_LABEL, TURN_TARGET, turnPlan } from "../lib/turn";
 import { audioTargets, voiceCapNotes, voiceModeText } from "../lib/voice";
+import { ProviderVoices } from "./ProviderVoices";
 import { VoiceCandidate, VoiceGenerateBar, VoiceLive } from "./VoiceRef";
 import { dragHasFiles, missingResultText } from "../lib/lookback";
 import { keptAt, readDraft, useDraft } from "../lib/drafts";
@@ -35,7 +36,7 @@ import {
   unpickedViews, usedBy, viewLabel, viewOf, type RefFilter,
 } from "../lib/refs";
 import type { GalleryGroup } from "../lib/gallery";
-import { findTarget, targetLabel, targetShort } from "../lib/targets";
+import { findTarget, isHosted, targetLabel, targetShort } from "../lib/targets";
 import { store, useApp } from "../store";
 import { TUNABLE_PARAMS, type OverrideFields as OverrideFieldValues, type Ref, type RefEffective, type RefParams, type OwnerTake, type RefTake, type SeedMode, type Target } from "../types";
 import { sizeRule } from "../lib/size";
@@ -78,6 +79,7 @@ export function ImageModelBar({ open0 = false }: { open0?: boolean }) {
   const images = imageTargets(list);
   const voices = audioTargets(list);
   if (!list || (!images.length && !voices.length)) return null;
+  const voiceModel = findTarget(list, defaultOf(defaults, "voices").target);
   const row = (kind: RefTargetKind, label: string) => {
     const choices = kind === "voices" ? voices : kind === "edits" || kind === "turns" ? images.filter(isEditTarget) : images;
     if (!choices.length) return null;
@@ -152,6 +154,12 @@ export function ImageModelBar({ open0 = false }: { open0?: boolean }) {
           {row("turns", "Turns with:")}
           {row("voices", "Voices with:")}
         </div>
+      )}
+      {voiceModel?.service && voiceModel.service_voices && (
+        <details className="h3-small">
+          <summary style={{ cursor: "pointer" }}>Listen to {voiceModel.service_label ?? voiceModel.service}'s voices</summary>
+          <div style={{ marginTop: 4 }}><ProviderVoices service={voiceModel.service} /></div>
+        </details>
       )}
       {custom.map((k) => {
         const id = defaultOf(defaults, k).target;
@@ -720,6 +728,7 @@ function RefTargetOverride({ r }: { r: Ref }) {
           <option value="">{`(${refDefaultSourceLabel(src)}: ${targetLabel(list, fallback)})`}</option>
           <ModelOptions targets={choices} text={(x) => `${targetOptionText(x)}${kind !== "voices" && isEditTarget(x) ? " · edit" : ""}`} />
         </select>
+        <ModelsButton />
       </div>
       {t && <span className="h3-small h3-muted">{targetLabel(list, cur.target)}{mode(t) ? `: ${mode(t)}` : ""}{cur.source === "override" ? " (this ref's own)" : ""}</span>}
     </div>
@@ -798,6 +807,8 @@ function RefSettingsForm({ r, view }: { r: Ref; view: string | null }) {
   const { list: targetList } = useTargets();
   const refDefaultsNow = useRefDefaults();
   const tgt = findTarget(targetList, eff?.target ?? refTargetOf(r, refDefaultsNow).target);
+  // a hosted model: no file, no LoRAs, no steps of its own to set here
+  const hostedHere = !!tgt && isHosted(tgt);
   const initialKnobs = useMemo(() => knobsOf(src.override), [src]);
   const [knobs, setKnobs] = useState<Knobs>(() => (kept ? { ...initialKnobs, ...kept.value.knobs } : initialKnobs));
   const [baseKnobs, setBaseKnobs] = useState<Knobs>(initialKnobs);
@@ -852,6 +863,10 @@ function RefSettingsForm({ r, view }: { r: Ref; view: string | null }) {
         set={set}
         builtPrompt={src.built_prompt}
         builtLabel="series config"
+        hosted={hostedHere}
+        noSteps={hostedHere}
+        {...(hostedHere ? { loraChoices: null } : {})}
+        {...(hostedHere && isAudioRef(r) ? { promptName: "The words it says" } : {})}
         promptOverridden={promptOverridden}
         promptLocked={noPrompt ? { label: "the sheet's description, read-only", note: "A character's prompt is per view: pick a view above to change what it generates.", text: r.built_prompt ?? r.prompt ?? "" } : null}
         showDiff={showDiff}
@@ -1356,7 +1371,9 @@ const ADD_LABEL: Partial<Record<string, string>> = {
 };
 
 /** A voice sample for each voice ref with none (lib/refs voicesMissing), one at a time. */
-function generateMissingVoices(refs: Ref[]) {
+function generateMissingVoices(refs: Ref[], paid: boolean) {
+  const n = voicesMissing(refs).length;
+  if (paid && !confirm(`This queues ${n} paid ${n === 1 ? "sample" : "samples"} on the voice model, billed to your account. Go ahead?`)) return;
   void (async () => {
     for (const r of voicesMissing(refs)) {
       await generateRef({ ref: r.id, view: null, count: 1, seed_mode: "auto", seed: null, prompt: null,
@@ -1368,6 +1385,17 @@ function generateMissingVoices(refs: Ref[]) {
 export function RefsTab() {
   const ep = useApp((s) => s.ep);
   const pass = useApp((s) => s.pass);
+  const { list: modelList } = useTargets();
+  const modelDefaults = useRefDefaults();
+  // a model that bills someone: its buttons don't look like the free ones
+  const paidKind = (k: RefTargetKind) => {
+    const t = findTarget(modelList, defaultOf(modelDefaults, k).target);
+    return !!t && isHosted(t);
+  };
+  const paidVoice = (r: Ref) => {
+    const t = findTarget(modelList, refTargetOf(r, modelDefaults).target);
+    return !!t && isHosted(t);
+  };
   const refs = useApp((s) => (s.ep ? s.refs[s.ep] : undefined));
   const err = useApp((s) => (s.ep ? s.refsError[s.ep] : undefined));
   const loading = useApp((s) => (s.ep ? !!s.refsLoading[s.ep] : false));
@@ -1454,7 +1482,7 @@ export function RefsTab() {
               <SupplyPicker />
               {(planLabels.length > 0 || counts.missing > 0) && (
                 <button
-                  className="h3-btn h3-primary"
+                  className={`h3-btn ${(["refs", "keyframes", "voices"] as RefTargetKind[]).some(paidKind) ? "h3-paid" : "h3-primary"}`}
                   disabled={genBusy}
                   title={`Queue one candidate for each ref this episode is missing (${pass}); each goes live when it finishes.
 Keyframes: required ones, and optional ones the script asks for (continuity from the neighbouring take when it has one, else a still; a file the script names is imported).
@@ -1518,12 +1546,20 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
                     <span className="h3-chev">{isCollapsed ? "▶" : "▼"}</span>
                     <b>{g.label}</b>
                     <span className="h3-muted h3-small">{g.refs.length}{g.refs.length !== g.total ? ` of ${g.total}` : ""}</span>
-                    {g.id === "voices" && voicesMissing(g.refs).length > 0 && (
+                    {g.id === "voices" && (
                       <>
                         <span className="h3-grow" />
-                        <button className="h3-btn h3-primary"
-                          title={`A voice sample for each character with none (what Clone speaks in): ${voicesMissing(g.refs).map((r) => r.name).join(", ")}. Each is a candidate to listen to and pick.`}
-                          onClick={(e) => { e.stopPropagation(); generateMissingVoices(g.refs); }}>
+                        <button className="h3-btn" title="The episode's dialogue: make each character's lines, bring a file of them, or attach a recording, then align"
+                          onClick={(e) => { e.stopPropagation(); openTrackPanel(); }}>
+                          <i className="pi pi-volume-up" /> Lines & recording…
+                        </button>
+                      </>
+                    )}
+                    {g.id === "voices" && voicesMissing(g.refs).length > 0 && (
+                      <>
+                        <button className={`h3-btn ${voicesMissing(g.refs).some(paidVoice) ? "h3-paid" : "h3-primary"}`}
+                          title={`On ${[...new Set(voicesMissing(g.refs).map((r) => targetLabel(modelList, refTargetOf(r, modelDefaults).target)))].join(", ")}${voicesMissing(g.refs).some(paidVoice) ? " (paid)" : ""}. A voice sample for each character with none (what Clone speaks in): ${voicesMissing(g.refs).map((r) => r.name).join(", ")}. Each is a candidate to listen to and pick.`}
+                          onClick={(e) => { e.stopPropagation(); generateMissingVoices(g.refs, voicesMissing(g.refs).some(paidVoice)); }}>
                           <i className="pi pi-microphone" /> Generate missing ({voicesMissing(g.refs).length})
                         </button>
                       </>

@@ -1186,7 +1186,7 @@ def validate_spec(spec: dict, graph: dict | None = None,
     """
     out = []
     for key in REQUIRED_KEYS:
-        if key == "binding" and spec.get("router") is not None:
+        if key == "binding" and TG.is_hosted(spec):
             continue                                     # a Router model binds no workflow
         if not spec.get(key):
             out.append(f"target.json needs a {key}")
@@ -1194,25 +1194,36 @@ def validate_spec(spec: dict, graph: dict | None = None,
     if tid and not ID_RE.match(tid):
         out.append(f"id {tid!r} must be lowercase letters, digits and underscores, "
                    f"starting with a letter")
-    hosted_image = spec.get("router") is not None and spec.get("kind") == "image"
-    if spec.get("kind") and spec["kind"] not in ("video", "image"):
+    hosted_image = TG.is_hosted(spec) and spec.get("kind") == "image"
+    hosted_voice = TG.is_hosted(spec) and spec.get("kind") == "audio" and spec.get("code") == "builtin:router_audio"
+    hosted_music = TG.is_hosted(spec) and spec.get("kind") == "music" and spec.get("code") == "builtin:api_music"
+    if spec.get("kind") and spec["kind"] not in ("video", "image") and not (hosted_voice or hosted_music):
         out.append(f"kind must be 'video' or 'image' for a target made from a workflow, "
                    f"not {spec['kind']!r}")
-    if spec.get("kind") == "image" and spec.get("router") is None             and spec.get("code") != "builtin:workflow_image":
+    if spec.get("kind") == "image" and not TG.is_hosted(spec) and spec.get("code") != "builtin:workflow_image":
         out.append("an image workflow's code is builtin:workflow_image")
     # a built-in's name only: with a show in force its own targets are listed
     # too, and one (being re-saved, enabled) would find itself
     if tid in {t.id for t in TG.list_targets() if not t.custom}:
         out.append(f"{tid!r} is a built-in target's name: choose another")
-    if spec.get("router") is not None:
+    if TG.is_hosted(spec):
         # a Comfy Router model (targets/generic/router_video): no workflow to bind
-        r = spec.get("router") or {}
-        if not isinstance(r.get("model"), str) or "/" not in r["model"]:
+        r = TG.hosted_block(spec)
+        if TG.service_of(spec):
+            from seriesmith import providers as PR
+            if TG.service_of(spec) not in PR.definitions():
+                out.append(f"there's no provider called {TG.service_of(spec)} on this machine")
+            if not isinstance(r.get("model"), str) or not r["model"].strip():
+                out.append("api.model must be the id the provider knows the model by")
+        elif spec.get("api") is not None:
+            out.append("api.service must name the provider")
+        elif not isinstance(r.get("model"), str) or "/" not in r["model"]:
             out.append("router.model must be the Router model's id (provider/model)")
         inputs = r.get("inputs")
         if not isinstance(inputs, dict) or not inputs.get("prompt"):
             out.append("router.inputs must say where the prompt goes")
-        code = "builtin:router_image" if hosted_image else "builtin:router_video"
+        code = ("builtin:router_audio" if hosted_voice else "builtin:api_music" if hosted_music
+                else "builtin:router_image" if hosted_image else "builtin:router_video")
         if spec.get("code") not in (None, code):
             out.append(f"a Router {spec.get('kind', 'video')} target's code is {code}")
         return out

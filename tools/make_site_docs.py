@@ -35,6 +35,7 @@ PAGES = [
     ("docs/SOUND_GUIDE.md", "sound", "The episode's sound in order: voices only, a bed for each place, a shot's effects, a score drafted from the script's beats, themes across a show, the mix and its stems."),
     ("docs/SCORING.md", "scoring", "Music made to fit the cut: hits, cues, the cue window's tabs, choosing a take, the levels; an episode scored as the example."),
     ("docs/MUSIC_VIDEO.md", "music-video", "A music video cut to a finished song: the song as the recording, the lyrics as lines, singing shots lip-synced to their windows, the song unbroken on export."),
+    ("docs/TITLES_GUIDE.md", "titles", "The show's opening and closing: the intro and outro around every master, the episode's title written on, a montage intro made as its own episode, and a theme song before there's picture."),
     ("docs/COMMANDS.md", "commands", "Every stage as a command, the files each reads and writes, and an episode worked from a terminal."),
     ("docs/FULL_SETUP.md", "full-setup", "The node packs, model files, LoRAs and software for every feature: H3 at full quality, voices, upscale, post, master."),
     ("INSTALL.md", "install", "Every part in detail: seriesmith, the node pack, the workflows, every model file with its folder and link, the first run."),

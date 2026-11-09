@@ -2,8 +2,8 @@
 
 There are two ways to add a video or image model to seriesmith:
 
-- **In the app.** The Models window turns a Comfy Router model, or a workflow you've saved
-  in ComfyUI, into a model your shows can use. No code. It's kept on your machine, for
+- **In the app.** The Models window turns a Comfy Router model, a model on another API, or a
+  workflow you've saved in ComfyUI, into a model your shows can use. No code. It's kept on your machine, for
   every show or for one show, and you try it before you switch it on.
 - **In seriesmith's code.** A model that ships with seriesmith, for everyone: a folder
   under `seriesmith/targets/`, the files generated from it, and its tests. This is for
@@ -43,6 +43,89 @@ model…**:
 3. **Correct its limits** in the form below it: what the prose said.
 4. **Dry run (free).** Pick a shot (or a ref) and see the exact request, with nothing sent.
 5. **Save** it for every show or for this show only. It's saved as a draft.
+
+### A model on another API
+
+For a model on a provider you have your own account with, such as Atlas Cloud. A provider isn't
+of a kind: one account can serve video, pictures, voices and music, and you add it once. Each model
+on it says what it **makes** (**Video**, **Image**, **Voice** or **Music**), as each lands somewhere
+else in the app; what it takes in (a first frame, pictures, a voice sample, lyrics) is read from its
+reference. Eleven Music and Suno v6 come built in, in the cue window's model list, and only need the
+provider's key. Another music model is added here as **Music**: its description, lyrics (a field of
+their own, or after the description), length and instrumental switch are found in its reference, and
+**Prompt & mapping** shows the request on one of the episode's cues (make one first). A voice model on ElevenLabs takes a speaker per character:
+choose it on the character's voice row, hear each one's free preview, and generating is refused
+until there is one. Picking the provider here also lets you **listen to its voices** before you have
+a key: its own voices play with none, and its whole library takes the key, or browse it on its site.
+The Refs tab has the same list under the model bar, once a voice model on such a provider is chosen.
+Model menus group these by who bills you: your GPU, Comfy Router, then each provider of yours.
+A model you save appears in the model list; until then, a provider's models are only on its list here.
+
+1. **Pick the provider, and add its key.** Atlas Cloud, Higgsfield, Runway, ElevenLabs and OpenAI come listed, marked
+   *untested*: they're written from each provider's docs and haven't been proved by a real render
+   yet. The key stays on this machine, is never shown again, and goes only to that provider's own
+   address. Settings lists the keys too. `SERIESMITH_KEY_<PROVIDER>` in the environment wins.
+2. **Pick the model from its list, if it's there**, and skip the next step. Atlas's list holds the
+   models whose docs have been read: Seedance 2.5, Kling v3.0 Pro, Veo 3.1, Wan 3.0, Hailuo 2.3,
+   Seedream 5.0 Pro, FLUX.2 Pro, GPT Image 2, Nano Banana 2 and Qwen Image 3.0. Their fields, allowed
+   values and limits come from those docs, and only Seedance 2.5 reference-to-video has been proved
+   by a real take. Higgsfield's list holds Seedance 2.5, MiniMax H3, Kling 3.0 Pro, Soul, Soul
+   Cinema and Grok Image 2.0, none yet proved. Its key is pasted as copied from
+   open.higgsfield.ai. Otherwise, type the model's id as the provider's docs give it, and say
+   what it makes: **Video**, **Image** or **Voice**. Where the id
+   is in the provider's address, as on Higgsfield and fal, a docs page's address gives you the id
+   too: on Higgsfield, the model's page on docs.higgsfield.ai (open.higgsfield.ai's draw themselves
+   in the browser). Runway's list holds Gen-4.5, Gen-4 Turbo, MiniMax H3 Max, Hailuo 3.0, Seedance
+   2.5, Wan 3.0, Kling 3.0 Pro, Veo 3.1 and Fast, Gemini Omni Flash 1.1, Gen-4 Image and Turbo, none
+   yet proved, each with its price per second as read. On some, the ratio is also the resolution:
+   the render size you ask for sets the price.
+3. **Paste the API's reference**, whichever the provider gives you:
+
+   | What the provider has | Paste | What seriesmith learns |
+   |---|---|---|
+   | An OpenAPI document | The JSON, or its address | Fields, types, limits and what's required |
+   | A docs page with an example | The example cURL or request JSON | Field names and example values |
+
+   A key in a pasted cURL isn't kept. An example can't say what's required or what the limits
+   are, so those stay yours to check. With no reference at all, paste a small JSON of the field
+   names you know, and fix the rest under **Fields**.
+   A provider can split one model into several ids, as Atlas does Seedance's reference-to-video
+   and image-to-video. **Different model ids by what's sent** says which goes where, so a shot with
+   a first frame and one with reference pictures can share one model.
+4. **Read it**, then look over **Prompt & mapping**: where each value goes, the prompt, and the
+   exact request for a real shot. This is free: nothing is uploaded or sent.
+5. **Save it as a draft**, and probe one take. That's a paid render, and it's the only thing that
+   proves the mapping, because no reference says everything a model will refuse.
+
+**A provider that isn't listed:** choose **Add a provider** in the Provider menu, or **Add a
+provider…** under Settings' **External accounts** (it opens this, on that form).
+
+1. **Paste the request that starts a generation**: the address of its docs page, the example cURL
+   from it, its OpenAPI document, or that document's address. A docs page is read when its HTML has
+   the example or links the document (fal's does), or when the site serves the page's Markdown
+   beside it (Higgsfield's does, with the whole schema and example answers). One that draws itself
+   in the browser can't be (BytePlus's): copy its example.
+2. **Paste more if the docs show it**: an example answer, the cURL that checks on a job, and that
+   check's answer when finished. Each fills in more of the form.
+3. **Look over the form**: its address, how it takes its key, the generate call, how it answers
+   (the file itself, links, or a job to check on), and how pictures go in. A key in what you pasted
+   isn't kept, only how it was sent. A provider's upload docs are usually a page of their own, so
+   check this one: some take a picture in the request, some an upload that answers with a link, and
+   some give an address to send it to (**Sent to an address it gives**). That address gets the
+   file and never your key.
+4. **Add your key, and Check it.** That's one free read, asking after a job that doesn't exist. A
+   404 is what you want to see: it answered and didn't refuse the key.
+5. **Save it**, and its first model opens, from the same request. **The calls** in Prompt & mapping
+   then shows every call a take would make, in order, on a real shot, with your key hidden.
+
+A probe take is the only full proof. If an answer turns out different from the docs, the take's error
+shows what came back, and the fix is one field in the form or the definition.
+
+An API that only reports through a webhook can't work, as nothing can call back to your machine, and
+is refused. Signed logins aren't handled yet.
+
+A request that may have started a job is never sent twice. If it gets no answer, the take fails and
+says to check the provider's dashboard, because it may have been charged.
 
 ### A model from your own workflow
 
@@ -106,13 +189,13 @@ A model that ships with seriesmith is a folder, `seriesmith/targets/<kind>/<id>/
 |---|---|
 | `id`, `kind`, `label`, `short` | its name, what it makes, and how the pickers show it |
 | `code` | what turns a shot into a render: `builtin:router_video` / `builtin:router_image` for a Router model, or the folder's own `compile.py` / `target.py` |
-| `capabilities` | where it runs (`backends`), whether a seed repeats a take, how many subjects it takes |
+| `capabilities` | where it runs (`backends`), whether a seed repeats a take, how many subjects it takes; a voice model, whether it copies a character's sample (`reference_audio`), how long a clip of it it wants (`reference_clip`, [shortest, longest] seconds: left out, the 1.5–2.5 s head a model continues) and whether it wants the clip's words too (`reference_text`) |
 | `template` | its length grid (frames, fps) and the sizes it can make |
 | `recipe` | the audio it renders (`policies`, and its `policy_fallback`), its keyframes, its prompt style, its reference pictures |
 | `router` | a Router model's request: the model id, and where each value goes (`inputs`) |
 | `binding` | a local model's workflow, and which node widget takes each value |
-| `models`, `downloads`, `nodes` | a local model's files (each with a family and name patterns), where to download each, and any node classes beyond its workflow's |
-| `fetches` | what its node pack downloads by itself the first time it runs (a Hugging Face repo, `into` its cache, `"hf"`, or a models folder, with the `files` it reads): the Features window downloads it instead, and readiness holds the model back until it's there |
+| `models`, `downloads`, `nodes` | a local model's files (each with a family and name patterns, and `prefer` when several sizes of one model can stand in: the first pattern installed wins, the wanted file included), where to download each, and any node classes beyond its workflow's |
+| `fetches` | what its node pack downloads by itself the first time it runs (a Hugging Face repo, `into` its cache, `"hf"`, or a models folder, with the `files` it reads, and the folder it goes in there, `dir`, when the pack reads it by another name than the repo's): the Features window downloads it instead, and readiness holds the model back until it's there |
 | `presets` | the `final` and `proxy` passes' model, steps and size |
 
 The Features window and INSTALL.md's model list are built from `models` and `downloads`

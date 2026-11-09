@@ -38,6 +38,8 @@ export interface OverrideFieldsProps {
   loraChoices?: string[] | null;
   /** a Comfy Router model: no model file row (the provider's model is the model) */
   hosted?: boolean;
+  /** what the prompt is called, where it's something else (a hosted voice: only the words go) */
+  promptName?: string;
   /** Phase 8: the prompt can't be overridden (a retargeted shot): show this
    * note and the effective prompt read-only instead of the editor. */
   promptLocked?: { note: ReactNode; text: string; label?: string } | null;
@@ -120,7 +122,7 @@ export function OverrideFields(p: OverrideFieldsProps) {
       ) : (
         <>
           <div className="h3-row">
-            <span className="h3-h h3-grow">Prompt {p.promptOverridden ? <span className="h3-badge h3-b-override">override</span> : <span className="h3-muted">({built})</span>}</span>
+            <span className="h3-h h3-grow">{p.promptName ?? "Prompt"} {p.promptOverridden ? <span className="h3-badge h3-b-override">override</span> : <span className="h3-muted">({built})</span>}</span>
             <label className="h3-check h3-small"><input type="checkbox" checked={p.showDiff} onChange={(e) => p.setShowDiff(e.target.checked)} /> diff</label>
             <button className="h3-btn" disabled={!promptChanged} title={`Put the ${built} prompt back in the box`} onClick={() => set({ prompt: p.builtPrompt })}>
               {built === "built" ? "Built" : "Series config"}

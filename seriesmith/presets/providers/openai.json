@@ -1,0 +1,48 @@
+{
+  "id": "openai",
+  "label": "OpenAI",
+  "untested": true,
+  "docs": "https://platform.openai.com/docs/api-reference/videos",
+  "base_url": "https://api.openai.com/v1",
+  "auth": {
+    "type": "bearer"
+  },
+  "parallel": 2,
+  "files": {
+    "via": "multipart"
+  },
+  "steps": [
+    {
+      "method": "POST",
+      "url": "/videos",
+      "multipart": {
+        "model": "$model",
+        "...": "$args"
+      },
+      "take": {
+        "task": "id"
+      }
+    },
+    {
+      "method": "GET",
+      "url": "/videos/{task}",
+      "until": {
+        "status": "status",
+        "done": [
+          "completed"
+        ],
+        "failed": [
+          "failed"
+        ],
+        "error": "error.message",
+        "every": 10,
+        "timeout": 3600
+      }
+    }
+  ],
+  "result": {
+    "url": "/videos/{task}/content",
+    "auth": true,
+    "type": "video"
+  }
+}

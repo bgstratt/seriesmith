@@ -26,7 +26,7 @@ import { buildError, changedShots, needsAlignBuild, resultSummary, scriptClash, 
 import {
   detailKey, keepDetails, persistPrefs, statusKey, store, uploadKey, type AppState, type BackendInfo, type BrowseState,
   type ClipAudioState,
-  type CompareMode, type RefTakeRef, type ShotFormOpen, type VoiceClipState, SIMPLE_KEY,
+  type CompareMode, type MissingPanelState, type RefTakeRef, type ShotFormOpen, type VoiceClipState, SIMPLE_KEY,
 } from "./store";
 import type {
   AlignEvent, VocalsEvent, AlignJob, AlignMissing, AlignRequest, AlignResult, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
@@ -128,8 +128,10 @@ export async function refreshReadiness(): Promise<void> {
 
 /** Open the What's missing window, for one target or (null) all of them.
  * Readiness older than a minute is re-checked. */
-export function openMissing(target: string | null = null) {
-  set({ missingPanel: { target }, menu: null });
+/** The Models window, on `target`'s row (null: the list); `api`: Add a model from another API
+ * opened (from Settings: on a provider, or with Add a provider open). */
+export function openMissing(target: string | null = null, api?: MissingPanelState["api"]) {
+  set({ missingPanel: { target, ...(api ? { api } : {}) }, menu: null });
   const at = get().readinessAt;
   if (!at || Date.now() - at > 60_000) void loadTargets(true);
 }
@@ -259,6 +261,25 @@ export async function saveCustomTarget(target: Record<string, unknown>,
         problems?.length ? new Error(problems.join("; ")) : e);
       return false;
     }
+  });
+}
+
+/** Save how a model's prompt is written and where its values go, for this show, then build: the
+ * episode's shots hold their prompts, so they're compiled again. Empty goes back to the model's own. */
+export async function savePromptTemplates(id: string, template: string, request: string,
+  inputs?: Record<string, unknown>, args?: Record<string, unknown>): Promise<boolean> {
+  const ep = get().ep;
+  if (!ep) return false;
+  return withBusy("prompt-save", async () => {
+    try {
+      await api().putTargetPrompt(ep, id, template, request, inputs, args);
+      await loadTargets(true);
+    } catch (e) {
+      report("That template can't be saved", e);
+      return false;
+    }
+    await build();
+    return true;
   });
 }
 
@@ -1722,8 +1743,7 @@ export async function assemble(partial = true, opts?: AssembleOptions) {
   const xml = !!opts?.xml;
   set({ assemble: { busy: true, output: null, report: null, error: null, publish: pub, xml } });
   try {
-    // the export is the cut as Play all plays it
-    const r = await api().assemble(s.ep, s.pass, partial, s.cutAudio === "recording" && !xml ? { ...opts, audio: "recording" } : opts);
+    const r = await api().assemble(s.ep, s.pass, partial, opts);
     set({ assemble: { busy: false, output: r.output, report: r.report, error: r.ok ? null : r.report } });
     if (r.ok && xml) {
       host().toast("success", "Timeline written", `${absPath(s.ep, r.output)}
@@ -3202,7 +3222,8 @@ export function openGallery(scope: Partial<GalleryScope> = {}) {
   const st = s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined;
   const open = next.kind === "refs"
     ? (next.ref ? liveKey(gallerySections(refs, next, s.pass), next.ref) : null)
-    : (next.shot ? cutKey(shotSections(st, next, s.pass), next.shot) : null);
+    : next.kind === "shots" ? (next.shot ? cutKey(shotSections(st, next, s.pass), next.shot) : null)
+    : null;
   set({ gallery: { ...next, open, at: open }, menu: null });
 }
 

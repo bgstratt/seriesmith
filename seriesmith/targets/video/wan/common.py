@@ -20,14 +20,19 @@ from seriesmith.targets.generic.video_prose import (                # noqa: F401
 )
 from seriesmith.targets.generic import video_prose as G
 
-from .prompt import build_prompt
+from .prompt import build_prompt, shot_parts
 
 # Wan's own wording: the writer that turns dialogue into silent acting, and the
 # warning that names Wan (not "Wan 5B" / "Wan+refs", which is what the target's
 # own short label would give).
 STYLE = Style(build_prompt,
               silent_dialogue=("{n} dialogue shot(s): no audio or lip-sync on Wan "
-                               "(the lines are acted silently): {ids}"))
+                               "(the lines are acted silently): {ids}"),
+              parts=shot_parts)
+
+
+def prompt_parts(target, shot, sq, series_cfg: dict) -> dict:
+    return G.prompt_parts(target, shot, sq, series_cfg, STYLE)
 
 
 def compile_episode(target, story, series_cfg: dict, pass_: str,

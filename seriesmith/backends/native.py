@@ -291,6 +291,23 @@ class ComfyUIBackend(Backend):
         self._info = (time.monotonic(), info)
         return info
 
+    def gpu_memory(self) -> int | None:
+        """The total memory of the GPU this ComfyUI runs on, in bytes (its
+        /system_stats' first device; asked once). None when it can't be told:
+        no answer, or no GPU."""
+        if not hasattr(self, "_vram"):
+            try:
+                import json
+                import urllib.request
+                with urllib.request.urlopen(self.base_url + "/system_stats", timeout=10) as r:
+                    devices = (json.loads(r.read() or b"{}") or {}).get("devices") or []
+                total = int((devices[0] if devices else {}).get("vram_total") or 0)
+                kind = str((devices[0] if devices else {}).get("type") or "")
+                self._vram = total if total > 0 and kind != "cpu" else None
+            except (OSError, ValueError, TypeError):
+                return None                      # asked again next time
+        return self._vram
+
     def prepare(self, graph: dict, job, take) -> tuple[dict, dict | None]:
         """The portable graph as it is; without seriesmith's node pack in this
         ComfyUI, lowered to ComfyUI's own nodes (cloud.without_pack)."""

@@ -6,7 +6,8 @@
 // The cast and places are listed at the end; each opens its own card
 // (SubjectCard.tsx).
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useId, useState } from "react";
+import { api } from "../host";
 import { loadTargets, openSeriesForm, openSource, openSubjectCard, saveOwnPreset } from "../actions";
 import {
   CARD_KINDS, DEFAULT_PROXY, FINAL_SIZES, PROXY_SIZES, SECTIONS, cardKindOf, getPath, parsed, serialize, setPath,
@@ -16,10 +17,10 @@ import {
 import { sizeCheck, sizeRule, type SizeRule } from "../lib/size";
 import { isVoiceModel } from "../lib/readiness";
 import { useApp } from "../store";
-import type { LookBuilderRow, LookPreset, Target, TargetKind } from "../types";
+import type { FontsInfo, LookBuilderRow, LookPreset, Target, TargetKind } from "../types";
 import { pictureOf } from "../lib/pictures";
 import { Hover, PicturePath, Thumb } from "./Picture";
-import { LoraLine, ModelLine, MoreToggle } from "./Fields";
+import { DocLink, LoraLine, ModelLine, MoreToggle } from "./Fields";
 import { PresetPicker, useLookTiles } from "./PresetPicker";
 import { composeLook, togglePart, visibleRows, type LookParts } from "../lib/lookBuilder";
 import { MasterRecipe } from "./MasterRecipe";
@@ -115,7 +116,7 @@ function SeriesForm({ ep }: { ep: string }) {
               const fields = sec.fields.filter((f) => (!f.when || f.when(draft)) && !f.more);
               return (
                 <details key={sec.id} open className="sm-form-section">
-                  <summary><b>{sec.title}</b> <span className="h3-small h3-muted">{sec.help}</span></summary>
+                  <summary><b>{sec.title}</b> <span className="h3-small h3-muted">{sec.help}</span>{sec.doc && <>{" "}<DocLink page={sec.doc} what={sec.title} /></>}</summary>
                   <div className="h3-col" style={{ gap: 8, marginTop: 6 }}>
                     {sec.id === "series" && (
                       <>
@@ -355,6 +356,8 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends, vide
     );
   } else if (f.kind === "picture") {
     input = <PicturePath value={value} onChange={onChange} pickKey={`field:${f.path.join(".")}`} what={f.label.toLowerCase()} placeholder={f.placeholder} />;
+  } else if (f.kind === "font") {
+    input = <FontField value={value} onChange={onChange} placeholder={f.placeholder} />;
   } else if (f.kind === "lora") {
     input = <LoraLine value={value} onChange={onChange} target={videoTarget ?? null} empty="the video model's preset" backend={listBackend} />;
   } else if (f.kind === "model") {
@@ -379,6 +382,37 @@ export function FieldRow({ f, value, onChange, targets, defaults, backends, vide
       <span className="h3-small"><b>{f.label}</b></span>
       {input}
       <span className="h3-small h3-muted">{f.help}</span>
+    </div>
+  );
+}
+
+/** A font: typed, or picked from the font files on the machine the server runs on, with the
+ * file a master would use (or that it can't find one). */
+function FontField({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const ep = useApp((s) => s.ep);
+  const listId = useId();
+  const [info, setInfo] = useState<FontsInfo | null>(null);
+  useEffect(() => {
+    const getFonts = api().getFonts;
+    if (!getFonts) return;
+    let live = true;
+    const t = setTimeout(() => {
+      getFonts(ep, value.trim() || undefined)
+        .then((r) => { if (live) setInfo(r); })
+        .catch(() => { if (live) setInfo(null); });
+    }, value ? 300 : 0);
+    return () => { live = false; clearTimeout(t); };
+  }, [ep, value]);
+  const name = value.trim();
+  return (
+    <div className="h3-col" style={{ gap: 2 }}>
+      <input className="h3-in" list={listId} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      <datalist id={listId}>
+        {(info?.fonts ?? []).map((f) => <option key={f} value={f} />)}
+      </datalist>
+      {name && info?.font === name && (info.found
+        ? <span className="h3-small h3-muted">Uses {info.found}</span>
+        : <span className="h3-small h3-warn">Not found on this machine: a master would stop. Pick one from the list, or give the file's path.</span>)}
     </div>
   );
 }

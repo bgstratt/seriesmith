@@ -35,7 +35,6 @@ export function MasterDialog() {
 
 function MasterBody() {
   const ask = useApp((s) => s.masterAsk)!;
-  const cutAudio = useApp((s) => s.cutAudio);
   const ep = useApp((s) => s.ep);
   // the episode's status: it changes as upscales land, and the plan is read again
   const st = useApp((s) => (s.ep ? s.status[statusKey(s.ep, ask.pass)] : undefined));
@@ -100,9 +99,7 @@ function MasterBody() {
     if (!ep) return;
     setBusy(action);
     try {
-      const r = await api().master({ ep, pass: ask.pass, action, ...opt, ...(action === "queue" ? { order } : {}),
-                                     // the master is the cut as Play all plays it
-                                     ...(action === "assemble" && cutAudio === "recording" ? { audio: "recording" as const } : {}) });
+      const r = await api().master({ ep, pass: ask.pass, action, ...opt, ...(action === "queue" ? { order } : {}) });
       setPlan(r.plan);
       if (r.existing !== undefined) setExisting(r.existing ?? null);
       setErr(null);

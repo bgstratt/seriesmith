@@ -76,6 +76,9 @@ class Settings:
     # the user's choice, else what was found installed, else the built-in
     default_targets: dict[str, str] = field(default_factory=dict)
     detected_targets: dict[str, str] = field(default_factory=dict)
+    # the keys of providers of the user's own, by provider id (providers.py); a listing only
+    # ever says which have one
+    provider_keys: dict[str, str] = field(default_factory=dict)
     # not a setting: the ComfyUI this server runs inside (server/comfyui.py),
     # which local renders go to whatever comfyui_url says
     host_url: str | None = None
@@ -90,6 +93,7 @@ class Settings:
         return {"local_url": self.local_url, "comfyui_url": self.comfyui_url,
                 "cloud_url": self.cloud_url, "api_key": "set" if self.api_key else None,
                 "hf_token": "set" if self.hf_token else None, "ffmpeg_dir": self.ffmpeg_dir,
+                "provider_keys": sorted(self.provider_keys),
                 "comfyui_dir": self.comfyui_dir,
                 "deployments": dict(self.deployments), "path": self.path,
                 "paid_limit": self.paid_limit, "enabled_drafts": list(self.enabled_drafts),
@@ -132,6 +136,7 @@ def load_settings(path: str | None = None, env: dict | None = None) -> Settings:
         cloud_url=(env.get("SERIESMITH_CLOUD_URL") or data.get("cloud_url") or CLOUD_URL).rstrip("/"),
         api_key=env.get("COMFY_API_KEY") or data.get("api_key") or None,
         hf_token=env.get("HF_TOKEN") or data.get("hf_token") or None,
+        provider_keys={str(k): str(v) for k, v in (data.get("provider_keys") or {}).items() if v},
         ffmpeg_dir=data.get("ffmpeg_dir") or None,
         comfyui_dir=data.get("comfyui_dir") or None,
         deployments={str(k): str(v).rstrip("/") for k, v in deployments.items()},
@@ -162,7 +167,8 @@ def _paid_limit(v) -> int | None:
 
 FIELDS = ("local_url", "comfyui_url", "cloud_url", "api_key", "hf_token", "ffmpeg_dir",
           "comfyui_dir", "deployments", "paid_limit",
-          "enabled_drafts", "target_limits", "local_via", "default_targets", "detected_targets")
+          "enabled_drafts", "target_limits", "local_via", "default_targets", "detected_targets",
+          "provider_keys")
 ENV_NAMES = {"local_url": "SERIESMITH_LOCAL_URL", "comfyui_url": "SERIESMITH_COMFYUI_URL",
              "cloud_url": "SERIESMITH_CLOUD_URL", "api_key": "COMFY_API_KEY",
              "hf_token": "HF_TOKEN",
@@ -195,6 +201,18 @@ def save_settings(updates: dict, path: str | None = None) -> str:
         if not isinstance(data, dict):
             raise ValueError(f"{path} must hold a JSON object")
     for k, v in updates.items():
+        if k == "provider_keys":
+            # one at a time: {id: key}, a null removes that one and keeps the rest
+            if not isinstance(v, dict):
+                raise ValueError("provider_keys: {provider id: key}")
+            keys = dict(data.get(k) or {})
+            for pid, key in v.items():
+                if key:
+                    keys[str(pid)] = str(key)
+                else:
+                    keys.pop(str(pid), None)
+            data[k] = keys
+            continue
         if k == "paid_limit":
             if v in (None, ""):
                 data.pop(k, None)

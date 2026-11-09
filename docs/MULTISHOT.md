@@ -280,4 +280,9 @@ dur: 1.62
       failed as a bare 500 on Windows; an input is named by its content, so one already
       there at that name and size isn't sent again (Comfy.upload_input). The master: one
       item, sh040, 2560x1440 with sound, its cuts at 4.958 s and 6.542 s.
-- [ ] (f) Later: the splice (a range of a group take, bridged).
+- [ ] (f) Later: the splice (a range of a group take, bridged). On a model with a kept latent
+      (H3 first, LTX to try), of any take, not only a group's: instead of a first/last bridge,
+      the take's whole latent held (noise mask 0, as `continuous: latent` holds a head) with
+      only the range's rows made again, new seed, its sound held, and only the range's frames
+      (a few frames' margin) laid over the take. Unproved: wanted after Higgsfield, Runway and
+      ElevenLabs (2026-11-05); the bridge stays the way for a hosted model.

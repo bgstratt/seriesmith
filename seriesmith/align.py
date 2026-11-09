@@ -495,6 +495,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="set the default policy in series.json for speaking shots")
     ap.add_argument("--retention", choices=["fully_copy", "partially_copy", "reference"],
                     help="set audio.retention in series.json (default depends on policy)")
+    ap.add_argument("--transcribe-only", metavar="PATH",
+                    help="transcribe the file given in place of the episode, write its words to PATH, and stop")
+    ap.add_argument("--prompt", default="", help="with --transcribe-only: the words expected, to help Whisper")
     ap.add_argument("--dry-run", action="store_true", help="report only; change no files")
     ap.add_argument("--progress", action="store_true",
                     help="print a `##align {json}` line per stage (for the editor)")
@@ -502,6 +505,11 @@ def main(argv: list[str] | None = None) -> int:
                     help="write the result (windows, notes, report, hashes) as JSON")
     args = ap.parse_args(argv)
     prog = args.progress
+
+    if args.transcribe_only:
+        words = transcribe(args.episode, args.model, args.device, args.language, args.prompt[:600])
+        T.write_json(args.transcribe_only, words)
+        return 0
 
     ep = args.episode
     series_cfg_p, md_p = episode_files(ep)
@@ -540,7 +548,9 @@ def main(argv: list[str] | None = None) -> int:
     shots, lines = [], []
     for seq in epi["sequences"]:
         for sh in seq["shots"]:
-            entry = {"id": sh["id"], "lines": [], "dur": sh.get("duration"),
+            # aligned before: its `dur:` is a comment now, and its window is how long it is
+            held = sh["audio_out"] - sh["audio_in"] if "audio_in" in sh else None
+            entry = {"id": sh["id"], "lines": [], "dur": sh.get("duration") or held,
                      "snap": snap_of(sh["id"])}
             for d in sh["dialogue"]:
                 ln = {"shot": sh["id"], "who": d["who"], "text": d["line"]}

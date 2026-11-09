@@ -23,6 +23,7 @@ ID = "wan22_ti2v"
 TARGET = TG.load_target(ID, "video")
 
 compile_episode = C.compile_episode
+prompt_parts = C.prompt_parts
 compile_shot = C.compile_shot
 required_refs = C.required_refs
 ref_slots = C.ref_slots

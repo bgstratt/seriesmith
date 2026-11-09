@@ -62,7 +62,7 @@ section and search for the path for its later additions.
 | `POST /seriesmith/audio/import` | Phase 9d |
 | `POST` / `DELETE /seriesmith/workflow/install` | Phase 11 |
 | `GET /seriesmith/workflows`, `POST /seriesmith/targets/inspect`, `PUT` / `DELETE /seriesmith/targets/custom` | Phase 12 |
-| `GET /seriesmith/router/models`, `POST /seriesmith/targets/router-inspect`, `POST /seriesmith/targets/router-dryrun`, `PUT /seriesmith/targets/limits` | Hosted models, limits and your own workflows |
+| `GET /seriesmith/router/models`, `POST /seriesmith/targets/router-inspect`, `POST /seriesmith/targets/router-dryrun`, `POST /seriesmith/targets/prompt-preview`, `PUT /seriesmith/targets/prompt`, `POST /seriesmith/targets/schema`, `GET`/`PUT`/`DELETE /seriesmith/providers`, `PUT /seriesmith/providers/key`, `POST /seriesmith/providers/read-spec`, `POST /seriesmith/providers/draft`, `POST /seriesmith/providers/check`, `PUT /seriesmith/targets/limits` | Hosted models, limits and your own workflows |
 
 Not seriesmith's own: the page's websocket `/ws` (Live updates) and, under `seriesmith
 serve`, ComfyUI's `/models`, `/object_info/{node}` and `/queue` (Models). The `api.py`
@@ -181,7 +181,7 @@ queue, with `as_of` taken *before* reading it (see below). Shots come in **cut o
 - `comfy_prompt_id` is set only while the take is queued (null after), and `save_notes`
   only when it failed (`""` otherwise): a finished take's are in `GET /seriesmith/take`.
   The same holds for its `upscale` and `post`.
-- `stale` holds any of `script`, `ref`, `preset` (and `target`, `chain`: a
+- `stale` holds any of `script`, `ref`, `preset`, `mapping` (the model's prompt template changed) (and `target`, `chain`: a
   `continuous: latent` take whose previous shot in the cut now uses another take, or that
   take was rendered again, or the cut puts another shot before it); `unknown` means a
   take from before sidecars.
@@ -578,6 +578,43 @@ Body `{"ep", "pass", "shot", "take": 3 | null, "from_pass": null | "final" | "pr
 Uses `takes.pick`. A take that isn't usable answers 409 unless `"force": true`.
 `take: null` goes back to the latest usable take. Returns `{"cut": <cut.json>}`.
 
+### `GET /seriesmith/cold-open?ep=…&pass=…`
+The cold open against the pass's cut (`coldopen.state`): `{"shots" (the shots the script marks
+`cold_open:` that open the cut, in cut order), "end" (the last of them; null: none), "frame"
+and "seconds" (where a master puts the series intro in the assembled cut; null without a cold
+open or with an error), "gaps" (marked shots that play after one that isn't), "error" (why a
+master can't put the intro in: a gap, a dissolve across the break, every shot marked; else
+null), "frames" (the cut's length as assemble lays it), "marked" (every shot the script marks,
+in the cut or not), "crossing" (the music items of the pass's mix, not muted, that play across
+the break: `[{id, label}]`; a master cuts them there)}`. Shots with no usable take are left out
+of the run, as assemble leaves them. Master and Titles don't use `frame`: they read the break
+from the shot list assemble wrote beside the file they title (`<cut>_shots.txt`).
+
+### `GET /seriesmith/titles?ep=…`
+The opening and closing a master puts around the episode, for Play all to play: `{"intro",
+"outro" (paths for `GET /seriesmith/file`, relative to the episode, e.g.
+`../_titles/INTRO.mp4`; null for none), "title" (the script's `=` line's), "subtitle"
+(`publish.subtitle` with its defaults), "error" (why the clips can't be read, e.g. a
+`publish.intro` that isn't there; else null)}`. `GET /seriesmith/file` serves those two files
+exactly, wherever the series config puts them inside a configured root; nothing else of the
+show folder.
+
+### `GET /seriesmith/fonts[?ep=…&font=…]`
+The font files on the machine the server runs on, for the title's font (Series settings):
+`{"fonts" (their file names, sorted; Windows', the user's, macOS' and Linux's font folders),
+"font", "found"}`. With `font`, `found` is the file a master would draw the title with
+(a path; a relative one from the folder holding the episode's `series.json`; or a file name,
+any case, the extension optional, from the font folders), else null; without it both are null.
+
+### `PUT /seriesmith/cold-open`
+Body `{"ep", "pass", "end": shot | null}`: the cold open marked in the script as the pass's
+cut has it, every shot from the cut's first to `end` (null: none). A `#` header whose shots
+are all in it gets `cold_open: true`, the rest of them each their own line, and every other
+`cold_open:` line goes; the script is written (a history copy first) only when that changes
+it, then rebuilt. Answers the state as GET does, with `changed` and `build` (null when
+nothing changed). 400 for a shot not in the cut, a script that doesn't parse, or an `end`
+that isn't a string or null.
+
 ### `PUT /seriesmith/cut`
 Body `{"ep", "pass", "entries": [{"shot", "take"?, "pass"?, "trim_in"?, "trim_out"?,
 "locked"?, "note"?, "audio"?, "out"?, "flag"?, "color"?, "fade_in"?, "fade_out"?, "dissolve"?}, …]}`. Replaces that pass's list, for reordering and trims.
@@ -856,6 +893,26 @@ or when it isn't finished). What a block's menu fetches when it opens.
 pass, in shot order, from their sidecars alone (no audio read). What the Refs tab's Effects
 section lists; a row's takes are `GET /seriesmith/fx` when it opens.
 
+### `GET /seriesmith/sound/gallery?ep=…&pass=…`
+The gallery's Sound tab: every finished take of the episode's sound, `{"sections": [{"kind"
+("music" | "ambience" | "effects" | "voices" | "lines"), "id" (the cue, `ambience:<place>`,
+the shot, `voice:<id>`, the line), "name", "note", "queued", "failed", "items": newest first,
+[{"key" (`kind|id|take`), "take", "path" (relative to the episode, for `GET
+/seriesmith/file`), "use" (the one in use: a cue's or a shot's effects in the pass's mix; a
+bed's, voice's or line's picked one), "model", "seed", "made", "seconds", and a kind's own:
+"theme" (music: the series theme that take is), "text" (a line's words, a voice sample's),
+"who" (a line's voice)}], "paid" (music: as `GET /seriesmith/cue`'s)}], "errors": [{"kind", "error"}] (a kind that couldn't be read; the
+rest still listed)}`. A cue, place or voice with no take isn't listed. Read from the takes'
+records alone (sidecars, picks, `lines.json`, the mix): no audio is decoded. A video take's
+own sound isn't here, nor stems made from other sound.
+
+### `GET /seriesmith/sound/gallery/take?ep=…&pass=…&kind=…&id=…&take=…`
+What one sound take was made with, fetched when the gallery opens it: `{"prompt" (the words
+it was made from: a cue's or a bed's prompt, the effects' words, a line's words; or null),
+"rows": [[label, value]] (its model, seed, when it was made, length; a cue's tempo asked,
+fitted and heard and its score; an effects take's source take)}`. 404 for a take that isn't
+there, 400 for a kind that isn't one.
+
 ### `POST /seriesmith/fx/render`
 Body `{"ep", "pass", "shots": [...], "target"?, "n"?, "backend"?}`: `n` takes (1-8, default 1)
 of each shot, on seriesmith's queue (job kind `fx`, in the Jobs list); `seriesmith.fx` `{ep,
@@ -899,15 +956,20 @@ prompt.
 
 ### `GET /seriesmith/cues?ep=…[&pass=…]`
 `{"cues": [{"spec", "takes", "ok", "placed"}]}`: each cue's spec, how many takes it has, how
-many finished, and the passes whose mix it's in. With `pass` (the spotting sheet's list), each
+many finished, and the passes whose mix plays one of its takes (read from the mixes: a take picked
+and then taken out of the mix isn't in it). With `pass` (the spotting sheet's list), each
 is also planned against that pass's cut: `bpm` (the fitted tempo), `in_mix` (the take its item
 in the pass's mix plays, null: none), `stale` (what has moved under that take since it was
 rendered, in words; `[]` when nothing has or none is in the mix), `stale_takes` (the finished
 takes something has moved under) and `plan_error` (null, or why its anchors aren't in the
-cut; `bpm` is then null). 400 for a pass that isn't one.
+cut; `bpm` is then null). `unreadable` lists the cues left out because their spec doesn't check
+(`[{"id", "error"}]`: a model this version doesn't have, say). 400 for a pass that isn't one.
 
 ### `GET /seriesmith/cue?ep=…&pass=…&cue=…`
-`{"spec", "plan", "plan_error", "takes"}`. `plan` is what it would be asked now: `target`,
+`{"spec", "plan", "plan_error", "takes", "themes", "paid"}`. `paid` is where a take of it is
+billed, in words (a hosted model on Comfy Router or a provider of yours, or a workflow that
+runs a Comfy partner node), or null on your own GPU: the editor asks before it renders or
+repaints one. `plan` is what it would be asked now: `target`,
 `fps`, `span` (seconds), `hits` (`[{id, name, kind, must, t, at, ends?}]`, `t` seconds from
 its in point, `at` the mix's anchor; `ends`: a drop on its out point, the music's end, neither
 fitted nor measured),
@@ -941,7 +1003,10 @@ fitted, both in the take's job; the take's as `tNN.melody.abc`) and `on_theme` (
 least 0.3; a take that lost it is ranked after those that kept it), and `stale`: what has moved in the cut since it was
 rendered (its sidecar's `rendered_for`: the span, each hit, the tempo, the theme), in words,
 `[]` when nothing has (a `{"cue"}` theme now resolving to another take than the one it was
-rendered with is stale: "the theme is m01 t03, not m01 t02"). A take rendered with a theme has
+rendered with is stale: "the theme is m01 t03, not m01 t02"), and `seconds`: a finished take's
+length (its `tNN.wav`, read from its header; a YuE2 song runs as long as its plan, past the
+cue's grid; null for a take not finished, or one whose wav can't be read). Each take's `placed` is the pass when that pass's
+mix plays it, else null: read from the mix, so a take picked and then taken out of the mix isn't. A take rendered with a theme has
 `theme` (`{label, use, from?}`: the take or file it heard, and for a `{"cue"}` theme how that
 take was found, `strength` and `staged` (`{stretch, bars, seconds}`: how it was fitted) when it
 was rendered from; a repaint of it hears the same take, whatever is picked since); a YuE2 take
@@ -976,7 +1041,10 @@ measured tempo says when that is within 3 % of the asked, else by the plan's str
 is one job of two stages: the plan (YuE2GenerateABC, or the theme's plan, or SheetSage2's
 transcription of the theme), its `Q:` line set to the plan's whole `ask_bpm` (of the meter's
 note), then the song sung to it; both plans come back as text files and the sung one is kept as
-`tNN.abc`. A Stable Audio 3 take with a theme renders from it: the theme is fitted to the cue
+`tNN.abc`. A model on a provider is one call a take on that provider's backend, whatever `backend`
+says, 409 without its key; one that returns several tracks for a call (`api.tracks`, Suno) keeps each
+further one as a take of its own, with `track` and `track_of` in its record, so `takes` counts calls
+and `queued` lists only the first of each. A Stable Audio 3 take with a theme renders from it: the theme is fitted to the cue
 once for the render (`sound/<cue>/theme_<hash>.wav`), encoded, and sampled from at its strength
 (8 even steps of the schedule from it); with SheetSage2 in this machine's ComfyUI
 (`models/audio_encoders`) and the `local` backend, the take and the fitted theme are transcribed
@@ -2034,7 +2102,8 @@ belongs to one video target, the series config's `series.target` (default
 `minimax_h3_ref2va`). Episodes that mix targets arrive with Phase 8. (Phase 8: they have;
 `ltx2` is the second video target. See **Phase 8 as built** at the end. Today seriesmith
 ships two dozen video targets and about twenty image targets, the Comfy Router models
-among them, plus `ltx2_voice` (audio); a show adds its own: **Hosted models, limits and
+among them, plus the voice models (audio: `ltx2_voice`, `drama3`, `qwen3_tts`,
+`fishaudio_drama3`, and a provider's); a show adds its own: **Hosted models, limits and
 your own workflows**.)
 
 ### `GET /seriesmith/targets[?kind=video|image|audio][&ep=…][&ready=1]`
@@ -4547,6 +4616,146 @@ why}` (a first-frame model on a shot with no first keyframe). A video target is 
 shot (default the first with a subject); an image target on a ref (default the first
 character; a keyframe shows its pictures going in), planned as a hosted edit model plans it.
 `limits` are written in first (the wizard's changes).
+
+### `POST /seriesmith/targets/prompt-preview`
+
+What a video model's prompt comes to on one shot, with the templates as they stand in the editor.
+Nothing is saved, uploaded or paid for. Body `{ep, id, shot?, ref?, view?, pass?, template?, request?,
+inputs?, arguments?, required?, target?, limits?, count?}`: `template` and `request` stand in for the
+saved ones (`""` is the model's own), `inputs` (`{value: where it goes, or null}`) and `arguments` for
+a hosted model's mapping, `target` is a hosted model's target.json not saved yet, in place of `id`,
+and `limits` the limit changes to apply to it. `required` (the schema's) adds `unfilled`, and `count`
+adds `takes_on_model` and `samples` (a shot of each kind to try: dialogue, voiceover, several
+subjects, silent, with a first frame, without one). An image model takes `ref` and `view` in place
+of `shot`, a voice model `ref` (a character with a voice), and a hosted music model `ref` as one of
+the episode's cues (default: its first song, else its first cue; 404 with none): the cue is planned
+on the model as a render plans it (on the other pass when this one isn't built), `shot` is the cue's
+id, and `cues` lists the episode's (`[{id, label, kind}]`).
+
+Returns `{ok, why?, id, label, scope, hosted, shot, pass, editable, changed, template, request,
+shipped: {template, request, inputs, arguments}, problems: {template, request}, parts, request_parts,
+prompt, sent, limit, overridden, entry, model, arguments, routing, request_error, inputs,
+fixed_arguments, rows, unfilled, takes_on_model, samples}`. `rows` is one per value a hosted model takes:
+`{role, what, spec, field, now}`. `editable` is
+false for a model that writes its own prompt. A wrong template is listed in `problems`, and the
+rest is worked out without it. 404: no such model or shot, or no build yet.
+
+### `PUT /seriesmith/targets/prompt`
+
+How a model's prompt is written and where a hosted model's values go, for this show. Body `{ep, id,
+template?, request?, inputs?, arguments?}`; empty or left out is the model's own, so all empty is Back
+to shipped. A built-in or every-show model's change goes in `<show>/targets/overrides.json`, a show's
+own model's in its target.json. Build the episode afterwards: its shots hold their prompts. 400: a
+wrong template (`problems`), a required field nothing fills (when the schema can be read), or a model
+that writes its own prompt. Returns `{ok, id, path, changed}`.
+
+### `GET /seriesmith/providers`
+
+The providers on this machine: `{providers: [{id, label, base_url, source, untested, has_key,
+key_from_env, env_name, endpoints, docs, definition}]}`. A key is never returned.
+
+### `PUT /seriesmith/providers`
+
+Add or replace a provider's definition on this machine. Body `{definition}`. 400: what's wrong with
+it. Returns `{ok, id, path, providers}`.
+
+### `DELETE /seriesmith/providers`
+
+Remove this machine's definition. Query `{id}`. Returns `{ok, deleted, providers}`.
+
+### `PUT /seriesmith/providers/key`
+
+Set a provider's key, write-only; `key: null` removes it. Body `{id, key}`. Returns `{ok, id, providers}`.
+
+### `POST /seriesmith/providers/draft`
+
+A provider set up from what its docs give; nothing is saved or sent to it. Body `{text, answer?, poll?,
+poll_answer?, path?}`: `text` is the cURL that starts a generation, an OpenAPI document, or an address: that document's, or a docs page whose HTML shows either, or whose Markdown source beside it (`<page>.md`) has the example and a JSON Schema. That source's example answers fill in `answer` and `poll_answer` unless given.
+Or `{form}`: a form as edited. Returns `{form, definition, problems, notes?, model?, paths?}`. A key in
+a pasted cURL isn't kept, only how it was sent.
+
+### `POST /seriesmith/providers/check`
+
+Whether a provider can be reached with a key, by one read that starts nothing: asking after a job that
+doesn't exist. Body `{definition, key?}`: `key`, else the one saved. The key isn't kept. Returns
+`{reached, key_ok, status, says}`. A 401 or 403 can be the key or a firewall in front of it.
+
+### `GET /seriesmith/lines`
+
+An episode's lines from a voice model (`seriesmith/lines.py`), costing nothing. Query `ep`, `target?` (default:
+the voice model). Returns `{available, why?, label, service, paid, lines: [{id, shot, who, name, text, chars,
+status: missing | ok | changed, speaker, picked, takes}], characters: [{who, name, lines, chars, speaker, source,
+to_make}], to_make: {lines, chars}, no_speaker, recording, can_lay}`.
+
+### `POST /seriesmith/lines/generate`
+
+Queues a take of each line in `lines`, else of each without one matching the script, of one character with
+`who`. Paid on a provider; on a local voice model (LTX's) it's your GPU, from the character's description,
+continuing its sample if it has one, else its first line. Body `{ep, confirm_chars, target?, lines?, who?,
+backend?}`: `confirm_chars` is the total shown, and any other is **409**. A
+character with no speaker is **400**. Nothing is sent in either case. Returns `{queued, errors}`;
+`seriesmith.lines` follows each.
+
+### `POST /seriesmith/lines/character`
+
+A character's whole file (multipart `file`, or `source_path`) kept in `audio/lines/sources/<who>.wav` and queued
+to be cut into a take per line, costing nothing. Body `{ep, who}`. Whisper hears it, unless `<file>.words.json`
+is beside it (**409**, as align's, when Whisper isn't here). Returns `{job}`; the plan's `characters[].source`
+follows it, with `{status, lines, cut, unheard, notes}`.
+
+### `POST /seriesmith/lines/pick`
+
+Which finished take of a line is used. Body `{ep, line, take}`.
+
+### `POST /seriesmith/lines/lay`
+
+Costs nothing. Lays each line's picked take in script order, with the pauses silent shots give, into
+`audio/lines/lines_recording.wav`, writes its timings beside it, and attaches it as the dialogue track. Body
+`{ep}`. Returns `{path, seconds, lines, timed, guessed, notes}`. Then `POST /seriesmith/align` as for any recording.
+
+### `POST /seriesmith/sound/line_up`
+
+Queues sliding a shot's dub so its first word lands on the first word of the take the cut plays. Whisper hears both, and
+nothing is rendered. Body `{ep, pass, shot}`. Returns `{job}`. The slide is `GET /seriesmith/dubs`' `offset`.
+
+### `PUT /seriesmith/sound/model`
+
+For a take rendered to its shot's dub: whether the cut plays what the model gave back with it (`on` true), not the dub.
+Body `{ep, shot, on}`. Changes no render.
+
+### `PUT /seriesmith/sound/offset`
+
+Sets that slide by hand, in seconds, or 0 to put it back. Body `{ep, shot, offset}`. Changes no render, so nothing goes stale.
+
+### `GET /seriesmith/providers/voices`
+
+The speakers a provider has, costing nothing. Query `service`, `list?` (an id from the provider row's
+`voices.lists`), `search?`, `after?`. A list marked `free` is read with no key when there isn't one, and
+then has no search or further pages; any other needs the key (**400**). Returns `{voices: [{id, name,
+preview, about, category, labels}], next}`; **502** with what the provider said. A ref row for a voice
+carries the speakers picked as `speakers`.
+
+### `PUT /seriesmith/refs/provider-voice`
+
+Gives a subject a provider's speaker, in the series config (`subjects.<id>.voices.<service>`), or takes
+it away with a null `id`. Body `{ep, subject, service, id, name?, preview?}` (`preview`: the provider's clip, to hear it again). Returns `{ok, changed}`. A variant
+shares its base's voice (**400**). A hosted voice take without a speaker is refused before it's queued.
+
+### `POST /seriesmith/providers/read-spec`
+
+A model's API reference read into a proposed target, nothing saved or sent to the provider. Body
+`{service, model, kind? (video, image, audio (a voice) or music), text, path?}`: `text` is an OpenAPI document or its address, an example
+cURL, an example request's JSON, or a docs page's address. Returns `{proposal, mapped, unplaced,
+warnings, form, paths, schema, auth?, limits, model}`. An OpenAPI document with several requests and
+no `path` returns `proposal: null` and the `paths` to choose from. A key in a pasted cURL isn't kept,
+only how it's sent. A reference's fixed `X-` header is kept in the form's `headers`. With `model` empty, a docs page's address and a provider whose first step has
+`{model}` in its address, the page's request gives the id, returned as `model`.
+
+### `POST /seriesmith/targets/schema`
+
+The fields a Router model's schema has, read with the account's key and kept an hour; reading one is
+free. Body `{model}`. Returns `{available, why?, required, fields: [{path, type, required, values?,
+min?, max?, about?}]}`.
 
 ### `PUT /seriesmith/targets/limits`
 

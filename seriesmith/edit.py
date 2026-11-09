@@ -255,7 +255,8 @@ def take_stale(root: str, pass_: str, doc: dict, shot: dict, sidecar: dict | Non
     out = J.stale_reasons(root, cur[0], cur[1], sidecar) if cur else []
     if tt != target:
         out.append("target")
-    if (sidecar.get("sound") or None) != (sound or None):
+    if (sidecar.get("sound") or None) != (sound or None) or (
+            sound and sound.get("mode") == "dub" and not T.rendered_to_dub(root, sound, shot.get("id"), sidecar)):
         out.append("sound")
     if sidecar.get("continued_from") and chain_changed(root, pass_, shot["id"],
                                                        sidecar["continued_from"], cache):
@@ -316,8 +317,18 @@ def dub_sources(root: str, shot_id: str) -> dict:
     dubs = [one(t) for t in T.dub_tracks(root, shot_id)]
     takes = [one(t, **{"pass": ps}) for ps in T.PASSES for t in T.list_takes(root, ps, shot_id)
              if t.usable and T.take_sound(t)]
-    return {"shot": shot_id, "sound": T.shot_sound(T.load_overrides(root), shot_id),
-            "track": track, "dubs": dubs, "takes": takes}
+    ov = T.load_overrides(root)
+    sound = T.shot_sound(ov, shot_id)
+    from seriesmith import lines as LN
+    try:
+        lines = LN.shot_lines(root, shot_id)
+    except (OSError, ValueError):
+        lines = []
+    return {"shot": shot_id, "sound": sound, "track": track, "dubs": dubs, "takes": takes, "lines": lines,
+            "offset": T.dub_offset(ov, shot_id), "model_sound": T.dub_model_sound(ov, shot_id),
+            # which of this shot's takes have mouths that follow its dub
+            "lips": [t.take for ps in T.PASSES for t in T.list_takes(root, ps, shot_id)
+                     if T.rendered_to_dub(root, sound, shot_id, t.sidecar)]}
 
 
 def set_sound(root: str, shots: list[str], sound: dict | None) -> dict:
@@ -724,8 +735,8 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
 
 def effective_cut_audio(root: str, e: T.CutEntry, pass_: str, sound: dict | None, sidecar: dict | None,
                         entry: dict | None, offset: float, take_wav: str | None = None, model_sound: bool = False) -> dict:
-    """What a cut entry's clip plays: its own `audio` if it has one (on purpose), else the shot's dub
-    (takes.cut_dub_spec, `audio_dub` true), else the take's own sound."""
+    """What a cut entry's clip plays: its own `audio` if it has one (on purpose), else a dub the take
+    wasn't rendered to (takes.cut_dub_spec, `audio_dub` true), else the take's own sound."""
     if e.audio:
         return {"audio": e.audio, **cut_audio(root, e, pass_)}
     spec = T.cut_dub_spec(root, e.shot, sound, sidecar, entry, offset, take_wav, model_sound)
@@ -1963,7 +1974,7 @@ def queue_shots(root: str, pass_: str, shot_ids: list[str] | None,
         # cut, when that is in this batch.
         try:
             t = J.job_target(job)
-            graph = None if t.spec.get("router") else (
+            graph = None if J.TG.is_hosted(t.spec) else (
                 base(job.target) if callable(base) else base)
             name, _src, note = J.backend_choice(ov, sid, t, backend, root)
             if note:
@@ -2177,6 +2188,12 @@ def readiness(targets, object_info: dict | None, resolve=None, cache=None,
                          "by_pass": {p: {} for p in J.TG.PASSES}, "features_off": [],
                          "nodes_missing": []}
             continue
+        if J.TG.is_hosted(t.spec):
+            # one call to its provider: no files, no nodes, whatever ComfyUI says
+            out[t.id] = {"status": "ready", "missing": [], "resolved": {},
+                         "by_pass": {p: {} for p in t.presets}, "features_off": [],
+                         "nodes_missing": []}
+            continue
         if object_info is None:
             out[t.id] = {"status": "unknown", "missing": [], "resolved": {}, "by_pass": {},
                          "features_off": [], "nodes_missing": [],
@@ -2218,7 +2235,7 @@ def readiness(targets, object_info: dict | None, resolve=None, cache=None,
                     missing[("fetches", item.name)] = {
                         "param": "fetches", "tier": "required", "want": item.name,
                         "family": None, "label": item.label or item.name,
-                        "folder": (f"{item.folder}/{item.name}" if item.folder not in HC.PLACES
+                        "folder": (f"{item.folder}/{HC.in_folder(item)}" if item.folder not in HC.PLACES
                                    else None),
                         "url": item.url,
                         "source": f"{HC.where_text(item)}: download it in the Features window "

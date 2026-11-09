@@ -38,12 +38,12 @@ def asked() -> dict | None:
 # How long a job may run before it is taken as hung, stopped and failed:
 # several times the longest such job seen (a 4K SeedVR2 post is the slow one).
 LIMITS = {"render": 2 * 3600, "ref": 1800, "upscale": 4 * 3600, "post": 6 * 3600,
-          "tour": 3600, "cue": 1800, "fx": 1800, "vocals": 1800}
+          "tour": 3600, "cue": 1800, "fx": 1800, "vocals": 1800, "line": 600}
 
 # The least free disk a job needs where its files land (GB): a take is a few
 # hundred MB with its latent and frames, a 4K upscale or post a few GB.
 ROOM_GB = {"render": 1.0, "ref": 0.2, "upscale": 3.0, "post": 3.0, "tour": 1.0, "cue": 0.2,
-           "fx": 0.2, "vocals": 0.5}
+           "fx": 0.2, "vocals": 0.5, "line": 0.1}
 
 
 def room(folder: str, kind: str) -> None:
@@ -86,6 +86,7 @@ class Runner:
     def __init__(self, queue: Queue, backends: dict, emit=None, review_copy: bool = False):
         self.queue = queue
         self.backends = backends
+        queue.lane_limit = lambda lane: getattr(self.backends.get(lane), "parallel", None)
         self._emit = emit or (lambda e, d: None)
         self.review_copy = review_copy
         # ask(path, body) -> (status, data): an API request made from a job (the
@@ -363,19 +364,26 @@ class Runner:
         import os
 
         from seriesmith import refs as R
+        from seriesmith import targets as TG
 
         backend = self.backend_for(backend_name)
-        hosted = bool(job.target.spec.get("router"))
+        hosted = TG.is_hosted(job.target.spec)
+        refuses = getattr(job.target.module, "refuses", None) if hosted else None
+        why = refuses(job.target, job) if refuses else None
+        if why:
+            raise ValueError(why)                # before anything is reserved or paid for
         if not hosted:
             # what its node pack would fetch by itself (an ambience bed's BigVGAN), not
             # downloaded: refused before anything is reserved
             from seriesmith import hubcache as HC
             HC.check_target(job.target, backend)
-        self.reserve(backend, s.ep, "ref")
+        # the target's workflow: a Comfy partner node in it is paid (Fish Audio's voice)
+        self.reserve(backend, s.ep, "ref", None if hosted else base)
         collector = J.InputCollector(keep_dir=os.path.join(R.takes_dir(job.ref), "_staged"))
         if not hosted:
             R.stage_references(s, job, collector)
             R.stage_voice_reference(s, job, collector)
+            R.stage_gpu_memory(job, backend)
         else:
             R.hosted_references(s, job)          # the pictures it sends, as local files
         take = R.start_gen(s, job)
@@ -562,11 +570,79 @@ class Runner:
         self._submit(qjob)
         return n, qjob.id
 
+    def enqueue_line(self, ep: str, line: dict, target, backend_name: str, local: dict | None = None) -> tuple[int, str]:
+        """One take of a line of dialogue (lines.py) queued: on a provider, its words alone, in its
+        character's speaker; on a local model (`local`: {"base": its workflow, "listing", "resolve", "cache"}),
+        from the description, its graph made as it starts, so a line after the character's first can
+        continue it. Returns (the take's number, the queue's job id)."""
+        from seriesmith import lines as LN
+        from seriesmith import targets as TG
+
+        backend = self.backend_for(backend_name)
+        hosted = TG.is_hosted(target.spec)
+        if not hosted:
+            # what its node pack would fetch by itself (Qwen3-TTS's models), not downloaded:
+            # refused before anything is reserved
+            from seriesmith import hubcache as HC
+            HC.check_target(target, backend)
+        self.reserve(backend, ep, "line", None if hosted else (local or {}).get("base"))
+        n = LN.reserve(ep, line, target)
+        lid = line["id"]
+        call = LN.call_for(ep, line, n, target) if hosted else None
+
+        def local_graph() -> tuple[dict, list]:
+            import os
+
+            from seriesmith import refs as R
+            job = LN.local_job(ep, line, n, target)
+            local_ = local or {}
+            blocked = R.resolve_job_models(job, local_.get("listing"), local_.get("resolve"), local_.get("cache"), {})
+            if blocked:
+                raise RuntimeError("model files not installed: " + "; ".join(TG.missing_message(m) for m in blocked))
+            s = R.load_series(ep)
+            collector = J.InputCollector(keep_dir=os.path.join(LN.folder(ep), "_staged"))
+            R.stage_voice_reference(s, job, collector)
+            R.stage_gpu_memory(job, backend)
+            g = R.graph_for(local_.get("base"), job, None, portable=True)
+            J.files_as_uploads(g, collector.files)
+            return g, [k for k, v in g.items() if v["class_type"] == "SaveAudio"]
+
+        def event(status: str) -> None:
+            self._emit("seriesmith.lines", {"ep": ep, "line": lid, "take": n, "status": status})
+
+        def work(qjob: QJob, report) -> str:
+            try:
+                g, savers = (None, []) if hosted else local_graph()
+                run = backend.call(*call) if hosted else backend.submit(g)
+                self.started(qjob, run, backend, report)
+                status = run.watch(on_progress=progress_to(report))
+                if status != "succeeded":
+                    raise RuntimeError(run.error or f"the job ended {status}")
+                LN.finish(ep, lid, n, run, savers)
+                result = "succeeded"
+            except Exception as e:                       # noqa: BLE001  the take fails
+                qjob.error = str(e)[:800]
+                LN.fail(ep, lid, n, stopped(qjob) if qjob.cancel_asked else str(e))
+                result = "canceled" if qjob.cancel_asked else "failed"
+            event("ok" if result == "succeeded" else "failed")
+            return result
+
+        def cancelled(qjob: QJob) -> None:
+            LN.fail(ep, lid, n, "canceled before it ran")
+            event("failed")
+
+        qjob = QJob(kind="line", lane=backend.name, title=f"{_ep_name(ep)} line {lid} t{n:02d}",
+                    work=work, info={"ep": ep, "line": lid, "take": n, "backend": backend.name},
+                    on_cancel=cancelled, limit=LIMITS["line"])
+        self._submit(qjob)
+        return n, qjob.id
+
     def enqueue_cue(self, root: str, cid: str, n: int, graph: dict | None, p: dict,
-                    backend_name: str, call: tuple | None = None) -> str:
+                    backend_name: str, call: tuple | None = None, tracks: int = 1) -> str:
         """A music cue's take (cue.py: its sidecar reserved, its graph, the cue's plan)
         queued: the audio that comes back is kept, stretched to the cue's tempo and
-        measured (cue.finish_take). Returns the queue's job id."""
+        measured (cue.finish_take). A model that returns `tracks` for one call has each
+        further one kept as a take of its own: it was paid for. Returns the queue's job id."""
         import os
         import tempfile
 
@@ -576,14 +652,38 @@ class Runner:
         self.reserve(backend, root, "cue", graph)
         sidecar = CU.take_paths(root, cid, n)["sidecar"]
 
-        def event(status: str) -> None:
-            self._emit("seriesmith.cue", {"ep": root, "cue": cid, "take": n, "status": status})
+        def event(status: str, take: int = n) -> None:
+            self._emit("seriesmith.cue", {"ep": root, "cue": cid, "take": take, "status": status})
             self._emit("seriesmith.episode", {"ep": root})
+
+        def kept(out, take: int, plans: dict) -> dict:
+            fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(out.name)[1] or ".flac")
+            os.close(fd)
+            try:
+                out.save(tmp)
+                return CU.finish_take(root, cid, take, tmp, p, plans)
+            finally:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+
+        def further_track(out, track: int, report) -> None:
+            """Never the job's failure: its first take is already good."""
+            take = None
+            try:
+                take = CU.another_track(root, cid, n, track)
+                kept(out, take, {})
+                report(line=f"track {track} kept as take {take}")
+                event("ok", take)
+            except Exception as e:                       # noqa: BLE001  said; the first stands
+                report(line=f"track {track} wasn't kept: {e}")
+                if take is not None:
+                    CU.update(root, cid, take, status="failed", finished=T.now(), error=str(e)[:800])
+                    event("failed", take)
 
         def work(qjob: QJob, report) -> str:
             progress = progress_to(report)
             try:
-                # a hosted model's take is one call (Router: `call` is (model, arguments))
+                # a hosted model's take is one call (`call` is (model, arguments))
                 run = backend.call(*call) if call else backend.submit(graph)
                 self.started(qjob, run, backend, report)
                 CU.update(root, cid, n, backend_job=run.id)
@@ -607,16 +707,11 @@ class Runner:
                         finally:
                             if os.path.exists(txt):
                                 os.remove(txt)
-                fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1] or ".flac")
-                os.close(fd)
-                try:
-                    outs[0].save(tmp)
-                    sc = CU.finish_take(root, cid, n, tmp, p, plans)
-                finally:
-                    if os.path.exists(tmp):
-                        os.remove(tmp)
+                sc = kept(outs[0], n, plans)
                 m = sc.get("measured") or {}
                 report(line=f"take ok: shape {m.get('shape_error')}, worst hit {m.get('worst_must')} fr")
+                for i, out in enumerate(outs[1:tracks], 2):
+                    further_track(out, i, report)
                 result = "succeeded"
             except Exception as e:                       # noqa: BLE001  the take fails
                 qjob.error = str(e)[:800]

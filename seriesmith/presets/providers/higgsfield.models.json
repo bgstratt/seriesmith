@@ -1,0 +1,123 @@
+{
+  "read": "2026-11-05",
+  "source": "https://docs.higgsfield.ai/docs/models.md",
+  "models": [
+    {
+      "id": "bytedance/seedance-2.5/reference-to-video",
+      "label": "Seedance 2.5",
+      "kind": "video",
+      "models": {
+        "references": "bytedance/seedance-2.5/reference-to-video",
+        "frames": "bytedance/seedance-2.5/image-to-video",
+        "text": "bytedance/seedance-2.5/text-to-video"
+      },
+      "fields": {
+        "prompt": {"type": "string"},
+        "image_urls": {"type": "array", "items": {"type": "string"}},
+        "image_url": {"type": "string"},
+        "end_image_url": {"type": "string"},
+        "duration": {"type": "integer", "minimum": 4, "maximum": 30},
+        "resolution": {"type": "string", "enum": ["480p", "720p", "1080p"]},
+        "generate_audio": {"type": "boolean"},
+        "aspect_ratio": {"type": "string", "enum": ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"]}
+      },
+      "inputs": {
+        "references": {"list": "image_urls", "max": 30, "max_total": 30, "define": true, "define_as": "@Image{n}"},
+        "first": {"field": "image_url"},
+        "last": {"field": "end_image_url"},
+        "ratio": {"name": "aspect_ratio", "values": ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"], "with_frames": "omit"}
+      },
+      "note": "Its docs don't say how a prompt names a picture: @Image1 is how Atlas's Seedance takes it, so look at the first take. It has no seed field, so a shot's seed isn't sent."
+    },
+    {
+      "id": "minimax/h3/reference-to-video",
+      "label": "MiniMax H3",
+      "kind": "video",
+      "models": {
+        "references": "minimax/h3/reference-to-video",
+        "frames": "minimax/h3/image-to-video",
+        "text": "minimax/h3/text-to-video"
+      },
+      "required": ["prompt"],
+      "fields": {
+        "prompt": {"type": "string", "maxLength": 7000},
+        "image_urls": {"type": "array", "items": {"type": "string"}},
+        "image_url": {"type": "string"},
+        "end_image_url": {"type": "string"},
+        "duration": {"type": "integer", "minimum": 5, "maximum": 15},
+        "resolution": {"type": "string", "enum": ["2K"]},
+        "aspect_ratio": {"type": "string", "enum": ["auto", "adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]}
+      },
+      "inputs": {
+        "references": {"list": "image_urls", "max": 9, "max_total": 9},
+        "first": {"field": "image_url"},
+        "last": {"field": "end_image_url"},
+        "ratio": {"name": "aspect_ratio", "values": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"], "with_frames": "omit"}
+      },
+      "note": "Only 2K, so check what that costs. At least 5 seconds: a shorter shot comes back long. No seed field, and no field for sound. Voices (audio_urls) aren't mapped yet."
+    },
+    {
+      "id": "kling-video/v3.0/pro/image-to-video",
+      "label": "Kling 3.0 Pro",
+      "kind": "video",
+      "models": {
+        "frames": "kling-video/v3.0/pro/image-to-video",
+        "text": "kling-video/v3.0/pro/text-to-video"
+      },
+      "required": ["prompt"],
+      "fields": {
+        "prompt": {"type": "string", "maxLength": 2500},
+        "image_url": {"type": "string"},
+        "last_image_url": {"type": "string"},
+        "duration": {"type": "integer", "minimum": 3, "maximum": 15},
+        "sound": {"type": "string", "enum": ["on", "off"]},
+        "aspect_ratio": {"type": "string", "enum": ["16:9", "9:16", "1:1"]}
+      },
+      "inputs": {
+        "first": {"field": "image_url"},
+        "last": {"field": "last_image_url"},
+        "ratio": {"name": "aspect_ratio", "values": ["16:9", "9:16", "1:1"], "with_frames": "omit"},
+        "audio": {"name": "sound", "on": "on", "off": "off"}
+      },
+      "note": "No seed field. Standard's ids are the same with std for pro (kling-video/v3.0/std/...). Its multi-shot fields (multi_shots, multi_prompt) aren't mapped yet."
+    },
+    {
+      "id": "higgsfield-ai/soul/standard",
+      "label": "Soul",
+      "kind": "image",
+      "required": ["prompt"],
+      "fields": {
+        "prompt": {"type": "string"},
+        "aspect_ratio": {"type": "string", "enum": ["9:16", "16:9", "4:3", "3:4", "1:1", "2:3", "3:2"]},
+        "resolution": {"type": "string", "enum": ["720p", "1080p"]},
+        "seed": {"type": "integer", "minimum": 1, "maximum": 1000000}
+      },
+      "note": "Its docs: a short prompt in the general style can be enhanced even with enhance_prompt off. No reference pictures of the kind other models take: its characters are trained on Higgsfield."
+    },
+    {
+      "id": "higgsfield-ai/soul/cinema",
+      "label": "Soul Cinema",
+      "kind": "image",
+      "required": ["prompt"],
+      "fields": {
+        "prompt": {"type": "string"},
+        "aspect_ratio": {"type": "string", "enum": ["9:16", "16:9", "4:3", "3:4", "1:1", "2:3", "3:2"]},
+        "resolution": {"type": "string", "enum": ["720p", "1080p"]},
+        "seed": {"type": "integer", "minimum": 1, "maximum": 1000000}
+      }
+    },
+    {
+      "id": "xai/grok-imagine-image-2.0",
+      "label": "Grok Image 2.0 (from reference pictures too)",
+      "kind": "image",
+      "required": ["prompt"],
+      "fields": {
+        "prompt": {"type": "string"},
+        "image_urls": {"type": "array", "items": {"type": "string"}, "maxItems": 10},
+        "quality": {"type": "string", "enum": ["low", "medium"]},
+        "resolution": {"type": "string", "enum": ["1k", "2k"]},
+        "aspect_ratio": {"type": "string", "enum": ["auto", "1:1", "1:2", "2:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16"]}
+      }
+    }
+  ]
+}

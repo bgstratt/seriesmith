@@ -48,6 +48,7 @@ from dataclasses import dataclass
 
 from seriesmith import targets as TG
 from seriesmith.targets import moderate as MOD
+from seriesmith.targets import prompt_template as TP
 from seriesmith.core import framing, ir
 from seriesmith.targets.video.ltx2.compile import _duration, shotlist_extra
 from seriesmith.core import paths as P
@@ -64,10 +65,13 @@ class Style:
     """What a prose target words its own way. `build_prompt(shot, seq,
     series_cfg)` writes the paragraph; `silent_dialogue` is the `--check`
     warning for dialogue a silent model can't voice, with {n} and {ids}
-    ("" for none). Defaults come from the target (style_for)."""
+    ("" for none). `parts(shot, seq, series_cfg)` gives the same paragraph's parts,
+    for a target's prompt template (targets.prompt_template); None for a writer that has
+    none. Defaults come from the target (style_for)."""
     build_prompt: object
     silent_dialogue: str = ("{n} dialogue shot(s): no audio or lip-sync on {short} "
                             "(the lines are acted silently): {ids}")
+    parts: object = None
 
 
 def prose_writer(silent: bool):
@@ -81,6 +85,31 @@ def prose_writer(silent: bool):
     return fn
 
 
+def prose_parts(silent: bool):
+    """The parts the writer prose_writer gives."""
+    if silent:
+        from seriesmith.targets.video.wan.prompt import shot_parts as fn
+    else:
+        from seriesmith.targets.video.ltx2.prompt import shot_parts as fn
+    return fn
+
+
+def written(ctx: "Ctx", shot: ir.Shot, sq: ir.Sequence, series_cfg: dict) -> str:
+    """A shot's prompt: its parts through the target's template, or its writer's own
+    paragraph when the writer gives no parts."""
+    template = TP.shot_template(ctx.target)
+    if template and ctx.style.parts:
+        return TP.render(template, ctx.style.parts(shot, sq, series_cfg))
+    return ctx.style.build_prompt(shot, sq, series_cfg)
+
+
+def prompt_parts(target, shot: ir.Shot, sq: ir.Sequence, series_cfg: dict, style=None) -> dict:
+    """What a shot's template has to work with on this target, as compile_entry gives it.
+    A target whose code has this takes a prompt template (promptview.editable)."""
+    told = MOD.moderated_config(series_cfg) if target.moderated else series_cfg
+    return style_for(target, style).parts(shot, sq, told)
+
+
 def style_for(target, style: "Style | None" = None) -> Style:
     """`style`, else the one the target's own data asks for. A target that makes
     no sound gets the silent writer whatever else it says (a soundscape and
@@ -90,8 +119,8 @@ def style_for(target, style: "Style | None" = None) -> Style:
     if style is not None:
         return style
     silent = (not makes_sound(target)
-              or (target.recipe.get("prompt") or "").strip() == "prose_silent")
-    return Style(prose_writer(silent))
+              or TP.writer_of(target) == "prose_silent")
+    return Style(prose_writer(silent), parts=prose_parts(silent))
 
 
 def makes_sound(target) -> bool:
@@ -195,7 +224,7 @@ def voice_refs(ctx: "Ctx", shot: ir.Shot) -> list[dict]:
     voices the model takes (router.inputs.voices.max)."""
     book = ctx.series_cfg["subjects"]
     who = list(dict.fromkeys(d.speaker for d in shot.dialogue if d.speaker in book))
-    most = int((((ctx.target.spec.get("router") or {}).get("inputs") or {}).get("voices") or {})
+    most = int(((TG.hosted_block(ctx.target.spec).get("inputs") or {}).get("voices") or {})
                .get("max") or 0)
     if most and len(who) > most:
         raise ValueError(f"shot {shot.id}: {len(who)} speakers, and clone mode sends one voice "
@@ -254,8 +283,7 @@ def capped(pics: list[dict], target) -> tuple[list[dict], list[dict]]:
     """(the panels a hosted model is sent, the ones it isn't), by the rule
     router_video.pictures sends them: the subjects up to its `max`, then the
     plate, all of it cut to its `max_total`. Everything for a local target."""
-    refs = (((target.spec.get("router") or {}).get("inputs") or {}).get("references")
-            if isinstance(target.spec.get("router"), dict) else None)
+    refs = (TG.hosted_block(target.spec).get("inputs") or {}).get("references")
     if not refs:
         return list(pics), []
     most = refs.get("max") or target.capabilities().get("max_subjects") or 99
@@ -303,7 +331,7 @@ def compile_entry(ctx: Ctx, sq: ir.Sequence, shot: ir.Shot, ep_id: str) -> dict:
     # a hosted model's content filter reads it: its subjects' designs without
     # what describes a body (targets.moderate; the pictures carry the look)
     told = MOD.moderated_config(series_cfg) if ctx.target.moderated else series_cfg
-    entry["prompt"] = ctx.style.build_prompt(shot, sq, told)
+    entry["prompt"] = written(ctx, shot, sq, told)
     entry["negative"] = ctx.preset.extra.get("negative", "")
     entry["keyframes"] = {end: keyframe_path(ctx.recipe, shot.id, end)
                           for end in TG.keyframe_ends(ctx.recipe, shot, sq)}
@@ -341,9 +369,9 @@ def board_parts(shot: ir.Shot, series_cfg: dict, sent_of: dict) -> dict:
     cam = framing.orbit((shot.camera or "").strip().rstrip("."), ", ".join(who))
     lines = []
     for d in shot.dialogue:
-        how = f", {d.delivery.strip()}" if (d.delivery or "").strip() else ""
-        where = {"vo": " in voiceover", "os": " from off screen"}.get(d.mode, "")
-        lines.append(f'{cap(name(d.speaker))} says{where}{how}: "{d.line.strip()}"')
+        how = [(d.delivery or "").strip(), {"vo": "in voiceover", "os": "from off screen"}.get(d.mode, "")]
+        how = ", ".join(x for x in how if x)
+        lines.append(f'{cap(name(d.speaker))}{", " + how + "," if how else ""} says: "{d.line.strip()}"')
     return {"frame": f"{frame} of {listed}." if listed else f"{frame}.",
             "camera": f"The camera {cam}." if cam else "",
             "action": (shot.action or "").strip(),

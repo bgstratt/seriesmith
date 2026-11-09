@@ -142,7 +142,7 @@ export interface CutInfo {
   audio_file?: string | null;
   /** Phase 9d: short text for the speaker badge ("sh020 t01", "line.wav"). */
   audio_why?: string | null;
-  /** `audio` is the shot's dub (Sound: Dub), not set by hand in the cut */
+  /** `audio` is the shot's dub, which its take wasn't rendered to: not set by hand */
   audio_dub?: boolean;
 }
 
@@ -157,8 +157,9 @@ export interface MultishotPart {
 /** Where a dub's track comes from (overrides.json `sound.dub`). */
 export type DubSource =
   | { from: "track" }
-  | { from: "take"; pass: Pass; take: number }
-  | { from: "dub"; take: number };
+  | { from: "take"; pass: Pass; take: number; shot?: string }
+  | { from: "dub"; take: number }
+  | { from: "line" };
 
 /** A shot's sound as the editor sets it (overrides.json `sound`); none: the script's. */
 export interface ShotSound {
@@ -194,6 +195,15 @@ export interface DubSources {
   track: { file: string; in: number; out: number } | null;
   dubs: DubOption[];
   takes: DubOption[];
+  /** the shot's lines (lines.py), each with its finished takes */
+  lines?: { id: string; who: string; name: string; text: string; picked?: number | null;
+    takes: { take: number; file: string; seconds?: number; voice_name?: string; source?: string }[] }[];
+  /** how far its dub is slid in the cut, in seconds */
+  offset?: number;
+  /** the takes whose mouths follow its dub */
+  lips?: number[];
+  /** a take rendered to its dub plays what the model gave back, not the dub */
+  model_sound?: boolean;
 }
 
 export interface ShotStatus {
@@ -1650,6 +1660,8 @@ export interface Ref {
   key?: string;
   /** the series config subject it belongs to (null for a location or a keyframe) */
   subject?: string | null;
+  /** a voice: the speaker it has on each provider (voices.<provider> in the series config) */
+  speakers?: Record<string, { id: string; name?: string; preview?: string }>;
   /**
    * a wardrobe variant's base: the subject it is a variant of (`of:` in the
    * series config), null for everything else. A variant keeps that character's
@@ -2078,6 +2090,14 @@ export interface Target {
   id: string;
   kind: TargetKind;
   label: string;
+  /** the provider of the user's own that runs it */
+  service?: string;
+  /** that provider's name */
+  service_label?: string;
+  /** that provider's speakers can be listed (GET /seriesmith/providers/voices) */
+  service_voices?: boolean;
+  /** what this show changes of the model (<show>/targets/overrides.json) */
+  show_fields?: string[];
   default?: boolean;
   presets?: Partial<Record<Pass, TargetPreset>>;
   widgets?: {
@@ -3124,6 +3144,39 @@ export interface CuePreset {
 }
 
 /** GET /seriesmith/cues: one cue. */
+/** GET /seriesmith/cold-open: the shots the script marks `cold_open:` that open the pass's cut, and
+ * where a master puts the series intro (docs/TITLES_GUIDE.md). */
+export interface ColdOpenState {
+  /** the run, in cut order */
+  shots: string[];
+  /** its last shot; null: no cold open */
+  end: string | null;
+  /** where the intro goes in the assembled cut (frames, seconds); null without a cold open or with an error */
+  frame: number | null;
+  seconds: number | null;
+  /** marked shots that play after one that isn't */
+  gaps: string[];
+  /** why a master can't put the intro in, else null */
+  error: string | null;
+  /** every shot the script marks cold open (the timeline's badges) */
+  marked?: string[];
+  /** music items of the mix that play across the break: a master cuts them there */
+  crossing?: { id: string; label: string }[];
+}
+
+/** GET /seriesmith/titles: the opening and closing a master puts around the episode (Play all plays them). */
+export interface TitlesInfo {
+  /** paths for fileUrl, relative to the episode; null: none */
+  intro: string | null;
+  outro: string | null;
+  /** the episode's title (the script's `=` line), drawn on them */
+  title: string;
+  /** publish.subtitle: where (fractions of the frame's height) and when (seconds into the clip) */
+  subtitle: { size: number; y: number; color: string; glow: string; glow_size?: number; intro_in: [number, number];
+              outro_in: [number, number]; outro_out: [number, number] };
+  error: string | null;
+}
+
 export interface CueSummary {
   spec: CueSpec;
   takes: number;
@@ -3242,6 +3295,8 @@ export interface CueTake {
   placed?: Pass;
   /** what has moved in the cut since it was rendered ([] or absent: nothing) */
   stale?: string[];
+  /** a finished take's length (its wav; a YuE2 song can run past the cue's grid); null or absent: not known */
+  seconds?: number | null;
   /** a comp (POST /seriesmith/cue/comp): take `base` with the cue's bars [a, b) from take `from` */
   comp?: { base: number; from: number; bars: [number, number] };
   /** a repaint (POST /seriesmith/cue/repaint): take `from` with the cue's bars [a, b) made again
@@ -3268,4 +3323,66 @@ export interface CueResult {
   takes: CueTake[];
   /** the series config's themes, to pick from (absent from older servers) */
   themes?: SeriesTheme[];
+  /** where a take of it is billed, in words; null on your own GPU (the editor asks first when it's set) */
+  paid?: string | null;
+}
+
+/** GET /seriesmith/fonts: the font files on the machine the server runs on. */
+export interface FontsInfo {
+  /** their file names, sorted */
+  fonts: string[];
+  /** the font asked about, and the file a master would draw the title with (null: not found) */
+  font: string | null;
+  found: string | null;
+}
+
+/** The gallery's Sound tab (GET /seriesmith/sound/gallery): a kind of the episode's sound. */
+export type SoundKind = "music" | "ambience" | "effects" | "voices" | "lines";
+
+/** One finished take of a sound, in the Sound tab's grid. */
+export interface SoundItem {
+  /** `kind|id|take` */
+  key: string;
+  take: number;
+  /** the file it plays, relative to the episode */
+  path: string;
+  /** the one in use: in the pass's mix (a cue's, a shot's effects), picked (a bed, a voice, a line) */
+  use: boolean;
+  model: string | null;
+  seed: number | string | null;
+  /** when it was made */
+  made: string | null;
+  seconds: number | null;
+  /** music: the series theme this take is */
+  theme?: string | null;
+  /** a line's words, a voice sample's */
+  text?: string | null;
+  /** a line's voice */
+  who?: string | null;
+}
+
+/** A cue, a place's bed, a shot's effects, a voice or a line: its takes, newest first. */
+export interface SoundSection {
+  kind: SoundKind;
+  /** the cue id, `ambience:<place>`, the shot, `voice:<id>`, the line id */
+  id: string;
+  name: string;
+  note: string;
+  items: SoundItem[];
+  queued: number;
+  failed: number;
+  /** music: where a take of the cue is billed, in words; null (or absent) on your own GPU */
+  paid?: string | null;
+}
+
+export interface SoundListing {
+  sections: SoundSection[];
+  /** a kind that couldn't be read (the rest is still listed) */
+  errors: { kind: SoundKind; error: string }[];
+}
+
+/** GET /seriesmith/sound/gallery/take: what one take was made with. */
+export interface SoundTakeDetail {
+  prompt: string | null;
+  rows: [string, string][];
 }

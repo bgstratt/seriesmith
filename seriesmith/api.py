@@ -1208,6 +1208,9 @@ def _in_series_home(ctx: Context, ep: str, parts: list[str]) -> bool:
       ref's live file can be another episode's pick, and its candidates are
       that episode's (refs.owner_takes).
 
+    The episode's own intro and outro (publish.titles: the series config's `publish` block, else
+    the show's `_titles` files) are served too, those two files exactly: Play all plays them.
+
     Either way the file must also be inside a configured root.
     """
     series_cfg = E.episode_series_config(ep)
@@ -1217,6 +1220,8 @@ def _in_series_home(ctx: Context, ep: str, parts: list[str]) -> bool:
     full = _real(os.path.join(ep, *[p for p in parts if p not in ("", ".")]))
     if not any(_inside(full, _real(r)) for r in load_roots(ctx)):
         return False
+    if full in {_real(c) for c in _title_clips(ep) if c}:
+        return True
     if home != _real(ep):
         return _inside(full, home)
     show = os.path.dirname(os.path.abspath(ep))
@@ -2549,6 +2554,93 @@ def post_color_match(ctx: Context, body):
         raise ApiError(500, f"matching failed: {e}")
 
 
+def _title_clips(ep: str) -> tuple[str | None, str | None]:
+    """The episode's (intro, outro) clips (publish.titles), (None, None) when they can't be read."""
+    from seriesmith import publish as PUB
+    try:
+        return PUB.titles(ep)
+    except (PUB.PublishError, OSError, ValueError):
+        return None, None
+
+
+@handler
+def get_titles(ctx: Context, query: dict):
+    """The opening and closing a master puts around the episode, for Play all to play:
+    {"intro", "outro" (each a path for GET /seriesmith/file, relative to the episode, or null),
+    "title" (the script's `=` line's), "subtitle" (publish.subtitle with its defaults: where
+    and when the title is drawn), "error" (why the clips can't be read, else null)}."""
+    from seriesmith import publish as PUB
+    ep = check_ep(ctx, query.get("ep"))
+    out = {"intro": None, "outro": None, "title": "", "subtitle": dict(PUB.SUBTITLE), "error": None}
+    try:
+        intro, outro = PUB.titles(ep)
+    except PUB.PublishError as e:
+        return 200, {**out, "error": str(e)}
+    rel = lambda p: os.path.relpath(p, ep).replace(os.sep, "/") if p else None  # noqa: E731
+    cfg = E.episode_series_config(ep)
+    if cfg:
+        with open(cfg, encoding="utf-8") as fh:
+            out["subtitle"] = PUB.publish_config(json.load(fh))["subtitle"]
+    script = E.episode_script(ep)
+    return 200, {**out, "intro": rel(intro), "outro": rel(outro),
+                 "title": PUB.episode_title(script) if script else ""}
+
+
+@handler
+def get_fonts(ctx: Context, query: dict):
+    """The font files on the machine the server runs on, for the title's font: {"fonts" (their
+    file names, sorted), "font", "found" (with `font`: the file it names, as a master finds it
+    (publish.find_font: a path, relative ones from the folder holding the episode's
+    series.json, or a file name in the font folders), else null)}."""
+    from seriesmith import publish as PUB
+    fonts = PUB.installed_fonts()
+    out = {"fonts": sorted({os.path.basename(p) for p in fonts.values()}, key=str.lower),
+           "font": None, "found": None}
+    font = (query.get("font") or "").strip()
+    if font:
+        home = None
+        if query.get("ep"):
+            cfg = E.episode_series_config(check_ep(ctx, query.get("ep")))
+            home = os.path.dirname(cfg) if cfg else None
+        out["font"] = font
+        out["found"] = PUB.find_font(font, home, fonts)
+    return 200, out
+
+
+@handler
+def get_cold_open(ctx: Context, query: dict):
+    """The cold open against the pass's cut (coldopen.state): {"shots", "end", "frame",
+    "seconds", "gaps", "error", "frames"}: the shots the script marks `cold_open:` that open
+    the cut, where the series intro goes in a master, and why it can't (a marked shot after
+    one that isn't)."""
+    from seriesmith import coldopen as CO
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    return 200, CO.state(ep, pass_)
+
+
+@handler
+def put_cold_open(ctx: Context, body):
+    """`{ep, pass, end}`: the cold open marked as the pass's cut has it, every shot from the
+    cut's first to `end` (null: no cold open), in the script (coldopen.set_end: a history
+    copy kept), and rebuilt. Returns the state, `changed` and `build`. 400 for a shot not in
+    the cut, or a script that doesn't parse."""
+    from seriesmith import coldopen as CO
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    end = body.get("end")
+    if end is not None and not isinstance(end, str):
+        raise ApiError(400, "end is a shot id, or null for no cold open")
+    try:
+        res = CO.set_end(ep, pass_, end)
+    except CO.ColdOpenError as e:
+        raise ApiError(400, str(e)) from None
+    build = E.build_episode(ep) if res["changed"] else None
+    episode_event(ctx, ep)
+    return 200, {**CO.state(ep, pass_), "changed": res["changed"], "build": build}
+
+
 @handler
 def put_cut(ctx: Context, body):
     body = body_dict(body)
@@ -2758,25 +2850,30 @@ def get_cues(ctx: Context, query: dict):
     pass's mix plays, or null), `stale` (what has moved under that take since it was
     rendered, in words; [] when nothing has or none is in the mix), `stale_takes` (the
     finished takes something has moved under) and `plan_error` (its anchors aren't in
-    the cut: null otherwise)."""
+    the cut: null otherwise). `unreadable`: the cues left out because their spec doesn't
+    check, [{"id", "error"}]."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query["pass"]) if query.get("pass") is not None else None
-    items = {}
-    if pass_:
+    # each pass's mix items by id, read once: what a cue has in the mix is the mix's, not
+    # its takes' record of a pick (an item deleted from the mix leaves that behind)
+    mixes = {}
+    for p in PASSES:
         try:
-            items = {i["id"]: i for i in MX.check(MX.load(ep).get(pass_)).get("items") or []}
+            mixes[p] = {i["id"]: i for i in MX.check(MX.load(ep).get(p)).get("items") or []}
         except ValueError:
-            items = {}
+            mixes[p] = {}
+    items = mixes[pass_] if pass_ else {}
     out = []
     for spec in CU.list_cues(ep):
         takes = CU.list_takes(ep, spec["id"])
         row = {"spec": spec, "takes": len(takes),
                "ok": sum(1 for t in takes if t.get("status") == "ok"),
-               "placed": sorted({t["placed"] for t in takes if t.get("placed")})}
+               "placed": sorted(p for p in PASSES
+                                if CU.item_take(mixes[p].get(spec["id"]), spec["id"]) is not None)}
         if pass_:
             row.update(_cue_state(ep, pass_, spec, takes, items.get(spec["id"])))
         out.append(row)
-    return 200, {"cues": out}
+    return 200, {"cues": out, "unreadable": CU.unreadable_cues(ep)}
 
 
 def _cue_state(ep: str, pass_: str, spec: dict, takes: list[dict], item: dict | None) -> dict:
@@ -2798,8 +2895,10 @@ def get_cue(ctx: Context, query: dict):
     """A cue: `spec`, `plan` (what it is asked against the pass's cut: its hits in
     seconds, the fitted tempo, bars, sections, arc and the model's prompt; null with
     `plan_error` when its anchors aren't in the cut) and `takes`, best first, each with
-    `stale`: what has moved in the cut since it was rendered, in words; and `themes`, the
-    series config's (cue.theme_list), for the theme to be picked from."""
+    `stale`: what has moved in the cut since it was rendered, in words, and `seconds`: a
+    finished take's length (its wav; null for the rest); `themes`, the series config's
+    (cue.theme_list), for the theme to be picked from; and `paid`: where a take of it is
+    billed, in words (targets.billing), or null on your own GPU: the editor asks first."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query.get("pass"))
     spec = _cue_spec(ep, query.get("cue"))
@@ -2808,10 +2907,19 @@ def get_cue(ctx: Context, query: dict):
     except CU.CueError as e:
         full, why = None, str(e)
     takes = CU.ranked(CU.list_takes(ep, spec["id"]))
+    # in the mix is what the mix holds, not the sidecar's record of a pick (an item deleted
+    # from the mix leaves that record behind)
+    in_mix = CU.mix_take(ep, pass_, spec["id"])
     for t in takes:
         t["stale"] = CU.stale(t, full) if full else []
+        t["seconds"] = CU.take_seconds(ep, t)
+        t["placed"] = pass_ if t["take"] == in_mix else None
+    try:
+        paid = TG.billing(TG.load_target(full["target"] if full else CU.model_for(spec, J.series_config(ep))))
+    except (TG.TargetError, ValueError, OSError):
+        paid = None
     return 200, {"spec": spec, "plan": _plan_summary(full) if full else None,
-                 "plan_error": why, "takes": takes, "themes": CU.theme_list(ep)}
+                 "plan_error": why, "takes": takes, "themes": CU.theme_list(ep), "paid": paid}
 
 
 @handler
@@ -2961,11 +3069,16 @@ def post_cue_render(ctx: Context, body):
     if n is not None and (isinstance(n, bool) or not isinstance(n, int) or not 1 <= n <= CU.TAKES_MAX):
         raise ApiError(400, f"takes is 1 to {CU.TAKES_MAX}")
     count = n or CU.takes_wanted(target, pass_, spec)
-    # a hosted model (target.json `router`: Pika Music) is a Router call, whatever backend
-    # the body names
-    hosted = bool(target.spec.get("router"))
-    backend = "router" if hosted else finish_backend(ctx, body)
+    # a hosted model is a call on its own backend (Router, or a provider of the user's), whatever
+    # backend the body names
+    hosted = TG.is_hosted(target.spec)
+    backend = J.own_backend(target) if hosted else finish_backend(ctx, body)
     if hosted and ctx.runner.backend(backend) is None:
+        service = TG.service_of(target.spec)
+        if service:
+            from seriesmith import providers as PR
+            who = (PR.definitions().get(service) or {}).get("label") or service
+            raise ApiError(409, f"{target.short or target.label} runs on {who}: add its key in Settings")
         raise ApiError(409, f"{target.label} runs on Comfy Router: set a Comfy API key in Settings")
     if (p.get("theme") or {}).get("use") == "audio":
         # the theme reshaped to this cue once, for every take; its melody score when this
@@ -2985,7 +3098,8 @@ def post_cue_render(ctx: Context, body):
                                                                  "seconds", "ask_seconds")},
                                         **({"theme": CU.theme_record(p["theme"])} if p.get("theme") else {})})
         job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend,
-                                     call=CU.hosted_call(target, p, seed) if hosted else None)
+                                     call=CU.hosted_call(target, p, seed) if hosted else None,
+                                     tracks=int(TG.hosted_block(target.spec).get("tracks") or 1))
         queued.append({"take": k, "job": job, "seed": seed})
     episode_event(ctx, ep)
     return 200, {"queued": queued, "plan": _plan_summary(p)}
@@ -3107,6 +3221,37 @@ def get_fx(ctx: Context, query: dict):
     except ValueError as e:
         raise ApiError(409, f"{MX.MIX_FILE} doesn't read: {e}")
     return 200, FXM.shot_takes(ep, pass_, shot, mix)
+
+
+@handler
+def get_sound_gallery(ctx: Context, query: dict):
+    """The gallery's Sound tab (soundgallery.listing): `{ep, pass}` -> {"sections": a section per
+    cue, place, shot, voice and line with takes, each take's file and whether it's the one in
+    use; "errors"}. From the takes' records alone; what one was made with is
+    GET /seriesmith/sound/gallery/take, when it's opened."""
+    from seriesmith import soundgallery as SG
+    ep = check_ep(ctx, query.get("ep"))
+    return 200, SG.listing(ep, check_pass(query.get("pass")))
+
+
+@handler
+def get_sound_gallery_take(ctx: Context, query: dict):
+    """What one sound take was made with (soundgallery.take_detail): `{ep, pass, kind, id,
+    take}` -> {"prompt", "rows": [[label, value]]}. 404 for a take that isn't there."""
+    from seriesmith import soundgallery as SG
+    ep = check_ep(ctx, query.get("ep"))
+    pass_ = check_pass(query.get("pass"))
+    kind, sid = query.get("kind") or "", query.get("id") or ""
+    if kind not in SG.KINDS:
+        raise ApiError(400, f"kind must be one of {', '.join(SG.KINDS)}")
+    try:
+        take = int(query.get("take") or "")
+    except ValueError:
+        raise ApiError(400, "take must be a number") from None
+    try:
+        return 200, SG.take_detail(ep, pass_, kind, sid, take)
+    except KeyError as e:
+        raise ApiError(404, str(e.args[0]) if e.args else "no such take") from None
 
 
 @handler
@@ -3697,7 +3842,7 @@ def get_router_models(ctx: Context, query: dict):
     ep = check_ep(ctx, query.get("ep")) if query.get("ep") else None
     added = {}
     for t in TG.list_targets(root=ep):
-        m = (t.spec.get("router") or {}).get("model")
+        m = TG.hosted_block(t.spec).get("model")
         if m:
             added.setdefault(m, t.id)
     out = []
@@ -3754,7 +3899,7 @@ def put_targets_custom(ctx: Context, body):
     except Exception:
         info = None
     name = ((spec.get("binding") or {}).get("workflow_name") or "")
-    if name and spec.get("router") is None:
+    if name and not TG.is_hosted(spec):
         try:
             data = ctx.comfy.userdata(f"workflows/{name}")
         except Exception:
@@ -3765,7 +3910,7 @@ def put_targets_custom(ctx: Context, body):
         else:
             graph = J.graph_from(data, name)
     problems = IN.validate_spec(spec, graph, info)
-    if graph is None and spec.get("router") is None:
+    if graph is None and not TG.is_hosted(spec):
         problems = [p for p in problems] + [
             f"no workflow called {name} is saved in ComfyUI, so the binding can't be checked: "
             f"save the graph there first (its name is binding.workflow_name)"]
@@ -3869,9 +4014,9 @@ def put_targets_limits(ctx: Context, body):
     if limits is not None and not isinstance(limits, dict):
         raise ApiError(400, "limits must be an object (seriesmith.limits sections), or null")
     limits = {k: v for k, v in (limits or {}).items() if k in L.SECTIONS}
-    if t.spec.get("router") is None and t.kind == "image" and limits:
+    if not TG.is_hosted(t.spec) and t.kind == "image" and limits:
         raise ApiError(400, f"{t.id} is a local workflow: its limits are what its graph does")
-    if t.spec.get("router") is None and t.kind == "video":
+    if not TG.is_hosted(t.spec) and t.kind == "video":
         extra = set(limits) - LOCAL_LIMITS
         pics = set((limits.get("pictures") or {})) - {"needs_first"}
         if extra or pics:
@@ -3900,7 +4045,7 @@ def put_targets_limits(ctx: Context, body):
             spec = L.apply(t.spec, limits)
         except ValueError as e:
             raise ApiError(400, str(e))
-        problems = IN.validate_spec(dict(spec)) if spec.get("router") is not None else []
+        problems = IN.validate_spec(dict(spec)) if TG.is_hosted(spec) else []
         problems = [p for p in problems if "built-in target's name" not in p]
         if problems:
             raise ApiError(400, "those limits can't be used: " + problems[0], problems=problems)
@@ -3929,7 +4074,7 @@ def post_targets_router_dryrun(ctx: Context, body):
             spec = TG.load_target(spec, "video", root=ep).spec
         except TG.TargetError as e:
             raise ApiError(404, str(e))
-    if not isinstance(spec, dict) or not isinstance(spec.get("router"), dict):
+    if not isinstance(spec, dict) or not isinstance(spec.get("router"), dict):  # a Router target's, by name
         raise ApiError(400, "target must be a Router target's target.json, or its id")
     spec = _with_limits(spec, body.get("limits"))
     if spec.get("kind") == "image":
@@ -3977,6 +4122,661 @@ def post_targets_router_dryrun(ctx: Context, body):
     return 200, {"ok": True, "shot": job.shot["id"], "pass": pass_, "model": model,
                  "arguments": plain(args), **({"routing": routing} if routing else {}),
                  "prompt_chars": {"written": len(text)}}
+
+
+@handler
+def post_targets_prompt_preview(ctx: Context, body):
+    """What the Prompt & mapping panel shows for a model and a shot, with the templates as they
+    stand in the panel (seriesmith.promptview). Nothing is saved, uploaded or paid for. Body
+    {ep, id, shot?, ref?, view?, pass?, template?, request?, inputs?, arguments?, required?,
+    target?: a target.json not saved yet, limits?, count?}."""
+    from seriesmith import promptview as PV
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"), "proxy")
+    spec = body.get("target")
+    if spec is not None and not (isinstance(spec, dict) and TG.is_hosted(spec) and spec.get("id")):
+        raise ApiError(400, "target must be a hosted model's target.json")
+    if spec is not None:
+        spec = _with_limits(spec, body.get("limits"))
+    tid = spec["id"] if spec else (_opt_str(body, "id") or "")
+    inputs, arguments = body.get("inputs"), body.get("arguments")
+    if inputs is not None and not isinstance(inputs, dict):
+        raise ApiError(400, "inputs must be an object: {value: where it goes, or null}")
+    if arguments is not None and not isinstance(arguments, dict):
+        raise ApiError(400, "arguments must be an object")
+    try:
+        return 200, PV.preview(ep, tid, pass_, _opt_str(body, "shot"), body.get("template"),
+                               body.get("request"), spec, bool(body.get("count")), inputs=inputs,
+                               arguments=arguments, required=body.get("required"),
+                               ref=_opt_str(body, "ref"), view=_opt_str(body, "view"))
+    except PV.PreviewError as e:
+        raise ApiError(404, str(e))
+    except TG.TargetError as e:
+        raise ApiError(404, str(e))
+
+
+@handler
+def put_targets_prompt(ctx: Context, body):
+    """Change how a model's prompt is written and where a hosted model's values go, for this
+    show: a built-in's or an every-show model's in `<show>/targets/overrides.json`, the show's
+    own in its target.json. An empty template, or no `inputs` and `arguments`, goes back to the
+    model's own. Refused while a template is wrong or, when the model's schema can be read, while
+    it requires a field nothing fills. Body {ep, id, template?, request?, inputs?: {value: where
+    it goes, or null to send none}, arguments?}."""
+    from seriesmith import promptview as PV
+    from seriesmith.targets import prompt_template as TP
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    try:
+        t = TG.load_target(_opt_str(body, "id") or "", root=ep)
+    except TG.TargetError as e:
+        raise ApiError(404, str(e))
+    template, request = body.get("template") or "", body.get("request") or ""
+    if not isinstance(template, str) or not isinstance(request, str):
+        raise ApiError(400, "template and request are text")
+    hosted = TG.is_hosted(t.spec)
+    if template and not PV.editable(t):
+        raise ApiError(400, f"{t.short} writes its own prompt: it has no template to change")
+    if not PV.editable(t) and not hosted:
+        raise ApiError(400, f"{t.short} writes its own prompt: it has no template to change")
+    inputs, arguments = body.get("inputs") or {}, body.get("arguments")
+    if not isinstance(inputs, dict) or not (arguments is None or isinstance(arguments, dict)):
+        raise ApiError(400, "inputs and arguments are objects")
+    if (inputs or arguments is not None) and not hosted:
+        raise ApiError(400, f"{t.short} is a local workflow: its binding says where values go")
+    wrong = TP.problems(template, list(TP.PARTS)) + TP.problems(request, list(TP.REQUEST_PARTS))
+    if wrong:
+        raise ApiError(400, "that template can't be saved: " + wrong[0], problems=wrong)
+    fields = {PV.TEMPLATE: template, PV.REQUEST: request,
+              **{TG.SHOW_FIELD_PREFIX + k: v for k, v in inputs.items()},
+              **({"router.arguments": arguments} if arguments is not None else {})}
+    lacking = PV.unfilled_after(t, fields, _required_of(t))
+    if lacking:
+        raise ApiError(400, f"{t.short} requires {', '.join(lacking)}, and nothing fills it",
+                       problems=[f"nothing fills {x}" for x in lacking])
+    mapped = bool(inputs or arguments is not None)
+    if TG.scope_of(t.folder) == "show":
+        import copy
+        spec = copy.deepcopy(t.spec)
+        recipe = spec.setdefault("recipe", {})
+        for name, value in (("prompt_template", template), ("prompt_request", request)):
+            if value:
+                recipe[name] = value
+            else:
+                recipe.pop(name, None)
+        if mapped:
+            recipe["mapping_edited"] = True
+            router = spec.setdefault("router", {})
+            for k, v in inputs.items():
+                if v is None:
+                    router.setdefault("inputs", {}).pop(k, None)
+                else:
+                    router.setdefault("inputs", {})[k] = v
+            if arguments is not None:
+                router["arguments"] = arguments
+        path = IN.save_spec(ep, spec, base=os.path.dirname(t.folder))
+    else:
+        path = TG.save_show_overrides(ep, t.id, fields)
+    TG.forget_targets()
+    episode_event(ctx, ep)
+    return 200, {"ok": True, "id": t.id, "path": path, "changed": bool(template or request or mapped)}
+
+
+def _required_of(t) -> list[str]:
+    """What a hosted model's schema requires; [] when it can't be read (no key, no network): the
+    panel says so, and a save isn't held up by it."""
+    from seriesmith import router_inspect as RI
+    from seriesmith.settings import load_settings
+    if TG.service_of(t.spec):                     # read when it was added, from what was pasted
+        return list((TG.hosted_block(t.spec).get("schema") or {}).get("required") or [])
+    model = TG.hosted_block(t.spec).get("model")
+    key = load_settings().api_key
+    if not model or not key:
+        return []
+    try:
+        return RI.cached_schema_fields(model, key)["required"]
+    except RI.RouterInspectError:
+        return []
+
+
+def _refresh_providers(ctx: Context) -> None:
+    """The queue's backends as the providers now stand. A job already running keeps its own."""
+    from seriesmith.backends import available
+    if ctx.runner is None:
+        return
+    made = available()
+    for name in [n for n in ctx.runner.backends if J.backend_kind(n) == "api" and n not in made]:
+        ctx.runner.backends.pop(name)
+    ctx.runner.backends.update({n: b for n, b in made.items() if J.backend_kind(n) == "api"})
+
+
+@handler
+def get_providers(ctx: Context, query: dict):
+    """The providers on this machine, and whether each has a key (never the key itself)."""
+    from seriesmith import providers as PR
+    return 200, {"providers": PR.listing()}
+
+
+@handler
+def put_provider(ctx: Context, body):
+    """Add or replace a provider's definition on this machine. Body {definition}. 400: what's
+    wrong with it."""
+    from seriesmith import providers as PR
+    d = body_dict(body).get("definition")
+    if not isinstance(d, dict):
+        raise ApiError(400, "definition must be the provider's definition, as an object")
+    try:
+        path = PR.save(d)
+    except PR.ProviderError as e:
+        raise ApiError(400, str(e))
+    _refresh_providers(ctx)
+    return 200, {"ok": True, "id": d["id"], "path": path, "providers": PR.listing()}
+
+
+@handler
+def delete_provider(ctx: Context, query: dict):
+    """Remove this machine's definition of a provider. Query {id}."""
+    from seriesmith import providers as PR
+    gone = PR.delete(query.get("id") or "")
+    _refresh_providers(ctx)
+    return 200, {"ok": True, "deleted": gone, "providers": PR.listing()}
+
+
+@handler
+def put_provider_key(ctx: Context, body):
+    """Set a provider's key, write-only; a null removes it. Body {id, key}."""
+    from seriesmith import providers as PR
+    from seriesmith import settings as S
+    body = body_dict(body)
+    pid, key = _opt_str(body, "id") or "", body.get("key")
+    if pid not in PR.definitions():
+        raise ApiError(404, f"there's no provider called {pid}")
+    if key is not None and not isinstance(key, str):
+        raise ApiError(400, "key is text, or null to remove it")
+    try:
+        S.save_settings({"provider_keys": {pid: (key or "").strip() or None}})
+    except (OSError, ValueError) as e:
+        raise ApiError(500, f"the settings couldn't be saved: {e}")
+    _refresh_providers(ctx)
+    return 200, {"ok": True, "id": pid, "providers": PR.listing()}
+
+
+def _reference_at(address: str) -> dict:
+    """What an address gives of a provider's API: {"text": an OpenAPI document or a cURL, "doc"?: the
+    document that goes with that cURL, "poll"?: the cURL that checks on a job}. A docs page counts,
+    when its HTML has them. SpecError saying what to do."""
+    import urllib.error
+    import urllib.request
+
+    from seriesmith import apispec as AS
+    from seriesmith import providerdraft as PD
+    from seriesmith.backends import tls
+    from seriesmith.backends.http import USER_AGENT
+
+    def fetched(url: str) -> str:
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        ctx_ = tls() if url.startswith("https") else None
+        with urllib.request.urlopen(req, timeout=30.0, context=ctx_) as r:
+            return r.read(8 * 1024 * 1024).decode("utf-8", "replace")
+
+    def as_document(raw: str) -> dict | None:
+        try:
+            got = json.loads(raw)
+        except ValueError:
+            return None
+        return got if isinstance(got, dict) else None
+
+    cant = ("that address didn't give an OpenAPI document or an example to read: its page may draw "
+            "itself in the browser. Paste the example cURL from it instead")
+    try:
+        raw = fetched(address)
+    except (urllib.error.URLError, OSError, ValueError):
+        raise AS.SpecError(cant) from None
+    doc = as_document(raw)
+    if doc is not None:
+        return {"text": json.dumps(doc)}
+    page = PD.from_page(raw, address)
+    bare = address.split("#")[0].split("?")[0].rstrip("/")
+    if not page["schema"] and not bare.endswith(".md"):
+        # a docs site can serve a page's source beside it, with more than its HTML shows (Mintlify's,
+        # as Higgsfield's: the model's whole schema, where the OpenAPI document it links has a few
+        # models only, and the example answers)
+        try:
+            source = PD.from_page(fetched(bare + ".md"), address)
+            if source["post"] and source["schema"]:
+                page = source
+        except (urllib.error.URLError, OSError, ValueError):
+            pass
+    if page["post"] and page["schema"]:
+        return {"text": page["post"], "doc": PD.document_of(page["schema"], page["post"]), "poll": page["poll"],
+                "answer": page["answer"], "poll_answer": page["poll_answer"]}
+    if page["openapi"]:
+        try:
+            doc = as_document(fetched(page["openapi"]))
+        except (urllib.error.URLError, OSError, ValueError):
+            doc = None
+    if page["post"]:
+        return {"text": page["post"], "doc": doc, "poll": page["poll"],
+                "answer": page["answer"], "poll_answer": page["poll_answer"]}
+    if doc is not None:
+        return {"text": json.dumps(doc)}
+    raise AS.SpecError(cant)
+
+
+@handler
+def post_provider_draft(ctx: Context, body):
+    """A provider set up from what its docs give (seriesmith.providerdraft). With `text` (the cURL
+    that starts a generation, an OpenAPI document, or an address: that document's, or a docs page
+    showing either), and optionally `answer`, `poll`
+    and `poll_answer`, a proposed form; with `form`, the definition it comes to and what's left to
+    fill in. Nothing is saved or sent to the provider. A key in a pasted cURL isn't kept."""
+    from seriesmith import apispec as AS
+    from seriesmith import providerdraft as PD
+    from seriesmith import providers as PR
+    body = body_dict(body)
+    out: dict = {}
+    form = body.get("form")
+    if form is None:
+        text = str(body.get("text") or "")
+        try:
+            found: dict = {}
+            if re.fullmatch(r"https?://\S+", text.strip()):
+                found = _reference_at(text.strip())
+                text = found["text"]
+            out = PD.draft(text, body.get("answer") or found.get("answer"), body.get("poll") or found.get("poll"),
+                           body.get("poll_answer") or found.get("poll_answer"), _opt_str(body, "path"), doc=found.get("doc"))
+        except AS.SpecError as e:
+            raise ApiError(400, str(e))
+        form = out["form"]
+    elif not isinstance(form, dict):
+        raise ApiError(400, "form must be an object")
+    d = PD.definition(form)
+    left = PD.form_problems(form) or [p for p in PR.problems(d)]
+    return 200, {**out, "form": form, "definition": d, "problems": left}
+
+
+def _lines_target(ep: str, asked):
+    """The voice model an episode's lines are made with: `asked`, else its voice model. None and why
+    when that one can't make them."""
+    from seriesmith import refs as R
+    tid = asked if isinstance(asked, str) and asked else R.image_defaults(R.load_series(ep)).get("voice_target")
+    try:
+        t = TG.load_target(tid, "audio", root=ep)
+    except (TG.TargetError, TypeError):
+        return None, f"there's no voice model called {tid}"
+    if TG.is_hosted(t.spec) and t.spec.get("code") != "builtin:router_audio":
+        return None, f"{t.label} can't make a line in a character's voice"
+    return t, ""
+
+
+@handler
+def get_lines(ctx: Context, query):
+    """What an episode's lines are, and what generating them would make, with a voice model on a
+    provider. Costs nothing. Query {ep, target?}. seriesmith.lines.plan's answer, and `available`: false
+    with `why` when the voice model can't make them (a character's file still can)."""
+    from seriesmith import lines as LN
+    ep = check_ep(ctx, query.get("ep"))
+    t, why = _lines_target(ep, query.get("target"))
+    # with no model that can make them there are still lines to bring in a file
+    return 200, {"available": t is not None, **({"why": why} if t is None else {}), **LN.plan(ep, t)}
+
+
+@handler
+def post_lines_generate(ctx: Context, body):
+    """Queue a take of each line asked (`lines`: ids), else each with none that matches the script, of
+    one character with `who`. Paid on a provider. Body {ep, confirm_chars, target?, lines?, who?, backend?}:
+    `confirm_chars` is the total the person was shown, and a different total is **409**, so what's sent
+    is what was agreed. **400** naming the characters with no speaker, and nothing is sent. Returns
+    {queued: [{line, take, job}], errors}."""
+    from seriesmith import jobs as J
+    from seriesmith import lines as LN
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    t, why = _lines_target(ep, body.get("target"))
+    if t is None:
+        raise ApiError(400, why)
+    if ctx.runner is None:
+        raise ApiError(400, "lines go on seriesmith's queue, which this server hasn't got")
+    plan = LN.plan(ep, t)
+    asked = body.get("lines")
+    if asked is not None and not (isinstance(asked, list) and all(isinstance(x, str) for x in asked)):
+        raise ApiError(400, "lines must be a list of line ids")
+    known = {r["id"]: r for r in plan["lines"]}
+    unknown = [x for x in asked or [] if x not in known]
+    if unknown:
+        raise ApiError(404, f"this script has no line {unknown[0]}")
+    rows = [known[x] for x in asked] if asked else [r for r in plan["lines"] if r["status"] != "ok"]
+    who = _opt_str(body, "who")
+    if who:
+        cfg = LN._config(ep)
+        rows = [r for r in rows if LN._base(cfg, r["who"]) == who]
+    silent = sorted({r["name"] for r in rows if not r["speaker"]})
+    if silent:
+        raise ApiError(400, f"pick a speaker first for {', '.join(silent)}: nothing was sent")
+    chars = sum(r["chars"] for r in rows)
+    if body.get("confirm_chars") != chars:
+        raise ApiError(409, f"that's {chars} characters now, not {body.get('confirm_chars')}: look again, nothing was sent", chars=chars)
+    out = {"queued": [], "errors": []}
+    local = None
+    if not TG.is_hosted(t.spec):
+        local = {"base": R.resolve_workflow(getattr(ctx.comfy, "base", None), None, t)[0],
+                 "listing": J.model_lister(ctx.comfy, ctx.model_choices), "resolve": ctx.model_resolve, "cache": ctx.model_cache}
+    for r in rows:
+        try:
+            name = J.backend_choice({}, r["id"], t, _opt_str(body, "backend"), ep)[0]
+            n, qid = ctx.runner.enqueue_line(ep, r, t, name, local)
+            out["queued"].append({"line": r["id"], "take": n, "job": qid})
+        except Exception as e:                            # noqa: BLE001  said, and the rest still go
+            out["errors"].append({"line": r["id"], "error": str(e)[:400]})
+    episode_event(ctx, ep)
+    return 200, out
+
+
+def _lines_file_task(ctx: Context, params: dict):
+    """A character's whole file heard and cut into a take per line (lines.cut_character)."""
+    from seriesmith import lines as LN
+    ep, who = params["ep"], params["who"]
+    title = f"{os.path.basename(os.path.normpath(ep))} {who}'s lines"
+
+    def work(qjob, report, stop) -> str:
+        cfg = LN._config(ep)
+        words_expected = " ".join(ln["text"] for s in LN.script_shots(ep) for ln in s["lines"]
+                                  if LN._base(cfg, ln["who"]) == who)
+        try:
+            words = K.transcribe_file(LN.source_path(ep, who), ep, words_expected, stop=stop)
+            got = LN.cut_character(ep, who, words)
+        except Exception as e:                           # noqa: BLE001  said on its character
+            why = "canceled" if qjob.cancel_asked else str(e)
+            LN._source_state(ep, who, status="failed", error=why[:800])
+            qjob.error = why
+            ctx.emit("seriesmith.lines", {"ep": ep, "who": who, "status": "failed"})
+            return "failed"
+        LN._source_state(ep, who, status="ok", **{k: got[k] for k in ("lines", "cut", "unheard", "notes")})
+        qjob.result.update(state="done", **got)
+        ctx.emit("seriesmith.lines", {"ep": ep, "who": who, "status": "ok"})
+        episode_event(ctx, ep)
+        return "succeeded"
+
+    return title, {"ep": ep, "who": who}, {"ep": ep, "who": who, "state": "running"}, work
+
+
+@handler
+def post_lines_character(ctx: Context, body):
+    """A character's whole file (multipart `file`, or `source_path` on this machine) kept and queued to
+    be cut into a take per line. Costs nothing but Whisper, which it needs unless `<file>.words.json` is
+    beside it. Body {ep, who}. **409** as align's when Whisper isn't here. Returns {job}."""
+    from seriesmith import lines as LN
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    who = _opt_str(body, "who") or ""
+    up, src = body.get("file"), body.get("source_path")
+    if isinstance(up, Upload):
+        if up.size > MAX_UPLOAD:
+            raise ApiError(413, f"the file is over {MAX_UPLOAD // (1024 * 1024)} MB")
+        source, name = up.path, up.filename or ""
+    elif isinstance(src, str) and src.strip():
+        source, name = src.strip(), ""
+    else:
+        raise ApiError(400, "send the file as multipart `file`, or its path on this machine as `source_path`")
+    try:
+        place = LN.place_source(ep, who, source, name)
+    except LN.LinesError as e:
+        raise ApiError(400, str(e))
+    try:
+        K.check_align(ep, place)
+    except K.TrackError:
+        LN._source_state(ep, who, status="failed", error="Whisper isn't ready to hear it: see Align below")
+        raise
+    qjob = _start_local(ctx, "lines_file", {"ep": ep, "who": who})
+    return 200, {"job": dict(qjob.result)}
+
+
+@handler
+def post_lines_pick(ctx: Context, body):
+    """Which finished take of a line is used. Body {ep, line, take}."""
+    from seriesmith import lines as LN
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    try:
+        LN.pick(ep, _opt_str(body, "line") or "", int(body.get("take")))
+    except (LN.LinesError, TypeError, ValueError) as e:
+        raise ApiError(400, str(e))
+    return 200, {"ok": True}
+
+
+@handler
+def post_lines_lay(ctx: Context, body):
+    """Every line's picked take laid in script order into the episode's recording, its timings beside
+    it, attached as the dialogue track, ready to align. Costs nothing. Body {ep}. Returns {path, seconds,
+    lines, timed, notes}."""
+    from seriesmith import lines as LN
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    try:
+        got = LN.lay(ep)
+    except LN.LinesError as e:
+        raise ApiError(400, str(e))
+    episode_event(ctx, ep)
+    return 200, got
+
+
+def _line_up_task(ctx: Context, params: dict):
+    """Slide a shot's dub in the cut so its first word lands on the first word of the take the cut plays:
+    close enough, for a good render, without rendering it again. Whisper hears both."""
+    ep, pass_, shot = params["ep"], params["pass"], params["shot"]
+    title = f"{os.path.basename(os.path.normpath(ep))} {shot} line up"
+
+    def work(qjob, report, stop) -> str:
+        import shutil
+        import subprocess
+        import tempfile
+        from seriesmith import ff as FF
+        from seriesmith import lines as LN
+
+        def heard(path: str, tmp: str, name: str, at: float = 0.0) -> float:
+            """When a sound's first word starts, in seconds."""
+            wav = os.path.join(tmp, name + ".wav")
+            subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", path, "-ss", f"{at:.3f}", "-vn", "-ac", "1", "-ar", "16000", wav], check=True)
+            words = K.transcribe_file(wav, tmp, " ".join(x["text"] for x in LN.shot_lines(ep, shot)), stop=stop)
+            if not words:
+                raise ValueError(f"no words could be heard in {os.path.basename(path)}")
+            return float(words[0]["start"])
+
+        tmp = tempfile.mkdtemp(prefix="smlineup_")
+        try:
+            row = next((s for s in E.episode_status(ep, pass_)["shots"] if s["shot"] == shot), None)
+            ov = T.load_overrides(ep)
+            sound = T.shot_sound(ov, shot)
+            if not sound or sound.get("mode") != "dub":
+                raise ValueError(f"{shot} isn't on dub")
+            take = T.get_take(ep, pass_, shot, int(row["cut"]["take"])) if row and row["cut"].get("take") else None
+            own = T.take_sound(take) if take else None
+            if not own:
+                raise ValueError(f"{shot}'s take in the cut has no sound of its own to line up with")
+            doc, at = J.find_shot(ep, pass_, shot)
+            spec = T.cut_dub_spec(ep, shot, sound, None, {**doc["shots"][at], "_defaults": doc.get("defaults", {})})
+            f = T.audio_source_file(ep, spec, pass_) if spec else None
+            if not f:
+                raise ValueError(f"{shot}'s dub isn't there yet")
+            mine = heard(own, tmp, "take")
+            start = float(spec.get("start") or 0.0)
+            theirs = LN.first_word(ep, shot) if sound["dub"]["from"] == "line" else None
+            theirs = heard(f, tmp, "dub", start) if theirs is None else theirs
+        except Exception as e:                           # noqa: BLE001  said on the job
+            qjob.error = "canceled" if qjob.cancel_asked else str(e)
+            ctx.emit("seriesmith.episode", {"ep": ep})
+            return "failed"
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        offset = round(mine - theirs, 3)
+        T.save_overrides(ep, T.set_dub_offset(T.load_overrides(ep), shot, offset))
+        qjob.result.update(state="done", offset=offset)
+        episode_event(ctx, ep)
+        return "succeeded"
+
+    return title, {"ep": ep, "shot": shot}, {"ep": ep, "shot": shot, "state": "running"}, work
+
+
+@handler
+def post_sound_line_up(ctx: Context, body):
+    """Queue lining a shot's dub up with the take the cut plays: Whisper hears both's first word, and the
+    dub slides that far in the cut. Changes no render. Body {ep, pass, shot}. Returns {job}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shot = _opt_str(body, "shot")
+    if not shot:
+        raise ApiError(400, "shot says which shot")
+    K.check_align(ep, None)
+    qjob = _start_local(ctx, "line_up", {"ep": ep, "pass": pass_, "shot": shot})
+    return 200, {"job": dict(qjob.result)}
+
+
+@handler
+def put_sound_model(ctx: Context, body):
+    """What the cut plays for a take rendered to its shot's dub: the dub, or (`on` true) what the model gave
+    back with it, voice and all it made around that. Changes no render. Body {ep, shot, on}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    shot, on = _opt_str(body, "shot"), body.get("on")
+    if not shot or not isinstance(on, bool):
+        raise ApiError(400, "shot and on (true or false) say which and how")
+    T.save_overrides(ep, T.set_dub_model_sound(T.load_overrides(ep), shot, on))
+    episode_event(ctx, ep)
+    return 200, {"ok": True, "on": on}
+
+
+@handler
+def put_sound_offset(ctx: Context, body):
+    """Set how far a shot's dub is slid in the cut, in seconds, or 0 to put it back. Body {ep, shot, offset}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    shot, offset = _opt_str(body, "shot"), body.get("offset")
+    if not shot or isinstance(offset, bool) or not isinstance(offset, (int, float)) or abs(offset) > 600:
+        raise ApiError(400, "shot and offset (seconds) say which and how far")
+    T.save_overrides(ep, T.set_dub_offset(T.load_overrides(ep), shot, offset))
+    episode_event(ctx, ep)
+    return 200, {"ok": True, "offset": offset}
+
+
+@handler
+def get_provider_voices(ctx: Context, query):
+    """The speakers a provider has, costing nothing: with its key where there is one, and a list
+    that's free without. Query {service, list?, search?, after?}. Returns {voices: [{id, name, preview,
+    about, category, labels}], next}."""
+    import urllib.error
+
+    from seriesmith import providers as PR
+    from seriesmith.backends import BackendError, HTTPFailure
+    from seriesmith.backends.http import list_voices
+    service = str(query.get("service") or "")
+    d = PR.definitions().get(service)
+    if not d:
+        raise ApiError(404, f"there's no provider called {service}")
+    key = PR.key_of(service)
+    which = str(query.get("list") or "")
+    lists = {x.get("id"): x for x in ((d.get("voices") or {}).get("lists") or [])}
+    if not key and which and which in lists and not lists[which].get("free"):
+        raise ApiError(400, f"{d.get('label') or service} needs its key for that list")
+    try:
+        return 200, list_voices(d, key, which, str(query.get("search") or ""), str(query.get("after") or ""))
+    except HTTPFailure as e:
+        raise ApiError(502, f"{d.get('label') or service} answered {e.status}: {e.text[:300]}")
+    except (BackendError, urllib.error.URLError, OSError) as e:
+        raise ApiError(502, f"{d.get('label') or service}: {e}")
+
+
+@handler
+def put_refs_provider_voice(ctx: Context, body):
+    """Give a subject a provider's speaker, written in the series config (`voices.<service>`), or a
+    null `id` takes it away. Body {ep, subject, service, id, name?, preview?}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    subject, service = _opt_str(body, "subject") or "", _opt_str(body, "service") or ""
+    if not subject or not service:
+        raise ApiError(400, "subject and service say whose voice, and on which provider")
+    vid, name, preview = _opt_str(body, "id"), _opt_str(body, "name"), _opt_str(body, "preview")
+    voice = {"id": vid, **({"name": name} if name else {}), **({"preview": preview} if preview else {})} if vid else None
+    try:
+        changed = R.set_provider_voice(_series(ep), subject, service, voice)
+    except R.RefError as e:
+        raise ApiError(400, str(e))
+    episode_event(ctx, ep)
+    return 200, {"ok": True, "changed": changed}
+
+
+@handler
+def post_provider_check(ctx: Context, body):
+    """Whether a provider can be reached with a key, by one read that starts nothing and costs
+    nothing. Body {definition, key?}: `key`, else the one saved for it. The key isn't kept."""
+    from seriesmith import providers as PR
+    from seriesmith.backends.http import check_key
+    body = body_dict(body)
+    d = body.get("definition")
+    if not isinstance(d, dict):
+        raise ApiError(400, "definition must be the provider's definition")
+    wrong = PR.problems(d)
+    if wrong:
+        raise ApiError(400, wrong[0])
+    key = (body.get("key") or "").strip() if isinstance(body.get("key"), str) else ""
+    key = key or PR.key_of(str(d.get("id")))
+    if not key:
+        raise ApiError(400, "there's no key to check: type it in")
+    return 200, check_key(d, key)
+
+
+@handler
+def post_provider_read_spec(ctx: Context, body):
+    """A model's API reference, as pasted, read into a proposed target: an OpenAPI document (or
+    its URL), an example cURL, or an example request's JSON. Nothing is saved or sent to the
+    provider. Body {service, model, kind?, text, path?}. With an OpenAPI document holding several
+    requests and no `path`, {proposal: null, paths} to choose from. No `model`, a docs page's address
+    and a provider that takes the model in its address: the page's request says which, as `model`."""
+    from seriesmith import apispec as AS
+    import urllib.parse
+
+    from seriesmith import limits as L
+    from seriesmith import providers as PR
+    body = body_dict(body)
+    kind = body.get("kind") or "video"
+    if kind not in ("video", "image", "audio", "music"):
+        raise ApiError(400, "kind is video, image, audio (a voice) or music")
+    text = body.get("text") or ""
+    if not isinstance(text, str):
+        raise ApiError(400, "text is the API's reference")
+    service, model = _opt_str(body, "service") or "", (_opt_str(body, "model") or "").strip()
+    try:
+        if re.fullmatch(r"https?://\S+", text.strip()):
+            found = _reference_at(text.strip())
+            text = json.dumps(found["doc"]) if found.get("doc") else found["text"]
+            steps = (PR.definitions().get(service) or {}).get("steps") or [{}]
+            if not model and AS.curl_in(found["text"]) and "{model}" in str(steps[0].get("url")):
+                model = urllib.parse.urlparse(AS.parse_curl(found["text"])["url"]).path.strip("/")
+        out = AS.propose(service, model, text, kind, _opt_str(body, "path"),
+                         base=TG.load_target("seedance_2_5", "video").spec)
+    except AS.SpecError as e:
+        raise ApiError(400, str(e))
+    out["model"] = model
+    if out.get("proposal"):
+        out["limits"] = L.describe(out["proposal"])
+    return 200, out
+
+
+@handler
+def post_targets_schema(ctx: Context, body):
+    """The fields a Router model's schema has, for the mapping panel, read with the account's key
+    and kept an hour (free). Body {model}. {"available": false, "why"} when it can't be read."""
+    from seriesmith import router_inspect as RI
+    from seriesmith.settings import load_settings
+    model = (_opt_str(body_dict(body), "model") or "").strip()
+    key = load_settings().api_key
+    if not key:
+        return 200, {"available": False, "why": "needs your Comfy API key (Settings)", "required": [], "fields": []}
+    try:
+        return 200, {"available": True, **RI.cached_schema_fields(model, key)}
+    except RI.RouterInspectError as e:
+        return 200, {"available": False, "why": str(e), "required": [], "fields": []}
 
 
 @handler
@@ -5660,7 +6460,7 @@ def _xmlmedia_task(ctx: Context, params: dict):
     return title, {"ep": ep, "index": index}, run, work
 
 
-LOCAL = {"master": _master_task, "align": _align_task, "xmlmedia": _xmlmedia_task}
+LOCAL = {"master": _master_task, "align": _align_task, "xmlmedia": _xmlmedia_task, "lines_file": _lines_file_task, "line_up": _line_up_task}
 
 
 # ---------------------------------------------------------------------------
@@ -5780,6 +6580,10 @@ ROUTES = [
     ("DELETE", "/seriesmith/post", delete_post, "query"),
     ("PUT", "/seriesmith/pick", put_pick, "body"),
     ("PUT", "/seriesmith/cut", put_cut, "body"),
+    ("GET", "/seriesmith/cold-open", get_cold_open, "query"),
+    ("GET", "/seriesmith/titles", get_titles, "query"),
+    ("GET", "/seriesmith/fonts", get_fonts, "query"),
+    ("PUT", "/seriesmith/cold-open", put_cold_open, "body"),
     ("GET", "/seriesmith/mix", get_mix, "query"),
     ("PUT", "/seriesmith/mix", put_mix, "body"),
     ("GET", "/seriesmith/mix/duck", get_mix_duck, "query"),
@@ -5797,6 +6601,8 @@ ROUTES = [
     ("POST", "/seriesmith/cue/repaint", post_cue_repaint, "body"),
     ("GET", "/seriesmith/fx", get_fx, "query"),
     ("GET", "/seriesmith/fx/shots", get_fx_shots, "query"),
+    ("GET", "/seriesmith/sound/gallery", get_sound_gallery, "query"),
+    ("GET", "/seriesmith/sound/gallery/take", get_sound_gallery_take, "query"),
     ("POST", "/seriesmith/fx/render", post_fx_render, "body"),
     ("POST", "/seriesmith/fx/pick", post_fx_pick, "body"),
     ("POST", "/seriesmith/voices", post_voices, "body"),
@@ -5816,6 +6622,26 @@ ROUTES = [
     ("PUT", "/seriesmith/targets/custom", put_targets_custom, "body"),
     ("POST", "/seriesmith/targets/router-inspect", post_targets_router_inspect, "body"),
     ("POST", "/seriesmith/targets/router-dryrun", post_targets_router_dryrun, "body"),
+    ("POST", "/seriesmith/targets/prompt-preview", post_targets_prompt_preview, "body"),
+    ("PUT", "/seriesmith/targets/prompt", put_targets_prompt, "body"),
+    ("POST", "/seriesmith/targets/schema", post_targets_schema, "body"),
+    ("GET", "/seriesmith/providers", get_providers, "query"),
+    ("PUT", "/seriesmith/providers", put_provider, "body"),
+    ("DELETE", "/seriesmith/providers", delete_provider, "query"),
+    ("PUT", "/seriesmith/providers/key", put_provider_key, "body"),
+    ("GET", "/seriesmith/providers/voices", get_provider_voices, "query"),
+    ("GET", "/seriesmith/lines", get_lines, "query"),
+    ("POST", "/seriesmith/lines/generate", post_lines_generate, "body"),
+    ("POST", "/seriesmith/lines/character", post_lines_character, "form"),
+    ("POST", "/seriesmith/lines/pick", post_lines_pick, "body"),
+    ("POST", "/seriesmith/lines/lay", post_lines_lay, "body"),
+    ("POST", "/seriesmith/sound/line_up", post_sound_line_up, "body"),
+    ("PUT", "/seriesmith/sound/offset", put_sound_offset, "body"),
+    ("PUT", "/seriesmith/sound/model", put_sound_model, "body"),
+    ("PUT", "/seriesmith/refs/provider-voice", put_refs_provider_voice, "body"),
+    ("POST", "/seriesmith/providers/read-spec", post_provider_read_spec, "body"),
+    ("POST", "/seriesmith/providers/draft", post_provider_draft, "body"),
+    ("POST", "/seriesmith/providers/check", post_provider_check, "body"),
     ("GET", "/seriesmith/router/models", get_router_models, "query"),
     ("PUT", "/seriesmith/targets/limits", put_targets_limits, "body"),
     ("DELETE", "/seriesmith/targets/custom", delete_targets_custom, "query"),
