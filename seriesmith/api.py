@@ -828,7 +828,38 @@ def _dub_step(ctx: Context, p: dict) -> str:
         spec={"step": "dub", "params": p})
 
 
-STEPS = {"clip": _clip_step, "frame": _frame_step, "views": _views_step, "dub": _dub_step}
+def _sketch_open(ep: str, shot: str) -> bool:
+    """Whether a shot's first frame is free for a sketch: nothing there, or the gray card."""
+    from seriesmith.core import board as BD
+    path = os.path.join(ep, "refs", "shots", T.safe_id(shot), "first.png")
+    if not os.path.isfile(path):
+        return True
+    card = BD.gray_card()
+    if os.path.getsize(path) != len(card):
+        return False
+    with open(path, "rb") as fh:
+        return fh.read() == card
+
+
+def _sketch_step(ctx: Context, p: dict) -> str:
+    """The storyboard's sketches (post_storyboard_sketch): once made, each goes live on its shot,
+    unless a picture was put there meanwhile."""
+    ep, shots = p["ep"], p["shots"]
+
+    def then(report) -> str:
+        for shot in shots:
+            if _sketch_open(ep, shot):
+                _pick_newest(ep, f"shot:{shot}:first", None, report)
+        episode_event(ctx, ep)
+        return "succeeded"
+    return ctx.runner.enqueue_step(
+        f"{os.path.basename(os.path.normpath(ep))}: sketches onto the board", then,
+        info={"ep": ep}, wait=_refs_waiting(ctx, ep, [f"shot:{s}:first" for s in shots]),
+        spec={"step": "sketch", "params": p})
+
+
+STEPS = {"clip": _clip_step, "frame": _frame_step, "views": _views_step, "dub": _dub_step,
+         "sketch": _sketch_step}
 
 
 def rebuild_step(ctx: Context, resume: dict) -> str | None:
@@ -3252,6 +3283,38 @@ def post_storyboard_edit(ctx: Context, body):
     episode_event(ctx, ep)
     fresh = BD.read(P.H.read_source(ep, "script").text)
     return _board_answer(ep, fresh, structure, body, saved["hash"], made=made, check=saved["check"], build=build)
+
+
+@handler
+def post_storyboard_sketch(ctx: Context, body):
+    """First frames for shots on the board, from each shot's action and refs on the keyframe image
+    model (refs.keyframe_target). Body {ep, shots, backend?}. A shot that already has a picture is
+    skipped. {"queued", "skipped": [{shot, reason}], "errors": [{shot, error}], "step"}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    shots = body.get("shots")
+    if not isinstance(shots, list) or not shots or not all(isinstance(s, str) for s in shots):
+        raise ApiError(400, "shots must be a list of shot ids")
+    backend = _opt_backend(ctx, body)
+    if ctx.runner is None:
+        raise ApiError(409, "sketches need seriesmith's queue (seriesmith serve)")
+    queued, skipped, errors, asked = [], [], [], []
+    for shot in shots:
+        check_shot(shot)
+        if not _sketch_open(ep, shot):
+            skipped.append({"shot": shot, "reason": "it already has a picture"})
+            continue
+        status, data = _generate(ctx, {"ep": ep, "ref": f"shot:{shot}:first", "count": 1,
+                                       **({"backend": backend} if backend else {})})
+        if status >= 400:
+            errors.append({"shot": shot, "error": data.get("error")})
+            continue
+        queued += data.get("queued") or []
+        errors += [{"shot": shot, "error": x.get("error")} for x in data.get("errors") or []]
+        if data.get("queued"):
+            asked.append(shot)
+    step = _sketch_step(ctx, {"ep": ep, "shots": asked}) if asked else None
+    return 200, {"queued": queued, "skipped": skipped, "errors": errors, "step": step}
 
 
 @handler
@@ -6850,6 +6913,7 @@ ROUTES = [
     ("GET", "/seriesmith/storyboard/block", get_storyboard_block, "query"),
     ("GET", "/seriesmith/storyboard", get_storyboard, "query"),
     ("POST", "/seriesmith/storyboard/edit", post_storyboard_edit, "body"),
+    ("POST", "/seriesmith/storyboard/sketch", post_storyboard_sketch, "body"),
     ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
     ("POST", "/seriesmith/cue/repaint", post_cue_repaint, "body"),
     ("GET", "/seriesmith/fx", get_fx, "query"),

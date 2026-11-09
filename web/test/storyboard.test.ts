@@ -1,11 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { blockedScript } from "../src/lib/wizard";
-import { bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, actGroups, moveDivider, ownBeatsFrom, toggleActBreak, positive, pushed, runtimeMinutes, runWidth, takeToOpen, tileSize, seriesChoices, UNDO_STEPS, type BoardAct, type BoardBeat } from "../src/lib/storyboard";
+import { bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, actGroups, moveDivider, ownBeatsFrom, toggleActBreak, positive, pushed, runtimeMinutes, runWidth, sketchable, takeToOpen, tileSize, seriesChoices, UNDO_STEPS, type BoardAct, type BoardBeat } from "../src/lib/storyboard";
 
 function beat(over: Partial<BoardBeat>): BoardBeat {
   return { beat: "A", plain: "A", nth: 0, block: null, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
     target_shots: null, target_seconds: null, thin: false, runs: [], ...over };
 }
+
+describe("sketchable", () => {
+  const shot = (id: string, action: string, over = {}) => ({ id, who: [], target: "hold", seconds: 3, action, held_empty: true, block: 1, ...over });
+  const b = (guidance: string, ...shots: ReturnType<typeof shot>[]) => beat({ guidance, runs: [{ sequence: "sq01", place: "p", opens: true, block: 1, shots }] });
+
+  it("takes the shots someone has written", () => {
+    expect(sketchable([b("Something breaks.", shot("a", "A heron lifts off."))])).toEqual({ ready: ["a"], unwritten: [] });
+  });
+
+  it("leaves out an action that's still the beat's guidance, whatever its spacing", () => {
+    expect(sketchable([b("Something  breaks.", shot("a", "Something breaks."), shot("b", ""), shot("c", "Stand-in."))]))
+      .toEqual({ ready: [], unwritten: ["a", "b", "c"] });
+  });
+
+  it("skips a shot on a model, or with a picture", () => {
+    expect(sketchable([b("x", shot("a", "y", { target: "ltx2" }), shot("b", "y", { picture: "refs/b.png" }))]))
+      .toEqual({ ready: [], unwritten: [] });
+  });
+});
 
 describe("takeToOpen", () => {
   const t = (take: number, status = "ok", mp4: string | null = "a.mp4") => ({ take, status, mp4 });

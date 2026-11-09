@@ -57,6 +57,31 @@ export function takeToOpen<T extends { take: number; status: string; mp4?: strin
   return takes.filter(played).sort((a, b) => b.take - a.take)[0];
 }
 
+/** POST /seriesmith/storyboard/sketch's answer. */
+export interface StoryboardSketchAnswer {
+  queued: unknown[];
+  skipped: { shot: string; reason: string }[];
+  errors: { shot: string; error: string }[];
+  step: string | null;
+}
+
+/** What a sketch can be made of: shots with no model and no picture yet. `unwritten`: an action
+ * that's still its beat's guidance (or nothing), which would only draw the guidance. */
+export function sketchable(beats: Pick<BoardBeat, "guidance" | "runs">[]): { ready: string[]; unwritten: string[] } {
+  const same = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+  const out: { ready: string[]; unwritten: string[] } = { ready: [], unwritten: [] };
+  for (const beat of beats) {
+    for (const run of beat.runs) {
+      for (const s of run.shots) {
+        if (s.target !== "hold" || s.picture) continue;
+        const action = same(s.action);
+        (action && action !== "stand-in." && action !== same(beat.guidance) ? out.ready : out.unwritten).push(s.id);
+      }
+    }
+  }
+  return out;
+}
+
 export interface BoardRun {
   sequence: string;
   place: string;

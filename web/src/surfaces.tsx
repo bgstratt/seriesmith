@@ -48,6 +48,7 @@ import css from "./styles.css?inline";
 import { PanelQueueWindows } from "./components/Jobs";
 import { FinalsFromDraftsWindow } from "./components/FinalsFromDrafts";
 import { StoryboardWindow } from "./components/Storyboard";
+import { FilmPathWindow } from "./components/FilmPath";
 
 const SURFACES: Record<Surface, ComponentType> = {
   shots: ShotsTab,
@@ -200,6 +201,7 @@ export const OVERLAY_WINDOWS: [string, ComponentType][] = [
   ["Take details", SidecarDialog],
   ["Finals from drafts", FinalsFromDraftsWindow],
   ["Storyboard", StoryboardWindow],
+  ["Guide", FilmPathWindow],
   ["Promote", PromoteDialog],
   ["Toasts", Toasts],
 ];

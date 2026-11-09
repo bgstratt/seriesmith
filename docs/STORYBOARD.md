@@ -117,6 +117,12 @@ Drop pictures on the board:
 - **A sequence's bar or a beat** fills its empty shots, in filename order (`frame2` before
   `frame10`). A folder works too. It tells you if there are pictures left over.
 
+Or press **Sketch** in the toolbar to draw them: a first frame for each shot with no picture yet,
+from its action and the cast's pictures, on the keyframe image model. A sketch takes the gray
+card's place when it's done, and never replaces a picture you've put there. A shot whose action
+is still its beat's guidance is left out, since a sketch would only draw the guidance; the board
+names them, so rewrite those first.
+
 Then choose the pass you want and press **Render held**. It renders every held shot with no
 up-to-date take, on its picture or its gray card, on this machine for free. The takes land in
 that pass's cut, and Play all is your animatic.

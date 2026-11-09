@@ -1125,6 +1125,12 @@ beat lines, as the score draft guesses them; only comment lines are added), `ren
 `// structure:` and `// duration:`. Answers as the GET does, with `made` (new shot ids), `check` and
 `build`.
 
+### `POST /seriesmith/storyboard/sketch`
+Body `{"ep", "shots", "backend"?}`: a first frame for each shot, from its action and refs on the
+keyframe image model, live on the shot once made in place of its gray card. A shot that already
+has a picture, then or by the time it's done, keeps it. 409 without seriesmith's queue. Answers
+`{"queued", "skipped": [{"shot", "reason"}], "errors": [{"shot", "error"}], "step"}`.
+
 ### `POST /seriesmith/cue/draft`
 Body `{"ep", "pass"?, "write"?, "replace"?, "rendered"?, "keep_sound"?, "structure"?, "mark"?}`: the first-pass score drafted from
 the script's `// structure:`, `// beat:`, `// theme:` and `// flashback` lines, that

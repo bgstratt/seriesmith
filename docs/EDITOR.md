@@ -167,12 +167,16 @@ Simple mode it asks only for a name and makes a Simple project) or
 **New episode…** (in this folder: the show's folder, not an episode's). Either opens a
 short wizard:
 
-1. **Where**: for a new series its title and its show folder (made from the title); the
-   episode's name (the next number there, `ep03` after `ep02`) and its title. When the
-   folder already has episodes, it says so: the new one continues that series.
-2. **Series** (a new series only): its id, the video model, the final and proxy sizes
-   (896×512 by default), the look, how dialogue sounds and the speech pace. Everything
-   else is in Series settings, any time. **Look** offers presets as pictures, the same
+**Start from**, at the top, is where the story comes from: **A structure** (the default), **A
+script** (a seriesmith script, pasted or from a file), **My agent** (written by the script-writing
+skill in your own agent and sent here over MCP), **A single shot**, or **An edit (FCP7 XML)…**.
+
+1. **Idea**: for a new series its title and its look; for a next episode its title. When the
+   folder already has episodes, it says so: the new one continues that series. **More** has
+   what's otherwise filled in for you: the show folder (made from the title), the episode's
+   name (the next number there, `ep03` after `ep02`), and for a new series its id, the video
+   model, the final and proxy sizes (896×512 by default), how dialogue sounds and the speech
+   pace. Everything else is in Series settings, any time. **Look** offers presets as pictures, the same
    woman in a red coat in each (prestige drama, neon noir, 1970s film, documentary, black
    and white; genres: western, thriller, road movie, horror, fantasy, romance, war,
    Technicolor musical, 80s VHS; 3D animated, 2D cartoon, anime, stop-motion, watercolor,
@@ -196,21 +200,27 @@ short wizard:
    take selected in Shots, at the second you say, or the picture selected in Refs), or
    **import a picture** of your own. A relight of yours gets one the same ways; rendered,
    it's an edit of the sample street or of the woman on it, on an edit model.
+2. **Story**: a structure and how many minutes; the script itself; or, for a single shot, where it
+   happens, who's in it, size, length, what happens, dialogue, camera and sound (that one comes
+   after the cast, and the shot form adds the rest). For **My agent** there's nothing to fill in.
 3. **Cast and places**: who and where the episode is about — a character (name, design,
    voice), a location (a short name and its description), a prop or vehicle —
-   each with its picture path filled in from the show's layout. A next episode carries its
-   neighbour's whole cast over, so you add only who and what is new.
-4. **First shot**: where it happens (the first sequence's location), who's in it, size,
-   length, what happens, dialogue, camera and sound. The shot form adds the rest.
+   each with its picture path filled in from the show's layout. A script's people, things and
+   places the series hasn't got are already here as cards, under the names the script uses. A
+   next episode carries its neighbour's whole cast over, so you add only who and what is new.
 
 **Create** writes the two files in one go: a series config of the episode's own (a next
 episode's is its newest neighbour's, with the new cast added) and the script. The episode
-opens and builds, so its shots are there and the pictures it needs are listed as missing,
-which is the next thing to do (the Refs tab). The paths are `../refs/...`: **one `refs`
+opens and builds, and **the guide** opens (below). The paths are `../refs/...`: **one `refs`
 folder beside the episodes, shared by all of them**, while each episode keeps its own
 config. That is the layout to want: shared references, per episode cast lists.
 
-**From an edit (FCP7 XML)…**, at the top of the wizard (and **Import…** › **An edit (FCP7
+**The guide** (**Guide…** in the Shots tab) says where the episode has got to and what's next:
+Story, Cast and places (make the pictures), Storyboard, Film, Watch. It keeps no record of its
+own: the step comes from the script, the pictures and the takes, so you can close it, work
+anywhere else and come back. Press a step to look at another one.
+
+**An edit (FCP7 XML)…**, at the top of the wizard (and **Import…** › **An edit (FCP7
 XML)…** in **Project folders**), makes the series
 from an edit cut elsewhere instead (Premiere, Resolve, Final Cut 7, or seriesmith's own XML
 export): pick the `.xml` (or give its path on this machine), choose how its footage comes in

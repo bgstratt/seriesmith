@@ -3,7 +3,7 @@
 // script is what's saved: every edit here goes to disk the way the script editor's do.
 
 import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { openSeriesForm, openShotForm, openSource, openStoryboard, openViewer, refreshEpisode, requestRender, updateViewer, uploadRef } from "../actions";
+import { isPaidBackend, openSeriesForm, openShotForm, openSource, openStoryboard, openViewer, refreshEpisode, requestRender, updateViewer, uploadRef } from "../actions";
 import { moveClip } from "../cutActions";
 import { dropFileOnto } from "../takeActions";
 import { gapAfter } from "../lib/takeDrop";
@@ -13,7 +13,7 @@ import { keyframeRefId } from "../lib/keyframes";
 import { videoTargets } from "../lib/targets";
 import { clipTake } from "../lib/playlist";
 import {
-  bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, takeToOpen, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_SIZES, tileSize, type TileSize,
+  bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, sketchable, takeToOpen, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_SIZES, tileSize, type TileSize,
   actGroups, moveDivider, ownBeatsFrom, pushed, toggleActBreak, type DropSide, type OwnBeat, type BoardPlan, type BoardAct, type BoardBeat, type BoardRun, type BoardShot, type SeriesChoices, type StoryboardAnswer, type StoryboardEdit,
 } from "../lib/storyboard";
 import { statusKey, store, useApp } from "../store";
@@ -859,8 +859,27 @@ function Storyboard({ ep }: { ep: string }) {
     void edit({ op: "fill", beats: fillable(beats) });
   }
 
+  async function sketch(ready: string[], unwritten: string[]) {
+    const backend = store.get().renderBackend || undefined;
+    if (isPaidBackend(backend) && !window.confirm(`Sketch ${ready.length} shots on ${backend}? Each is a paid run on your Comfy account.`)) return;
+    setBusy(true);
+    try {
+      const r = await api().storyboardSketch({ ep, shots: ready, ...(backend ? { backend } : {}) });
+      const notes = [
+        ...(unwritten.length ? [`Left out, still the beat's guidance: ${unwritten.join(", ")}.`] : []),
+        ...r.errors.map((x: { shot: string; error: string }) => `${x.shot}: ${x.error}`),
+      ];
+      setErr(notes.length ? notes.join(" ") : null);
+    } catch (x) {
+      setErr((x as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const plan = data?.plan;
   const allBeats = plan?.acts.flatMap((a) => a.beats) ?? [];
+  const sketches = sketchable(allBeats);
   const biggest = Math.max(0, ...allBeats.map((b) => b.target_shots ?? 0));
   const left = fillCount(allBeats);
   const bare = bareBeats(allBeats);
@@ -922,6 +941,11 @@ function Storyboard({ ep }: { ep: string }) {
           </span>
           <button className="h3-btn h3-icon" disabled={busy || !undo.length} title="Undo (Ctrl+Z)" onClick={undoEdit}><i className="pi pi-undo" /></button>
           <button className="h3-btn h3-icon" disabled={busy || !redo.length} title="Redo (Ctrl+Shift+Z)" onClick={redoEdit}><i className="pi pi-refresh" /></button>
+          {sketches.ready.length + sketches.unwritten.length > 0 && (
+            <button id="sm-sb-sketch" className="h3-btn" disabled={busy || !sketches.ready.length}
+              title={`A first frame for each shot with no picture, from its action and the cast's pictures.${sketches.unwritten.length ? ` ${sketches.unwritten.length} still have the beat's guidance as their action and are left out: rewrite them first.` : ""}`}
+              onClick={() => void sketch(sketches.ready, sketches.unwritten)}>Sketch ({sketches.ready.length})</button>
+          )}
           {toRender.length > 0 && (
             <button className="h3-btn" disabled={busy} title="Render every held shot with no up-to-date take, on its picture or the gray card. Free, on this machine: the animatic, in the cut."
               onClick={() => requestRender(toRender, false, "Render the animatic")}>Render held ({toRender.length})</button>

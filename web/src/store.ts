@@ -561,7 +561,9 @@ export interface AppState {
   cardAdded: { kind: import("./lib/seriesForm").CardKind; id: string } | null;
   /** the new episode wizard (components/NewEpisodeWizard.tsx): the folder it starts in,
    *  and whether it starts a new series (a show folder of its own) */
-  wizard: { parent: string; newSeries: boolean; from?: "write" | "xml" } | null;
+  wizard: { parent: string; newSeries: boolean; from?: "board" | "script" | "agent" | "write" | "xml" } | null;
+  /** the guide is open (components/FilmPath.tsx) */
+  filmPath: boolean;
   /** a picture picked in Browse for a form's field (`key`), relative to the
    *  episode: the field takes it and clears it */
   picturePick: { key: string; path: string } | null;
@@ -703,6 +705,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     subjectCard: null,
     cardAdded: null,
     wizard: null,
+    filmPath: false,
     picturePick: null,
     simple: readSimple(),
     cutOnly: null,

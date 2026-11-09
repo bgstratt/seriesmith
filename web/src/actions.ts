@@ -1332,6 +1332,11 @@ export function openStoryboard(open = true) {
   set({ storyboardOpen: open, menu: null });
 }
 
+/** The guide (components/FilmPath.tsx): where the open episode has got to, and what's next. */
+export function openFilmPath(open = true) {
+  set({ filmPath: open, menu: null });
+}
+
 /** A backend that bills (Comfy Cloud, Router, a deployment); "" is each shot's own. */
 export function isPaidBackend(name: string | null | undefined): boolean {
   return !!name && name !== "local";

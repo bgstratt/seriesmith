@@ -9,7 +9,7 @@
 //    shot's per-pass prompt override is ignored, so the inspector shows its
 //    `effective.prompt` read-only.
 
-import type { OwnBeat, StoryboardAnswer, StoryboardBlock, StoryboardEdit } from "./lib/storyboard";
+import type { OwnBeat, StoryboardAnswer, StoryboardBlock, StoryboardEdit, StoryboardSketchAnswer } from "./lib/storyboard";
 import type { MixBeats } from "./lib/beats";
 import type {
   ColorMatch,
@@ -416,6 +416,8 @@ export interface Api {
   storyboard(ep: string, structure: string, duration: number, shot: number): Promise<StoryboardAnswer>;
   /** POST /seriesmith/storyboard/edit: 409 when the script changed since `base_hash`. */
   storyboardEdit(req: { ep: string; base_hash: string; structure: string; duration: number; shot: number } & StoryboardEdit): Promise<StoryboardAnswer>;
+  /** POST /seriesmith/storyboard/sketch: first frames for shots with no picture yet. */
+  storyboardSketch(req: { ep: string; shots: string[]; backend?: string }): Promise<StoryboardSketchAnswer>;
   /** POST /seriesmith/cue/draft: the first-pass score from the script's structure; written (its cues, hits and
    * the dialogue to voices only unless keep_sound) only with `write`. */
   scoreDraft(req: { ep: string; pass: Pass; write?: boolean; replace?: boolean; rendered?: boolean; keep_sound?: boolean;
@@ -956,6 +958,7 @@ export function createHttpApi(t: Transport): Api {
     deleteStructure: (name) => call("DELETE", `/seriesmith/structures/own?${qs({ name })}`),
     storyboard: (ep, structure, duration, shot) => get(`/seriesmith/storyboard?${qs({ ep, structure, duration: String(duration), shot: String(shot) })}`),
     storyboardEdit: (req) => call("POST", "/seriesmith/storyboard/edit", req),
+    storyboardSketch: (req) => call("POST", "/seriesmith/storyboard/sketch", req),
     storyboardBlock: (structure, duration, shot) => get(`/seriesmith/storyboard/block?${qs({ structure, duration: String(duration), shot: shot === undefined ? undefined : String(shot) })}`),
     compCue: (req) => call("POST", "/seriesmith/cue/comp", req),
     repaintCue: (req) => call("POST", "/seriesmith/cue/repaint", req),
