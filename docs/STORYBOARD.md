@@ -22,15 +22,15 @@ a picture, so a blocked episode can be rendered and watched from the first minut
   has no locations yet, say in a few words where the episode opens. The episode opens on the
   storyboard, with no shots.
 - **An existing episode:** open it and press **Storyboard…** in the Shots tab. The episode
-  picker at the top of the window switches episodes.
+  picker in the title bar switches episodes.
 
 A script with shots and no beats is offered **Lay out beats**, which puts each of the
 structure's beats on the shot nearest its place in the story. Only comment lines are added. A
 beat at one exact point of the story (a Midpoint) isn't placed by this: it shows as an empty
 target to fill or remove.
 
-The gear at the top of the window opens the series settings, to add cast and places without
-leaving the board. What you save there is on offer as soon as the settings close.
+The title bar has the episode picker, the script, and the gear for the series settings, to add
+cast and places without leaving the board. What you save there is on offer as soon as the settings close.
 
 ## Structure, minutes and shot length
 
@@ -119,7 +119,9 @@ a shot is missing what it needs.
 
 Every edit saves to the script at once, with the earlier version kept in the script's history.
 **Ctrl+Z** and **Ctrl+Shift+Z**, or the arrows in the toolbar, step through the board's edits
-while the window is open. Click on the board first so it has the keyboard. Undo covers the
+while the window is open. Click on the board first so it has the keyboard. Saving the script
+anywhere else (Edit Shot, the script editor) clears these steps, because they no longer lead back
+from what the script now says. Undo covers the
 script only: a picture you dropped stays as a take of that shot's first frame, and a move in the
 cut has the timeline's own undo.
 

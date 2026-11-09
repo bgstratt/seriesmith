@@ -3,7 +3,7 @@
 // script is what's saved: every edit here goes to disk the way the script editor's do.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { openSeriesForm, openShotForm, openStoryboard, refreshEpisode, requestRender, uploadRef } from "../actions";
+import { openSeriesForm, openShotForm, openSource, openStoryboard, refreshEpisode, requestRender, uploadRef } from "../actions";
 import { moveClip } from "../cutActions";
 import { dropFileOnto } from "../takeActions";
 import { gapAfter } from "../lib/takeDrop";
@@ -459,18 +459,29 @@ function Storyboard({ ep }: { ep: string }) {
     else if (data.plan.shots) setMinutes(runtimeMinutes(data.plan.seconds, data.plan.untimed, each ?? 3.5));
   }, [data, seeded]);
 
+  const seenHash = useRef<string | null>(null);
+  const working = useRef(false);
+  seenHash.current = data?.hash ?? null;
+  working.current = busy;
+
   const ask = useCallback(() => {
     if (!chosen || length === null || each === null) return undefined;
     let live = true;
     const wait = setTimeout(() => {
       api().storyboard(ep, chosen, length * 60, each).then((r) => {
         if (!live) return;
+        // changed by something other than this board: its undo steps no longer lead back from here
+        if (seenHash.current && seenHash.current !== r.hash && !working.current) {
+          setUndo([]);
+          setRedo([]);
+        }
         setData(r);
         setErr(null);
       }).catch((e) => live && setErr((e as Error).message));
     }, 150);
     return () => { live = false; clearTimeout(wait); };
-  }, [ep, chosen, length, each]);
+    // status too: a save anywhere else (Edit Shot, the script editor) changes the script under the board
+  }, [ep, chosen, length, each, status]);
   useEffect(() => ask(), [ask]);
 
   async function edit(e: StoryboardEdit): Promise<StoryboardAnswer | null> {
@@ -619,7 +630,11 @@ function Storyboard({ ep }: { ep: string }) {
   const head = (
     <>
       <i className="pi pi-th-large" />
-      <b className="h3-grow">Storyboard{plan?.title ? `: ${plan.title}` : ""}</b>
+      <b>Storyboard</b>
+      <EpisodeSelect compact />
+      <span className="h3-grow" />
+      <button className="h3-btn h3-icon" aria-label="Edit the script" title="Edit the episode's script"
+        onClick={() => openSource("script")}><i className="pi pi-file-edit" /></button>
       <button className="h3-btn h3-icon" aria-label="Series settings" title="Series settings: the series config as a form (its cast and places)"
         onClick={() => openSeriesForm()}><i className="pi pi-cog" /></button>
       <button className="h3-btn h3-icon" title="Close" onClick={() => openStoryboard(false)}><i className="pi pi-times" /></button>
@@ -630,7 +645,6 @@ function Storyboard({ ep }: { ep: string }) {
       defaultRect={() => ({ x: 40, y: 48, w: Math.min(1280, window.innerWidth - 80), h: Math.min(820, window.innerHeight - 96) })}>
       <div className="h3-col h3-sb" style={{ height: "100%", outline: "none" }} tabIndex={-1} onKeyDown={keys}>
         <div className="h3-row h3-sb-controls">
-          <EpisodeSelect compact />
           <label className="h3-row" title={scriptStructure
             ? `Changes the script's // structure: line. Beats keep their names: the ones that match this structure take its acts and targets, the rest stay as the script has them.${data?.plan.structure_known ? "" : " A show's own format has no targets."}`
             : "Written to the script with the first edit"}>Structure
