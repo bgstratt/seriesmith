@@ -2506,6 +2506,27 @@ To build, each ending in something that runs:
       as structure takes the shares from the open episode's shots, to adjust, with acts and
       guidance. The storyboard's only: not in `spotting.structure`, so the score is unchanged.
 - [x] **Docs** (2026-11-08). `docs/STORYBOARD.md`, the tutorial `docs/site/tutorials/storyboard.mdx`.
+- [x] **Shots, not stand-ins; clicks** (2026-11-09). The board's words say shots ("no model yet"
+      for one on `hold`), with Add shot before and after. A click selects a tile, a double-click
+      plays its take or opens Edit Shot when it has none, Enter edits the selected tile. A take
+      opened from the board floats above it (`ViewerState.floating`): the standalone page's docked
+      viewer is behind the board.
+
+## The guided film path (designed 2026-11-09; docs/DESIGN.md, section 10)
+
+- [ ] **One wizard, six steps.** Idea, Story, Cast and places, Storyboard, Film, Watch, from Simple
+      (replacing **A series…**) and Advanced (replacing the New Episode Wizard). Rework
+      `components/NewEpisodeWizard.tsx`; `lib/wizard.ts`'s config and script writers stay.
+- [ ] **Automatic plumbing, "More" sections.** Folder, ids, model, sizes, dialogue, speech pace.
+- [ ] **Resumes from disk.** The files are written early; the step comes from what exists.
+- [ ] **Story's starts.** A structure (default), paste or import, an agent over MCP, a single
+      shot, FCP7 XML.
+- [ ] **Cast from the script.** Cards offered for the names a script uses that the series lacks;
+      pictures made on this step.
+- [ ] **Film and Watch.** Generate, pick takes, re-do; play the cut, export. The existing queue,
+      takes, Play all and assemble.
+- [ ] **Sketches.** First frames on `hold` shots through the keyframe path; a shot whose action is
+      still its beat's guidance is left out and named.
 
 ## Later
 

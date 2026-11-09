@@ -354,6 +354,28 @@ it as a field or tag). They are laid in script order into the episode's recordin
 the voices and the shots fit them; a redone line that changes length moves what follows, and
 those windows go stale.
 
+### 10. The guided way in (designed 2026-11-09; docs/PLAN.md, "The guided film path")
+
+One wizard for a new series or a next episode, from Simple and Advanced, replacing Simple's
+**A series…** and the New Episode Wizard. Six steps: Idea, Story, Cast and places, Storyboard,
+Film, Watch.
+
+- **No second system.** The wizard writes the same `series.json` and `epNN.md` early, and works
+  out its step from what's on disk (a script, pictures, takes, a cut). You can close it, work in
+  Advanced and come back; there's no wizard record to fall out of step.
+- **Expandable, not two wizards.** Folder, ids, model, sizes, dialogue and speech pace are filled
+  in automatically, each in a "More" section for whoever wants it. A next episode cuts Idea down,
+  since the cast and look carry over.
+- **Where a story starts** is the Story step's choice: a structure (the default), a script pasted
+  or imported, one waiting for an agent, a single shot, or an FCP7 XML edit.
+- **The service doesn't write scripts.** A small local model can't carry the script-writing skill,
+  and a harness for each LLM API and CLI is a product of its own. The skill runs in the harness the
+  user already has and pushes the script in over MCP (`seriesmith mcp`); the Story step shows how
+  and watches for it. The Cast step offers cards for names the script uses that the series lacks.
+- **Sketches** on the storyboard are first frames from the keyframe path (`refs.keyframe_target`,
+  a `first:` line) on shots still on `hold`, from the shot's action and refs. A shot's action
+  that is still its beat's guidance isn't sketched, and the board says which were left out.
+
 ## Package layout
 
 ```
