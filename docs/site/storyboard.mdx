@@ -6,8 +6,8 @@ description: "An episode planned from a story structure: targets per beat, held 
 {/* Generated from docs/STORYBOARD.md by tools/make_site_docs.py: edit that file, not this one. */}
 
 Plan an episode from a story structure before anything is written or rendered: pick a structure
-and a length, see how many shots each beat should have, block the episode in with held stand-in
-shots, drop in pictures for an animatic, and fill the shots in as you go. The editor's other
+and a length, see how many shots each beat should have, block the episode in with shots that
+have no model yet, drop in pictures for an animatic, and fill the shots in as you go. The editor's other
 buttons are listed in [EDITOR.md](/editor); the structures themselves are in
 [STORY_STRUCTURES.md](/story-structures).
 
@@ -17,8 +17,9 @@ The storyboard is a view of the script, and it edits the script directly. There'
 file to save or export: an unfinished storyboard is simply an unfinished script, and it stays an
 ordinary one you can open in the script editor. Each **act** is a row, each **beat** a bar with
 a target ("3 of 93 shots, about 5:15 to go"), each **sequence** a bar across its shots, and each
-**shot** a tile. A stand-in is a real shot on the `hold` model, holding a gray card until it has
-a picture, so a blocked episode can be rendered and watched from the first minute.
+**shot** a tile. A shot you add here has no model yet: it's a real shot on the `hold` model,
+holding a gray card until it has a picture, so a blocked episode can be rendered and watched from
+the first minute.
 
 ## Opening it
 
@@ -46,7 +47,7 @@ cast and places without leaving the board. What you save there is on offer as so
   format has no percentages.
 - **Minutes** sets every beat's target and is saved as `// duration:`. It only moves targets: no
   shot is added or removed when it changes.
-- **Shot length** is the typical shot, and the length of new stand-ins.
+- **Shot length** is the typical shot, and the length of new shots.
 
 Hover over a beat's bar to read what should happen in it. A beat in amber is too short at this
 length to stand on its own: merge it with one beside it, or pick a longer length or a shorter
@@ -58,7 +59,7 @@ Any episode's beats can become a structure to start other episodes from: press t
 to **Structure**. A table opens with the episode's beats in order, each with its share of the
 story taken from its real shots, and the acts on the left, each running until the next one starts.
 The arrow beside a beat starts a new act there. **Guidance** is what the beat is for: it shows
-under the beat on the board and is a new stand-in's action.
+under the beat on the board and is a new shot's action.
 
 **Timeline** shows the same thing with each act containing its beats, each beat as wide as its
 share. Drag a divider to change two beats' shares, click one to start or end an act there, and
@@ -75,21 +76,25 @@ To change one, open an episode, save it again under the same name; **Delete save
 
 | To do this | Do this |
 |---|---|
-| One held shot on every beat that has none | **One per beat** in the toolbar |
+| One shot on every beat that has none | **One per beat** in the toolbar |
 | Add a shot at the end of a beat | **+** after its shots |
+| Add a shot next to another | Right-click it: **Add shot before** or **Add shot after** |
 | Bring a beat up to its target | **Fill** beside it |
 | Bring an act, or the whole episode, up to target | **Fill act** on its row, **Fill all** in the toolbar |
-| Fill in a shot | Click its tile: it opens Edit Shot |
+| Fill in a shot | Select its tile and press **Enter**, or right-click it: **Edit shot…** |
 
-A new stand-in joins the sequence the script is in at that point, with the cast of the shot
-before it, and its action is the beat's guidance. That text is a prompt for you, so rewrite it.
+Click a tile to select it. Double-click a shot with a finished take to play it: the take in the
+cut, or the newest if none is. Double-click a shot with nothing to play to open Edit Shot.
 
-Click a sequence's bar to change its place, or to set the cast on its stand-ins. A shot someone
+A new shot joins the sequence the script is in at that point, with the cast of the shot before
+it, and its action is the beat's guidance. That text is a prompt for you, so rewrite it.
+
+Click a sequence's bar to change its place, or to set the cast on its new shots. A shot someone
 has worked on keeps its own cast.
 
 ## Right-click
 
-- **A shot:** edit it, generate it, add a stand-in after it, start a new sequence after it (from the
+- **A shot:** edit it, generate it, add a shot before or after it, start a new sequence after it (from the
   sequence's last shot only), or delete it. A deleted shot's takes stay on disk.
 - **A sequence's bar:** a new sequence after it, in a place you choose; generate its shots or
   convert its held shots.
@@ -114,19 +119,19 @@ Drop pictures on the board:
 
 - **The middle of a tile** sets that shot's first frame, whatever its model.
 - **The edge of a tile** makes a new held shot there, holding the picture. One at a time.
-- **A sequence's bar or a beat** fills its empty stand-ins, in filename order (`frame2` before
+- **A sequence's bar or a beat** fills its empty shots, in filename order (`frame2` before
   `frame10`). A folder works too. It tells you if there are pictures left over.
 
 Then choose the pass you want and press **Render held**. It renders every held shot with no
 up-to-date take, on its picture or its gray card, on this machine for free. The takes land in
 that pass's cut, and Play all is your animatic.
 
-## From stand-ins to a model
+## From no model to a model
 
 Change one shot's model in Edit Shot, or right-click a sequence, beat or act and choose
 **Convert held shots** to change all of its held shots at once. Convert replaces `target: hold`
 with the model you pick (or the series default), and nothing else. Check what you're converting:
-a stand-in you haven't rewritten still has the beat's guidance as its action, and that's what
+a shot you haven't rewritten still has the beat's guidance as its action, and that's what
 the model would be sent. A paid model charges for that render like any other.
 
 A gray card is never sent to a real model. A dropped picture is: FL2VA uses it as the first
@@ -160,7 +165,7 @@ Only ordinary script lines, and these comments, none of which the build reads:
 // beat: Inciting Incident
 ```
 
-`// act:` is written only for acts you add. A stand-in looks like this:
+`// act:` is written only for acts you add. A shot with no model yet looks like this:
 
 ```
 ## sh050

@@ -1499,6 +1499,7 @@
 .h3-sb-tile { width: var(--sb-tile); aspect-ratio: 16 / 9; padding: 0; border-radius: 2px; box-sizing: border-box; cursor: pointer; background: var(--h3-accent) center / cover no-repeat; border: 1px solid var(--h3-border); }
 .h3-sb-tile.h3-sb-standin { background: var(--h3-bg3); border: 1px solid var(--h3-border); }
 .h3-sb-tile:hover { outline: 1px solid var(--h3-fg); }
+.h3-sb-tile.h3-sb-picked { outline: 2px solid var(--h3-accent); outline-offset: 1px; }
 .h3-sb-add { width: 22px; align-self: stretch; min-height: 27px; padding: 0; border-radius: 2px; line-height: 12px; cursor: pointer; color: var(--h3-fg); background: none; border: 1px dashed var(--h3-border); }
 .h3-sb-add:hover:not(:disabled) { border-color: var(--h3-accent); color: var(--h3-accent); }
 .h3-sb-editbar { gap: 10px; padding: 6px 10px; flex-wrap: wrap; border-bottom: 1px solid var(--h3-border); background: var(--h3-bg2); }

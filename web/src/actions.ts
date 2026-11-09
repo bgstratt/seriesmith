@@ -958,6 +958,7 @@ export function openViewer(shot: string, a: number | null, b: number | null = nu
       b,
       mode: mode ?? (b != null ? "side" : prev?.mode === "single" || !prev ? "single" : prev.mode),
       target: b != null || mode === "side" || mode === "wipe" ? "b" : "a",
+      ...(prev?.floating ? { floating: true } : {}),
     },
     menu: null,
     shot,

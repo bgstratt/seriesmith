@@ -49,6 +49,14 @@ export interface BoardShot {
   block: number;
 }
 
+/** The take a double-click on a tile plays: the one in the cut when it can, else the newest that
+ * finished. None: the shot has nothing to play, and the tile opens Edit Shot. */
+export function takeToOpen<T extends { take: number; status: string; mp4?: string | null }>(inCut: T | undefined, takes: T[]): T | undefined {
+  const played = (t: T | undefined): t is T => !!t && t.status === "ok" && !!t.mp4;
+  if (played(inCut)) return inCut;
+  return takes.filter(played).sort((a, b) => b.take - a.take)[0];
+}
+
 export interface BoardRun {
   sequence: string;
   place: string;

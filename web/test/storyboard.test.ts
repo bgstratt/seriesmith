@@ -1,11 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { blockedScript } from "../src/lib/wizard";
-import { bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, actGroups, moveDivider, ownBeatsFrom, toggleActBreak, positive, pushed, runtimeMinutes, runWidth, tileSize, seriesChoices, UNDO_STEPS, type BoardAct, type BoardBeat } from "../src/lib/storyboard";
+import { bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, actGroups, moveDivider, ownBeatsFrom, toggleActBreak, positive, pushed, runtimeMinutes, runWidth, takeToOpen, tileSize, seriesChoices, UNDO_STEPS, type BoardAct, type BoardBeat } from "../src/lib/storyboard";
 
 function beat(over: Partial<BoardBeat>): BoardBeat {
   return { beat: "A", plain: "A", nth: 0, block: null, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
     target_shots: null, target_seconds: null, thin: false, runs: [], ...over };
 }
+
+describe("takeToOpen", () => {
+  const t = (take: number, status = "ok", mp4: string | null = "a.mp4") => ({ take, status, mp4 });
+
+  it("plays the cut's take", () => {
+    expect(takeToOpen(t(1), [t(1), t(2)])?.take).toBe(1);
+  });
+
+  it("falls back to the newest take that finished", () => {
+    expect(takeToOpen(undefined, [t(1), t(3), t(4, "failed"), t(5, "ok", null)])?.take).toBe(3);
+    expect(takeToOpen(t(2, "failed"), [t(1), t(2, "failed")])?.take).toBe(1);
+  });
+
+  it("has nothing to play with no finished take", () => {
+    expect(takeToOpen(undefined, [])).toBeUndefined();
+    expect(takeToOpen(undefined, [t(1, "queued", null)])).toBeUndefined();
+  });
+});
 
 describe("clock", () => {
   it("writes minutes and seconds", () => {
