@@ -94,6 +94,8 @@ export interface ViewerState {
   cue?: string;
   /** cut mode: the spotting sheet (the cut player with the episode's music map) instead of Play all's window */
   spot?: boolean;
+  /** floats instead of taking the page's dock: opened from the storyboard, which would cover the dock */
+  floating?: boolean;
   /** cue mode: opened from the spotting sheet (its head goes back there) */
   back?: "spot";
   /** cue mode: the scoring window's tab it opens on (Score when none) */

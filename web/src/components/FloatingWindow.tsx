@@ -81,6 +81,9 @@ function bringToFront(key: string) {
   fronts.forEach((f) => f());
 }
 
+/** The window with this storageKey on top, when something other than a click on it brings it up. */
+export const raiseWindow = bringToFront;
+
 interface Props {
   storageKey: string;
   defaultRect: () => Rect;
@@ -90,9 +93,11 @@ interface Props {
   className?: string;
   minW?: number;
   minH?: number;
+  /** float even where the host has a dock for this window */
+  float?: boolean;
 }
 
-export function FloatingWindow({ storageKey, defaultRect, head, children, winRef, className, minW, minH }: Props) {
+export function FloatingWindow({ storageKey, defaultRect, head, children, winRef, className, minW, minH, float }: Props) {
   const own = useRef<HTMLDivElement>(null);
   const ref = winRef ?? own;
   const [rect, setRect] = useState<Rect>(() => loadRect(storageKey, defaultRect));
@@ -151,7 +156,7 @@ export function FloatingWindow({ storageKey, defaultRect, head, children, winRef
 
   // docked (the standalone page's viewer): in the page's own element, filling it
   const dock = useDock(storageKey);
-  if (dock) {
+  if (dock && !float) {
     return createPortal(
       <div
         ref={ref}

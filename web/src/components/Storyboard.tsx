@@ -1,9 +1,9 @@
 // The storyboard (docs/PLAN.md): the open episode's script against a story structure, an act to a
-// row. A beat shows its target and its real shots; `+` adds a stand-in and Fill makes the rest. The
+// row. A beat shows its target and its real shots; `+` adds a shot and Fill makes the rest. The
 // script is what's saved: every edit here goes to disk the way the script editor's do.
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { openSeriesForm, openShotForm, openSource, openStoryboard, refreshEpisode, requestRender, uploadRef } from "../actions";
+import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { openSeriesForm, openShotForm, openSource, openStoryboard, openViewer, refreshEpisode, requestRender, updateViewer, uploadRef } from "../actions";
 import { moveClip } from "../cutActions";
 import { dropFileOnto } from "../takeActions";
 import { gapAfter } from "../lib/takeDrop";
@@ -13,12 +13,14 @@ import { keyframeRefId } from "../lib/keyframes";
 import { videoTargets } from "../lib/targets";
 import { clipTake } from "../lib/playlist";
 import {
-  bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_SIZES, tileSize, type TileSize,
+  bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, takeToOpen, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_SIZES, tileSize, type TileSize,
   actGroups, moveDivider, ownBeatsFrom, pushed, toggleActBreak, type DropSide, type OwnBeat, type BoardPlan, type BoardAct, type BoardBeat, type BoardRun, type BoardShot, type SeriesChoices, type StoryboardAnswer, type StoryboardEdit,
 } from "../lib/storyboard";
 import { statusKey, store, useApp } from "../store";
-import { FloatingWindow } from "./FloatingWindow";
+import { FloatingWindow, raiseWindow } from "./FloatingWindow";
 import { EpisodeSelect } from "./ShotsTab";
+import { VIEWER_RECT_KEY } from "./Viewer";
+import type { Pass } from "../types";
 
 export function StoryboardWindow() {
   const open = useApp((s) => s.storyboardOpen);
@@ -27,6 +29,11 @@ export function StoryboardWindow() {
 }
 
 const BIG_FILL = 50;
+
+/** The selected tile and what a click and a double-click on one do. */
+const Tiles = createContext<{ selected: string | null; select: (id: string) => void; open: (shot: BoardShot) => void }>({
+  selected: null, select: () => undefined, open: () => undefined,
+});
 
 function placeName(id: string): string {
   return id.replace(/_/g, " ");
@@ -185,7 +192,7 @@ function SaveStructure({ plan, saved, file, close, done }: {
                   </label>
                 </div>
                 <label className="h3-col" style={{ gap: 3 }}>
-                  <span className="h3-small h3-muted">Guidance: what this beat is for. It shows under the beat on the board, and a new stand-in starts with it as its action.</span>
+                  <span className="h3-small h3-muted">Guidance: what this beat is for. It shows under the beat on the board, and a new shot starts with it as its action.</span>
                   <textarea className="h3-in" rows={2} value={picked.guidance ?? ""} onChange={(e) => setRow(selected, { guidance: e.target.value })} />
                 </label>
               </div>
@@ -244,7 +251,7 @@ function BoardMenu({ menu, choices, busy, edit, close, rename, fresh }: {
     <>
       <button disabled={busy || !wanted.length} title={wanted.length ? "Render the shots here with no up-to-date take, each on its own model" : "Every shot here has an up-to-date take"}
         onClick={() => { requestRender(wanted, true, `Generate ${wanted.length} shots`); close(); }}><i className="pi pi-play" /> Generate ({wanted.length})</button>
-      <button disabled={busy || !held.length} title={held.length ? "Change these held shots' model. Read them first: a stand-in's action is what the model is sent." : "No held shots here"}
+      <button disabled={busy || !held.length} title={held.length ? "Change these held shots' model. Read them first: a new shot's action is what the model is sent." : "No held shots here"}
         onClick={() => setAsking("convert")}><i className="pi pi-video" /> Convert held shots ({held.length})…</button>
       {asking === "convert" && (
         <div className="h3-sb-models">
@@ -272,12 +279,13 @@ function BoardMenu({ menu, choices, busy, edit, close, rename, fresh }: {
       <div className="h3-menu h3-sb-menu" style={{ left: menu.x, top: menu.y }} onContextMenu={(e) => e.preventDefault()}>
         {menu.kind === "shot" && (
           <>
-            <div className="h3-menu-head">{menu.shot.id}{menu.shot.held_empty ? " (stand-in)" : ""}</div>
+            <div className="h3-menu-head">{menu.shot.id}{menu.shot.target === "hold" ? " (no model yet)" : ""}</div>
             <button onClick={() => { openShotForm({ shot: menu.shot.id, after: null }); close(); }}><i className="pi pi-pencil" /> Edit shot…</button>
             <button disabled={busy} title="Render this shot on its own model" onClick={() => { requestRender([menu.shot.id], true, `Generate ${menu.shot.id}`); close(); }}>
               <i className="pi pi-play" /> {fresh.has(menu.shot.id) ? "Generate again" : "Generate"}
             </button>
-            <button disabled={busy} onClick={run({ op: "add_after", block: menu.shot.block })}><i className="pi pi-plus" /> Add a stand-in after</button>
+            <button disabled={busy} onClick={run({ op: "add_after", block: menu.shot.block, before: true })}><i className="pi pi-plus" /> Add shot before</button>
+            <button disabled={busy} onClick={run({ op: "add_after", block: menu.shot.block })}><i className="pi pi-plus" /> Add shot after</button>
             <button disabled={busy || !menu.last} title={menu.last ? "" : "Only after a sequence's last shot: a new one in the middle would move the shots after it"}
               onClick={() => setAsking("place")}><i className="pi pi-map-marker" /> New sequence after…</button>
             {asking === "place" && choices && choices.places.map((p) => (
@@ -399,6 +407,7 @@ function Run({ run, selected, pick, thumbs, onShotMenu, onRunMenu, onFrames }: {
   thumbs: Map<string, string>;
 }) {
   const who = [...new Set(run.shots.flatMap((s) => s.who))];
+  const tiles = useContext(Tiles);
   return (
     <div className="h3-sb-run" style={{ width: runWidth(run.shots.length) }} onDragOver={allowFiles}
       onDrop={(e) => onFrames(e, run.shots, false)}>
@@ -412,9 +421,10 @@ function Run({ run, selected, pick, thumbs, onShotMenu, onRunMenu, onFrames }: {
         {run.shots.map((s) => {
           const thumb = thumbs.get(s.id);
           return (
-            <button key={s.id} className={`h3-sb-tile${s.held_empty ? " h3-sb-standin" : ""}`}
+            <button key={s.id} className={`h3-sb-tile${s.held_empty ? " h3-sb-standin" : ""}${tiles.selected === s.id ? " h3-sb-picked" : ""}`}
               style={thumb ? { backgroundImage: `url("${thumb}")` } : undefined}
-              title={`${s.id}${s.held_empty ? " (stand-in: drop a picture on it)" : ""}: ${s.action}`} onClick={() => openShotForm({ shot: s.id, after: null })}
+              title={`${s.id}${s.target === "hold" ? " (no model yet)" : ""}: ${s.action}${s.held_empty ? "\nDrop a picture on it." : ""}\nDouble-click to open it; right-click for more.`}
+              onClick={() => tiles.select(s.id)} onDoubleClick={() => tiles.open(s)}
               onContextMenu={(e) => onShotMenu(e, s, s === run.shots[run.shots.length - 1])}
               draggable onDragStart={(e) => { e.dataTransfer.setData(SHOT_MIME, s.id); e.dataTransfer.effectAllowed = "move"; }}
               onDragOver={overTile} onDragLeave={(e) => delete e.currentTarget.dataset.side}
@@ -465,11 +475,11 @@ function Beat({ beat, biggest, picked, pick, busy, edit, thumbs, onShotMenu, onR
           <Run key={`${run.sequence}${i}`} run={run} selected={picked === run.block} pick={() => pick(run)} thumbs={thumbs} onShotMenu={onShotMenu} onRunMenu={onRunMenu} onFrames={onFrames} />
         ))}
         {named && (
-          <button className="h3-sb-add" disabled={busy} title="Add a stand-in shot at the end of this beat"
+          <button className="h3-sb-add" disabled={busy} title="Add a shot at the end of this beat"
             onClick={() => edit({ op: "add", beat: named })}>+</button>
         )}
         {named && left > 0 && (
-          <button className="h3-link h3-small" disabled={busy} title={`Make the ${left} stand-ins this beat is short of its target`}
+          <button className="h3-link h3-small" disabled={busy} title={`Make the ${left} shots this beat is short of its target`}
             onClick={() => edit({ op: "fill", beats: [named] })}>Fill {left}</button>
         )}
       </div>
@@ -496,7 +506,7 @@ function EditBar({ choices, picked, busy, edit, close }: {
               {choices.places.map((id) => <option key={id} value={id}>{placeName(id)}</option>)}
             </select>
           </label>
-          <span className="h3-row" style={{ gap: 4 }} title="Set on this sequence's stand-ins. A shot someone has worked on keeps its own.">Cast
+          <span className="h3-row" style={{ gap: 4 }} title="Set on this sequence's new shots. A shot someone has worked on keeps its own.">Cast
             {choices.cast.map((c) => {
               const on = picked.who.includes(c.id);
               return (
@@ -580,6 +590,7 @@ function Storyboard({ ep }: { ep: string }) {
   const [redo, setRedo] = useState<string[]>([]);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [renamingBeat, setRenamingBeat] = useState<number | null>(null);
+  const [tile, setTile] = useState<string | null>(null);
   const openAt = (e: MouseEvent, next: Omit<Extract<Menu, { kind: "shot" }>, "x" | "y"> | Omit<Extract<Menu, { kind: "sequence" }>, "x" | "y"> | Omit<Extract<Menu, { kind: "beat" }>, "x" | "y"> | Omit<Extract<Menu, { kind: "act" }>, "x" | "y">) => {
     e.preventDefault();
     setMenu({ ...next, x: Math.min(e.clientX, window.innerWidth - 240), y: Math.min(e.clientY, window.innerHeight - 280) } as Menu);
@@ -650,6 +661,27 @@ function Storyboard({ ep }: { ep: string }) {
     }
     return out;
   }, [ep, pass, status, other, data, size]);
+  const playable = useMemo(() => {
+    const out = new Map<string, { take: number; pass: Pass }>();
+    for (const s of status?.shots ?? []) {
+      const inCut = clipTake(s, s.cut.placeholder ? other : undefined);
+      const take = takeToOpen(inCut, s.takes);
+      if (take) out.set(s.shot, { take: take.take, pass: take === inCut && s.cut.placeholder ? s.cut.pass : pass });
+    }
+    return out;
+  }, [pass, status, other]);
+  const tiles = useMemo(() => ({
+    selected: tile,
+    select: setTile,
+    open: (s: BoardShot) => {
+      const t = playable.get(s.id);
+      if (!t) { openShotForm({ shot: s.id, after: null }); return; }
+      openViewer(s.id, t.take, null, "single", t.pass);
+      // over the board: a docked viewer, or one already open, would be behind it
+      updateViewer({ floating: true });
+      raiseWindow(VIEWER_RECT_KEY);
+    },
+  }), [tile, playable]);
   const chosen = scriptStructure ?? (structure || (names.find((n) => n.includes("Three-Act")) ?? names[0] ?? ""));
 
   // what the script already says wins, once, as the board opens
@@ -783,7 +815,7 @@ function Storyboard({ ep }: { ep: string }) {
     const files = picturesInOrder(await found);
     const targets = dropTargets(shots, single);
     if (!files.length) { setErr("That drop has no pictures in it."); return; }
-    if (!targets.length) { setErr("There are no empty stand-ins there to fill."); return; }
+    if (!targets.length) { setErr("There are no empty shots there to fill."); return; }
     const pairs = targets.slice(0, single ? 1 : files.length).map((s, i) => ({ shot: s, file: files[i] })).filter((p) => p.file);
     setBusy(true);
     setErr(null);
@@ -801,12 +833,19 @@ function Storyboard({ ep }: { ep: string }) {
     setDropping(null);
     setBusy(false);
     const spare = files.length - pairs.length;
-    if (failed || spare) setErr(`${done} added.${failed ? ` ${failed} couldn't be added.` : ""}${spare ? ` ${spare} left over: not enough empty stand-ins.` : ""}`);
+    if (failed || spare) setErr(`${done} added.${failed ? ` ${failed} couldn't be added.` : ""}${spare ? ` ${spare} left over: not enough empty shots.` : ""}`);
     if (length !== null && each !== null) setData(await api().storyboard(ep, chosen, length * 60, each));
     void refreshEpisode(ep);
   }
 
   function keys(e: KeyboardEvent) {
+    if (e.key === "Enter" && tile && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const on = e.target as HTMLElement;
+      if (on.closest("input, select, textarea") || !on.closest("button, .h3-sb")?.matches(".h3-sb-tile, .h3-sb")) return;
+      e.preventDefault();
+      openShotForm({ shot: tile, after: null });
+      return;
+    }
     if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z") return;
     if ((e.target as HTMLElement).closest("input, select, textarea")) return;
     e.preventDefault();
@@ -816,7 +855,7 @@ function Storyboard({ ep }: { ep: string }) {
 
   function fill(beats: BoardBeat[]) {
     const n = fillCount(beats);
-    if (n >= BIG_FILL && !window.confirm(`Add ${n} stand-in shots to the script?`)) return;
+    if (n >= BIG_FILL && !window.confirm(`Add ${n} shots to the script?`)) return;
     void edit({ op: "fill", beats: fillable(beats) });
   }
 
@@ -865,7 +904,7 @@ function Storyboard({ ep }: { ep: string }) {
             <input className="h3-sb-num" type="number" min="0.1" step="any" value={minutes}
               onChange={(e) => setMinutes(e.target.value)} />
           </label>
-          <label className="h3-row" title="A typical shot, in seconds: what a stand-in is made at.">Shot length
+          <label className="h3-row" title="A typical shot, in seconds: what a new shot is made at.">Shot length
             <input className="h3-sb-num" type="number" min="0.1" step="0.1" value={shot}
               onChange={(e) => setShot(e.target.value)} />
           </label>
@@ -891,7 +930,7 @@ function Storyboard({ ep }: { ep: string }) {
             <button className="h3-btn" disabled={busy} title="One held shot on every beat that has none: the episode blocked in, from start to end"
               onClick={() => void edit({ op: "fill", beats: bare, each: 1 })}>One per beat ({bare.length})</button>
           )}
-          {left > 0 && <button className="h3-btn" disabled={busy} title="Make every beat's missing stand-ins" onClick={() => fill(allBeats)}>Fill all ({left})</button>}
+          {left > 0 && <button className="h3-btn" disabled={busy} title="Make every beat's missing shots" onClick={() => fill(allBeats)}>Fill all ({left})</button>}
         </div>
         {picked && (
           <EditBar choices={choices} picked={picked} busy={busy} edit={(e) => void edit(e)} close={() => setPicked(null)} />
@@ -924,6 +963,7 @@ function Storyboard({ ep }: { ep: string }) {
           <BoardMenu menu={menu} choices={choices} busy={busy} edit={(e) => void edit(e)} close={() => setMenu(null)}
             rename={(b) => setRenamingBeat(b.block)} fresh={rendered.current} />
         )}
+        <Tiles.Provider value={tiles}>
         <div className="h3-sb-board">
           {plan?.acts.map((act, i) => {
             const key = `${act.act}${i}`;
@@ -956,6 +996,7 @@ function Storyboard({ ep }: { ep: string }) {
             );
           })}
         </div>
+        </Tiles.Provider>
       </div>
     </FloatingWindow>
   );

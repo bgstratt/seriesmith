@@ -375,7 +375,7 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
   );
 
   return (
-    <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultViewerRect} head={head} winRef={winRef}>
+    <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultViewerRect} head={head} winRef={winRef} float={!!v.floating}>
       <CompareStage
         mode={mode}
         hasB={!!takeB}
