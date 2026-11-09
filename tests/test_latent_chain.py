@@ -320,8 +320,8 @@ class ChainNodeTest(unittest.TestCase):
         comfy.nested_tensor = nt
         self._saved = {k: sys.modules.get(k) for k in ("comfy", "comfy.nested_tensor")}
         sys.modules["comfy"], sys.modules["comfy.nested_tensor"] = comfy, nt
-        import h3_chain
-        self.N = h3_chain
+        import importlib
+        self.N = importlib.import_module("comfy_nodes.chain")
 
     def tearDown(self):
         for k, v in self._saved.items():
@@ -356,35 +356,32 @@ class ChainNodeTest(unittest.TestCase):
             self.N.chain({"samples": _Nested((v_new, a_new))}, torch.ones(1, 4, 37, 6, 10),
                          None, 39, True)
 
-    def test_an_upscale_holds_or_says_why_not(self):
+    def test_the_node_holds_a_kept_latent_or_says_why_not(self):
+        """An upscale whose held latent is missing never reaches the node: finishing.py
+        takes the node out of the graph."""
+        from unittest import mock
         v_new, a_new = torch.zeros(1, 4, 42, 6, 10), torch.zeros(1, 8, 235)
-        with tempfile.TemporaryDirectory() as d:
-            lat = {"samples": _Nested((v_new, a_new))}
-            out, rec = self.N.upscale_hold(lat, d, "sh080", "a.up.latent.safetensors", 39,
-                                           False, 24.0)
-            self.assertIs(out, lat)
-            self.assertEqual((rec["held"], rec["file"]), (False, "a.up.latent.safetensors"))
-            open(os.path.join(d, "a.up.latent.safetensors"), "wb").close()
-            from unittest import mock
-            with mock.patch.object(self.N, "kept_latent",
-                                   return_value=(torch.ones(1, 4, 37, 6, 10), None)):
-                out, rec = self.N.upscale_hold(lat, d, "sh080", "a.up.latent.safetensors", 39,
-                                               False, 24.0)
-                node_out = self.N.H3ChainLatent().chain(lat, d, "sh080", "final", 39, False,
-                                                        previous_latent="a.up.latent.safetensors",
-                                                        missing_ok=True)
-            self.assertEqual(float(out["samples"].unbind()[0][:, :, :12].mean()), 1.0)
-            self.assertEqual((rec["held"], rec["video_steps"]), (True, 12))
-            self.assertTrue(json.loads(node_out[1])["held"])
-            self.assertEqual(os.listdir(d), ["a.up.latent.safetensors"])   # nothing written
+        lat = {"samples": _Nested((v_new, a_new))}
+        node = self.N.SeriesmithChainLatent()
+        with self.assertRaisesRegex(ValueError, "no previous take to hold"):
+            node.chain(lat, 39, False)
+        with mock.patch.object(self.N, "_input_file", side_effect=lambda name: name), \
+                mock.patch.object(self.N, "kept_latent",
+                                  return_value=(torch.ones(1, 4, 37, 6, 10), None)):
+            out, record = node.chain(lat, 39, False, previous="a.up.latent.safetensors",
+                                     source=json.dumps({"shot": "sh070"}))
+        self.assertEqual(float(out["samples"].unbind()[0][:, :, :12].mean()), 1.0)
+        self.assertEqual(json.loads(record)["video_steps"], 12)
+        self.assertEqual((json.loads(record)["via"], json.loads(record)["shot"]),
+                         ("latent", "sh070"))
 
     def test_the_trim_cuts_the_held_frames_and_their_sound(self):
         images = torch.arange(141, dtype=torch.float32).view(141, 1, 1, 1).expand(141, 2, 2, 3)
         audio = {"waveform": torch.zeros(1, 2, 141 * 2000), "sample_rate": 48000}
-        imgs, aud = self.N.H3ChainTrim().trim(images, 39, 24.0, audio)
+        imgs, aud = self.N.SeriesmithChainTrim().trim(images, 39, 24.0, audio)
         self.assertEqual((imgs.shape[0], float(imgs[0, 0, 0, 0])), (102, 39.0))
         self.assertEqual(aud["waveform"].shape[-1], 141 * 2000 - 39 * 2000)
-        self.assertIsNone(self.N.H3ChainTrim().trim(images, 39, 24.0)[1])
+        self.assertIsNone(self.N.SeriesmithChainTrim().trim(images, 39, 24.0)[1])
 
 
 if __name__ == "__main__":

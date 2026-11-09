@@ -64,6 +64,27 @@ class StandaloneTest(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertEqual([e["name"] for e in data], ["ks01"])
 
+    def test_the_file_route_and_a_bad_body(self):
+        with open(os.path.join(self.ep, "clip.mp4"), "wb") as fh:
+            fh.write(bytes(range(256)) * 4)
+
+        async def body(client, app):
+            q = {"ep": self.ep, "path": "clip.mp4"}
+            r = await client.get("/seriesmith/file", params=q)
+            self.assertEqual((r.status, r.headers["Content-Type"], r.headers["Cache-Control"]),
+                             (200, "video/mp4", "no-cache"))
+            self.assertEqual(len(await r.read()), 1024)
+            r = await client.get("/seriesmith/file", params=q, headers={"Range": "bytes=256-511"})
+            self.assertEqual((r.status, await r.read()), (206, bytes(range(256))))
+            r = await client.get("/seriesmith/file", params={"ep": self.ep, "path": "../x"})
+            self.assertEqual(r.status, 400)
+            self.assertIn("error", await r.json())
+            r = await client.post("/seriesmith/source/check", data=b"{nope",
+                                  headers={"Content-Type": "application/json"})
+            self.assertEqual(r.status, 400)
+            self.assertIn("JSON", (await r.json())["error"])
+        self.run_app(body)
+
     def test_the_root_given_on_the_command_line_counts(self):
         async def body(client, app):
             r = await client.get("/seriesmith/config")

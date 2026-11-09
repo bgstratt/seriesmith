@@ -5,7 +5,7 @@ episode status's new fields (cut.order, script_index, out_of_order, track,
 audio_in/audio_out, take audio), locked picks, GET /seriesmith/peaks (peaks:
 stdlib wav, ffmpeg for the rest, the cache, resampling, path safety) and
 `seriesmith cut`. The routes run through h3pipe_api with test_api's built
-kitchen_sink episode; the aiohttp adapter is in test_routes.
+kitchen_sink episode; the aiohttp adapter is in test_server.
 """
 from __future__ import annotations
 

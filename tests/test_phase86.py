@@ -5,7 +5,7 @@ POST /seriesmith/refs/generate-missing, uploads on POST /seriesmith/refs/import,
 the keyframe polish (the framing wording, the composed reference for a
 single-reference edit target). The routes run through h3pipe_api with
 test_render's FakeComfy, as test_api does; the multipart adapter itself is in
-test_routes (it needs aiohttp).
+test_server (it needs aiohttp).
 """
 from __future__ import annotations
 
