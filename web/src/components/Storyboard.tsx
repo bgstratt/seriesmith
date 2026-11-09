@@ -2,7 +2,7 @@
 // row. A beat shows its target and its real shots; `+` adds a stand-in and Fill makes the rest. The
 // script is what's saved: every edit here goes to disk the way the script editor's do.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { openSeriesForm, openShotForm, openSource, openStoryboard, refreshEpisode, requestRender, uploadRef } from "../actions";
 import { moveClip } from "../cutActions";
 import { dropFileOnto } from "../takeActions";
@@ -13,7 +13,7 @@ import { keyframeRefId } from "../lib/keyframes";
 import { videoTargets } from "../lib/targets";
 import { clipTake } from "../lib/playlist";
 import {
-  bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_W,
+  bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_SIZES, tileSize, type TileSize,
   pushed, type DropSide, type BoardAct, type BoardBeat, type BoardRun, type BoardShot, type SeriesChoices, type StoryboardAnswer, type StoryboardEdit,
 } from "../lib/storyboard";
 import { statusKey, store, useApp } from "../store";
@@ -184,6 +184,7 @@ function NameField({ value, busy, commit, cancel, className, size }: {
 type FrameDrop = (e: DragEvent, shots: BoardShot[], single: boolean, side?: DropSide | null) => void;
 
 const SHOT_MIME = "application/x-seriesmith-board-shot";
+const SIZE_KEY = "seriesmith.storyboard.tile";
 
 /** Lets a drop of files land here rather than on the page behind. */
 function allowFiles(e: DragEvent) {
@@ -424,6 +425,21 @@ function Storyboard({ ep }: { ep: string }) {
   // a script that names its structure goes by it, whether or not there's a table for it
   const scriptStructure = data?.plan.structure ?? null;
   const pass = useApp((s) => s.pass);
+  const [size, setSize] = useState<TileSize>(() => {
+    try {
+      return tileSize(localStorage.getItem(SIZE_KEY));
+    } catch {
+      return "s";
+    }
+  });
+  const pickSize = (next: TileSize) => {
+    setSize(next);
+    try {
+      localStorage.setItem(SIZE_KEY, next);
+    } catch {
+      // private window: it just won't be remembered
+    }
+  };
   const rendered = useRef<Set<string>>(new Set());
   const status = useApp((s) => s.status[statusKey(ep, s.pass)]);
   const other = useApp((s) => s.status[statusKey(ep, s.pass === "proxy" ? "final" : "proxy")]);
@@ -432,7 +448,7 @@ function Storyboard({ ep }: { ep: string }) {
     const fresh = new Set<string>();
     for (const s of status?.shots ?? []) {
       const take = clipTake(s, s.cut.placeholder ? other : undefined);
-      if (take?.thumb) out.set(s.shot, api().thumbUrl(ep, take.thumb, TILE_W * 2));
+      if (take?.thumb) out.set(s.shot, api().thumbUrl(ep, take.thumb, TILE_SIZES[size] * 2));
       if (take && take.status === "ok" && !take.stale?.length) fresh.add(s.shot);
     }
     rendered.current = fresh;
@@ -441,13 +457,13 @@ function Storyboard({ ep }: { ep: string }) {
       for (const beat of act.beats) {
         for (const run of beat.runs) {
           for (const s of run.shots) {
-            if (s.picture && s.target === "hold") out.set(s.id, api().thumbUrl(ep, s.picture, TILE_W * 2, s.picture_version));
+            if (s.picture && s.target === "hold") out.set(s.id, api().thumbUrl(ep, s.picture, TILE_SIZES[size] * 2, s.picture_version));
           }
         }
       }
     }
     return out;
-  }, [ep, pass, status, other, data]);
+  }, [ep, pass, status, other, data, size]);
   const chosen = scriptStructure ?? (structure || (names.find((n) => n.includes("Three-Act")) ?? names[0] ?? ""));
 
   // what the script already says wins, once, as the board opens
@@ -643,7 +659,7 @@ function Storyboard({ ep }: { ep: string }) {
   return (
     <FloatingWindow storageKey="seriesmith.storyboard.rect" head={head} minW={520} minH={320}
       defaultRect={() => ({ x: 40, y: 48, w: Math.min(1280, window.innerWidth - 80), h: Math.min(820, window.innerHeight - 96) })}>
-      <div className="h3-col h3-sb" style={{ height: "100%", outline: "none" }} tabIndex={-1} onKeyDown={keys}>
+      <div className="h3-col h3-sb" style={{ height: "100%", outline: "none", "--sb-tile": `${TILE_SIZES[size]}px` } as CSSProperties} tabIndex={-1} onKeyDown={keys}>
         <div className="h3-row h3-sb-controls">
           <label className="h3-row" title={scriptStructure
             ? `Changes the script's // structure: line. Beats keep their names: the ones that match this structure take its acts and targets, the rest stay as the script has them.${data?.plan.structure_known ? "" : " A show's own format has no targets."}`
@@ -672,6 +688,11 @@ function Storyboard({ ep }: { ep: string }) {
             </span>
           )}
           <span className="h3-grow" />
+          <span className="h3-seg" title="Thumbnail size">
+            {(Object.keys(TILE_SIZES) as TileSize[]).map((k) => (
+              <button key={k} className={size === k ? "h3-on" : ""} onClick={() => pickSize(k)}>{k.toUpperCase()}</button>
+            ))}
+          </span>
           <button className="h3-btn h3-icon" disabled={busy || !undo.length} title="Undo (Ctrl+Z)" onClick={undoEdit}><i className="pi pi-undo" /></button>
           <button className="h3-btn h3-icon" disabled={busy || !redo.length} title="Redo (Ctrl+Shift+Z)" onClick={redoEdit}><i className="pi pi-refresh" /></button>
           {toRender.length > 0 && (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blockedScript } from "../src/lib/wizard";
-import { bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, pushed, runtimeMinutes, runWidth, seriesChoices, UNDO_STEPS, type BoardBeat } from "../src/lib/storyboard";
+import { bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, pushed, runtimeMinutes, runWidth, tileSize, seriesChoices, UNDO_STEPS, type BoardBeat } from "../src/lib/storyboard";
 
 function beat(over: Partial<BoardBeat>): BoardBeat {
   return { beat: "A", plain: "A", nth: 0, block: null, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
@@ -179,13 +179,24 @@ describe("bareBeats", () => {
   });
 });
 
+describe("tileSize", () => {
+  it("keeps a size it knows", () => {
+    expect(tileSize("l")).toBe("l");
+  });
+
+  it("is S for anything else", () => {
+    expect(tileSize(null)).toBe("s");
+    expect(tileSize("huge")).toBe("s");
+  });
+});
+
 describe("runWidth", () => {
   it("is its shots in a line, no wider than the row", () => {
-    expect(runWidth(10)).toBe("min(100%, 507px)");
+    expect(runWidth(10)).toBe("min(100%, max(96px, calc(10 * (var(--sb-tile) + 3px) - 3px)))");
   });
 
   it("leaves a one-shot sequence room for its name", () => {
-    expect(runWidth(1)).toBe("min(100%, 96px)");
+    expect(runWidth(1)).toContain("max(96px,");
   });
 });
 

@@ -179,14 +179,20 @@ export function bareBeats(beats: BoardBeat[]): { plain: string; nth: number }[] 
   return beats.flatMap((b) => (b.plain !== null && b.shots === 0 ? [{ plain: b.plain, nth: b.nth }] : []));
 }
 
-export const TILE_W = 48;
+/** The tiles' widths; each is 16:9. */
+export const TILE_SIZES = { s: 72, m: 108, l: 162 } as const;
+export type TileSize = keyof typeof TILE_SIZES;
 export const TILE_GAP = 3;
 export const RUN_MIN_W = 96;
 
 /** A sequence's width on the board: its shots in a line under its bar, wrapping past the row. */
 export function runWidth(shots: number): string {
-  const line = Math.max(RUN_MIN_W, shots * (TILE_W + TILE_GAP) - TILE_GAP);
-  return `min(100%, ${line}px)`;
+  return `min(100%, max(${RUN_MIN_W}px, calc(${shots} * (var(--sb-tile) + ${TILE_GAP}px) - ${TILE_GAP}px)))`;
+}
+
+/** A remembered tile size, or S for anything else. */
+export function tileSize(saved: string | null): TileSize {
+  return saved === "s" || saved === "m" || saved === "l" ? saved : "s";
 }
 
 /** A beat's share of the width: the biggest target fills the row, and no band is too narrow to read. */
