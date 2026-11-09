@@ -169,20 +169,20 @@ multi-episode arcs.
 
 **Beats (Vogler's 12 stages):**
 
-| # | Beat | What happens | ~% |
-|---|---|---|---|
-| 1 | **Ordinary World** | Show the hero's normal life, their flaw or lack, and what's at stake if nothing changes. | 0–10 |
-| 2 | **Call to Adventure** | A problem, challenge or message disrupts the ordinary world. | 10 |
-| 3 | **Refusal of the Call** | The hero hesitates out of fear, duty or doubt. This shows the cost of going. | 10–15 |
-| 4 | **Meeting the Mentor** | A guide gives advice, training, a gift or the confidence to go. | 15–20 |
-| 5 | **Crossing the Threshold** | The hero commits and enters the special world. There's no easy way back. | 20–25 |
-| 6 | **Tests, Allies, Enemies** | The hero learns the new world's rules, makes friends and enemies, and faces smaller trials. | 25–45 |
-| 7 | **Approach to the Inmost Cave** | The team prepares to face the central danger. Tension and stakes build. | 45–50 |
-| 8 | **The Ordeal** | The central crisis: a brush with death (literal or symbolic) and the greatest fear faced. | 50–60 |
-| 9 | **Reward (Seizing the Sword)** | Having survived, the hero claims the prize: an object, knowledge or reconciliation. | 60–70 |
-| 10 | **The Road Back** | The hero heads home, but the consequences follow. Often there's a chase or a new threat. | 70–80 |
-| 11 | **Resurrection** | A final, higher-stakes test where the hero must use everything they've learned. They are purified and reborn. | 80–95 |
-| 12 | **Return with the Elixir** | The hero comes home changed, with something that heals or improves the ordinary world. | 95–100 |
+| Act | # | Beat | What happens | ~% |
+|---|---|---|---|---|
+| **Departure** | 1 | **Ordinary World** | Show the hero's normal life, their flaw or lack, and what's at stake if nothing changes. | 0–10 |
+| | 2 | **Call to Adventure** | A problem, challenge or message disrupts the ordinary world. | 10 |
+| | 3 | **Refusal of the Call** | The hero hesitates out of fear, duty or doubt. This shows the cost of going. | 10–15 |
+| | 4 | **Meeting the Mentor** | A guide gives advice, training, a gift or the confidence to go. | 15–20 |
+| | 5 | **Crossing the Threshold** | The hero commits and enters the special world. There's no easy way back. | 20–25 |
+| **Initiation** | 6 | **Tests, Allies, Enemies** | The hero learns the new world's rules, makes friends and enemies, and faces smaller trials. | 25–45 |
+| | 7 | **Approach to the Inmost Cave** | The team prepares to face the central danger. Tension and stakes build. | 45–50 |
+| | 8 | **The Ordeal** | The central crisis: a brush with death (literal or symbolic) and the greatest fear faced. | 50–60 |
+| | 9 | **Reward (Seizing the Sword)** | Having survived, the hero claims the prize: an object, knowledge or reconciliation. | 60–70 |
+| **Return** | 10 | **The Road Back** | The hero heads home, but the consequences follow. Often there's a chase or a new threat. | 70–80 |
+| | 11 | **Resurrection** | A final, higher-stakes test where the hero must use everything they've learned. They are purified and reborn. | 80–95 |
+| | 12 | **Return with the Elixir** | The hero comes home changed, with something that heals or improves the ordinary world. | 95–100 |
 
 **Music:**
 
@@ -272,21 +272,21 @@ protagonists in a restrictive world.
 
 **Beats (Hudson's 13):**
 
-| # | Beat | What happens | ~% |
-|---|---|---|---|
-| 1 | **Dependent World** | The protagonist relies on others (family, community, a system) for safety and identity. | 0–8 |
-| 2 | **Price of Conformity** | Fitting in costs them their true self. Show what's being suppressed. | 8–15 |
-| 3 | **Opportunity to Shine** | A chance comes to express their hidden gift or desire, often by accident. | 15–20 |
-| 4 | **Dresses the Part** | They take on the trappings of the true self: a costume, a role, a secret identity. | 20–25 |
-| 5 | **Secret World** | They live a double life, nurturing their gift away from the dependent world. | 25–40 |
-| 6 | **No Longer Fits Her World** | The two lives grate against each other. The old world feels wrong. | 40–50 |
-| 7 | **Caught Shining** | The secret is discovered, and the dependent world reacts. | 50–58 |
-| 8 | **Gives Up What Kept Her Stuck** | They let go of the attachment, fear or belief that kept them conforming. | 58–65 |
-| 9 | **Kingdom in Chaos** | The community is thrown into turmoil by the change. | 65–72 |
-| 10 | **Wanders in the Wilderness** | Doubt and temptation to go back to safety. This is the low point. | 72–80 |
-| 11 | **Chooses Her Light** | They fully commit to their true self, whatever it costs. | 80–88 |
-| 12 | **Re-ordering (Rescue)** | The community reorganizes around the new reality and often comes to their aid. | 88–95 |
-| 13 | **The Kingdom Is Brighter** | Everyone is better off because the protagonist became themselves. | 95–100 |
+| Act | # | Beat | What happens | ~% |
+|---|---|---|---|---|
+| **Dependent World** | 1 | **Dependent World** | The protagonist relies on others (family, community, a system) for safety and identity. | 0–8 |
+| | 2 | **Price of Conformity** | Fitting in costs them their true self. Show what's being suppressed. | 8–15 |
+| | 3 | **Opportunity to Shine** | A chance comes to express their hidden gift or desire, often by accident. | 15–20 |
+| | 4 | **Dresses the Part** | They take on the trappings of the true self: a costume, a role, a secret identity. | 20–25 |
+| **Double Life** | 5 | **Secret World** | They live a double life, nurturing their gift away from the dependent world. | 25–40 |
+| | 6 | **No Longer Fits Her World** | The two lives grate against each other. The old world feels wrong. | 40–50 |
+| **Fallout** | 7 | **Caught Shining** | The secret is discovered, and the dependent world reacts. | 50–58 |
+| | 8 | **Gives Up What Kept Her Stuck** | They let go of the attachment, fear or belief that kept them conforming. | 58–65 |
+| | 9 | **Kingdom in Chaos** | The community is thrown into turmoil by the change. | 65–72 |
+| | 10 | **Wanders in the Wilderness** | Doubt and temptation to go back to safety. This is the low point. | 72–80 |
+| **Her Light** | 11 | **Chooses Her Light** | They fully commit to their true self, whatever it costs. | 80–88 |
+| | 12 | **Re-ordering (Rescue)** | The community reorganizes around the new reality and often comes to their aid. | 88–95 |
+| | 13 | **The Kingdom Is Brighter** | Everyone is better off because the protagonist became themselves. | 95–100 |
 
 **Music:**
 
@@ -400,17 +400,17 @@ shouldn't change much between episodes.
 
 **Beats:**
 
-| # | Beat | What happens | ~% |
-|---|---|---|---|
-| 1 | **Cold Open / Teaser** | A self-contained gag or a quick setup that hooks the audience and often seeds the theme. | 0–8 |
-| 2 | **Status Quo** | The usual dynamics: who wants what, the running jokes and the setting. | 8–15 |
-| 3 | **The Problem** | The A-plot starts with a want, a mistake or an outside disruption. A B-plot (and sometimes C) starts with other characters. | 15–25 |
-| 4 | **The Bad Decision / Scheme** | Instead of the sensible fix, the character lies, covers up or schemes. | 25–35 |
-| 5 | **Complications** | The scheme needs more lies. Other characters get pulled in. The B-plot starts to cross into the A-plot. | 35–65 |
-| 6 | **Peak Chaos / Misunderstanding** | Everything collides, often with all the characters in one place, at the worst possible moment. | 65–80 |
-| 7 | **Confession / Fix** | The truth comes out or the mistake is undone. Sometimes there's a small emotional beat. | 80–92 |
-| 8 | **Reset** | Back to the status quo. The lesson is learned, or comically not learned. | 92–97 |
-| 9 | **Tag** | A final callback joke after the resolution. | 97–100 |
+| Act | # | Beat | What happens | ~% |
+|---|---|---|---|---|
+| **Setup** | 1 | **Cold Open / Teaser** | A self-contained gag or a quick setup that hooks the audience and often seeds the theme. | 0–8 |
+| | 2 | **Status Quo** | The usual dynamics: who wants what, the running jokes and the setting. | 8–15 |
+| | 3 | **The Problem** | The A-plot starts with a want, a mistake or an outside disruption. A B-plot (and sometimes C) starts with other characters. | 15–25 |
+| **The Scheme** | 4 | **The Bad Decision / Scheme** | Instead of the sensible fix, the character lies, covers up or schemes. | 25–35 |
+| | 5 | **Complications** | The scheme needs more lies. Other characters get pulled in. The B-plot starts to cross into the A-plot. | 35–65 |
+| **The Blow-Up** | 6 | **Peak Chaos / Misunderstanding** | Everything collides, often with all the characters in one place, at the worst possible moment. | 65–80 |
+| | 7 | **Confession / Fix** | The truth comes out or the mistake is undone. Sometimes there's a small emotional beat. | 80–92 |
+| **Reset** | 8 | **Reset** | Back to the status quo. The lesson is learned, or comically not learned. | 92–97 |
+| | 9 | **Tag** | A final callback joke after the resolution. | 97–100 |
 
 **Music:**
 
@@ -469,14 +469,14 @@ episode, and any drama series with a season-long thread.
 
 **Beats:**
 
-| # | Beat | What happens | ~% |
+| Act | Beat | What happens | ~% |
 |---|---|---|---|
-| 1 | **Teaser / Cold Open** | A hook: the case's first moment (a crime, a stranger, a body, a request), ending on a question. | 0–8 |
-| 2 | **Act One** | The case set up: who, what's at stake, the first obstacle. Act-out: a complication. | 8–28 |
-| 3 | **Act Two** | The investigation or pursuit; the B-plot (often the runner) crosses it. Act-out: a reversal. | 28–50 |
-| 4 | **Act Three** | Pressure: the case at its worst and what it costs. Act-out: the low point. | 50–72 |
-| 5 | **Act Four** | The turn and the climax: the case resolved, won or lost. | 72–92 |
-| 6 | **Tag / Stinger** | The aftermath, then the runner moves on: a hook for next week. | 92–100 |
+| Teaser | **Teaser / Cold Open** | A hook: the case's first moment (a crime, a stranger, a body, a request), ending on a question. | 0–8 |
+| Act One | **Act One** | The case set up: who, what's at stake, the first obstacle. Act-out: a complication. | 8–28 |
+| Act Two | **Act Two** | The investigation or pursuit; the B-plot (often the runner) crosses it. Act-out: a reversal. | 28–50 |
+| Act Three | **Act Three** | Pressure: the case at its worst and what it costs. Act-out: the low point. | 50–72 |
+| Act Four | **Act Four** | The turn and the climax: the case resolved, won or lost. | 72–92 |
+| Tag | **Tag / Stinger** | The aftermath, then the runner moves on: a hook for next week. | 92–100 |
 
 **Music:**
 
@@ -522,16 +522,16 @@ needs a real arc. It also works at scene level.
 
 **Beats:**
 
-| # | Label | Beat | What happens | ~% |
-|---|---|---|---|---|
-| 1 | **You** | Zone of comfort | Establish the character in their familiar world. | 0–10 |
-| 2 | **Need** | But they want something | A desire, lack or problem appears. | 10–20 |
-| 3 | **Go** | Unfamiliar situation | They cross into somewhere, or something, new. | 20–30 |
-| 4 | **Search** | Adapt to it | They struggle, learn the rules and pick up tools or allies. | 30–50 |
-| 5 | **Find** | Get what they wanted | They get it, often at the midpoint, the bottom of the circle. | 50–60 |
-| 6 | **Take** | Pay a heavy price | The cost hits: what they wanted wasn't what they needed, or it costs something dear. | 60–75 |
-| 7 | **Return** | Back to the familiar | They come back to where they started. | 75–90 |
-| 8 | **Change** | Having changed | They are different now, and can do or see something they couldn't before. | 90–100 |
+| Act | # | Label | Beat | What happens | ~% |
+|---|---|---|---|---|---|
+| **Comfort** | 1 | **You** | Zone of comfort | Establish the character in their familiar world. | 0–10 |
+| | 2 | **Need** | But they want something | A desire, lack or problem appears. | 10–20 |
+| **Descent** | 3 | **Go** | Unfamiliar situation | They cross into somewhere, or something, new. | 20–30 |
+| | 4 | **Search** | Adapt to it | They struggle, learn the rules and pick up tools or allies. | 30–50 |
+| **The Price** | 5 | **Find** | Get what they wanted | They get it, often at the midpoint, the bottom of the circle. | 50–60 |
+| | 6 | **Take** | Pay a heavy price | The cost hits: what they wanted wasn't what they needed, or it costs something dear. | 60–75 |
+| **Return** | 7 | **Return** | Back to the familiar | They come back to where they started. | 75–90 |
+| | 8 | **Change** | Having changed | They are different now, and can do or see something they couldn't before. | 90–100 |
 
 **Music:**
 
@@ -573,12 +573,12 @@ villains, poetry-like shorts and gentle twists.
 
 **Beats:**
 
-| # | Beat | What happens | ~% |
+| Act | Beat | What happens | ~% |
 |---|---|---|---|
-| 1 | **Ki (起): Introduction** | Establish the characters, setting and situation. Calm, observational. | 0–25 |
-| 2 | **Shō (承): Development** | Deepen and expand the introduction without any big change. More texture, routine and detail. | 25–50 |
-| 3 | **Ten (転): Twist** | An unexpected element or a big shift in perspective. It may seem unrelated at first. | 50–75 |
-| 4 | **Ketsu (結): Conclusion** | Link the twist back to the premise. The resolution comes from combining the two, not from defeating someone. | 75–100 |
+| Act 1 | **Ki (起): Introduction** | Establish the characters, setting and situation. Calm, observational. | 0–25 |
+| Act 2 | **Shō (承): Development** | Deepen and expand the introduction without any big change. More texture, routine and detail. | 25–50 |
+| Act 3 | **Ten (転): Twist** | An unexpected element or a big shift in perspective. It may seem unrelated at first. | 50–75 |
+| Act 4 | **Ketsu (結): Conclusion** | Link the twist back to the premise. The resolution comes from combining the two, not from defeating someone. | 75–100 |
 
 **Music:**
 
@@ -622,13 +622,13 @@ clear lesson is the point.
 
 **Beats:**
 
-| # | Beat | What happens | ~% |
+| Act | Beat | What happens | ~% |
 |---|---|---|---|
-| 1 | **Character & Trait** | Introduce the character and their defining flaw or virtue quickly, often through a single action or line. | 0–15 |
-| 2 | **Situation / Temptation** | A situation that tests the trait: a contest, a find or an encounter. | 15–35 |
-| 3 | **The Choice** | The character acts in line with their flaw. | 35–60 |
-| 4 | **Consequence** | The result follows immediately and is often ironic. The flaw backfires (or the virtue pays off). | 60–85 |
-| 5 | **Moral** | The lesson, stated outright by a narrator or a character ("Slow and steady wins the race"). | 85–100 |
+| Act 1 | **Character & Trait** | Introduce the character and their defining flaw or virtue quickly, often through a single action or line. | 0–15 |
+| Act 2 | **Situation / Temptation** | A situation that tests the trait: a contest, a find or an encounter. | 15–35 |
+| Act 3 | **The Choice** | The character acts in line with their flaw. | 35–60 |
+| Act 4 | **Consequence** | The result follows immediately and is often ironic. The flaw backfires (or the virtue pays off). | 60–85 |
+| Act 5 | **Moral** | The lesson, stated outright by a narrator or a character ("Slow and steady wins the race"). | 85–100 |
 
 **Music:**
 
@@ -667,13 +667,13 @@ moral courage, and grounded realism with a message.
 
 **Beats:**
 
-| # | Beat | What happens | ~% |
+| Act | Beat | What happens | ~% |
 |---|---|---|---|
-| 1 | **Ordinary Situation** | A recognizable, everyday setting: work, family, a road, a field. | 0–20 |
-| 2 | **Expected Pattern** | Set up who the audience *expects* to act well or badly, or how things "should" go. | 20–40 |
-| 3 | **The Test** | Someone in need, a choice or an opportunity appears. | 40–60 |
-| 4 | **The Reversal** | The unlikely person does the right thing, or the expected one fails. | 60–85 |
-| 5 | **Recognition** | The meaning lands, through a closing question, a quiet image or the consequence. It's rarely stated outright. | 85–100 |
+| Act 1 | **Ordinary Situation** | A recognizable, everyday setting: work, family, a road, a field. | 0–20 |
+| Act 2 | **Expected Pattern** | Set up who the audience *expects* to act well or badly, or how things "should" go. | 20–40 |
+| Act 3 | **The Test** | Someone in need, a choice or an opportunity appears. | 40–60 |
+| Act 4 | **The Reversal** | The unlikely person does the right thing, or the expected one fails. | 60–85 |
+| Act 5 | **Recognition** | The meaning lands, through a closing question, a quiet image or the consequence. It's rarely stated outright. | 85–100 |
 
 **Music:**
 
@@ -710,15 +710,15 @@ severe punishment that serves as an example.
 
 **Beats:**
 
-| # | Beat | What happens | ~% |
-|---|---|---|---|
-| 1 | **The Rule / Warning** | State the rule clearly: from a parent, a sign, an elder or a strange shopkeeper. | 0–15 |
-| 2 | **The Temptation** | Show why breaking it is appealing. | 15–25 |
-| 3 | **The Transgression** | The character breaks the rule, often casually or defiantly. | 25–35 |
-| 4 | **The Thrill** | At first it pays off. Fun, gain, power. The audience is lulled. | 35–60 |
-| 5 | **Warning Signs** | Small hints that something is wrong. They're ignored. | 60–75 |
-| 6 | **The Punishment** | A swift, fitting and often disproportionate consequence. | 75–95 |
-| 7 | **The Example** | A final image or line that turns the character into a warning for others. | 95–100 |
+| Act | # | Beat | What happens | ~% |
+|---|---|---|---|---|
+| **The Rule** | 1 | **The Rule / Warning** | State the rule clearly: from a parent, a sign, an elder or a strange shopkeeper. | 0–15 |
+| | 2 | **The Temptation** | Show why breaking it is appealing. | 15–25 |
+| **The Fall** | 3 | **The Transgression** | The character breaks the rule, often casually or defiantly. | 25–35 |
+| | 4 | **The Thrill** | At first it pays off. Fun, gain, power. The audience is lulled. | 35–60 |
+| **The Reckoning** | 5 | **Warning Signs** | Small hints that something is wrong. They're ignored. | 60–75 |
+| | 6 | **The Punishment** | A swift, fitting and often disproportionate consequence. | 75–95 |
+| | 7 | **The Example** | A final image or line that turns the character into a warning for others. | 95–100 |
 
 **Music:**
 
@@ -765,13 +765,13 @@ stories where the second half shows the fallout.
 
 **Beats:**
 
-| # | Beat | What happens | ~% |
+| Act | Beat | What happens | ~% |
 |---|---|---|---|
-| 1 | **Exposition** | The world, characters and tensions. It ends with the *exciting force* (the inciting incident). | 0–20 |
-| 2 | **Rising Action** | Complications build. The protagonist pursues the goal and tension climbs. | 20–45 |
-| 3 | **Climax (Turning Point)** | The peak at the center: the decisive action that turns the protagonist's fortune. | 45–55 |
-| 4 | **Falling Action** | The consequences unfold and opposing forces gain ground. It includes a *moment of final suspense*, where the outcome seems briefly in doubt. | 55–85 |
-| 5 | **Denouement** | The final outcome: **catastrophe** (the tragic fall) or **resolution** (order restored). | 85–100 |
+| Act I | **Exposition** | The world, characters and tensions. It ends with the *exciting force* (the inciting incident). | 0–20 |
+| Act II | **Rising Action** | Complications build. The protagonist pursues the goal and tension climbs. | 20–45 |
+| Act III | **Climax (Turning Point)** | The peak at the center: the decisive action that turns the protagonist's fortune. | 45–55 |
+| Act IV | **Falling Action** | The consequences unfold and opposing forces gain ground. It includes a *moment of final suspense*, where the outcome seems briefly in doubt. | 55–85 |
+| Act V | **Denouement** | The final outcome: **catastrophe** (the tragic fall) or **resolution** (order restored). | 85–100 |
 
 **Music:**
 
@@ -813,16 +813,16 @@ episodes that need to hook immediately.
 
 **Beats:**
 
-| # | Beat | What happens | ~% |
-|---|---|---|---|
-| 1 | **Immediate Inciting Crisis** | Open in trouble. Backstory is shown only as it becomes necessary. | 0–10 |
-| 2 | **Crisis 1** | The first obstacle. The protagonist reacts. | 10–25 |
-| 3 | **Breather** | A short pause to reveal character, give exposition and regroup. | 25–30 |
-| 4 | **Crisis 2** | A bigger obstacle. The stakes rise. | 30–45 |
-| 5 | **Breather** | A shorter pause. Maybe a revelation. | 45–50 |
-| 6 | **Crisis 3+** | Keep escalating, with each crisis worse than the last. | 50–80 |
-| 7 | **Climax** | The biggest confrontation of all. | 80–95 |
-| 8 | **Brief Falling Action** | A short resolution. Get out fast. | 95–100 |
+| Act | # | Beat | What happens | ~% |
+|---|---|---|---|---|
+| **First Crisis** | 1 | **Immediate Inciting Crisis** | Open in trouble. Backstory is shown only as it becomes necessary. | 0–10 |
+| | 2 | **Crisis 1** | The first obstacle. The protagonist reacts. | 10–25 |
+| | 3 | **Breather** | A short pause to reveal character, give exposition and regroup. | 25–30 |
+| **Second Crisis** | 4 | **Crisis 2** | A bigger obstacle. The stakes rise. | 30–45 |
+| | 5 | **Breather** | A shorter pause. Maybe a revelation. | 45–50 |
+| **Escalation** | 6 | **Crisis 3+** | Keep escalating, with each crisis worse than the last. | 50–80 |
+| **Climax** | 7 | **Climax** | The biggest confrontation of all. | 80–95 |
+| | 8 | **Brief Falling Action** | A short resolution. Get out fast. | 95–100 |
 
 **Music:**
 
@@ -865,14 +865,15 @@ heading, but not how), and cold opens.
 
 **Beats:**
 
-| # | Beat | What happens | ~% |
-|---|---|---|---|
-| 1 | **The Hook** | A vivid, puzzling, high-stakes moment from late in the story. Withhold the context. | 0–5 |
-| 2 | **The Jump Back** | A clear time marker ("Three days earlier", a title card, a match cut). | 5–7 |
-| 3 | **Build-Up** | The story from an earlier, calmer point. Underneath can be any structure, often three-act. | 7–65 |
-| 4 | **Convergence** | The timeline catches up to the opening scene. Replay it with the new understanding: what it *really* meant. | 65–75 |
-| 5 | **Continuation & Climax** | Push past the opening moment into the true climax. | 75–95 |
-| 6 | **Resolution** | Resolve the aftermath. | 95–100 |
+| Act | # | Beat | What happens | ~% |
+|---|---|---|---|---|
+| **The Hook** | 1 | **The Hook** | A vivid, puzzling, high-stakes moment from late in the story. Withhold the context. | 0–5 |
+| | 2 | **The Jump Back** | A clear time marker ("Three days earlier", a title card, a match cut). | 5–7 |
+| **The Calm** | 3 | **The Calm / Build-Up** | The story from an earlier, calmer point: who they were and what they wanted. | 7–30 |
+| **The Slide** | 4 | **The Slide** | Each step leads toward the hook. Underneath can be any structure, often three-act. | 30–65 |
+| **Convergence** | 5 | **Convergence** | The timeline catches up to the opening scene. Replay it with the new understanding: what it *really* meant. | 65–75 |
+| **Past the Hook** | 6 | **Continuation & Climax** | Push past the opening moment into the true climax. | 75–95 |
+| | 7 | **Resolution** | Resolve the aftermath. | 95–100 |
 
 **Music:**
 
@@ -880,7 +881,8 @@ heading, but not how), and cold opens.
 |---|---|---|---|---|
 | The Hook | score | tense, unexplained (4) | story, statement, in pieces | drop (at the cut away) |
 | The Jump Back | sting (at its start) | time turned back (2) | — | turn |
-| Build-Up | as the structure underneath | that structure's Music table | story, echo | — |
+| The Calm / Build-Up | as the structure underneath | that structure's Music table | story, echo | — |
+| The Slide | as the structure underneath | that structure's Music table | story, echo | — |
 | Convergence | score | the hook's music again, now understood (4) | story, statement, as in the hook | arrive |
 | Continuation & Climax | score | past it, to the peak (5) | story, statement, full | arrive |
 | Resolution | score | the aftermath (2) | story, echo, soft | the end |
@@ -915,16 +917,16 @@ ending.
 
 **Beats:**
 
-| # | Prompt | What it does | ~% |
-|---|---|---|---|
-| 1 | **Once upon a time…** | The character and the world. | 0–10 |
-| 2 | **Every day…** | The routine, the status quo. | 10–20 |
-| 3 | **Until one day…** | The disruption. | 20–30 |
-| 4 | **Because of that…** | The first consequence. | 30–50 |
-| 5 | **Because of that…** | The next consequence (repeat as needed, with each caused by the last). | 50–70 |
-| 6 | **Until finally…** | The climax and resolution. | 70–90 |
-| 7 | **And ever since then…** | The new normal. | 90–100 |
-| (8) | **And the moral is…** | *Optional:* add this when combining with the Fable. | — |
+| Act | # | Prompt | What it does | ~% |
+|---|---|---|---|---|
+| **The World** | 1 | **Once upon a time…** | The character and the world. | 0–10 |
+| | 2 | **Every day…** | The routine, the status quo. | 10–20 |
+| **The Chain** | 3 | **Until one day…** | The disruption. | 20–30 |
+| | 4 | **Because of that…** | The first consequence. | 30–50 |
+| | 5 | **Because of that…** | The next consequence (repeat as needed, with each caused by the last). | 50–70 |
+| **The End** | 6 | **Until finally…** | The climax and resolution. | 70–90 |
+| | 7 | **And ever since then…** | The new normal. | 90–100 |
+| | (8) | **And the moral is…** | *Optional:* add this when combining with the Fable. | — |
 
 **Music:**
 

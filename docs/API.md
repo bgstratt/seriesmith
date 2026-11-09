@@ -1076,7 +1076,54 @@ why one can't be used: it doesn't read, or its episode isn't beside this one).
 The story structures with a Music table (docs/STORY_STRUCTURES.md, as
 `seriesmith/core/structures.json`): `{"structures": [{"id": "5.1", "name": "The Pixar Story
 Spine", "beats": [their names as a `// beat:` line writes them, a repeat once]}]}`. The shot
-form offers the beats of the script's `// structure:`.
+form offers the beats of the script's `// structure:`. Your own come after the built-in ones, with
+`"own": true`, and `own_file` is where they're kept.
+
+### `POST /seriesmith/structures/own`
+Body `{"name", "beats": [{"beat", "share", "act"?, "guidance"?}], "replace"?}`: a story structure of
+your own, for every show on this machine, in `structures.json` beside the settings file. `share` is
+any number above zero (they're scaled to the whole story); an empty `act` is the act above it. 400
+for a name a built-in structure answers to, or one of yours without `replace`. Answers
+`{"structure", "own_file"}`. It's the storyboard's only: it has no Music table, so the score is
+unchanged.
+
+### `DELETE /seriesmith/structures/own?name=…`
+Forgets one of your own. Scripts that name it keep their beats.
+
+### `GET /seriesmith/storyboard/block?structure=…&duration=…&shot=…`
+A story structure and a duration as shots per beat (`core/blocking.py`; docs/PLAN.md, the
+storyboard). `structure` is a name or number, `duration` and the optional `shot` (a typical
+shot, 3.5 by default) are seconds. Nothing is written. Answers `{"structure", "duration",
+"shot_seconds" (the length each shot comes to), "wanted_shots", "shots", "warnings", "acts":
+[{"act", "shots", "seconds", "beats": [{"beat", "act", "guidance", "at" | "point", "shots",
+"seconds", "first_shot", "thin"}]}]}`; 400 for an unknown structure or a number that isn't above
+zero.
+
+### `GET /seriesmith/storyboard?ep=…&structure=…&duration=…&shot=…`
+The episode's script against a story structure (`core/board.py`). `structure` and `duration`
+(seconds) fall back on the script's `// duration:`; a script that names a `// structure:` always
+goes by it, and one without a table (a show's own format) has no targets. Without a structure and a
+duration there are no targets. Nothing is written. Answers `{"plan", "hash"}`: `plan` is the outline, acts and beats with
+each beat's `runs` of a sequence and their real `shots` (`picture`: its first frame's file, when it
+has one of its own; `card`: it's still holding the gray card), its `target_shots`, `target_seconds` and
+`in_script`, the structure's beats the script hasn't got yet among them.
+
+### `POST /seriesmith/storyboard/edit`
+Body `{"ep", "base_hash", "structure"?, "duration"?, "shot"?, "op", ...}`, saved as the script
+editor's saves are: 409 when the script's hash isn't `base_hash`, the old script to history, then a
+rebuild. `op` is `add` (`beat: {"plain", "nth"}`, optionally `place`: one held stand-in, its first frame a flat gray card until it's given a picture, at the end
+of the beat, its line written first if the script hasn't got it), `fill` (`beats: [{"plain",
+"nth"}]`: each up to its target, or up to `each` shots), `place` (`block`, `place`: a sequence's location) or `cast`
+(`block`, `who`: on that sequence's empty stand-ins only), `structure` (`name`: the script's
+`// structure:` line; its beats stay and match what they match), `rename_beat` (`block`, `name`),
+`add_after` (`block`: a shot's, optionally `before`: true), `move_shot` (`block`, `target`, `after`: the script's order; the shot takes
+on the sequence it lands in, and its seed with it), `convert` (`shots`, `target`: these shots' `target: hold` to that video model, or no `target` for the series default; other shots are left alone), `delete_shot` (`block`; its takes stay on disk), `add_sequence`
+(`block`: the shot it follows, not in the middle of a sequence; `place`), `add_beat` (`beat: {"plain",
+"nth"}`, `name`, optionally `act` to open an act of your own), `remove_beat` (`block`: its shots join
+the beat before), `lay_out` (`name`: a structure's beats laid over a script that has shots and no
+beat lines, as the score draft guesses them; only comment lines are added), `rename_act` and `remove_act` (`block`: the beat opening an act of your own). The first edit also writes the script's
+`// structure:` and `// duration:`. Answers as the GET does, with `made` (new shot ids), `check` and
+`build`.
 
 ### `POST /seriesmith/cue/draft`
 Body `{"ep", "pass"?, "write"?, "replace"?, "rendered"?, "keep_sound"?, "structure"?, "mark"?}`: the first-pass score drafted from

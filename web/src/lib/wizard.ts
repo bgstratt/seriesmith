@@ -80,6 +80,16 @@ export function firstScript(name: string, title: string, seq: string, location: 
 }
 
 /** A show folder's name from the series title ("Porch Lights!" -> Porch_Lights). */
+/** A new episode that starts on the storyboard: its title, structure and length, and no shots yet. */
+export function blockedScript(name: string, title: string, structure: string, seconds: number): string {
+  const whole = Math.max(1, Math.round(seconds));
+  const h = Math.floor(whole / 3600);
+  const m = Math.floor((whole % 3600) / 60);
+  const s = String(whole % 60).padStart(2, "0");
+  const clock = h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+  return `= ${name}  ${title}\n\n// structure: ${structure}\n// duration: ${clock}\n`.replace(/ {2}\n/, "\n");
+}
+
 export function showFolder(title: string): string {
   return title.trim().replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^[^A-Za-z0-9]+|[._-]+$/g, "").slice(0, 64);
 }

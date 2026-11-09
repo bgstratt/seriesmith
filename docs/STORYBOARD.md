@@ -1,0 +1,166 @@
+# The storyboard
+
+Plan an episode from a story structure before anything is written or rendered: pick a structure
+and a length, see how many shots each beat should have, block the episode in with held stand-in
+shots, drop in pictures for an animatic, and fill the shots in as you go. The editor's other
+buttons are listed in [EDITOR.md](EDITOR.md); the structures themselves are in
+[STORY_STRUCTURES.md](STORY_STRUCTURES.md).
+
+## The idea in one paragraph
+
+The storyboard is a view of the script, and it edits the script directly. There's no separate
+file to save or export: an unfinished storyboard is simply an unfinished script, and it stays an
+ordinary one you can open in the script editor. Each **act** is a row, each **beat** a bar with
+a target ("3 of 93 shots, about 5:15 to go"), each **sequence** a bar across its shots, and each
+**shot** a tile. A stand-in is a real shot on the `hold` model, holding a gray card until it has
+a picture, so a blocked episode can be rendered and watched from the first minute.
+
+## Opening it
+
+- **A new episode:** in the New Episode Wizard, choose **Block from a structure**. Go through
+  where, series, and cast and places as usual, then pick a structure and a length. If the series
+  has no locations yet, say in a few words where the episode opens. The episode opens on the
+  storyboard, with no shots.
+- **An existing episode:** open it and press **Storyboard…** in the Shots tab. The episode
+  picker in the title bar switches episodes.
+
+A script with shots and no beats is offered **Lay out beats**, which puts each of the
+structure's beats on the shot nearest its place in the story. Only comment lines are added. A
+beat at one exact point of the story (a Midpoint) isn't placed by this: it shows as an empty
+target to fill or remove.
+
+The title bar has the episode picker, the script, and the gear for the series settings, to add
+cast and places without leaving the board. What you save there is on offer as soon as the settings close.
+
+## Structure, minutes and shot length
+
+- **Structure** is the script's `// structure:` line. Changing it changes only that line: beats
+  whose names match the new structure take its acts and targets, the others stay as the script
+  has them, and the structure's remaining beats appear as empty targets. A show's own format
+  (one with a `sound.format` in its series config) shows its beats with no targets, because a
+  format has no percentages.
+- **Minutes** sets every beat's target and is saved as `// duration:`. It only moves targets: no
+  shot is added or removed when it changes.
+- **Shot length** is the typical shot, and the length of new stand-ins.
+
+Hover over a beat's bar to read what should happen in it. A beat in amber is too short at this
+length to stand on its own: merge it with one beside it, or pick a longer length or a shorter
+structure.
+
+## Your own structures
+
+Any episode's beats can become a structure to start other episodes from: press the bookmark next
+to **Structure**. A table opens with the episode's beats in order, each with its share of the
+story taken from its real shots, and the acts on the left, each running until the next one starts.
+The arrow beside a beat starts a new act there. **Guidance** is what the beat is for: it shows
+under the beat on the board and is a new stand-in's action.
+
+**Timeline** shows the same thing with each act containing its beats, each beat as wide as its
+share. Drag a divider to change two beats' shares, click one to start or end an act there, and
+click a beat to edit it. These are guides, and an episode can stray from them.
+
+Saved structures appear in the Structure list and in the New Episode Wizard's **Block from a
+structure**, for every show on this machine. A script already naming one picks up its targets. The
+window shows the file they're kept in, `structures.json` beside your settings: copy it to pass them
+along. A saved structure is for planning only, so a show's `sound.format` goes on scoring it as before.
+
+To change one, open an episode, save it again under the same name; **Delete saved** forgets it.
+
+## Blocking it in
+
+| To do this | Do this |
+|---|---|
+| One held shot on every beat that has none | **One per beat** in the toolbar |
+| Add a shot at the end of a beat | **+** after its shots |
+| Bring a beat up to its target | **Fill** beside it |
+| Bring an act, or the whole episode, up to target | **Fill act** on its row, **Fill all** in the toolbar |
+| Fill in a shot | Click its tile: it opens Edit Shot |
+
+A new stand-in joins the sequence the script is in at that point, with the cast of the shot
+before it, and its action is the beat's guidance. That text is a prompt for you, so rewrite it.
+
+Click a sequence's bar to change its place, or to set the cast on its stand-ins. A shot someone
+has worked on keeps its own cast.
+
+## Right-click
+
+- **A shot:** edit it, generate it, add a stand-in after it, start a new sequence after it (from the
+  sequence's last shot only), or delete it. A deleted shot's takes stay on disk.
+- **A sequence's bar:** a new sequence after it, in a place you choose; generate its shots or
+  convert its held shots.
+- **A beat's bar:** rename it (or double-click its name), add a beat after it, remove it (its
+  shots join the beat before), generate its shots, or convert its held shots.
+- **An act's row:** add an act after it, generate its shots, or convert its held shots. Rename or remove the acts you
+  added; a structure's own acts keep their names.
+
+Renaming a beat means the score no longer recognises it from the structure's table, so it gets
+the generic treatment.
+
+## Moving shots
+
+Drag a tile onto another; a line on its left or right edge shows where it will land. The shot
+moves in the script and in the open pass's cut, and it belongs to whichever beat and sequence it
+lands in. A shot moved into another sequence gets a different seed, so a new render won't match
+its old takes.
+
+## The animatic
+
+Drop pictures on the board:
+
+- **The middle of a tile** sets that shot's first frame, whatever its model.
+- **The edge of a tile** makes a new held shot there, holding the picture. One at a time.
+- **A sequence's bar or a beat** fills its empty stand-ins, in filename order (`frame2` before
+  `frame10`). A folder works too. It tells you if there are pictures left over.
+
+Then choose the pass you want and press **Render held**. It renders every held shot with no
+up-to-date take, on its picture or its gray card, on this machine for free. The takes land in
+that pass's cut, and Play all is your animatic.
+
+## From stand-ins to a model
+
+Change one shot's model in Edit Shot, or right-click a sequence, beat or act and choose
+**Convert held shots** to change all of its held shots at once. Convert replaces `target: hold`
+with the model you pick (or the series default), and nothing else. Check what you're converting:
+a stand-in you haven't rewritten still has the beat's guidance as its action, and that's what
+the model would be sent. A paid model charges for that render like any other.
+
+A gray card is never sent to a real model. A dropped picture is: FL2VA uses it as the first
+frame, and a reference model ignores it unless the shot asks for one.
+
+## Generating
+
+Right-click a shot and choose **Generate** to render it on its own model, in the pass that's
+open. On a sequence, beat or act, **Generate** renders the shots there with no up-to-date take,
+and leaves the rest. Each is a normal render: it asks before a batch of paid ones, and says when
+a shot is missing what it needs.
+
+## Undo
+
+Every edit saves to the script at once, with the earlier version kept in the script's history.
+**Ctrl+Z** and **Ctrl+Shift+Z**, or the arrows in the toolbar, step through the board's edits
+while the window is open. Click on the board first so it has the keyboard. Saving the script
+anywhere else (Edit Shot, the script editor) clears these steps, because they no longer lead back
+from what the script now says. Undo covers the
+script only: a picture you dropped stays as a take of that shot's first frame, and a move in the
+cut has the timeline's own undo.
+
+## What it writes
+
+Only ordinary script lines, and these comments, none of which the build reads:
+
+```
+// structure: Three-Act
+// duration: 22:00
+// act: My Own Act
+// beat: Inciting Incident
+```
+
+`// act:` is written only for acts you add. A stand-in looks like this:
+
+```
+## sh050
+target: hold
+who: june
+dur: 3.5
+Something breaks the status quo and creates the central problem.
+```

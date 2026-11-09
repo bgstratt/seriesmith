@@ -1326,6 +1326,11 @@ export function openDrafts(open = true) {
   set({ draftsOpen: open, menu: null });
 }
 
+/** The storyboard window. */
+export function openStoryboard(open = true) {
+  set({ storyboardOpen: open, menu: null });
+}
+
 /** A backend that bills (Comfy Cloud, Router, a deployment); "" is each shot's own. */
 export function isPaidBackend(name: string | null | undefined): boolean {
   return !!name && name !== "local";

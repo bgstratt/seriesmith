@@ -1354,6 +1354,50 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         { id: "2.1", name: "The Sitcom Formula (Circular Structure)", beats: ["Cold Open / Teaser", "Status Quo", "The Problem"] },
       ] };
     },
+    async storyboardBlock(structure, duration, shot = 3.5) {
+      await wait();
+      if (!(duration > 0) || !(shot > 0)) throw new MockError("the episode needs a duration above zero", 400);
+      // seriesmith/core/blocking.py in small: one shape, whatever the structure
+      const shape: [string, [string, number][]][] = [
+        ["I: Setup", [["Opening", 10], ["Inciting Incident", 2], ["Debate", 8], ["Plot Point 1", 5]]],
+        ["II: Confrontation", [["Rising Complications", 25], ["Pressure Mounts", 25]]],
+        ["III: Resolution", [["Plot Point 2", 5], ["Climax", 15], ["Final Image", 5]]],
+      ];
+      const wanted = Math.max(9, Math.round(duration / shot));
+      const each = duration / wanted;
+      let at = 0;
+      let from = 0;
+      const acts = shape.map(([act, beats]) => {
+        const out = beats.map(([beat, width]) => {
+          const shots = Math.max(1, Math.round(width / 100 * wanted));
+          const b = { beat, act, guidance: `What happens in ${beat}.`, shots, seconds: shots * each, first_shot: at,
+            thin: width / 100 * wanted < 1.5, at: [from, from + width] as [number, number] };
+          at += shots;
+          from += width;
+          return b;
+        });
+        return { act, shots: out.reduce((n, b) => n + b.shots, 0), seconds: out.reduce((n, b) => n + b.seconds, 0), beats: out };
+      });
+      return { structure, duration, shot_seconds: each, wanted_shots: wanted, shots: at, warnings: [], acts };
+    },
+    async saveStructure() {
+      await wait();
+      return { own_file: "structures.json" };
+    },
+    async deleteStructure() {
+      await wait();
+      return { own_file: "structures.json" };
+    },
+    async storyboard(_ep, structure) {
+      await wait();
+      return { hash: "mock", plan: { id: "ep01", title: "Mock", structure, structure_known: true, duration: null, shots: 0, seconds: 0,
+        untimed: 0, target_shots: null, shot_seconds: null, warnings: [], acts: [] } };
+    },
+    async storyboardEdit(req) {
+      await wait();
+      return { hash: "mock", made: [], plan: { id: "ep01", title: "Mock", structure: req.structure, structure_known: true, duration: req.duration,
+        shots: 0, seconds: 0, untimed: 0, target_shots: null, shot_seconds: null, warnings: [], acts: [] } };
+    },
     async scoreDraft(req) {
       await wait();
       need(req.ep);

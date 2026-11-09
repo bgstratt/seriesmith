@@ -1637,6 +1637,27 @@ def built_values(shot: dict, dflt: dict) -> tuple[str, list[dict] | None, int]:
     return model, loras, int(shot.get("steps", dflt.get("steps", 4)))
 
 
+def _drop_gray_card(root: str, sid: str, target) -> None:
+    """A storyboard stand-in's gray card (core/board.gray_card) is only ever for the hold target.
+    On any other model it would be a first frame nobody chose, so the shot goes back to having
+    none, whichever way its model was changed."""
+    from seriesmith import hold as H
+    from seriesmith.core import board as BD
+    if H.is_hold(target):
+        return
+    path = os.path.join(root, "refs", "shots", T.safe_id(sid), "first.png")
+    card = BD.gray_card()
+    try:
+        if os.path.getsize(path) != len(card):
+            return
+        with open(path, "rb") as fh:
+            if fh.read() != card:
+                return
+        os.remove(path)
+    except OSError:
+        pass
+
+
 def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
              overrides: dict | None = None, folder: str | None = None,
              rng: random.Random | None = None) -> Job:
@@ -1709,6 +1730,7 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
     # A shot missing a reference fails in the loader. Unless the caller says to
     # render anyway, don't queue it at all; rendering anyway, let the target
     # write the shot without those refs when it can.
+    _drop_gray_card(root, sid, target)
     missing = missing_refs(root, sdoc, shot)
     sound = None if req.dub_track else T.shot_sound(overrides or {}, sid)
     if sound and sound["mode"] == "dub" and sound["dub"]["from"] != "track":

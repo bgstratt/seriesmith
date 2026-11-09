@@ -2999,11 +2999,259 @@ def get_structures(ctx: Context, query: dict):
     """The story structures with a Music table (docs/STORY_STRUCTURES.md, core/structures.json):
     `{"structures": [{"id", "name", "beats": [their names, as a script's // beat: line writes
     them]}]}`: what the shot form offers for a shot's beat."""
+    from seriesmith import own_structures as OS
     from seriesmith.core import spotting as SP
-    return 200, {"structures": [
-        {"id": s["id"], "name": s["name"],
+    own = OS.load()
+    return 200, {"own_file": OS.path(), "structures": [
+        {"id": s["id"], "name": s["name"], "own": bool(s.get("own")),
          "beats": list(dict.fromkeys(re.sub(r"\s*\(again\)\s*$", "", b["beat"]) for b in s["beats"]))}
-        for s in SP.structures()]}
+        for s in [*SP.structures(), *own]]}
+
+
+@handler
+def post_structure_own(ctx: Context, body):
+    """Save a story structure of your own, for every show on this machine: `{name, beats: [{beat,
+    share, act?, guidance?}], replace?}`."""
+    from seriesmith import own_structures as OS
+    body = body_dict(body)
+    try:
+        made = OS.save(body.get("name"), body.get("beats"), body.get("replace") is True)
+    except OS.StructureError as e:
+        raise ApiError(400, str(e)) from None
+    return 200, {"structure": made, "own_file": OS.path()}
+
+
+@handler
+def delete_structure_own(ctx: Context, query: dict):
+    """Forget a structure of your own (`name`). Scripts that name it keep their beats."""
+    from seriesmith import own_structures as OS
+    if not OS.delete(query.get("name") or ""):
+        raise ApiError(404, f"you have no structure called {query.get('name')!r}")
+    return 200, {"own_file": OS.path()}
+
+
+@handler
+def get_storyboard_block(ctx: Context, query: dict):
+    """A story structure and a duration as shots per beat (core/blocking.py): `structure` (a name
+    or number), `duration` and optionally `shot` in seconds. Nothing is written."""
+    from seriesmith import own_structures as OS
+    from seriesmith.core import blocking as BL
+    from seriesmith.core import board as BD
+    from seriesmith.core import spotting as SP
+
+    def number(key: str, default: float | None = None) -> float:
+        raw = query.get(key)
+        if raw in (None, "") and default is not None:
+            return default
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            raise ApiError(400, f"{key} must be a number of seconds, not {raw!r}") from None
+    try:
+        return 200, BL.block(BD.find_structure(str(query.get("structure") or ""), OS.load()), number("duration"),
+                             number("shot", BL.TYPICAL_SHOT))
+    except (BL.BlockError, SP.SpotError) as e:
+        raise ApiError(400, str(e)) from None
+
+
+def _board_block(body: dict, structure: str | None):
+    """The targets a storyboard request asks for: None without a structure and a duration."""
+    from seriesmith import own_structures as OS
+    from seriesmith.core import blocking as BL
+    from seriesmith.core import board as BD
+    duration, shot = body.get("duration"), body.get("shot")
+    if not structure or duration in (None, ""):
+        return None
+    try:
+        return BL.block(BD.find_structure(structure, OS.load()), float(duration),
+                        float(shot) if shot not in (None, "") else BL.TYPICAL_SHOT)
+    except (TypeError, ValueError) as e:
+        raise ApiError(400, str(e)) from None
+
+
+def _give_gray_cards(ep: str, shots: list[str]) -> None:
+    """Each new stand-in's first frame, unless a picture is already there for its id."""
+    from seriesmith.core import board as BD
+    from seriesmith.core import fileio
+    for sid in shots:
+        path = os.path.join(ep, "refs", "shots", T.safe_id(sid), "first.png")
+        if not os.path.isfile(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            fileio.write_bytes(path, BD.gray_card())
+
+
+def _board_structure(view: dict, asked: str | None) -> str | None:
+    """The structure the board goes by: the script's own if it names one, and only a structure
+    with a table has targets (a show's own format, `// structure: Porch Lights`, has none);
+    `asked` only for a script that doesn't say."""
+    if view["structure"]:
+        return view["structure"] if view["structure_known"] else None
+    return asked or None
+
+
+def _board_answer(ep: str, doc: dict, structure: str | None, body: dict, hash_: str, **more) -> tuple[int, dict]:
+    from seriesmith import own_structures as OS
+    from seriesmith.core import board as BD
+    own = OS.load()
+    view = BD.outline(doc, own)
+    named = _board_structure(view, structure)
+    plan = BD.plan(doc, _board_block({**body, "duration": body.get("duration") or view["duration"]}, named), own)
+    card = BD.gray_card()
+    for act in plan["acts"]:
+        for beat in act["beats"]:
+            for run in beat["runs"]:
+                for shot in run["shots"]:
+                    # a picture dropped on a held shot may be a file the script doesn't name
+                    relative = f"refs/shots/{T.safe_id(shot['id'])}/first.png"
+                    picture = os.path.join(ep, *relative.split("/"))
+                    shot["picture"], shot["picture_version"], shot["card"] = None, None, False
+                    if os.path.isfile(picture):
+                        if os.path.getsize(picture) == len(card) and open(picture, "rb").read() == card:
+                            shot["card"] = True
+                            continue
+                        shot["held_empty"] = False
+                        shot["picture"], shot["picture_version"] = relative, str(int(os.path.getmtime(picture)))
+    return 200, {"plan": plan, "hash": hash_, **more}
+
+
+@handler
+def get_storyboard(ctx: Context, query: dict):
+    """The episode's script on the storyboard (core/board.py): `{"plan", "hash"}`, with targets
+    when `duration` (seconds; else the script's) and a structure (`structure`; else the script's)
+    are known, and `shot`, a typical shot in seconds. Nothing is written."""
+    from seriesmith.core import board as BD
+    ep = check_ep(ctx, query.get("ep"))
+    src = P.H.read_source(ep, "script")
+    return _board_answer(ep, BD.read(src.text), query.get("structure") or None, query, src.hash)
+
+
+@handler
+def post_storyboard_edit(ctx: Context, body):
+    """An edit from the storyboard, saved like the script editor's (`base_hash`, 409 when the file
+    changed; the old script to history; a rebuild): `op` is `add` (one stand-in on `beat`), `fill`
+    (`beats`: each up to its target, or up to `each` shots), `place` (`block`, `place`), `cast` (`block`, `who`), `structure` (`name`), `rename_beat` (`block`,
+    `name`), `add_after` (`block`, optionally `before`), `move_shot` (`block`, `target`, `after`), `convert` (`shots`, `target`), `delete_shot` (`block`: a shot's), `add_sequence` (`block`, `place`),
+    `add_beat` (`beat`, `name`, optionally `act`), `lay_out` (`name`: a structure over a script with no beats), `remove_beat`, `rename_act` or `remove_act`
+    (`block`: the beat's, `name`)."""
+    from seriesmith import own_structures as OS
+    from seriesmith.core import blocking as BL
+    from seriesmith.core import board as BD
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    base_hash = body.get("base_hash")
+    if not isinstance(base_hash, str) or not base_hash:
+        raise ApiError(400, "base_hash is required: the hash the board was read at")
+    src = P.H.read_source(ep, "script")
+    if base_hash != src.hash:
+        raise P.H.Conflict(src)
+    doc = BD.read(src.text)
+    series = json.loads(P.H.read_source(ep, "series").text)
+    places = [k for k, v in series.get("locations", {}).items() if isinstance(v, dict)]
+    place = body.get("place") or None
+    if place is not None and place not in places:
+        raise ApiError(400, f"{place!r} is not a location in the series config")
+    own = OS.load()
+    view = BD.outline(doc, own)
+    structure = _board_structure(view, body.get("structure"))
+    each = body.get("each")
+    if each is not None and (not isinstance(each, int) or isinstance(each, bool) or each < 1):
+        raise ApiError(400, "each must be a whole number above zero")
+    op = body.get("op")
+    made: list[str] = []
+    try:
+        if op in ("add", "fill"):
+            wanted = [body.get("beat")] if op == "add" else body.get("beats")
+            if not isinstance(wanted, list) or not wanted:
+                raise ApiError(400, "beats must be a list of {plain, nth}")
+            duration = body.get("duration") or view["duration"]
+            block = _board_block({**body, "duration": duration}, structure)
+            BD.set_marks(doc, structure, float(duration) if duration not in (None, "") else None)
+            seconds = float(body.get("shot") or (block or {}).get("shot_seconds") or BL.TYPICAL_SHOT)
+            for ask in wanted:
+                if not isinstance(ask, dict) or not isinstance(ask.get("plain"), str) or not ask["plain"].strip():
+                    raise ApiError(400, "a beat is {plain, nth}")
+                rows = [b for a in BD.plan(doc, block, own)["acts"] for b in a["beats"]]
+                nth = int(ask.get("nth") or 0)
+                index = next((i for i, b in enumerate(rows) if b["plain"] == ask["plain"] and b["nth"] == nth), None)
+                row = rows[index] if index is not None else {"guidance": "", "target_shots": None, "shots": 0}
+                later = [(b["plain"], b["nth"]) for b in rows[index + 1:] if b["plain"]] if index is not None else []
+                goal = each if each is not None else (row["target_shots"] or 0)
+                count = 1 if op == "add" else max(0, goal - row["shots"])
+                if not count:
+                    continue
+                at = BD.ensure_beat(doc, ask["plain"], nth, later)
+                # only a script's first sequence has to be told where it is
+                no_sequence = not any(b["kind"] == "sequence" for b in doc["blocks"])
+                opening = place or (places[0] if places and no_sequence else None)
+                made += BD.add_stand_ins(doc, at, count, seconds, row["guidance"], place=opening)
+        elif op == "place":
+            if place is None:
+                raise ApiError(400, "place is required")
+            BD.set_place(doc, int(body.get("block")), place)
+        elif op == "cast":
+            who = body.get("who")
+            if not isinstance(who, list) or not all(isinstance(w, str) for w in who):
+                raise ApiError(400, "who must be a list of subject ids")
+            BD.set_cast(doc, int(body.get("block")), who)
+        elif op == "structure":
+            BD.set_structure(doc, body.get("name"))
+        elif op == "rename_beat":
+            BD.rename_beat(doc, int(body.get("block")), body.get("name"))
+        elif op in ("add_after", "add_sequence"):
+            seconds = float(body.get("shot") or BL.TYPICAL_SHOT)
+            block_at = int(body.get("block"))
+            if op == "add_after":
+                made.append(BD.add_shot_after(doc, block_at, seconds, before=body.get("before") is True))
+            else:
+                if place is None:
+                    raise ApiError(400, "place is required")
+                made.append(BD.add_sequence_after(doc, block_at, place, seconds))
+        elif op == "convert":
+            names, model = body.get("shots"), body.get("target") or None
+            if not isinstance(names, list) or not all(isinstance(s, str) for s in names):
+                raise ApiError(400, "shots must be a list of shot ids")
+            if model is not None:
+                try:
+                    TG.load_target(model, "video", root=ep)
+                except Exception:  # noqa: BLE001  whatever it was, it isn't a model to render on
+                    raise ApiError(400, f"{model!r} is not a video model") from None
+            BD.convert_shots(doc, names, model)
+        elif op == "move_shot":
+            BD.move_shot(doc, int(body.get("block")), int(body.get("target")), body.get("after") is True)
+        elif op == "delete_shot":
+            BD.delete_shot(doc, int(body.get("block")))
+        elif op == "add_beat":
+            ask = body.get("beat")
+            if not isinstance(ask, dict) or not isinstance(ask.get("plain"), str):
+                raise ApiError(400, "a beat is {plain, nth}")
+            duration = body.get("duration") or view["duration"]
+            block = _board_block({**body, "duration": duration}, structure)
+            BD.set_marks(doc, structure, float(duration) if duration not in (None, "") else None)
+            rows = [b for a in BD.plan(doc, block, own)["acts"] for b in a["beats"]]
+            nth = int(ask.get("nth") or 0)
+            index = next((i for i, b in enumerate(rows) if b["plain"] == ask["plain"] and b["nth"] == nth), None)
+            later = [(b["plain"], b["nth"]) for b in rows[index + 1:] if b["plain"]] if index is not None else []
+            BD.add_beat_after(doc, BD.ensure_beat(doc, ask["plain"], nth, later), body.get("name"), body.get("act"))
+        elif op == "remove_beat":
+            BD.remove_beat(doc, int(body.get("block")))
+        elif op == "lay_out":
+            BD.lay_out(doc, str(body.get("name") or ""), BL.TYPICAL_SHOT, own)
+            if body.get("duration") not in (None, ""):
+                BD.set_marks(doc, None, float(body.get("duration")))
+        elif op == "rename_act":
+            BD.rename_act(doc, int(body.get("block")), body.get("name"))
+        elif op == "remove_act":
+            BD.remove_act(doc, int(body.get("block")))
+        else:
+            raise ApiError(400, f"no such edit: {op!r}")
+    except (BD.BoardError, IndexError, TypeError, ValueError) as e:
+        raise ApiError(400, str(e)) from None
+    _give_gray_cards(ep, made)
+    saved = P.H.save_source(ep, "script", BD.text_of(doc), base_hash)
+    build = E.build_episode(ep)
+    episode_event(ctx, ep)
+    fresh = BD.read(P.H.read_source(ep, "script").text)
+    return _board_answer(ep, fresh, structure, body, saved["hash"], made=made, check=saved["check"], build=build)
 
 
 @handler
@@ -6597,6 +6845,11 @@ ROUTES = [
     ("POST", "/seriesmith/cue/theme", post_cue_theme, "body"),
     ("POST", "/seriesmith/cue/draft", post_cue_draft, "body"),
     ("GET", "/seriesmith/structures", get_structures, "query"),
+    ("POST", "/seriesmith/structures/own", post_structure_own, "body"),
+    ("DELETE", "/seriesmith/structures/own", delete_structure_own, "query"),
+    ("GET", "/seriesmith/storyboard/block", get_storyboard_block, "query"),
+    ("GET", "/seriesmith/storyboard", get_storyboard, "query"),
+    ("POST", "/seriesmith/storyboard/edit", post_storyboard_edit, "body"),
     ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
     ("POST", "/seriesmith/cue/repaint", post_cue_repaint, "body"),
     ("GET", "/seriesmith/fx", get_fx, "query"),

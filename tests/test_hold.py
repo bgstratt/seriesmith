@@ -80,6 +80,35 @@ class HoldTest(HoldEpisode):
         self.assertEqual(got["queued"], [])
         self.assertIn("first keyframe", got["skipped"][0]["reason"])
 
+    def card_on(self, shot: str) -> str:
+        from seriesmith.core import board as BD
+        path = os.path.join(self.ep, "refs", "shots", shot, "first.png")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as fh:
+            fh.write(BD.gray_card())
+        return path
+
+    def test_the_gray_card_holds_on_the_hold_model(self):
+        path = self.card_on("sh010")
+        got = self.render("sh010")
+        self.assertEqual(len(got["queued"]), 1)
+        self.settle()
+        self.assertTrue(os.path.isfile(path))
+
+    def test_the_gray_card_never_reaches_another_model(self):
+        path = self.card_on("sh020")
+        self.render("sh020")
+        self.settle()
+        self.assertFalse(os.path.isfile(path))
+
+    def test_a_real_first_frame_on_another_model_is_left_alone(self):
+        path = os.path.join(self.ep, "refs", "shots", "sh020", "first.png")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        picture(path)
+        self.render("sh020")
+        self.settle()
+        self.assertTrue(os.path.isfile(path))
+
     def test_generate_holds_its_picture(self):
         picture(self.first)
         graphs = len(self.comfy.graphs)

@@ -968,6 +968,8 @@ sound: running footsteps on grass, fabric movement
 | `// text` | comment |
 | `// structure: Pixar Story Spine` | the episode's story structure ([STORY_STRUCTURES.md](STORY_STRUCTURES.md)), near the top: the first-pass score reads it. A comment: nothing renders from it |
 | `// beat: Until one day…` | above the first shot of a beat (or its sequence's `#` header), the beat's name as its structure writes it: the score's sections and turns. A **Cold Open** or **Teaser** beat's sequences also get `cold_open: true` |
+| `// duration: 22:00` | near the top: the length the episode is aiming at, which sets the storyboard's targets ([STORYBOARD.md](STORYBOARD.md)). Nothing else reads it |
+| `// act: My Own Act` | above a beat: an act of your own on the storyboard, for a beat its structure doesn't place. Nothing else reads it |
 | `// theme: show, tender` | above a shot: a theme on that moment, held low to the end of its scene (`sting` in the words: a sting on the shot). The theme is `story`, `show`, `runner` or one the series config names |
 | `// flashback` | above a sequence that's a flashback: its music an echo, thinner and further away |
 

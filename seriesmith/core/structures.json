@@ -18,6 +18,8 @@
      "words": "at home, settled",
      "theme": "story",
      "theme_words": "statement",
+     "guidance": "Show the hero's normal life, their flaw or lack, and what's at stake if nothing changes.",
+     "act": "Departure",
      "at": [
       0,
       10
@@ -41,7 +43,10 @@
        "kind": "turn",
        "at": "start"
       }
-     ]
+     ],
+     "guidance": "A problem, challenge or message disrupts the ordinary world.",
+     "act": "Departure",
+     "point": 10
     },
     {
      "beat": "Refusal of the Call",
@@ -56,6 +61,8 @@
      "words": "hesitant, held back",
      "theme": "story",
      "theme_words": "echo, minor",
+     "guidance": "The hero hesitates out of fear, duty or doubt. This shows the cost of going.",
+     "act": "Departure",
      "at": [
       10,
       15
@@ -74,6 +81,8 @@
      "words": "warm, steady",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "A guide gives advice, training, a gift or the confidence to go.",
+     "act": "Departure",
      "at": [
       15,
       20
@@ -98,6 +107,8 @@
        "at": "last"
       }
      ],
+     "guidance": "The hero commits and enters the special world. There's no easy way back.",
+     "act": "Departure",
      "at": [
       20,
       25
@@ -116,6 +127,8 @@
      "words": "lively, varied",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "The hero learns the new world's rules, makes friends and enemies, and faces smaller trials.",
+     "act": "Initiation",
      "at": [
       25,
       45
@@ -134,6 +147,8 @@
      "words": "tense, gathering",
      "theme": "story",
      "theme_words": "echo, low",
+     "guidance": "The team prepares to face the central danger. Tension and stakes build.",
+     "act": "Initiation",
      "at": [
       45,
       50
@@ -158,6 +173,8 @@
        "at": "end"
       }
      ],
+     "guidance": "The central crisis: a brush with death (literal or symbolic) and the greatest fear faced.",
+     "act": "Initiation",
      "at": [
       50,
       60
@@ -182,6 +199,8 @@
        "at": "last"
       }
      ],
+     "guidance": "Having survived, the hero claims the prize: an object, knowledge or reconciliation.",
+     "act": "Initiation",
      "at": [
       60,
       70
@@ -206,6 +225,8 @@
        "at": "start"
       }
      ],
+     "guidance": "The hero heads home, but the consequences follow. Often there's a chase or a new threat.",
+     "act": "Return",
      "at": [
       70,
       80
@@ -230,6 +251,8 @@
        "at": "last"
       }
      ],
+     "guidance": "A final, higher-stakes test where the hero must use everything they've learned. They are purified and reborn.",
+     "act": "Return",
      "at": [
       80,
       95
@@ -248,6 +271,8 @@
      "words": "home again, warm, changed",
      "theme": "story",
      "theme_words": "statement, soft",
+     "guidance": "The hero comes home changed, with something that heals or improves the ordinary world.",
+     "act": "Return",
      "at": [
       95,
       100
@@ -272,6 +297,8 @@
      "words": "safe, contained, a little small",
      "theme": "story",
      "theme_words": "statement, held back",
+     "guidance": "The protagonist relies on others (family, community, a system) for safety and identity.",
+     "act": "Dependent World",
      "at": [
       0,
       8
@@ -290,6 +317,8 @@
      "words": "muted, constrained",
      "theme": "story",
      "theme_words": "echo, muted",
+     "guidance": "Fitting in costs them their true self. Show what's being suppressed.",
+     "act": "Dependent World",
      "at": [
       8,
       15
@@ -314,6 +343,8 @@
        "at": "start"
       }
      ],
+     "guidance": "A chance comes to express their hidden gift or desire, often by accident.",
+     "act": "Dependent World",
      "at": [
       15,
       20
@@ -332,6 +363,8 @@
      "words": "playful, daring",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "They take on the trappings of the true self: a costume, a role, a secret identity.",
+     "act": "Dependent World",
      "at": [
       20,
       25
@@ -350,6 +383,8 @@
      "words": "free, joyful",
      "theme": "story",
      "theme_words": "echo, full",
+     "guidance": "They live a double life, nurturing their gift away from the dependent world.",
+     "act": "Double Life",
      "at": [
       25,
       40
@@ -368,6 +403,8 @@
      "words": "uneasy, two sounds at odds",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "The two lives grate against each other. The old world feels wrong.",
+     "act": "Double Life",
      "at": [
       40,
       50
@@ -393,6 +430,8 @@
        "at": "start"
       }
      ],
+     "guidance": "The secret is discovered, and the dependent world reacts.",
+     "act": "Fallout",
      "at": [
       50,
       58
@@ -411,6 +450,8 @@
      "words": "letting go, quiet",
      "theme": "story",
      "theme_words": "echo, soft",
+     "guidance": "They let go of the attachment, fear or belief that kept them conforming.",
+     "act": "Fallout",
      "at": [
       58,
       65
@@ -429,6 +470,8 @@
      "words": "turmoil, clashing",
      "theme": "story",
      "theme_words": "echo, broken",
+     "guidance": "The community is thrown into turmoil by the change.",
+     "act": "Fallout",
      "at": [
       65,
       72
@@ -447,6 +490,8 @@
      "words": "lonely, sparse",
      "theme": "story",
      "theme_words": "echo, a fragment",
+     "guidance": "Doubt and temptation to go back to safety. This is the low point.",
+     "act": "Fallout",
      "at": [
       72,
       80
@@ -471,6 +516,8 @@
        "at": "last"
       }
      ],
+     "guidance": "They fully commit to their true self, whatever it costs.",
+     "act": "Her Light",
      "at": [
       80,
       88
@@ -489,6 +536,8 @@
      "words": "others joining in, fuller",
      "theme": "story",
      "theme_words": "echo, full",
+     "guidance": "The community reorganizes around the new reality and often comes to their aid.",
+     "act": "Her Light",
      "at": [
       88,
       95
@@ -507,6 +556,8 @@
      "words": "bright, open, warm",
      "theme": "story",
      "theme_words": "statement",
+     "guidance": "Everyone is better off because the protagonist became themselves.",
+     "act": "Her Light",
      "at": [
       95,
       100
@@ -533,6 +584,8 @@
      "words": "the world as it is",
      "theme": "story",
      "theme_words": "statement",
+     "guidance": "Show the world and the protagonist as they are, including the flaw or need.",
+     "act": "I: Setup",
      "at": [
       0,
       10
@@ -557,6 +610,8 @@
        "at": "start"
       }
      ],
+     "guidance": "Something breaks the status quo and creates the central problem.",
+     "act": "I: Setup",
      "at": [
       10,
       12
@@ -575,6 +630,8 @@
      "words": "uncertain",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "The protagonist hesitates or weighs options. Stakes are made clear.",
+     "act": "I: Setup",
      "at": [
       12,
       20
@@ -599,6 +656,8 @@
        "at": "last"
       }
      ],
+     "guidance": "The protagonist commits to a goal and enters a new situation.",
+     "act": "I: Setup",
      "at": [
       20,
       25
@@ -617,6 +676,8 @@
      "words": "pressure building",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "They chase the goal and meet obstacles. Often there's a B-story (relationship or theme).",
+     "act": "II: Confrontation",
      "at": [
       25,
       50
@@ -640,7 +701,10 @@
        "kind": "turn",
        "at": "start"
       }
-     ]
+     ],
+     "guidance": "A false victory or false defeat. New information raises the stakes, and the protagonist shifts from reacting to acting.",
+     "act": "II: Confrontation",
+     "point": 50
     },
     {
      "beat": "Pressure Mounts",
@@ -655,6 +719,8 @@
      "words": "tightening, darker",
      "theme": "story",
      "theme_words": "echo, low",
+     "guidance": "The opposition closes in, alliances crack and inner flaws cause outer problems.",
+     "act": "II: Confrontation",
      "at": [
       50,
       75
@@ -678,7 +744,10 @@
        "kind": "drop",
        "at": "start"
       }
-     ]
+     ],
+     "guidance": "All seems lost. Something or someone dies, literally or symbolically. The protagonist faces the flaw.",
+     "act": "II: Confrontation",
+     "point": 75
     },
     {
      "beat": "Plot Point 2",
@@ -699,6 +768,8 @@
        "at": "start"
       }
      ],
+     "guidance": "An insight, often from the B-story, gives a new plan.",
+     "act": "III: Resolution",
      "at": [
       75,
       80
@@ -723,6 +794,8 @@
        "at": "last"
       }
      ],
+     "guidance": "The final confrontation. The protagonist wins (or loses meaningfully) by acting as their changed self.",
+     "act": "III: Resolution",
      "at": [
       80,
       95
@@ -743,6 +816,8 @@
      "words": "settled, the opening's music again",
      "theme": "story",
      "theme_words": "statement, soft",
+     "guidance": "The new normal, often a mirror of the opening image to show the change.",
+     "act": "III: Resolution",
      "at": [
       95,
       100
@@ -770,6 +845,8 @@
      "words": "the main title",
      "theme": "show",
      "theme_words": "statement",
+     "guidance": "A self-contained gag or a quick setup that hooks the audience and often seeds the theme.",
+     "act": "Setup",
      "at": [
       0,
       8
@@ -781,6 +858,8 @@
       "Status Quo"
      ],
      "music": "dry",
+     "guidance": "The usual dynamics: who wants what, the running jokes and the setting.",
+     "act": "Setup",
      "at": [
       8,
       15
@@ -792,6 +871,8 @@
       "The Problem"
      ],
      "music": "dry",
+     "guidance": "The A-plot starts with a want, a mistake or an outside disruption. A B-plot (and sometimes C) starts with other characters.",
+     "act": "Setup",
      "at": [
       15,
       25
@@ -813,6 +894,8 @@
      "words": "sneaky, playful",
      "theme": "show",
      "theme_words": "echo",
+     "guidance": "Instead of the sensible fix, the character lies, covers up or schemes.",
+     "act": "The Scheme",
      "at": [
       25,
       35
@@ -824,6 +907,8 @@
       "Complications"
      ],
      "music": "dry",
+     "guidance": "The scheme needs more lies. Other characters get pulled in. The B-plot starts to cross into the A-plot.",
+     "act": "The Scheme",
      "at": [
       35,
       65
@@ -845,6 +930,8 @@
      "words": "the act out",
      "theme": "show",
      "theme_words": "echo",
+     "guidance": "Everything collides, often with all the characters in one place, at the worst possible moment.",
+     "act": "The Blow-Up",
      "at": [
       65,
       80
@@ -866,6 +953,8 @@
      "words": "warm, soft: the small emotional beat",
      "theme": "show",
      "theme_words": "echo, slowed",
+     "guidance": "The truth comes out or the mistake is undone. Sometimes there's a small emotional beat.",
+     "act": "The Blow-Up",
      "at": [
       80,
       92
@@ -877,6 +966,8 @@
       "Reset"
      ],
      "music": "dry",
+     "guidance": "Back to the status quo. The lesson is learned, or comically not learned.",
+     "act": "Reset",
      "at": [
       92,
       97
@@ -896,6 +987,8 @@
      "words": "the end titles: a button",
      "theme": "show",
      "theme_words": "statement",
+     "guidance": "A final callback joke after the resolution.",
+     "act": "Reset",
      "at": [
       97,
       100
@@ -930,6 +1023,8 @@
       }
      ],
      "sting_end": true,
+     "guidance": "A hook: the case's first moment (a crime, a stranger, a body, a request), ending on a question.",
+     "act": "Teaser",
      "at": [
       0,
       8
@@ -949,6 +1044,8 @@
      "theme": "story",
      "theme_words": "echo",
      "sting_end": true,
+     "guidance": "The case set up: who, what's at stake, the first obstacle. Act-out: a complication.",
+     "act": "Act One",
      "at": [
       8,
       28
@@ -968,6 +1065,8 @@
      "theme": "story",
      "theme_words": "echo",
      "sting_end": true,
+     "guidance": "The investigation or pursuit; the B-plot (often the runner) crosses it. Act-out: a reversal.",
+     "act": "Act Two",
      "at": [
       28,
       50
@@ -992,6 +1091,8 @@
        "at": "end"
       }
      ],
+     "guidance": "Pressure: the case at its worst and what it costs. Act-out: the low point.",
+     "act": "Act Three",
      "at": [
       50,
       72
@@ -1016,6 +1117,8 @@
        "at": "last"
       }
      ],
+     "guidance": "The turn and the climax: the case resolved, won or lost.",
+     "act": "Act Four",
      "at": [
       72,
       92
@@ -1038,6 +1141,8 @@
      "theme_words": "echo",
      "then": "runner",
      "sting_end": true,
+     "guidance": "The aftermath, then the runner moves on: a hook for next week.",
+     "act": "Tag",
      "at": [
       92,
       100
@@ -1062,6 +1167,8 @@
      "words": "at home",
      "theme": "story",
      "theme_words": "statement",
+     "guidance": "Establish the character in their familiar world.",
+     "act": "Comfort",
      "at": [
       0,
       10
@@ -1086,6 +1193,8 @@
        "at": "start"
       }
      ],
+     "guidance": "A desire, lack or problem appears.",
+     "act": "Comfort",
      "at": [
       10,
       20
@@ -1110,6 +1219,8 @@
        "at": "start"
       }
      ],
+     "guidance": "They cross into somewhere, or something, new.",
+     "act": "Descent",
      "at": [
       20,
       30
@@ -1128,6 +1239,8 @@
      "words": "adapting, busy",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "They struggle, learn the rules and pick up tools or allies.",
+     "act": "Descent",
      "at": [
       30,
       50
@@ -1152,6 +1265,8 @@
        "at": "last"
       }
      ],
+     "guidance": "They get it, often at the midpoint, the bottom of the circle.",
+     "act": "The Price",
      "at": [
       50,
       60
@@ -1176,6 +1291,8 @@
        "at": "end"
       }
      ],
+     "guidance": "The cost hits: what they wanted wasn't what they needed, or it costs something dear.",
+     "act": "The Price",
      "at": [
       60,
       75
@@ -1194,6 +1311,8 @@
      "words": "home again, quieter",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "They come back to where they started.",
+     "act": "Return",
      "at": [
       75,
       90
@@ -1212,6 +1331,8 @@
      "words": "the opening's music, changed",
      "theme": "story",
      "theme_words": "statement, changed",
+     "guidance": "They are different now, and can do or see something they couldn't before.",
+     "act": "Return",
      "at": [
       90,
       100
@@ -1236,6 +1357,8 @@
      "words": "calm, observational",
      "theme": "story",
      "theme_words": "statement",
+     "guidance": "Establish the characters, setting and situation. Calm, observational.",
+     "act": "Act 1",
      "at": [
       0,
       25
@@ -1254,6 +1377,8 @@
      "words": "texture, routine, gently moving",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "Deepen and expand the introduction without any big change. More texture, routine and detail.",
+     "act": "Act 2",
      "at": [
       25,
       50
@@ -1276,6 +1401,8 @@
        "at": "start"
       }
      ],
+     "guidance": "An unexpected element or a big shift in perspective. It may seem unrelated at first.",
+     "act": "Act 3",
      "at": [
       50,
       75
@@ -1294,6 +1421,8 @@
      "words": "the two together, understanding",
      "theme": "story",
      "theme_words": "statement, in the twist's colour",
+     "guidance": "Link the twist back to the premise. The resolution comes from combining the two, not from defeating someone.",
+     "act": "Act 4",
      "at": [
       75,
       100
@@ -1318,6 +1447,8 @@
      "words": "light, characterful: the trait in one instrument",
      "theme": "story",
      "theme_words": "statement",
+     "guidance": "Introduce the character and their defining flaw or virtue quickly, often through a single action or line.",
+     "act": "Act 1",
      "at": [
       0,
       15
@@ -1344,6 +1475,8 @@
        "at": "start"
       }
      ],
+     "guidance": "A situation that tests the trait: a contest, a find or an encounter.",
+     "act": "Act 2",
      "at": [
       15,
       35
@@ -1362,6 +1495,8 @@
      "words": "a wrong note, uneasy",
      "theme": "story",
      "theme_words": "echo, bent",
+     "guidance": "The character acts in line with their flaw.",
+     "act": "Act 3",
      "at": [
       35,
       60
@@ -1386,6 +1521,8 @@
        "at": "end"
       }
      ],
+     "guidance": "The result follows immediately and is often ironic. The flaw backfires (or the virtue pays off).",
+     "act": "Act 4",
      "at": [
       60,
       85
@@ -1404,6 +1541,8 @@
      "words": "warm, simple, under the narrator",
      "theme": "story",
      "theme_words": "statement, soft",
+     "guidance": "The lesson, stated outright by a narrator or a character (\"Slow and steady wins the race\").",
+     "act": "Act 5",
      "at": [
       85,
       100
@@ -1428,6 +1567,8 @@
      "words": "plain, everyday",
      "theme": "story",
      "theme_words": "statement, simple",
+     "guidance": "A recognizable, everyday setting: work, family, a road, a field.",
+     "act": "Act 1",
      "at": [
       0,
       20
@@ -1446,6 +1587,8 @@
      "words": "assured, conventional",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "Set up who the audience expects to act well or badly, or how things \"should\" go.",
+     "act": "Act 2",
      "at": [
       20,
       40
@@ -1470,6 +1613,8 @@
        "at": "start"
       }
      ],
+     "guidance": "Someone in need, a choice or an opportunity appears.",
+     "act": "Act 3",
      "at": [
       40,
       60
@@ -1494,6 +1639,8 @@
        "at": "last"
       }
      ],
+     "guidance": "The unlikely person does the right thing, or the expected one fails.",
+     "act": "Act 4",
      "at": [
       60,
       85
@@ -1512,6 +1659,8 @@
      "words": "quiet, open, unresolved",
      "theme": "story",
      "theme_words": "echo, left hanging",
+     "guidance": "The meaning lands, through a closing question, a quiet image or the consequence. It's rarely stated outright.",
+     "act": "Act 5",
      "at": [
       85,
       100
@@ -1538,6 +1687,8 @@
      "words": "ominous, a low hint",
      "theme": "story",
      "theme_words": "statement, low",
+     "guidance": "State the rule clearly: from a parent, a sign, an elder or a strange shopkeeper.",
+     "act": "The Rule",
      "at": [
       0,
       15
@@ -1556,6 +1707,8 @@
      "words": "alluring, sweet",
      "theme": "story",
      "theme_words": "echo, bright",
+     "guidance": "Show why breaking it is appealing.",
+     "act": "The Rule",
      "at": [
       15,
       25
@@ -1581,6 +1734,8 @@
        "at": "start"
       }
      ],
+     "guidance": "The character breaks the rule, often casually or defiantly.",
+     "act": "The Fall",
      "at": [
       25,
       35
@@ -1599,6 +1754,8 @@
      "words": "fun, carefree, too bright",
      "theme": "story",
      "theme_words": "echo, bright",
+     "guidance": "At first it pays off. Fun, gain, power. The audience is lulled.",
+     "act": "The Fall",
      "at": [
       35,
       60
@@ -1617,6 +1774,8 @@
      "words": "something off: a sour note under the fun",
      "theme": "story",
      "theme_words": "echo, a note wrong",
+     "guidance": "Small hints that something is wrong. They're ignored.",
+     "act": "The Reckoning",
      "at": [
       60,
       75
@@ -1645,6 +1804,8 @@
        "at": "end"
       }
      ],
+     "guidance": "A swift, fitting and often disproportionate consequence.",
+     "act": "The Reckoning",
      "at": [
       75,
       95
@@ -1663,6 +1824,8 @@
      "words": "cold, still",
      "theme": "story",
      "theme_words": "echo, a fragment",
+     "guidance": "A final image or line that turns the character into a warning for others.",
+     "act": "The Reckoning",
      "at": [
       95,
       100
@@ -1693,6 +1856,8 @@
        "at": "start"
       }
      ],
+     "guidance": "The world, characters and tensions. It ends with the exciting force (the inciting incident).",
+     "act": "Act I",
      "at": [
       0,
       20
@@ -1711,6 +1876,8 @@
      "words": "climbing",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "Complications build. The protagonist pursues the goal and tension climbs.",
+     "act": "Act II",
      "at": [
       20,
       45
@@ -1735,6 +1902,8 @@
        "at": "last"
       }
      ],
+     "guidance": "The peak at the center: the decisive action that turns the protagonist's fortune.",
+     "act": "Act III",
      "at": [
       45,
       55
@@ -1753,6 +1922,8 @@
      "words": "slower, heavier, a hush at the final suspense",
      "theme": "story",
      "theme_words": "echo, minor",
+     "guidance": "The consequences unfold and opposing forces gain ground. It includes a moment of final suspense, where the outcome seems briefly in doubt.",
+     "act": "Act IV",
      "at": [
       55,
       85
@@ -1771,6 +1942,8 @@
      "words": "catastrophe: dark and spare; resolution: calm",
      "theme": "story",
      "theme_words": "statement, changed",
+     "guidance": "The final outcome: catastrophe (the tragic fall) or resolution (order restored).",
+     "act": "Act V",
      "at": [
       85,
       100
@@ -1801,6 +1974,8 @@
        "at": "start"
       }
      ],
+     "guidance": "Open in trouble. Backstory is shown only as it becomes necessary.",
+     "act": "First Crisis",
      "at": [
       0,
       10
@@ -1819,6 +1994,8 @@
      "words": "driving",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "The first obstacle. The protagonist reacts.",
+     "act": "First Crisis",
      "at": [
       10,
       25
@@ -1837,6 +2014,8 @@
      "words": "a breath, quiet",
      "theme": "story",
      "theme_words": "echo, soft",
+     "guidance": "A short pause to reveal character, give exposition and regroup.",
+     "act": "First Crisis",
      "at": [
       25,
       30
@@ -1861,6 +2040,8 @@
        "at": "start"
       }
      ],
+     "guidance": "A bigger obstacle. The stakes rise.",
+     "act": "Second Crisis",
      "at": [
       30,
       45
@@ -1872,6 +2053,8 @@
       "Breather"
      ],
      "music": "dry",
+     "guidance": "A shorter pause. Maybe a revelation.",
+     "act": "Second Crisis",
      "at": [
       45,
       50
@@ -1896,6 +2079,8 @@
        "at": "start"
       }
      ],
+     "guidance": "Keep escalating, with each crisis worse than the last.",
+     "act": "Escalation",
      "at": [
       50,
       80
@@ -1920,6 +2105,8 @@
        "at": "last"
       }
      ],
+     "guidance": "The biggest confrontation of all.",
+     "act": "Climax",
      "at": [
       80,
       95
@@ -1938,6 +2125,8 @@
      "words": "out fast, a short release",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "A short resolution. Get out fast.",
+     "act": "Climax",
      "at": [
       95,
       100
@@ -1968,6 +2157,8 @@
        "at": "end"
       }
      ],
+     "guidance": "A vivid, puzzling, high-stakes moment from late in the story. Withhold the context.",
+     "act": "The Hook",
      "at": [
       0,
       5
@@ -1991,21 +2182,42 @@
        "at": "start"
       }
      ],
+     "guidance": "A clear time marker (\"Three days earlier\", a title card, a match cut).",
+     "act": "The Hook",
      "at": [
       5,
       7
      ]
     },
     {
-     "beat": "Build-Up",
+     "beat": "The Calm / Build-Up",
      "names": [
+      "The Calm / Build-Up",
+      "The Calm",
       "Build-Up"
      ],
      "music": "score",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "The story from an earlier, calmer point: who they were and what they wanted.",
+     "act": "The Calm",
      "at": [
       7,
+      30
+     ]
+    },
+    {
+     "beat": "The Slide",
+     "names": [
+      "The Slide"
+     ],
+     "music": "score",
+     "theme": "story",
+     "theme_words": "echo",
+     "guidance": "Each step leads toward the hook. Underneath can be any structure, often three-act.",
+     "act": "The Slide",
+     "at": [
+      30,
       65
      ]
     },
@@ -2028,6 +2240,8 @@
        "at": "last"
       }
      ],
+     "guidance": "The timeline catches up to the opening scene. Replay it with the new understanding: what it really meant.",
+     "act": "Convergence",
      "at": [
       65,
       75
@@ -2052,6 +2266,8 @@
        "at": "last"
       }
      ],
+     "guidance": "Push past the opening moment into the true climax.",
+     "act": "Past the Hook",
      "at": [
       75,
       95
@@ -2070,6 +2286,8 @@
      "words": "the aftermath",
      "theme": "story",
      "theme_words": "echo, soft",
+     "guidance": "Resolve the aftermath.",
+     "act": "Past the Hook",
      "at": [
       95,
       100
@@ -2094,6 +2312,8 @@
      "words": "gentle, wondering",
      "theme": "story",
      "theme_words": "statement",
+     "guidance": "The character and the world.",
+     "act": "The World",
      "at": [
       0,
       10
@@ -2112,6 +2332,8 @@
      "words": "light, a simple repeating figure: the routine",
      "theme": "story",
      "theme_words": "echo",
+     "guidance": "The routine, the status quo.",
+     "act": "The World",
      "at": [
       10,
       20
@@ -2136,6 +2358,8 @@
        "at": "start"
       }
      ],
+     "guidance": "The disruption.",
+     "act": "The Chain",
      "at": [
       20,
       30
@@ -2154,6 +2378,8 @@
      "words": "unsettled",
      "theme": "story",
      "theme_words": "echo, darker",
+     "guidance": "The first consequence.",
+     "act": "The Chain",
      "at": [
       30,
       50
@@ -2172,6 +2398,8 @@
      "words": "rising, each one darker",
      "theme": "story",
      "theme_words": "echo, low",
+     "guidance": "The next consequence (repeat as needed, with each caused by the last).",
+     "act": "The Chain",
      "at": [
       50,
       70
@@ -2196,6 +2424,8 @@
        "at": "last"
       }
      ],
+     "guidance": "The climax and resolution.",
+     "act": "The End",
      "at": [
       70,
       90
@@ -2214,6 +2444,8 @@
      "words": "warm, slowing to a close",
      "theme": "story",
      "theme_words": "statement, soft",
+     "guidance": "The new normal.",
+     "act": "The End",
      "at": [
       90,
       100
@@ -2231,7 +2463,8 @@
      ],
      "words": "quiet, simple",
      "theme": "story",
-     "theme_words": "echo"
+     "theme_words": "echo",
+     "act": "The End"
     }
    ]
   }

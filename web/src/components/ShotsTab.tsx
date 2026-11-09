@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
-  build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
+  build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openStoryboard, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
   clickShot, openSound, renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
 import { api, host } from "../host";
@@ -196,6 +196,9 @@ function BuildBar() {
           onClick={() => renderStale()}
         >
           <i className="pi pi-refresh" /> Re-render stale{stale.length ? ` (${stale.length})` : ""}
+        </button>
+        <button className="h3-btn" title="A story structure and a duration as shots: act by act, beat by beat" onClick={() => openStoryboard(true)}>
+          <i className="pi pi-th-large" /> Storyboard…
         </button>
         {drafted > 0 && (
           <button className="h3-btn" title="Make finals (1080p, paid) from the Seedance drafts the proxy cut uses: choose which"
