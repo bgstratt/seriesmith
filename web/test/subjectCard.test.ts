@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  cardFields, cardKindOf, entryFor, idProblem, picturePath, refIdOf, refsPrefix, type Raw,
+  cardFields, cardKindOf, entryFor, variantSpeaking, idProblem, picturePath, refIdOf, refsPrefix, type Raw,
 } from "../src/lib/seriesForm";
 
 const show: Raw = {
@@ -84,5 +84,11 @@ describe("cast cards", () => {
     expect(variantOf).not.toContain("lantern");          // not a character
     expect(refIdOf("location", "porch")).toBe("location:porch");
     expect(refIdOf("character", "ada")).toBe("subject:ada");
+  });
+});
+
+describe("what a variant's lines are written under", () => {
+  it("is the id of the character it's a variant of, in capitals", () => {
+    expect(variantSpeaking("gina_towel", "gina")).toBe("In the script, its lines are written under GINA: and its shots say who: gina_towel.");
   });
 });

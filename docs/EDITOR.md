@@ -813,7 +813,12 @@ script call for is listed here.
 
 - **+ Add** at the top adds a character, group, prop, vehicle, location or voice to the
   series config, on its card (as each group's **+ Character**, **+ Prop**, **+ Place**,
-  **+ Voice** does); **Series** opens Series settings.
+  **+ Voice** does); **Series** opens Series settings. **Drop pictures on a group's +** (sound
+  files on **+ Voice**), here or in Series settings' Cast and places, for a new entry each: named
+  Character 1, Location 1 and so on, the file its live picture or sample, and its required words
+  "as in the reference picture" ("as in the sample") until you rewrite them on its card. On a
+  card, **Rename…** changes the id of something no shot uses: its pictures, takes and voice
+  sample move with it. It's refused while any script or other entry names it.
 - **Made with** names the models that make refs, keyframes, edits, turns and voice samples;
   **Change** opens their pickers: **Refs render with:**, **Keyframes with:**, **Edits
   with:**, **Turns with:** and **Voices with:** (a choice here is this episode's, kept in `overrides.json`,
@@ -884,7 +889,9 @@ script call for is listed here.
   (an angle or a relit version is its place, unless it says its own `ambience`), each saying
   whether its bed is made and whether it has words; say what's heard there (new words are
   written to the location's `ambience` in the series config, and the episode rebuilt), pick the
-  model when there's more than one, and **Make it**.
+  model when there's more than one, and **Make it**. **Drop a sound file on any of the three**
+  and it goes on that lane from the playhead, or the cut's start: a file of your own, not a cue
+  or a bed. Files on the music lane are listed under the cues.
 - **Right-click is your browser's menu here**, not the editor's context menu. The Refs tab
   has buttons instead.
 - **Expand the prompt** (it shows the series config's wording) to edit it, change the

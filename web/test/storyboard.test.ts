@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blockedScript } from "../src/lib/wizard";
-import { bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, actGroups, moveDivider, ownBeatsFrom, toggleActBreak, positive, pushed, runtimeMinutes, runWidth, sketchable, takeToOpen, tileSize, seriesChoices, UNDO_STEPS, type BoardAct, type BoardBeat } from "../src/lib/storyboard";
+import { bandShare, bareBeats, clock, dropSide, dropTargets, fillThenAdd, mediaInOrder, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, actGroups, moveDivider, ownBeatsFrom, toggleActBreak, positive, pushed, runtimeMinutes, runWidth, sketchable, takeToOpen, tileSize, seriesChoices, UNDO_STEPS, type BoardAct, type BoardBeat } from "../src/lib/storyboard";
 
 function beat(over: Partial<BoardBeat>): BoardBeat {
   return { beat: "A", plain: "A", nth: 0, block: null, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
@@ -139,6 +139,24 @@ describe("frames", () => {
 
   it("fills only empty stand-ins from a sequence or a beat", () => {
     expect(dropTargets(shots, false).map((s) => s.id)).toEqual(["a", "d"]);
+  });
+
+  it("takes pictures and videos together in filename order", () => {
+    const out = mediaInOrder([file("f10.mov", ""), file("f2.png"), file("notes.txt", "text/plain"), file("f1.mp4", "video/mp4")]);
+    expect(out.map((f) => f.name)).toEqual(["f1.mp4", "f2.png", "f10.mov"]);
+  });
+
+  it("doesn't sketch a held shot whose take is a video from outside", () => {
+    const beat = { guidance: "", runs: [{ sequence: "a", place: "p", opens: true, block: 1, shots: [
+      { id: "v", target: "hold", action: "A door.", picture: null }, { id: "w", target: "hold", action: "A hall.", picture: null },
+    ] }] } as unknown as BoardBeat;
+    expect(sketchable([beat], new Set(["v"])).ready).toEqual(["w"]);
+  });
+
+  it("fills a beat's empty shots first and asks for a new shot for each picture over", () => {
+    expect(fillThenAdd(["1", "2", "3"], ["a"])).toEqual({ fill: [{ shot: "a", file: "1" }], extra: ["2", "3"] });
+    expect(fillThenAdd(["1"], ["a", "b"])).toEqual({ fill: [{ shot: "a", file: "1" }], extra: [] });
+    expect(fillThenAdd(["1", "2"], [])).toEqual({ fill: [], extra: ["1", "2"] });
   });
 
   it("lets a single tile take a picture whatever model it's on", () => {

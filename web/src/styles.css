@@ -1102,7 +1102,8 @@
   aspect-ratio: 1; border: 1px dashed var(--h3-border); border-radius: 10px; background: transparent; cursor: pointer;
   color: var(--h3-accent); font: inherit; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 4px;
 }
-.h3-add-tile:hover { background: var(--h3-hover); border-color: var(--h3-accent); }
+.h3-add-tile:hover, .h3-add-tile[data-over] { background: var(--h3-hover); border-color: var(--h3-accent); }
+.h3-btn[data-over] { outline: 2px solid var(--h3-accent); outline-offset: 1px; }
 .h3-tile .h3-refthumb { border-radius: 10px; background-color: var(--h3-bg3); }
 /* a shared ref's candidates, from the episode that picked its live file */
 .h3-owner-takes { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
@@ -1501,7 +1502,9 @@
 .h3-sb-tile:hover { outline: 1px solid var(--h3-fg); }
 .h3-sb-tile.h3-sb-picked { outline: 2px solid var(--h3-accent); outline-offset: 1px; }
 .h3-sb-add { width: 22px; align-self: stretch; min-height: 27px; padding: 0; border-radius: 2px; line-height: 12px; cursor: pointer; color: var(--h3-fg); background: none; border: 1px dashed var(--h3-border); }
-.h3-sb-add:hover:not(:disabled) { border-color: var(--h3-accent); color: var(--h3-accent); }
+.h3-sb-add:hover:not(:disabled), .h3-sb-add[data-over] { border-color: var(--h3-accent); color: var(--h3-accent); }
+.h3-sb-drophint { align-self: stretch; display: flex; align-items: center; padding: 4px 12px; min-height: 27px; border: 1px dashed var(--h3-border); border-radius: 2px; }
+.h3-sb-drophint[data-over] { border-color: var(--h3-accent); color: var(--h3-accent); }
 .h3-sb-editbar { gap: 10px; padding: 6px 10px; flex-wrap: wrap; border-bottom: 1px solid var(--h3-border); background: var(--h3-bg2); }
 .h3-sb-editbar label { gap: 6px; }
 .h3-sb-menuback { position: fixed; inset: 0; z-index: 9998; }

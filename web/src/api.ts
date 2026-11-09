@@ -512,6 +512,8 @@ export interface Api {
   mcpLaunch(port: string | null): Promise<McpLaunch>;
   /** POST /seriesmith/take/import: a video on the server's machine as a shot's take. */
   importTake(req: TakeImportRequest): Promise<ImportedShotTake>;
+  /** POST /seriesmith/series/rename: an entry's id, while nothing names it. */
+  renameEntry(req: { ep: string; id: string; to: string }): Promise<{ id: string; build: BuildResult | null }>;
   /** POST /seriesmith/take/import as multipart (a dropped or picked file), with progress. */
   uploadTake(req: TakeUploadRequest, onProgress?: UploadProgress): Promise<ImportedShotTake>;
   /** POST /seriesmith/take/copy: another shot's take copied in (the gallery's drag). */
@@ -1245,6 +1247,7 @@ export function createHttpApi(t: Transport): Api {
     sourceHash: (ep, file) => get(`/seriesmith/source?${qs({ ep, file, hash_only: "1" })}`),
     checkSource: (ep, file, text) => call("POST", "/seriesmith/source/check", { ep, file, text }),
     putSource: (req) => call("PUT", "/seriesmith/source", req),
+    renameEntry: (req) => call("POST", "/seriesmith/series/rename", req),
     previewShot: (ep, pass, text, shot) => call("POST", "/seriesmith/shot/preview", { ep, pass, text, shot }),
     promotePlan: (ep, shot) => get(`/seriesmith/promote?${qs({ ep, shot: shot || undefined })}`),
     promote: (ep, items, hashes, shot) => call("POST", "/seriesmith/promote", shot ? { ep, items, hashes, shot } : { ep, items, hashes }),

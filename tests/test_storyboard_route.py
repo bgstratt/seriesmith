@@ -91,6 +91,15 @@ class TestStoryboardRoutes(unittest.TestCase):
         row = next(b for b in self.rows(data) if b["plain"] == "Debate")
         self.assertEqual((row["shots"], row["target_shots"]), (1, 4))
 
+    def test_add_makes_a_shot_per_length_in_script_order(self):
+        self.blank()
+        data = self.edit(op="add", durs=[None, 7.2, None], shot=3.5, structure="Three-Act", duration="180", beat={"plain": "Debate", "nth": 0})
+        self.assertEqual(len(data["made"]), 3)
+        shots = [b["shot"] for b in B.read(self.text())["blocks"] if b["kind"] == "shot"]
+        self.assertEqual([s["id"] for s in shots], data["made"])
+        self.assertEqual(self.text().count("dur: 7.2"), 1)
+        self.assertEqual(self.text().count("dur: 3.5"), 2)
+
     def test_it_can_be_read_back_and_built(self):
         self.blank()
         self.edit(op="add", structure="Three-Act", duration="180", beat={"plain": "Debate", "nth": 0})

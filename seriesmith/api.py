@@ -3159,7 +3159,7 @@ def get_storyboard(ctx: Context, query: dict):
 @handler
 def post_storyboard_edit(ctx: Context, body):
     """An edit from the storyboard, saved like the script editor's (`base_hash`, 409 when the file
-    changed; the old script to history; a rebuild): `op` is `add` (one stand-in on `beat`), `fill`
+    changed; the old script to history; a rebuild): `op` is `add` (one stand-in on `beat`, or one per `durs`: seconds, null a typical shot), `fill`
     (`beats`: each up to its target, or up to `each` shots), `place` (`block`, `place`), `cast` (`block`, `who`), `structure` (`name`), `rename_beat` (`block`,
     `name`), `add_after` (`block`, optionally `before`), `move_shot` (`block`, `target`, `after`), `convert` (`shots`, `target`), `delete_shot` (`block`: a shot's), `add_sequence` (`block`, `place`),
     `add_beat` (`beat`, `name`, optionally `act`), `lay_out` (`name`: a structure over a script with no beats), `remove_beat`, `rename_act` or `remove_act`
@@ -3188,6 +3188,10 @@ def post_storyboard_edit(ctx: Context, body):
     if each is not None and (not isinstance(each, int) or isinstance(each, bool) or each < 1):
         raise ApiError(400, "each must be a whole number above zero")
     op = body.get("op")
+    durs = body.get("durs") if op == "add" else None
+    if durs is not None and (not isinstance(durs, list) or not durs or not all(
+            d is None or (isinstance(d, (int, float)) and not isinstance(d, bool) and d > 0) for d in durs)):
+        raise ApiError(400, "durs must be a list of seconds above zero, or null for a typical shot")
     made: list[str] = []
     try:
         if op in ("add", "fill"):
@@ -3214,7 +3218,8 @@ def post_storyboard_edit(ctx: Context, body):
                 # only a script's first sequence has to be told where it is
                 no_sequence = not any(b["kind"] == "sequence" for b in doc["blocks"])
                 opening = place or (places[0] if places and no_sequence else None)
-                made += BD.add_stand_ins(doc, at, count, seconds, row["guidance"], place=opening)
+                for length in (durs if durs else [None]) if op == "add" else [None]:
+                    made += BD.add_stand_ins(doc, at, count, float(length) if length else seconds, row["guidance"], place=opening)
         elif op == "place":
             if place is None:
                 raise ApiError(400, "place is required")
@@ -6392,6 +6397,23 @@ def post_shot_preview(ctx: Context, body):
 
 
 @handler
+def post_series_rename(ctx: Context, body):
+    """A series config entry's id changed while nothing names it (`id`, `to`; rename.py): its entry,
+    takes, picks, overrides and live files move together, and the episode is rebuilt."""
+    from seriesmith import rename as RN
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    s = _series(ep)
+    try:
+        RN.rename(s, body.get("id"), body.get("to"))
+    except RN.RenameError as e:
+        raise ApiError(400, str(e))
+    build = E.build_episode(ep)
+    episode_event(ctx, ep)
+    return 200, {"id": body.get("to"), "build": build}
+
+
+@handler
 def put_source(ctx: Context, body):
     """Save the script or the series config (409 when it changed on disk
     since `base_hash`), then rebuild unless `rebuild` is false."""
@@ -6994,6 +7016,7 @@ ROUTES = [
     ("POST", "/seriesmith/source/check", post_source_check, "body"),
     ("POST", "/seriesmith/check", post_check, "body"),
     ("PUT", "/seriesmith/source", put_source, "body"),
+    ("POST", "/seriesmith/series/rename", post_series_rename, "body"),
     ("POST", "/seriesmith/shot/preview", post_shot_preview, "body"),
     ("GET", "/seriesmith/promote", get_promote, "query"),
     ("POST", "/seriesmith/promote", post_promote, "body"),

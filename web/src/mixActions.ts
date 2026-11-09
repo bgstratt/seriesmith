@@ -15,6 +15,7 @@ import {
   setTrack, timeAnchor, trimItem, type TrackPatch,
 } from "./lib/mix";
 import { locate } from "./lib/playlist";
+import { fileKindProblem } from "./lib/lookback";
 import { trackList as trackListOf } from "./lib/mix";
 import { statusKey, store, type AppState, type SoundAddAsk } from "./store";
 import { tn } from "./lib/format";
@@ -473,6 +474,27 @@ export async function dropOnLane(track: MixTrack, file: File, at: Anchor): Promi
     addItem(m, { id: newItemId(m, track), track, path, in: at, label: file.name.replace(/\.[^.]+$/, "") }));
   if (ok) host().toast("success", `${file.name} on ${lane}`, `From ${at.shot} frame ${at.frame}, to the file's end (drag its tail to stop it sooner).`);
   return ok;
+}
+
+/** A sound file dropped on a kind of sound's add button: on that lane from the playhead, or the
+ * cut's start. No cue, bed or take is made of it. */
+export async function soundOnLane(kind: TrackKind, found: Promise<File[]>): Promise<void> {
+  const files = await found;
+  const file = files.find((f) => fileKindProblem(f, "audio") === "");
+  if (!file) {
+    host().toast("warn", "Not a sound file", "Drop a wav, mp3, flac, ogg or m4a.");
+    return;
+  }
+  const track = trackListOf(currentMix()?.mix).find((t) => t.kind === kind)?.id;
+  const items = currentPlaylist();
+  const at = playheadAnchor() ?? (items.length ? timeAnchor(items, 0, fps()) : null);
+  if (!track || !at) {
+    host().toast("warn", "Nowhere to put it yet", "The cut needs a shot before a sound can go on a lane.");
+    return;
+  }
+  if (files.length > 1) host().toast("warn", "One file at a time", `${file.name} is used; drop the others one by one.`);
+  toggleSound(true);
+  await dropOnLane(track, file, at);
 }
 
 /** A sound file picked from this computer onto a lane at `at` (a menu's "Add a sound file"):

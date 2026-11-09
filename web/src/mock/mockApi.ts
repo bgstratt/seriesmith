@@ -2637,6 +2637,9 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         frames: 73, fps: 24, seconds: 3.04, width: pass === "proxy" ? 864 : 1344, height: pass === "proxy" ? 480 : 768,
         audio_policy: "generate", subjects: [], background: null, pacing: null, warnings: [] };
     },
+    async renameEntry(req) {
+      return { id: req.to, build: null };
+    },
     async putSource(req) {
       await wait(300);
       need(req.ep);

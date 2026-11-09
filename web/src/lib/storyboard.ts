@@ -1,3 +1,4 @@
+import { VIDEO_EXT } from "./takeDrop";
 // The storyboard's shapes and sums: GET /seriesmith/storyboard/block (core/blocking.py) and
 // GET /seriesmith/storyboard (core/board.py: the script against a structure's targets).
 
@@ -67,13 +68,13 @@ export interface StoryboardSketchAnswer {
 
 /** What a sketch can be made of: shots with no model and no picture yet. `unwritten`: an action
  * that's still its beat's guidance (or nothing), which would only draw the guidance. */
-export function sketchable(beats: Pick<BoardBeat, "guidance" | "runs">[]): { ready: string[]; unwritten: string[] } {
+export function sketchable(beats: Pick<BoardBeat, "guidance" | "runs">[], videos: ReadonlySet<string> = new Set()): { ready: string[]; unwritten: string[] } {
   const same = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
   const out: { ready: string[]; unwritten: string[] } = { ready: [], unwritten: [] };
   for (const beat of beats) {
     for (const run of beat.runs) {
       for (const s of run.shots) {
-        if (s.target !== "hold" || s.picture) continue;
+        if (s.target !== "hold" || s.picture || videos.has(s.id)) continue;
         const action = same(s.action);
         (action && action !== "stand-in." && action !== same(beat.guidance) ? out.ready : out.unwritten).push(s.id);
       }
@@ -143,7 +144,7 @@ export interface StoryboardAnswer {
 }
 
 export type StoryboardEdit =
-  | { op: "add"; beat: { plain: string; nth: number }; place?: string }
+  | { op: "add"; beat: { plain: string; nth: number }; place?: string; durs?: (number | null)[] }
   | { op: "fill"; beats: { plain: string; nth: number }[]; each?: number }
   | { op: "place"; block: number; place: string }
   | { op: "cast"; block: number; who: string[] }
@@ -245,10 +246,28 @@ export function picturesInOrder<T extends { name: string; type: string }>(files:
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
 }
 
+export function isVideoFile(f: { name: string }): boolean {
+  return VIDEO_EXT.includes(/\.[^.]+$/.exec(f.name)?.[0]?.toLowerCase() ?? "");
+}
+
+/** The pictures and videos in a drop, in filename order. */
+export function mediaInOrder<T extends { name: string; type: string }>(files: T[]): T[] {
+  return files.filter((f) => f.type.startsWith("image/") || isVideoFile(f))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
+}
+
 /** Which shots a drop lands on: a tile always takes it, as its first frame, as a timeline clip does;
  * a sequence or a beat fills its empty stand-ins and leaves the rest alone. */
 export function dropTargets<T extends Pick<BoardShot, "held_empty">>(shots: T[], single: boolean): T[] {
   return single ? shots : shots.filter((s) => s.held_empty);
+}
+
+/** Pictures dropped on a beat: one to each empty shot, in order, and the rest want new shots. */
+export function fillThenAdd<F, S>(files: F[], empties: S[]): { fill: { shot: S; file: F }[]; extra: F[] } {
+  return {
+    fill: files.slice(0, empties.length).map((file, i) => ({ shot: empties[i], file })),
+    extra: files.slice(empties.length),
+  };
 }
 
 /** The held shots that can render and have no up-to-date take: the animatic's to-do. */

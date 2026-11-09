@@ -28,6 +28,7 @@ import { ProfilesSection } from "./Profiles";
 import { FloatingWindow, type Rect } from "./FloatingWindow";
 import { keptAt } from "../lib/drafts";
 import { useSeriesConfig } from "./useSeriesConfig";
+import { addFromFiles, fileDrop } from "../dropAdd";
 import { ModelOptions, ModelsButton } from "./Targets";
 import { useRefs } from "./hooks";
 
@@ -496,7 +497,9 @@ function CastList({ raw }: { raw: Raw }) {
                 <span className="h3-small"><b>{g.label}</b> <span className="h3-muted">{needle ? `${hits.length} of ${all.length}` : all.length}</span></span>
                 <span className="h3-grow" />
                 {g.kinds.map((k) => (
-                  <button key={k} className="h3-btn" onClick={() => openSubjectCard({ kind: k, id: null })}>
+                  <button key={k} className="h3-btn" onClick={() => openSubjectCard({ kind: k, id: null })}
+                    {...(k === "group" ? {} : fileDrop((f) => void addFromFiles(k, f)))}
+                    title={k === "group" ? undefined : `Or drop ${k === "voice" ? "sound files" : "pictures"} here for a new one each`}>
                     {CARD_KINDS.find((c) => c.kind === k)!.add}
                   </button>
                 ))}

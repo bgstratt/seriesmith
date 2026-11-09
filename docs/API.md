@@ -1111,7 +1111,7 @@ has one of its own; `card`: it's still holding the gray card), its `target_shots
 ### `POST /seriesmith/storyboard/edit`
 Body `{"ep", "base_hash", "structure"?, "duration"?, "shot"?, "op", ...}`, saved as the script
 editor's saves are: 409 when the script's hash isn't `base_hash`, the old script to history, then a
-rebuild. `op` is `add` (`beat: {"plain", "nth"}`, optionally `place`: one held stand-in, its first frame a flat gray card until it's given a picture, at the end
+rebuild. `op` is `add` (`beat: {"plain", "nth"}`, optionally `place`: one held stand-in, or one per `durs` entry (seconds, null a typical shot), its first frame a flat gray card until it's given a picture, at the end
 of the beat, its line written first if the script hasn't got it), `fill` (`beats: [{"plain",
 "nth"}]`: each up to its target, or up to `each` shots), `place` (`block`, `place`: a sequence's location) or `cast`
 (`block`, `who`: on that sequence's empty stand-ins only), `structure` (`name`: the script's
@@ -2062,6 +2062,12 @@ project root yet.
 Body `{"ep", "ref", "view"?, "take"}`. Copies the take into place, stitching the
 sheet when all four views are picked. Returns the ref as `/refs` lists it. 409 if the
 take isn't usable.
+
+### `POST /seriesmith/series/rename`
+
+`{ep, id, to}`: a series config entry's id changed, with its takes, picks, overrides and live files.
+400 when a script or another entry names it, a take is being made, or `to` is invalid or in use.
+Answers `{id, build}`.
 
 ### `POST /seriesmith/refs/import`
 Adds an image (or, for `voice`, an audio file) as a new take with `source:

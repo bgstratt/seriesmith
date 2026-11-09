@@ -5,7 +5,7 @@
 import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { isPaidBackend, openSeriesForm, openShotForm, openSource, openStoryboard, openViewer, refreshEpisode, requestRender, updateViewer, uploadRef } from "../actions";
 import { moveClip } from "../cutActions";
-import { dropFileOnto } from "../takeActions";
+import { dropFileOnto, importTakeFile, videoSeconds } from "../takeActions";
 import { gapAfter } from "../lib/takeDrop";
 import { api } from "../host";
 import { filesFromDrag } from "../lib/dropped";
@@ -13,7 +13,7 @@ import { keyframeRefId } from "../lib/keyframes";
 import { videoTargets } from "../lib/targets";
 import { clipTake } from "../lib/playlist";
 import {
-  bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, sketchable, takeToOpen, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_SIZES, tileSize, type TileSize,
+  bandShare, bareBeats, clock, dropSide, dropTargets, fillThenAdd, isVideoFile, mediaInOrder, heldIds, shotBefore, sketchable, takeToOpen, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_SIZES, tileSize, type TileSize,
   actGroups, moveDivider, ownBeatsFrom, pushed, toggleActBreak, type DropSide, type OwnBeat, type BoardPlan, type BoardAct, type BoardBeat, type BoardRun, type BoardShot, type SeriesChoices, type StoryboardAnswer, type StoryboardEdit,
 } from "../lib/storyboard";
 import { statusKey, store, useApp } from "../store";
@@ -31,8 +31,14 @@ export function StoryboardWindow() {
 const BIG_FILL = 50;
 
 /** The selected tile and what a click and a double-click on one do. */
-const Tiles = createContext<{ selected: string | null; select: (id: string) => void; open: (shot: BoardShot) => void }>({
-  selected: null, select: () => undefined, open: () => undefined,
+const Tiles = createContext<{
+  selected: string | null;
+  select: (id: string) => void;
+  open: (shot: BoardShot) => void;
+  /** Pictures dropped on a beat: into `empties` first, then a new shot each at the beat's end. */
+  pictures: (e: DragEvent, beat: { plain: string; nth: number }, empties: BoardShot[]) => void;
+}>({
+  selected: null, select: () => undefined, open: () => undefined, pictures: () => undefined,
 });
 
 function placeName(id: string): string {
@@ -387,6 +393,13 @@ function sideOf(e: DragEvent<HTMLElement>): DropSide | null {
   return dropSide((e.clientX - box.left) / box.width, Array.from(e.dataTransfer.types).includes(SHOT_MIME));
 }
 
+/** A place that takes pictures, lit while they're over it. */
+function overLanding(e: DragEvent<HTMLElement>) {
+  if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+  allowFiles(e);
+  e.currentTarget.dataset.over = "1";
+}
+
 function overTile(e: DragEvent<HTMLElement>) {
   const types = Array.from(e.dataTransfer.types);
   if (!types.includes("Files") && !types.includes(SHOT_MIME)) return;
@@ -457,8 +470,14 @@ function Beat({ beat, biggest, picked, pick, busy, edit, thumbs, onShotMenu, onR
   const left = fillCount([beat]);
   const point = beat.point !== undefined;
   const block = beat.block;
+  const tiles = useContext(Tiles);
+  const shots = beat.runs.flatMap((r) => r.shots);
+  const land = (e: DragEvent<HTMLElement>, empties: BoardShot[]) => {
+    delete e.currentTarget.dataset.over;
+    if (named) tiles.pictures(e, named, empties);
+  };
   return (
-    <div className="h3-sb-beat" onDragOver={allowFiles} onDrop={(e) => onFrames(e, beat.runs.flatMap((r) => r.shots), false)}>
+    <div className="h3-sb-beat" onDragOver={allowFiles} onDrop={(e) => (named ? land(e, shots) : onFrames(e, shots, false))}>
       <div className={`h3-sb-band${point ? " h3-sb-point" : ""}${beat.thin ? " h3-sb-thin" : ""}${beat.plain !== null && !beat.known ? " h3-sb-own" : ""}`}
         style={{ width: bandShare(beat.target_shots, biggest) }}
         onContextMenu={(e) => onBeatMenu(e, beat)}
@@ -475,8 +494,14 @@ function Beat({ beat, biggest, picked, pick, busy, edit, thumbs, onShotMenu, onR
           <Run key={`${run.sequence}${i}`} run={run} selected={picked === run.block} pick={() => pick(run)} thumbs={thumbs} onShotMenu={onShotMenu} onRunMenu={onRunMenu} onFrames={onFrames} />
         ))}
         {named && (
-          <button className="h3-sb-add" disabled={busy} title="Add a shot at the end of this beat"
+          <button className="h3-sb-add" disabled={busy} title="Add a shot at the end of this beat, or drop pictures or videos here for a new shot each"
+            onDragOver={overLanding} onDragLeave={(e) => delete e.currentTarget.dataset.over}
+            onDrop={(e) => land(e, [])}
             onClick={() => edit({ op: "add", beat: named })}>+</button>
+        )}
+        {named && !shots.length && (
+          <div className="h3-small h3-muted h3-sb-drophint" onDragOver={overLanding} onDragLeave={(e) => delete e.currentTarget.dataset.over}
+            onDrop={(e) => land(e, [])}>Drag pictures or videos here for a shot each</div>
         )}
         {named && left > 0 && (
           <button className="h3-link h3-small" disabled={busy} title={`Make the ${left} shots this beat is short of its target`}
@@ -646,7 +671,7 @@ function Storyboard({ ep }: { ep: string }) {
     for (const s of status?.shots ?? []) {
       const take = clipTake(s, s.cut.placeholder ? other : undefined);
       if (take?.thumb) out.set(s.shot, api().thumbUrl(ep, take.thumb, TILE_SIZES[size] * 2));
-      if (take && take.status === "ok" && !take.stale?.length) fresh.add(s.shot);
+      if (take && take.status === "ok" && (!take.stale?.length || take.source === "imported")) fresh.add(s.shot);
     }
     rendered.current = fresh;
     // a held shot shows its picture: a take of an earlier one, or of the gray card, is out of date
@@ -661,6 +686,14 @@ function Storyboard({ ep }: { ep: string }) {
     }
     return out;
   }, [ep, pass, status, other, data, size]);
+  /** Shots whose take in the cut is a video from outside: not empty, and nothing to sketch or hold. */
+  const videos = useMemo(() => {
+    const out = new Set<string>();
+    for (const s of status?.shots ?? []) {
+      if (clipTake(s, s.cut.placeholder ? other : undefined)?.source === "imported") out.add(s.shot);
+    }
+    return out;
+  }, [status, other]);
   const playable = useMemo(() => {
     const out = new Map<string, { take: number; pass: Pass }>();
     for (const s of status?.shots ?? []) {
@@ -812,10 +845,11 @@ function Storyboard({ ep }: { ep: string }) {
 
   /** Pictures dropped on the board: each becomes its shot's first frame, in filename order. */
   async function frames(found: Promise<File[]>, shots: BoardShot[], single: boolean) {
-    const files = picturesInOrder(await found);
-    const targets = dropTargets(shots, single);
-    if (!files.length) { setErr("That drop has no pictures in it."); return; }
-    if (!targets.length) { setErr("There are no empty shots there to fill."); return; }
+    // a tile takes a video as its take; a sequence's empty shots are for pictures
+    const files = single ? mediaInOrder(await found) : picturesInOrder(await found);
+    const targets = dropTargets(single ? shots : shots.filter((s) => !videos.has(s.id)), single);
+    if (!files.length) { setErr(single ? "That drop has no picture or video in it." : "That drop has no pictures in it."); return; }
+    if (!targets.length) { setErr("There are no empty shots there to fill. Drop on the beat's + for a new shot each."); return; }
     const pairs = targets.slice(0, single ? 1 : files.length).map((s, i) => ({ shot: s, file: files[i] })).filter((p) => p.file);
     setBusy(true);
     setErr(null);
@@ -834,6 +868,44 @@ function Storyboard({ ep }: { ep: string }) {
     setBusy(false);
     const spare = files.length - pairs.length;
     if (failed || spare) setErr(`${done} added.${failed ? ` ${failed} couldn't be added.` : ""}${spare ? ` ${spare} left over: not enough empty shots.` : ""}`);
+    if (length !== null && each !== null) setData(await api().storyboard(ep, chosen, length * 60, each));
+    void refreshEpisode(ep);
+  }
+
+  /** Pictures and videos dropped on a beat, in filename order: the empty shots first, then a new
+   * shot each, at its video's length, made in one edit so it's one undo. */
+  async function picturesOnBeat(found: Promise<File[]>, beat: { plain: string; nth: number }, empties: BoardShot[]) {
+    const files = mediaInOrder(await found);
+    if (!files.length) { setErr("That drop has no pictures or videos in it."); return; }
+    const { fill, extra } = fillThenAdd(files, dropTargets(empties.filter((s) => !videos.has(s.id)), false));
+    let made: string[] = [];
+    let order: string[] = [];
+    if (extra.length) {
+      const durs = await Promise.all(extra.map(async (f) => {
+        const seconds = isVideoFile(f) ? await videoSeconds(f) : null;
+        return seconds === null ? null : Math.max(0.1, Math.round(seconds * 10) / 10);
+      }));
+      const r = await edit({ op: "add", beat, durs });
+      if (!r) return;
+      made = r.made ?? [];
+      order = r.plan.acts.flatMap((a) => a.beats.flatMap((b) => b.runs.flatMap((x) => x.shots.map((s) => s.id))));
+    }
+    const pairs = [...fill.map((p) => ({ id: p.shot.id, file: p.file })), ...extra.map((file, i) => ({ id: made[i], file }))].filter((p) => p.id);
+    setBusy(true);
+    setErr(null);
+    let failed = 0;
+    for (let i = 0; i < pairs.length; i += 1) {
+      setDropping(`Adding pictures: ${i + 1} of ${pairs.length}`);
+      const { id, file } = pairs[i];
+      const ok = isVideoFile(file)
+        ? (await importTakeFile(id, file)) !== null
+        : await uploadRef(keyframeRefId(id, "first"), null, file, true);
+      if (!ok) failed += 1;
+      else if (isVideoFile(file) && made.includes(id)) await followInCut(id, order[order.indexOf(id) - 1] ?? null);
+    }
+    setDropping(null);
+    setBusy(false);
+    if (failed) setErr(`${pairs.length - failed} added. ${failed} couldn't be added.`);
     if (length !== null && each !== null) setData(await api().storyboard(ep, chosen, length * 60, each));
     void refreshEpisode(ep);
   }
@@ -879,7 +951,7 @@ function Storyboard({ ep }: { ep: string }) {
 
   const plan = data?.plan;
   const allBeats = plan?.acts.flatMap((a) => a.beats) ?? [];
-  const sketches = sketchable(allBeats);
+  const sketches = sketchable(allBeats, videos);
   const biggest = Math.max(0, ...allBeats.map((b) => b.target_shots ?? 0));
   const left = fillCount(allBeats);
   const bare = bareBeats(allBeats);
@@ -987,7 +1059,12 @@ function Storyboard({ ep }: { ep: string }) {
           <BoardMenu menu={menu} choices={choices} busy={busy} edit={(e) => void edit(e)} close={() => setMenu(null)}
             rename={(b) => setRenamingBeat(b.block)} fresh={rendered.current} />
         )}
-        <Tiles.Provider value={tiles}>
+        <Tiles.Provider value={{ ...tiles, pictures: (e, beat, empties) => {
+          if (!e.dataTransfer.types.includes("Files")) return;
+          e.preventDefault();
+          e.stopPropagation();
+          void picturesOnBeat(filesFromDrag(e.dataTransfer), beat, empties);
+        } }}>
         <div className="h3-sb-board">
           {plan?.acts.map((act, i) => {
             const key = `${act.act}${i}`;
