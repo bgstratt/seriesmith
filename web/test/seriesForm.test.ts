@@ -132,3 +132,16 @@ describe("a master recipe row's pattern", () => {
     expect(covers("ltx2", "ltx2_ingredients")).toBe(false);
   });
 });
+
+describe("files dropped on an add button", () => {
+  it("names each one with a free number and fills in the words the build requires", async () => {
+    const { droppedEntries } = await import("../src/lib/seriesForm");
+    const raw = { subjects: { character_1: { name: "Ada", design: "x" } }, locations: {} };
+    const out = droppedEntries(raw, "character", [true, false], "../refs/");
+    expect(out.map((m) => m.id)).toEqual(["character_2", "character_3"]);
+    expect(out[0].entry).toMatchObject({ kind: "character", name: "Character 2", design: "as in the reference picture", sheet_panels: 1 });
+    expect(out[1].entry.sheet_panels).toBeUndefined();
+    expect(droppedEntries(raw, "location", [false], "../refs/")[0].entry.description).toBe("as in the reference picture");
+    expect(droppedEntries(raw, "voice", [false], "../refs/")[0].entry).toMatchObject({ kind: "character", name: "Voice 1", voice: "as in the sample" });
+  });
+});

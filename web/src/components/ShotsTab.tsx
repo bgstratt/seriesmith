@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
-  build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openStoryboard, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
+  build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openFilmPath, openStoryboard, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
   clickShot, openSound, renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
 import { api, host } from "../host";
@@ -199,6 +199,9 @@ function BuildBar() {
         </button>
         <button className="h3-btn" title="A story structure and a duration as shots: act by act, beat by beat" onClick={() => openStoryboard(true)}>
           <i className="pi pi-th-large" /> Storyboard…
+        </button>
+        <button id="sm-guide-open" className="h3-btn" title="Where this episode has got to, and what's next" onClick={() => openFilmPath(true)}>
+          <i className="pi pi-compass" /> Guide…
         </button>
         {drafted > 0 && (
           <button className="h3-btn" title="Make finals (1080p, paid) from the Seedance drafts the proxy cut uses: choose which"

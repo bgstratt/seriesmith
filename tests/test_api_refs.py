@@ -133,6 +133,47 @@ class RefsApiTest(ApiTest):
         self.assertTrue(r["exists"])
         self.assertEqual([v["picked"] for v in r["views"]], [1, 1, 1, 1])
 
+    def add_unused(self, sid="zed"):
+        p = os.path.join(self.ep, "series.json")
+        with open(p, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        cfg["subjects"][sid] = {"kind": "character", "name": "Zed", "design": "as in the reference picture", "sheet_panels": 1,
+                                "sheet": f"refs/{sid}/{sid}_sheet_4panel.png"}
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh, indent=2)
+        self.ok(A.post_build(self.ctx, {"ep": self.ep}))
+
+    def test_rename_moves_an_unused_character_and_its_takes(self):
+        self.add_unused()
+        self.ok(A.post_refs_import(self.ctx, {"ep": self.ep, "ref": "subject:zed", "view": "sheet", "source_path": self.png(), "pick": True}))
+        self.ok(A.post_series_rename(self.ctx, {"ep": self.ep, "id": "zed", "to": "marlowe"}))
+        refs = self.refs()
+        self.assertNotIn("subject:zed", refs)
+        self.assertEqual(refs["subject:marlowe"]["path"], "refs/marlowe/marlowe_sheet_4panel.png")
+        self.assertTrue(os.path.isfile(os.path.join(self.ep, "refs", "marlowe", "marlowe_sheet_4panel.png")))
+        self.assertFalse(os.path.exists(os.path.join(self.ep, "refs", "zed")))
+        self.assertIn("voice:marlowe", refs)
+        folder = os.path.join(self.ep, "refs", "_takes", "subject__marlowe")
+        self.assertEqual(sorted(os.listdir(folder)), ["subject__marlowe_sheet_t01.json", "subject__marlowe_sheet_t01.png"])
+        with open(os.path.join(folder, "subject__marlowe_sheet_t01.json"), encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["ref"], "subject:marlowe")
+        with open(os.path.join(self.ep, "refs", "_picks.json"), encoding="utf-8") as fh:
+            picks = json.load(fh)["refs"]
+        self.assertIn("subject:marlowe", picks)
+        self.assertNotIn("subject:zed", picks)
+        s = R.load_series(self.ep)
+        ref = next(r for r in R.series_refs(s) if r.id == "subject:marlowe")
+        self.assertEqual([(t.take, t.paths.sidecar) for t in R.list_takes(ref, "sheet")],
+                         [(1, os.path.join(folder, "subject__marlowe_sheet_t01.json"))])
+
+    def test_rename_refuses_what_is_named_or_taken(self):
+        self.add_unused()
+        self.err(A.post_series_rename(self.ctx, {"ep": self.ep, "id": "ada", "to": "ida"}), 400)
+        self.err(A.post_series_rename(self.ctx, {"ep": self.ep, "id": "zed", "to": "ada"}), 400)
+        self.err(A.post_series_rename(self.ctx, {"ep": self.ep, "id": "zed", "to": "Not Valid"}), 400)
+        self.err(A.post_series_rename(self.ctx, {"ep": self.ep, "id": "nobody", "to": "x"}), 400)
+        self.assertIn("subject:zed", self.refs())
+
     def test_import(self):
         t = self.ok(A.post_refs_import(self.ctx, {"ep": self.ep, "ref": "subject:kettle",
                                                   "source_path": self.png()}))

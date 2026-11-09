@@ -1393,6 +1393,10 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       return { hash: "mock", plan: { id: "ep01", title: "Mock", structure, structure_known: true, duration: null, shots: 0, seconds: 0,
         untimed: 0, target_shots: null, shot_seconds: null, warnings: [], acts: [] } };
     },
+    async storyboardSketch() {
+      await wait();
+      return { queued: [], skipped: [], errors: [], step: null };
+    },
     async storyboardEdit(req) {
       await wait();
       return { hash: "mock", made: [], plan: { id: "ep01", title: "Mock", structure: req.structure, structure_known: true, duration: req.duration,
@@ -2632,6 +2636,9 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       return { ok: true, shot, target: "minimax_h3_ref2va", target_label: "MiniMax H3 Ref2VA", prompt: `The target video is the mock series. ${action}`,
         frames: 73, fps: 24, seconds: 3.04, width: pass === "proxy" ? 864 : 1344, height: pass === "proxy" ? 480 : 768,
         audio_policy: "generate", subjects: [], background: null, pacing: null, warnings: [] };
+    },
+    async renameEntry(req) {
+      return { id: req.to, build: null };
     },
     async putSource(req) {
       await wait(300);

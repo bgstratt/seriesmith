@@ -77,7 +77,7 @@ To change one, open an episode, save it again under the same name; **Delete save
 | To do this | Do this |
 |---|---|
 | One shot on every beat that has none | **One per beat** in the toolbar |
-| Add a shot at the end of a beat | **+** after its shots |
+| Add a shot at the end of a beat | **+** after its shots, or drop pictures or videos on it for a new shot each |
 | Add a shot next to another | Right-click it: **Add shot before** or **Add shot after** |
 | Bring a beat up to its target | **Fill** beside it |
 | Bring an act, or the whole episode, up to target | **Fill act** on its row, **Fill all** in the toolbar |
@@ -117,10 +117,20 @@ its old takes.
 
 Drop pictures on the board:
 
-- **The middle of a tile** sets that shot's first frame, whatever its model.
+- **The middle of a tile** sets that shot's first frame, whatever its model. A video there is the shot's new take.
 - **The edge of a tile** makes a new held shot there, holding the picture. One at a time.
-- **A sequence's bar or a beat** fills its empty shots, in filename order (`frame2` before
-  `frame10`). A folder works too. It tells you if there are pictures left over.
+- **A beat's +** makes a new shot for each picture or video, at the end of the beat, in filename
+  order (`frame2` before `frame10`). A folder works too. A beat with no shots says so: drag them
+  onto it. A video becomes the shot's take, in the cut, and the shot takes its length. It's left
+  out of **Sketch** and **Render held**.
+- **A beat** fills its empty shots first, then makes a new shot for each one left.
+- **A sequence's bar** fills its empty shots, and tells you if there are pictures left over.
+
+Or press **Sketch** in the toolbar to draw them: a first frame for each shot with no picture yet,
+from its action and the cast's pictures, on the keyframe image model. A sketch takes the gray
+card's place when it's done, and never replaces a picture you've put there. A shot whose action
+is still its beat's guidance is left out, since a sketch would only draw the guidance; the board
+names them, so rewrite those first.
 
 Then choose the pass you want and press **Render held**. It renders every held shot with no
 up-to-date take, on its picture or its gray card, on this machine for free. The takes land in

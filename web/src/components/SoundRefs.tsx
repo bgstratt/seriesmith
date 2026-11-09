@@ -12,7 +12,8 @@ import { deleteCue, loadCues, openCue } from "../cueActions";
 import { api } from "../host";
 import { cueTitle } from "../lib/cue";
 import { tn } from "../lib/format";
-import { currentMix, deleteMixItem, loadMix, makeBed, makeEffects, makeVoiceStems, openSoundAdd, pickMixFx, setMixBed, setMixFx, setMixItemMute, setShotVoicesMix, setVoicesOnlyMix, toggleSound } from "../mixActions";
+import { fileDrop } from "../dropAdd";
+import { currentMix, deleteMixItem, soundOnLane, loadMix, makeBed, makeEffects, makeVoiceStems, openSoundAdd, pickMixFx, setMixBed, setMixFx, setMixItemMute, setShotVoicesMix, setVoicesOnlyMix, toggleSound } from "../mixActions";
 import { store, useApp } from "../store";
 import type { AmbienceBed, FxShot, FxShotSummary, FxTake, MixItem, MixVoice, Ref, TrackKind } from "../types";
 import { kindOf, voicePlays, voicesOnly } from "../lib/mix";
@@ -23,7 +24,7 @@ import { VoiceCandidate, VoiceLive } from "./VoiceRef";
 function Section({ label, count, title, note, add, children }: {
   label: string; count: number; title: string; note?: string; children: React.ReactNode;
   /** a "+" on the head, as the cast groups' (opens SoundAdd's dialog) */
-  add?: { label: string; title: string; onClick: () => void };
+  add?: { label: string; title: string; onClick: () => void; onFiles?: (files: Promise<File[]>) => void };
 }) {
   const [folded, setFolded] = useState(false);
   return (
@@ -35,7 +36,8 @@ function Section({ label, count, title, note, add, children }: {
         {add && (
           <>
             <span className="h3-grow" />
-            <button className="h3-btn h3-add" title={add.title} data-add={label.toLowerCase()}
+            <button className="h3-btn h3-add" title={add.onFiles ? `${add.title}. Or drop a sound file here for the lane.` : add.title} data-add={label.toLowerCase()}
+              {...(add.onFiles ? fileDrop(add.onFiles) : {})}
               onClick={(e) => { e.stopPropagation(); add.onClick(); }}>
               <i className="pi pi-plus" /> {add.label}
             </button>
@@ -450,13 +452,15 @@ export function SoundRefsSections({ ep }: { ep: string }) {
   const fxShots = useFxShots(ep, pass);
   // the files on every track of that kind (the mix's own tracks too, docs/SOUND.md phase 6)
   const on = (kind: TrackKind) => items.filter((x) => kindOf(mix?.mix, x.track) === kind);
+  // files on the music lane that no cue made
+  const songs = on("music").filter((x) => !(cues ?? []).some((c) => c.spec.id === x.id));
   return (
     <>
       <DialogueSection ep={ep} />
-      <Section label="Music" count={cues?.length ?? 0}
+      <Section label="Music" count={(cues?.length ?? 0) + songs.length}
         title="The episode's music cues: each written to the hits in its span, its takes ranked in the cue window"
         note="A new cue: + Cue, or right-click a shot (Sound ▸ New music cue), the music lane under the timeline or a row of the spotting map."
-        add={{ label: "Cue", title: "A new music cue over a span of the cut: pick its first and last shot, or a sequence", onClick: () => openSoundAdd({ kind: "cue" }) }}>
+        add={{ label: "Cue", title: "A new music cue over a span of the cut: pick its first and last shot, or a sequence", onClick: () => openSoundAdd({ kind: "cue" }), onFiles: (f) => void soundOnLane("music", f) }}>
         {(cues ?? []).map((c) => {
           // its item in this pass's mix (picked in the cue window): muted or heard here
           const it = items.find((x) => x.id === c.spec.id);
@@ -488,10 +492,11 @@ export function SoundRefsSections({ ep }: { ep: string }) {
             </div>
           );
         })}
+        {songs.length > 0 && <ItemRows items={songs} empty="" />}
       </Section>
       <Section label="Effects" count={(fxShots?.length ?? 0) + on("effects").length}
         title="Each shot's effects, made from its take by a foley model, and the files on the effects lane of this pass's mix"
-        add={{ label: "Effects", title: "Make effects for the shots you pick (to start, the cut's shots without any), on a foley model", onClick: () => openSoundAdd({ kind: "fx" }) }}
+        add={{ label: "Effects", title: "Make effects for the shots you pick (to start, the cut's shots without any), on a foley model", onClick: () => openSoundAdd({ kind: "fx" }), onFiles: (f) => void soundOnLane("effects", f) }}
         note="Make effects: + Effects, or right-click a shot (Sound ▸ Make effects; on a selection, every selected shot). Each new take is picked as it lands; pick an earlier one here or on the Effects lane. A file of your own: Sound ▸ Add an effect, or drop one on the lane.">
         {fxShots && !fxShots.length && <div className="h3-muted h3-small h3-pad">No shot has effects made in this pass.</div>}
         {(fxShots ?? []).map((x) => <FxRow key={x.shot} ep={ep} pass={pass} s={x} />)}
@@ -499,7 +504,7 @@ export function SoundRefsSections({ ep }: { ep: string }) {
       </Section>
       <Section label="Ambience" count={(beds?.length ?? 0) + on("ambience").length}
         title="Each place's ambience bed, looped under its shots, and the files on the ambience lane of this pass's mix"
-        add={{ label: "Bed", title: "Make a place's ambience bed: pick one of the cut's places, say what's heard there if it has no words yet, and make it", onClick: () => openSoundAdd({ kind: "bed" }) }}
+        add={{ label: "Bed", title: "Make a place's ambience bed: pick one of the cut's places, say what's heard there if it has no words yet, and make it", onClick: () => openSoundAdd({ kind: "bed" }), onFiles: (f) => void soundOnLane("ambience", f) }}
         note="A place's bed is made from its location's `ambience` words (+ Bed, the location's form, or series.json) and plays under every shot set there, its angles and relit versions too. A file of your own: drop one on the Ambience lane; it plays over the beds.">
         {bedsError && <div className="h3-note h3-note-err h3-small">The beds didn't load: {bedsError}</div>}
         {beds && !beds.length && <div className="h3-muted h3-small h3-pad">No place says what's heard there: give a location its `ambience` words.</div>}

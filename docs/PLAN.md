@@ -2514,19 +2514,21 @@ To build, each ending in something that runs:
 
 ## The guided film path (designed 2026-11-09; docs/DESIGN.md, section 10)
 
-- [ ] **One wizard, six steps.** Idea, Story, Cast and places, Storyboard, Film, Watch, from Simple
-      (replacing **A series…**) and Advanced (replacing the New Episode Wizard). Rework
-      `components/NewEpisodeWizard.tsx`; `lib/wizard.ts`'s config and script writers stay.
-- [ ] **Automatic plumbing, "More" sections.** Folder, ids, model, sizes, dialogue, speech pace.
-- [ ] **Resumes from disk.** The files are written early; the step comes from what exists.
-- [ ] **Story's starts.** A structure (default), paste or import, an agent over MCP, a single
+- [x] **One wizard, six steps** (2026-11-09). Idea, Story and Cast in `components/NewEpisodeWizard.tsx`
+      (from Simple and Advanced), then the guide (`components/FilmPath.tsx`, **Guide…** in the Shots
+      tab) for Cast's pictures, Storyboard, Film and Watch. The Start from row stays above the steps:
+      an FCP7 edit has no Idea step to go through.
+- [x] **Automatic plumbing, "More" sections.** Folder, ids, model, sizes, dialogue, speech pace.
+- [x] **Resumes from disk.** The step comes from the script, the pictures and the takes (`lib/filmPath.ts`).
+- [x] **Story's starts.** A structure (default), paste or a file, an agent over MCP, a single
       shot, FCP7 XML.
-- [ ] **Cast from the script.** Cards offered for the names a script uses that the series lacks;
-      pictures made on this step.
-- [ ] **Film and Watch.** Generate, pick takes, re-do; play the cut, export. The existing queue,
-      takes, Play all and assemble.
-- [ ] **Sketches.** First frames on `hold` shots through the keyframe path; a shot whose action is
-      still its beat's guidance is left out and named.
+- [x] **Cast from the script.** Cards for the names a script uses that the series lacks, under the
+      script's ids; pictures made in the guide.
+- [x] **Film and Watch.** Film the shots with no take; Play all, Export.
+- [x] **Sketches.** `POST /seriesmith/storyboard/sketch`, **Sketch** on the board: first frames on `hold`
+      shots through the keyframe path; a shot whose action is still its beat's guidance is left out
+      and named.
+- [ ] **A logline.** The Idea step's one line was left out: nothing reads it yet.
 
 ## Later
 

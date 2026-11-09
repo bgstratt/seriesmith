@@ -9,7 +9,7 @@
 //    shot's per-pass prompt override is ignored, so the inspector shows its
 //    `effective.prompt` read-only.
 
-import type { OwnBeat, StoryboardAnswer, StoryboardBlock, StoryboardEdit } from "./lib/storyboard";
+import type { OwnBeat, StoryboardAnswer, StoryboardBlock, StoryboardEdit, StoryboardSketchAnswer } from "./lib/storyboard";
 import type { MixBeats } from "./lib/beats";
 import type {
   ColorMatch,
@@ -416,6 +416,8 @@ export interface Api {
   storyboard(ep: string, structure: string, duration: number, shot: number): Promise<StoryboardAnswer>;
   /** POST /seriesmith/storyboard/edit: 409 when the script changed since `base_hash`. */
   storyboardEdit(req: { ep: string; base_hash: string; structure: string; duration: number; shot: number } & StoryboardEdit): Promise<StoryboardAnswer>;
+  /** POST /seriesmith/storyboard/sketch: first frames for shots with no picture yet. */
+  storyboardSketch(req: { ep: string; shots: string[]; backend?: string }): Promise<StoryboardSketchAnswer>;
   /** POST /seriesmith/cue/draft: the first-pass score from the script's structure; written (its cues, hits and
    * the dialogue to voices only unless keep_sound) only with `write`. */
   scoreDraft(req: { ep: string; pass: Pass; write?: boolean; replace?: boolean; rendered?: boolean; keep_sound?: boolean;
@@ -510,6 +512,8 @@ export interface Api {
   mcpLaunch(port: string | null): Promise<McpLaunch>;
   /** POST /seriesmith/take/import: a video on the server's machine as a shot's take. */
   importTake(req: TakeImportRequest): Promise<ImportedShotTake>;
+  /** POST /seriesmith/series/rename: an entry's id, while nothing names it. */
+  renameEntry(req: { ep: string; id: string; to: string }): Promise<{ id: string; build: BuildResult | null }>;
   /** POST /seriesmith/take/import as multipart (a dropped or picked file), with progress. */
   uploadTake(req: TakeUploadRequest, onProgress?: UploadProgress): Promise<ImportedShotTake>;
   /** POST /seriesmith/take/copy: another shot's take copied in (the gallery's drag). */
@@ -956,6 +960,7 @@ export function createHttpApi(t: Transport): Api {
     deleteStructure: (name) => call("DELETE", `/seriesmith/structures/own?${qs({ name })}`),
     storyboard: (ep, structure, duration, shot) => get(`/seriesmith/storyboard?${qs({ ep, structure, duration: String(duration), shot: String(shot) })}`),
     storyboardEdit: (req) => call("POST", "/seriesmith/storyboard/edit", req),
+    storyboardSketch: (req) => call("POST", "/seriesmith/storyboard/sketch", req),
     storyboardBlock: (structure, duration, shot) => get(`/seriesmith/storyboard/block?${qs({ structure, duration: String(duration), shot: shot === undefined ? undefined : String(shot) })}`),
     compCue: (req) => call("POST", "/seriesmith/cue/comp", req),
     repaintCue: (req) => call("POST", "/seriesmith/cue/repaint", req),
@@ -1242,6 +1247,7 @@ export function createHttpApi(t: Transport): Api {
     sourceHash: (ep, file) => get(`/seriesmith/source?${qs({ ep, file, hash_only: "1" })}`),
     checkSource: (ep, file, text) => call("POST", "/seriesmith/source/check", { ep, file, text }),
     putSource: (req) => call("PUT", "/seriesmith/source", req),
+    renameEntry: (req) => call("POST", "/seriesmith/series/rename", req),
     previewShot: (ep, pass, text, shot) => call("POST", "/seriesmith/shot/preview", { ep, pass, text, shot }),
     promotePlan: (ep, shot) => get(`/seriesmith/promote?${qs({ ep, shot: shot || undefined })}`),
     promote: (ep, items, hashes, shot) => call("POST", "/seriesmith/promote", shot ? { ep, items, hashes, shot } : { ep, items, hashes }),

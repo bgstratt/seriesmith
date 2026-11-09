@@ -90,7 +90,7 @@ describe("simple mode's length and size", () => {
 
 describe("a supplied character picture", () => {
   it("is one whole picture unless shaped like a sheet of panels", async () => {
-    const { isOnePicture } = await import("../src/components/SubjectCard");
+    const { isOnePicture } = await import("../src/lib/seriesForm");
     expect(isOnePicture(1328, 1760)).toBe(true);      // a portrait (Ballroom's Cindy)
     expect(isOnePicture(1920, 1080)).toBe(true);      // a wide photo is still one picture
     expect(isOnePicture(4096, 1024)).toBe(false);     // four panels side by side (Red)

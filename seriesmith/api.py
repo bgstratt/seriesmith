@@ -828,7 +828,38 @@ def _dub_step(ctx: Context, p: dict) -> str:
         spec={"step": "dub", "params": p})
 
 
-STEPS = {"clip": _clip_step, "frame": _frame_step, "views": _views_step, "dub": _dub_step}
+def _sketch_open(ep: str, shot: str) -> bool:
+    """Whether a shot's first frame is free for a sketch: nothing there, or the gray card."""
+    from seriesmith.core import board as BD
+    path = os.path.join(ep, "refs", "shots", T.safe_id(shot), "first.png")
+    if not os.path.isfile(path):
+        return True
+    card = BD.gray_card()
+    if os.path.getsize(path) != len(card):
+        return False
+    with open(path, "rb") as fh:
+        return fh.read() == card
+
+
+def _sketch_step(ctx: Context, p: dict) -> str:
+    """The storyboard's sketches (post_storyboard_sketch): once made, each goes live on its shot,
+    unless a picture was put there meanwhile."""
+    ep, shots = p["ep"], p["shots"]
+
+    def then(report) -> str:
+        for shot in shots:
+            if _sketch_open(ep, shot):
+                _pick_newest(ep, f"shot:{shot}:first", None, report)
+        episode_event(ctx, ep)
+        return "succeeded"
+    return ctx.runner.enqueue_step(
+        f"{os.path.basename(os.path.normpath(ep))}: sketches onto the board", then,
+        info={"ep": ep}, wait=_refs_waiting(ctx, ep, [f"shot:{s}:first" for s in shots]),
+        spec={"step": "sketch", "params": p})
+
+
+STEPS = {"clip": _clip_step, "frame": _frame_step, "views": _views_step, "dub": _dub_step,
+         "sketch": _sketch_step}
 
 
 def rebuild_step(ctx: Context, resume: dict) -> str | None:
@@ -3128,7 +3159,7 @@ def get_storyboard(ctx: Context, query: dict):
 @handler
 def post_storyboard_edit(ctx: Context, body):
     """An edit from the storyboard, saved like the script editor's (`base_hash`, 409 when the file
-    changed; the old script to history; a rebuild): `op` is `add` (one stand-in on `beat`), `fill`
+    changed; the old script to history; a rebuild): `op` is `add` (one stand-in on `beat`, or one per `durs`: seconds, null a typical shot), `fill`
     (`beats`: each up to its target, or up to `each` shots), `place` (`block`, `place`), `cast` (`block`, `who`), `structure` (`name`), `rename_beat` (`block`,
     `name`), `add_after` (`block`, optionally `before`), `move_shot` (`block`, `target`, `after`), `convert` (`shots`, `target`), `delete_shot` (`block`: a shot's), `add_sequence` (`block`, `place`),
     `add_beat` (`beat`, `name`, optionally `act`), `lay_out` (`name`: a structure over a script with no beats), `remove_beat`, `rename_act` or `remove_act`
@@ -3157,6 +3188,10 @@ def post_storyboard_edit(ctx: Context, body):
     if each is not None and (not isinstance(each, int) or isinstance(each, bool) or each < 1):
         raise ApiError(400, "each must be a whole number above zero")
     op = body.get("op")
+    durs = body.get("durs") if op == "add" else None
+    if durs is not None and (not isinstance(durs, list) or not durs or not all(
+            d is None or (isinstance(d, (int, float)) and not isinstance(d, bool) and d > 0) for d in durs)):
+        raise ApiError(400, "durs must be a list of seconds above zero, or null for a typical shot")
     made: list[str] = []
     try:
         if op in ("add", "fill"):
@@ -3183,7 +3218,8 @@ def post_storyboard_edit(ctx: Context, body):
                 # only a script's first sequence has to be told where it is
                 no_sequence = not any(b["kind"] == "sequence" for b in doc["blocks"])
                 opening = place or (places[0] if places and no_sequence else None)
-                made += BD.add_stand_ins(doc, at, count, seconds, row["guidance"], place=opening)
+                for length in (durs if durs else [None]) if op == "add" else [None]:
+                    made += BD.add_stand_ins(doc, at, count, float(length) if length else seconds, row["guidance"], place=opening)
         elif op == "place":
             if place is None:
                 raise ApiError(400, "place is required")
@@ -3252,6 +3288,38 @@ def post_storyboard_edit(ctx: Context, body):
     episode_event(ctx, ep)
     fresh = BD.read(P.H.read_source(ep, "script").text)
     return _board_answer(ep, fresh, structure, body, saved["hash"], made=made, check=saved["check"], build=build)
+
+
+@handler
+def post_storyboard_sketch(ctx: Context, body):
+    """First frames for shots on the board, from each shot's action and refs on the keyframe image
+    model (refs.keyframe_target). Body {ep, shots, backend?}. A shot that already has a picture is
+    skipped. {"queued", "skipped": [{shot, reason}], "errors": [{shot, error}], "step"}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    shots = body.get("shots")
+    if not isinstance(shots, list) or not shots or not all(isinstance(s, str) for s in shots):
+        raise ApiError(400, "shots must be a list of shot ids")
+    backend = _opt_backend(ctx, body)
+    if ctx.runner is None:
+        raise ApiError(409, "sketches need seriesmith's queue (seriesmith serve)")
+    queued, skipped, errors, asked = [], [], [], []
+    for shot in shots:
+        check_shot(shot)
+        if not _sketch_open(ep, shot):
+            skipped.append({"shot": shot, "reason": "it already has a picture"})
+            continue
+        status, data = _generate(ctx, {"ep": ep, "ref": f"shot:{shot}:first", "count": 1,
+                                       **({"backend": backend} if backend else {})})
+        if status >= 400:
+            errors.append({"shot": shot, "error": data.get("error")})
+            continue
+        queued += data.get("queued") or []
+        errors += [{"shot": shot, "error": x.get("error")} for x in data.get("errors") or []]
+        if data.get("queued"):
+            asked.append(shot)
+    step = _sketch_step(ctx, {"ep": ep, "shots": asked}) if asked else None
+    return 200, {"queued": queued, "skipped": skipped, "errors": errors, "step": step}
 
 
 @handler
@@ -6329,6 +6397,23 @@ def post_shot_preview(ctx: Context, body):
 
 
 @handler
+def post_series_rename(ctx: Context, body):
+    """A series config entry's id changed while nothing names it (`id`, `to`; rename.py): its entry,
+    takes, picks, overrides and live files move together, and the episode is rebuilt."""
+    from seriesmith import rename as RN
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    s = _series(ep)
+    try:
+        RN.rename(s, body.get("id"), body.get("to"))
+    except RN.RenameError as e:
+        raise ApiError(400, str(e))
+    build = E.build_episode(ep)
+    episode_event(ctx, ep)
+    return 200, {"id": body.get("to"), "build": build}
+
+
+@handler
 def put_source(ctx: Context, body):
     """Save the script or the series config (409 when it changed on disk
     since `base_hash`), then rebuild unless `rebuild` is false."""
@@ -6850,6 +6935,7 @@ ROUTES = [
     ("GET", "/seriesmith/storyboard/block", get_storyboard_block, "query"),
     ("GET", "/seriesmith/storyboard", get_storyboard, "query"),
     ("POST", "/seriesmith/storyboard/edit", post_storyboard_edit, "body"),
+    ("POST", "/seriesmith/storyboard/sketch", post_storyboard_sketch, "body"),
     ("POST", "/seriesmith/cue/comp", post_cue_comp, "body"),
     ("POST", "/seriesmith/cue/repaint", post_cue_repaint, "body"),
     ("GET", "/seriesmith/fx", get_fx, "query"),
@@ -6930,6 +7016,7 @@ ROUTES = [
     ("POST", "/seriesmith/source/check", post_source_check, "body"),
     ("POST", "/seriesmith/check", post_check, "body"),
     ("PUT", "/seriesmith/source", put_source, "body"),
+    ("POST", "/seriesmith/series/rename", post_series_rename, "body"),
     ("POST", "/seriesmith/shot/preview", post_shot_preview, "body"),
     ("GET", "/seriesmith/promote", get_promote, "query"),
     ("POST", "/seriesmith/promote", post_promote, "body"),

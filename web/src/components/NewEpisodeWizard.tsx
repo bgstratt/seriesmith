@@ -1,13 +1,14 @@
-// The new episode wizard: a new series or its next episode in four short steps
-// — where it goes, the series (a new one only), who and where it's about, and
-// its first shot — written in one POST /seriesmith/episode/new (lib/wizard.ts).
-// A next episode starts from its newest neighbour's series config, so the cast,
-// look and settings carry over and only what's new is added. A new series can
-// instead start "From an edit (FCP7 XML)": XmlImportPanel.
+// The new episode wizard: a new series or its next episode, in Simple and in Advanced — the idea,
+// the story and who and where it's about, written in one POST /seriesmith/episode/new
+// (lib/wizard.ts); the guide (FilmPath.tsx) takes it from there. Everything a person needn't decide
+// is filled in, in "More". A next episode starts from its newest neighbour's series config, so the
+// cast, look and settings carry over and only what's new is added. An edit made elsewhere is a
+// start of its own: XmlImportPanel.
 
 import { useEffect, useMemo, useState } from "react";
-import { build, loadEpisodes, loadTargets, openBrowse, openEpisodeAt, openShotForm, openStoryboard, openWizard } from "../actions";
+import { build, loadEpisodes, loadTargets, openBrowse, openEpisodeAt, openFilmPath, openShotForm, openWizard, setSimple } from "../actions";
 import { api, host } from "../host";
+import { scriptForEpisode } from "../lib/filmPath";
 import { nameError } from "../lib/newEpisode";
 import {
   DEFAULT_PROXY, FINAL_SIZES, PROXY_SIZES, SECTIONS, cardFields, getPath, parsed, refsPrefix, serialize, setPath, setSize,
@@ -17,7 +18,7 @@ import { SIZES, listOf, newShot, type ShotForm as Shot } from "../lib/shotForm";
 import { pictureOf } from "../lib/pictures";
 import { sizeRule } from "../lib/size";
 import {
-  WIZARD_KINDS, castId, castOfConfig, castProblems, blockedScript, firstScript, seriesConfig, showFolder, withCast, type NewCast,
+  WIZARD_KINDS, castId, castOfConfig, castProblems, blockedScript, firstScript, seriesConfig, showFolder, withCast, withScriptNames, type NewCast,
 } from "../lib/wizard";
 import { useApp } from "../store";
 import type { EpisodeTemplate } from "../types";
@@ -29,7 +30,11 @@ import { CameraField, Chips, DialogueRows, PlacePick, Row, type Cast } from "./S
 import { XmlImportPanel } from "./XmlImportPanel";
 
 const RECT_KEY = "seriesmith.wizard.rect";
-const STEPS = ["Where", "Series", "Cast and places", "First shot"] as const;
+const IDEA = 0;
+const STORY = 1;
+const CAST = 2;
+const STEP_NAMES = ["Idea", "Story", "Cast and places"] as const;
+type Start = "board" | "script" | "agent" | "write" | "xml";
 
 function defaultRect(): Rect {
   const W = window.innerWidth || 1280;
@@ -46,7 +51,7 @@ export function NewEpisodeWizard() {
 
 const FIELD = (p: string): Field => SECTIONS.flatMap((s) => s.fields).find((f) => f.path.join(".") === p)!;
 
-function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boolean; startFrom?: "write" | "xml" | "board" }) {
+function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boolean; startFrom?: Start }) {
   const targets = useApp((s) => s.targets);
   const [step, setStep] = useState(0);
   const [title, setTitle] = useState("");           // the series' (a new one)
@@ -66,10 +71,13 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
   const [placeText, setPlaceText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // written here, or an edit made elsewhere imported (XmlImportPanel): a new show, or
-  // the next episode of the show in `parent`
-  const [from, setFrom] = useState<"write" | "xml" | "board">(startFrom ?? "write");
+  // where the story comes from; an edit made elsewhere is imported (XmlImportPanel): a new show,
+  // or the next episode of the show in `parent`
+  const [from, setFrom] = useState<Start>(startFrom ?? "board");
+  const [scriptText, setScriptText] = useState("");
   const onBoard = from === "board";
+  const fromScript = from === "script";
+  const fromAgent = from === "agent";
   const [structures, setStructures] = useState<string[]>([]);
   const [structure, setStructure] = useState("");
   const [boardMinutes, setBoardMinutes] = useState("7");
@@ -116,7 +124,9 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
   const full = base ? withCast(base, cast, prefix) : null;
   const known = full ? castOfConfig(full) : { characters: [], things: [], locations: [] };
   const problems = base ? castProblems(base, cast) : [];
-  const steps = STEPS.map((s, i) => ({ s, i })).filter(({ i }) => i !== 1 || isNewSeries);
+  // a single shot picks its people, so they come before it; an agent's script brings its own
+  const order = from === "write" ? [IDEA, CAST, STORY] : fromAgent ? [IDEA, STORY] : [IDEA, STORY, CAST];
+  const steps = order.map((i) => ({ s: STEP_NAMES[i], i }));
 
   // the first sequence's place: the one picked while it still exists, else the
   // first there is (worked out each time, so a place renamed while its name was
@@ -135,21 +145,27 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
 
   // what stops each step
   const blockers: Record<number, string | null> = {
-    0: !tpl ? (tplErr ?? (startNew && !title.trim() ? "Give the series a title." : startNew ? nameError(show) : "…"))
+    [IDEA]: !tpl ? (tplErr ?? (startNew && !title.trim() ? "Give the series a title." : startNew ? nameError(show) : "…"))
       : startNew && !title.trim() && isNewSeries ? "Give the series a title."
-      : nameError(name) ?? (tpl.episodes.includes(name.trim()) ? `${name} is already there.` : null),
-    1: !String(getPath(series, ["series", "id"]) ?? "").trim() ? "Give the series an id."
-      : !String(getPath(series, ["style", "look"]) ?? "").trim() ? "Say the look: every shot's prompt opens with it." : null,
-    2: problems.find(Boolean) ?? null,
-    3: onBoard
-      ? (!structure ? "Pick a structure."
-        : !(Number(boardMinutes) > 0) ? "Say how long it runs."
-        : !place && !placeText.trim() ? "Say where it opens: a location needs words, even with no picture." : null)
+      : nameError(name) ?? (tpl.episodes.includes(name.trim()) ? `${name} is already there.`
+        : !String(getPath(series, ["series", "id"]) ?? "").trim() ? "Give the series an id (under More)."
+        : isNewSeries && !String(getPath(series, ["style", "look"]) ?? "").trim() ? "Say the look: every shot's prompt opens with it." : null),
+    [STORY]: onBoard
+      ? (!structure ? "Pick a structure." : !(Number(boardMinutes) > 0) ? "Say how long it runs." : null)
+      : fromScript ? (!scriptText.trim() ? "Paste the script, or load its file." : null)
+      : fromAgent ? null
       : !shot.action.trim() ? "Say what happens in it." : null,
+    [CAST]: problems.find(Boolean)
+      ?? (onBoard && !place && !placeText.trim() ? "Say where it opens: a location needs words, even with no picture." : null),
   };
-  const at = steps.findIndex((x) => x.i === step);
+  const at = Math.max(0, steps.findIndex((x) => x.i === step));
   const last = at === steps.length - 1;
-  const go = (d: number) => setStep(steps[Math.max(0, Math.min(steps.length - 1, at + d))].i);
+  const moveTo = (i: number) => {
+    // the script's people and places are the next step's cards
+    if (i === CAST && fromScript && base) setCast((c) => withScriptNames(c, base, scriptText));
+    setStep(i);
+  };
+  const go = (d: number) => moveTo(steps[Math.max(0, Math.min(steps.length - 1, at + d))].i);
 
   /** the shot with only the cast that still exists (one renamed after it was
    * picked would otherwise break the script) */
@@ -162,12 +178,16 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
   async function create() {
     if (!tpl || !full) return;
     // no location: a place of the first shot's own, described in words only
-    const inWords = !place;
+    const inWords = !place && !fromScript && !fromAgent;
     const where = inWords ? "place" : place;
     const config = inWords
       ? setPath(full, ["locations", where], { description: placeText.trim() || shot.action.trim() })
       : full;
     const epName = epTitle.trim() || (isNewSeries ? title.trim() : "");
+    const scriptOut = onBoard ? blockedScript(name.trim(), epName, structure, Number(boardMinutes) * 60)
+      : fromScript ? scriptForEpisode(name.trim(), epName, scriptText)
+      : fromAgent ? `= ${name.trim()}${epName ? `  ${epName}` : ""}\n`
+      : firstScript(name.trim(), epName, "sq01", where, current(shot));
     setBusy(true);
     setError(null);
     try {
@@ -175,13 +195,11 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
         parent, name: name.trim(), title: epTitle.trim() || null,
         show: showName || null,
         series: serialize(config, tpl.series ?? "\n"),
-        script: onBoard
-          ? blockedScript(name.trim(), epName, structure, Number(boardMinutes) * 60)
-          : firstScript(name.trim(), epName, "sq01", where, current(shot)),
+        script: scriptOut,
       });
       host().toast(res.check.ok ? "success" : "warn", `Made ${res.episode.name}`,
-        res.check.ok ? `${res.ep}\nNext: the pictures (Refs tab), then Build.` : res.check.errors[0]?.message ?? "");
-      if (inWords || !known.characters.length) {
+        res.check.ok ? res.ep : res.check.errors[0]?.message ?? "");
+      if (!fromAgent && (inWords || !known.characters.length)) {
         host().toast("warn", "Shots won't stay consistent yet",
           `${inWords ? "The place is described in words, with no picture" : "There are no characters with pictures"}: `
           + "each shot imagines it its own way. Add pictures (Refs tab: a location's plate, a character's sheet) "
@@ -190,10 +208,11 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
       await loadEpisodes();
       openWizard(null);
       openShotForm(null);
+      setSimple(false);                                  // a series' episodes open in Advanced
       // opened and built, so the shots are there and the refs it needs are listed
       if (await openEpisodeAt(res.ep, tpl.parent)) {
         await build();
-        if (onBoard) openStoryboard(true);
+        openFilmPath(true);
       }
     } catch (e) {
       setError((e as Error).message);
@@ -205,14 +224,14 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
   const head = (
     <>
       <button id="sm-wizard-back" className="h3-btn h3-link" title="Back to Project folders (where you were)" onClick={() => {
-        if (!fromXml && (title || cast.length || shot.action) && !window.confirm("Leave the wizard? Nothing has been written yet.")) return;
+        if (!fromXml && (title || cast.length || shot.action || scriptText) && !window.confirm("Leave the wizard? Nothing has been written yet.")) return;
         openWizard(null);
         openBrowse({ purpose: "roots" });
       }}><i className="pi pi-angle-left" /> Project folders</button>
       <span className="h3-muted">›</span>
       <span className="h3-grow">{fromXml ? (startNew ? "New series from an edit" : "New episode from an edit") : startNew && isNewSeries ? "New series" : "New episode"}</span>
       <button className="h3-btn h3-icon" title="Close" onClick={() => {
-        if (!fromXml && (title || cast.length || shot.action) && !window.confirm("Close the wizard? Nothing has been written yet.")) return;
+        if (!fromXml && (title || cast.length || shot.action || scriptText) && !window.confirm("Close the wizard? Nothing has been written yet.")) return;
         openWizard(null);
       }}><i className="pi pi-times" /></button>
     </>
@@ -228,15 +247,25 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
   const placeList: Named[] = known.locations.map((id) => ({ id, name: id.replace(/_/g, " "), pic: pictureOf(full, null, "locations", id) }));
   const setKey = (k: string, v: string) => setShot((s) => ({ ...s, keys: { ...s.keys, [k]: v } }));
   const block = blockers[step];
+  // the steps differ by start; the one you're on stays if the new start has it
+  const pickStart = (next: Start) => {
+    setFrom(next);
+    if (next === "agent" && step === CAST) setStep(STORY);
+  };
+  const loadScript = (file: File | undefined) => {
+    if (file) void file.text().then(setScriptText, (e) => setError((e as Error).message));
+  };
 
   return (
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultRect} head={head} minW={420} minH={360}>
       {(
         <div id="sm-wizard-from" className="h3-row" style={{ padding: "6px 10px", gap: 6, borderBottom: "1px solid var(--h3-border)" }}>
           <span className="h3-small h3-muted">Start from</span>
-          <button className={`h3-btn${from === "write" ? " h3-on" : ""}`} onClick={() => setFrom("write")}>A first shot I write</button>
-          <button id="sm-wizard-board" className={`h3-btn${onBoard ? " h3-on" : ""}`} title="A story structure and a length: the episode opens on the storyboard, with no shots yet" onClick={() => setFrom("board")}>Block from a structure</button>
-          <button id="sm-wizard-xml" className={`h3-btn${from === "xml" ? " h3-on" : ""}`} onClick={() => setFrom("xml")}>From an edit (FCP7 XML)…</button>
+          <button id="sm-wizard-board" className={`h3-btn${onBoard ? " h3-on" : ""}`} title="A story structure and a length: you block it in on the storyboard" onClick={() => pickStart("board")}>A structure</button>
+          <button id="sm-wizard-script" className={`h3-btn${fromScript ? " h3-on" : ""}`} title="A finished seriesmith script, pasted or from a file" onClick={() => pickStart("script")}>A script</button>
+          <button id="sm-wizard-agent" className={`h3-btn${fromAgent ? " h3-on" : ""}`} title="Written by the script-writing skill in your own agent, and sent here over MCP" onClick={() => pickStart("agent")}>My agent</button>
+          <button id="sm-wizard-write" className={`h3-btn${from === "write" ? " h3-on" : ""}`} title="One shot you describe now; add the rest later" onClick={() => pickStart("write")}>A single shot</button>
+          <button id="sm-wizard-xml" className={`h3-btn${from === "xml" ? " h3-on" : ""}`} onClick={() => pickStart("xml")}>An edit (FCP7 XML)…</button>
         </div>
       )}
       {fromXml ? (
@@ -247,22 +276,16 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
       <div className="h3-row" style={{ padding: "6px 10px", gap: 6, borderBottom: "1px solid var(--h3-border)" }}>
         {steps.map(({ s, i }, n) => (
           <button key={s} className={`h3-btn${i === step ? " h3-on" : ""}`} disabled={n > at && !!blockers[step]}
-            onClick={() => setStep(i)}>{n + 1}. {i === 3 && onBoard ? "Structure" : s}</button>
+            onClick={() => moveTo(i)}>{n + 1}. {i === STORY && from === "write" ? "First shot" : s}</button>
         ))}
       </div>
       <div id="sm-wizard" className="h3-col" style={{ padding: 10, gap: 10, overflow: "auto", flex: 1, minHeight: 0 }}>
-        {step === 0 && (
+        {step === IDEA && (
           <>
             {startNew && (
-              <>
-                <Row label="Series title" help="The show's name, and the start of its id.">
-                  <input className="h3-in" autoFocus value={title} placeholder="First Light" onChange={(e) => setTitleAll(e.target.value)} />
-                </Row>
-                <Row label="Show folder" help={`A folder of its own in ${parent}: its episodes go in it, with one refs folder beside them that they share.`}>
-                  <input className="h3-in h3-mono" value={show} placeholder="First_Light"
-                    onChange={(e) => { setShow(e.target.value.trim()); setShowTouched(true); }} />
-                </Row>
-              </>
+              <Row label="Series title" help="The show's name, and the start of its id.">
+                <input className="h3-in" autoFocus value={title} placeholder="First Light" onChange={(e) => setTitleAll(e.target.value)} />
+              </Row>
             )}
             {tpl && (
               <div className="h3-small h3-muted">
@@ -277,44 +300,80 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
                 <input className="h3-in" value={title} placeholder="First Light" onChange={(e) => setTitleAll(e.target.value)} />
               </Row>
             )}
-            <div className="h3-row h3-wrap" style={{ gap: 10, alignItems: "flex-start" }}>
-              <Row label="Episode" help="The folder and the script's name (ep01 → ep01/ep01.md).">
-                <input className="h3-in h3-mono" style={{ width: 120 }} value={name}
-                  onChange={(e) => { setName(e.target.value.trim()); setNameTouched(true); }} />
+            {(!startNew || !isNewSeries) && (
+              <Row label="Episode title" help="Written under the series title on the master; optional.">
+                <input className="h3-in" value={epTitle} placeholder="The Pier" onChange={(e) => setEpTitle(e.target.value)} />
               </Row>
-              <div className="h3-grow">
-                <Row label="Episode title" help="Written under the series title on the master; optional.">
-                  <input className="h3-in" value={epTitle} placeholder="The Pier" onChange={(e) => setEpTitle(e.target.value)} />
-                </Row>
-              </div>
-            </div>
-          </>
-        )}
-
-        {step === 1 && (
-          <>
-            <FieldRow f={FIELD("series.id")} value={shown(series, FIELD("series.id"))}
-              onChange={(v) => { setSeries((r) => setPath(r, ["series", "id"], v)); setIdTouched(true); }} />
-            <FieldRow f={FIELD("series.target")} value={shown(series, FIELD("series.target"))} targets={list} defaults={targets?.default}
-              onChange={(v) => setSeries((r) => setPath(r, ["series", "target"], v))} />
-            <SizeField label="Size (final)" value={sizeOf(series, "series")} choices={FINAL_SIZES} rule={rule}
-              help="The size the final pass renders at. 1344×768 is H3's own; a master is upscaled from it."
-              onChange={(v) => setSeries((r) => setSize(r, "series", v))} />
-            <SizeField label="Size (proxy)" value={sizeOf(series, "proxy")} choices={PROXY_SIZES} rule={rule}
-              placeholder={DEFAULT_PROXY} note={shapeNote(sizeOf(series, "series"), sizeOf(series, "proxy"))}
-              help="The animatic: the same shots, small and quick, to judge the cut by. 480p is the smallest that still reads."
-              onChange={(v) => setSeries((r) => setSize(r, "proxy", v))} />
-            {["style.look", "audio.mode", "speech.pace"].map((p) => (
-              <FieldRow key={p} f={FIELD(p)} value={shown(series, FIELD(p))}
-                onChange={(v) => setSeries((r) => setPath(r, FIELD(p).path, parsed(FIELD(p), v)))}
+            )}
+            {isNewSeries && (
+              <FieldRow f={FIELD("style.look")} value={shown(series, FIELD("style.look"))}
+                onChange={(v) => setSeries((r) => setPath(r, FIELD("style.look").path, parsed(FIELD("style.look"), v)))}
                 lookParts={(getPath(series, ["style", "look_parts"]) as Record<string, string> | undefined) ?? null}
                 onLookParts={(lp) => setSeries((r) => setPath(r, ["style", "look_parts"], lp))} />
-            ))}
-            <div className="h3-small h3-muted">The rest (models for pictures and voices, finishing, the intro and outro) is in Series settings, any time.</div>
+            )}
+            <details id="sm-wizard-more">
+              <summary className="h3-small">More: folders, model, sizes</summary>
+              <div className="h3-col" style={{ gap: 10, paddingTop: 8 }}>
+                {startNew && (
+                  <Row label="Show folder" help={`A folder of its own in ${parent}: its episodes go in it, with one refs folder beside them that they share.`}>
+                    <input className="h3-in h3-mono" value={show} placeholder="First_Light"
+                      onChange={(e) => { setShow(e.target.value.trim()); setShowTouched(true); }} />
+                  </Row>
+                )}
+                <Row label="Episode" help="The folder and the script's name (ep01 → ep01/ep01.md).">
+                  <input className="h3-in h3-mono" style={{ width: 120 }} value={name}
+                    onChange={(e) => { setName(e.target.value.trim()); setNameTouched(true); }} />
+                </Row>
+                {startNew && isNewSeries && (
+                  <Row label="Episode title" help="Written under the series title on the master; optional.">
+                    <input className="h3-in" value={epTitle} placeholder="The Pier" onChange={(e) => setEpTitle(e.target.value)} />
+                  </Row>
+                )}
+                {isNewSeries && (
+                  <>
+                    <FieldRow f={FIELD("series.id")} value={shown(series, FIELD("series.id"))}
+                      onChange={(v) => { setSeries((r) => setPath(r, ["series", "id"], v)); setIdTouched(true); }} />
+                    <FieldRow f={FIELD("series.target")} value={shown(series, FIELD("series.target"))} targets={list} defaults={targets?.default}
+                      onChange={(v) => setSeries((r) => setPath(r, ["series", "target"], v))} />
+                    <SizeField label="Size (final)" value={sizeOf(series, "series")} choices={FINAL_SIZES} rule={rule}
+                      help="The size the final pass renders at. 1344×768 is H3's own; a master is upscaled from it."
+                      onChange={(v) => setSeries((r) => setSize(r, "series", v))} />
+                    <SizeField label="Size (proxy)" value={sizeOf(series, "proxy")} choices={PROXY_SIZES} rule={rule}
+                      placeholder={DEFAULT_PROXY} note={shapeNote(sizeOf(series, "series"), sizeOf(series, "proxy"))}
+                      help="The animatic: the same shots, small and quick, to judge the cut by. 480p is the smallest that still reads."
+                      onChange={(v) => setSeries((r) => setSize(r, "proxy", v))} />
+                    {["audio.mode", "speech.pace"].map((p) => (
+                      <FieldRow key={p} f={FIELD(p)} value={shown(series, FIELD(p))}
+                        onChange={(v) => setSeries((r) => setPath(r, FIELD(p).path, parsed(FIELD(p), v)))} />
+                    ))}
+                    <div className="h3-small h3-muted">The rest (models for pictures and voices, finishing, the intro and outro) is in Series settings, any time.</div>
+                  </>
+                )}
+              </div>
+            </details>
           </>
         )}
 
-        {step === 2 && base && (
+        {step === STORY && fromScript && (
+          <>
+            <Row label="The script" help="A seriesmith script. To turn a screenplay into one, use the script-writing skill in your agent.">
+              <textarea id="sm-wizard-script-text" className="h3-in h3-mono" rows={14} style={{ resize: "vertical" }} value={scriptText}
+                onChange={(e) => setScriptText(e.target.value)} />
+            </Row>
+            <label className="h3-row h3-small">Or load a file
+              <input type="file" accept=".md,.txt" onChange={(e) => loadScript(e.target.files?.[0])} />
+            </label>
+            <div className="h3-small h3-muted">The people, things and places it names get cards on the next step.</div>
+          </>
+        )}
+        {step === STORY && fromAgent && (
+          <div className="h3-col h3-small" style={{ gap: 6 }}>
+            <span>This makes the series and an empty episode. Then write the script with the script-writing skill in the agent you already use, connected with <code>seriesmith mcp</code>, and have it save the script to the episode.</span>
+            <span className="h3-muted">The guide shows the episode's folder, and moves on by itself when the script arrives.</span>
+          </div>
+        )}
+
+        {step === CAST && base && (
           <>
             <div className="h3-small h3-muted">
               {isNewSeries
@@ -332,9 +391,9 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
                   ))}
               </div>
             )}
-            {!known.locations.length && (
+            {!known.locations.length && !fromScript && (
               <div className="h3-note h3-small">
-                No location yet. That's allowed: the first shot's place can be described in words on the next step. But
+                No location yet. That's allowed: the first place can be described in words. But
                 H3 keeps a series looking the same from shot to shot by its pictures: without a picture of the place (and
                 of the people), each shot imagines them its own way. Add them here, or later in the Refs tab.
               </div>
@@ -349,10 +408,15 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
                 <button key={k.kind} className="h3-btn" onClick={() => setCast([...cast, { kind: k.kind, id: "", fields: {} }])}>{k.add}</button>
               ))}
             </div>
+            {onBoard && !place && (
+              <Row label="Where it opens" help="This series has no locations yet, and a sequence needs one. Words are enough: it has no picture, so it may look different from shot to shot.">
+                <input className="h3-in" value={placeText} placeholder="a small pond at dawn, reeds, mist on the water" onChange={(e) => setPlaceText(e.target.value)} />
+              </Row>
+            )}
           </>
         )}
 
-        {step === 3 && onBoard && (
+        {step === STORY && onBoard && (
           <>
             <Row label="Structure" help="The beats it starts from. You can change it, and add your own, on the storyboard.">
               <select className="h3-in" value={structure} onChange={(e) => setStructure(e.target.value)}>
@@ -362,14 +426,9 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
             <Row label="Minutes" help="How long it's meant to run. It sets every beat's target, and you can change it later.">
               <input className="h3-in" type="number" min="0.1" step="any" value={boardMinutes} onChange={(e) => setBoardMinutes(e.target.value)} />
             </Row>
-            {!place && (
-              <Row label="Where it opens" help="This series has no locations yet, and a sequence needs one. Words are enough: it has no picture, so it may look different from shot to shot.">
-                <input className="h3-in" value={placeText} placeholder="a small pond at dawn, reeds, mist on the water" onChange={(e) => setPlaceText(e.target.value)} />
-              </Row>
-            )}
           </>
         )}
-        {step === 3 && !onBoard && (
+        {step === STORY && from === "write" && (
           <>
             <div className="h3-small h3-muted">The episode's first shot, to start from; the shot form adds the rest.</div>
             <Row label="Where" help={known.locations.length
@@ -382,12 +441,12 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
             </Row>
             <Row label="Who's in it" help="The characters on screen, in order.">
               <Chips ep={picEp} value={listOf(shot.keys.who)} options={castList} onChange={(v) => setKey("who", v.join(", "))}
-                add={() => { setStep(2); setCast([...cast, { kind: "character", id: "", fields: {} }]); }} addLabel="+ Character" />
+                add={() => { setStep(CAST); setCast([...cast, { kind: "character", id: "", fields: {} }]); }} addLabel="+ Character" />
             </Row>
             {thingList.length > 0 && (
               <Row label="With" help="Props and vehicles whose look matters.">
                 <Chips ep={picEp} value={listOf(shot.keys.with)} options={thingList} onChange={(v) => setKey("with", v.join(", "))}
-                  add={() => { setStep(2); setCast([...cast, { kind: "prop", id: "", fields: {} }]); }} addLabel="+ Prop" />
+                  add={() => { setStep(CAST); setCast([...cast, { kind: "prop", id: "", fields: {} }]); }} addLabel="+ Prop" />
               </Row>
             )}
             <div className="h3-row h3-wrap" style={{ gap: 10 }}>
@@ -448,14 +507,14 @@ function CastCard({ c, raw, problem, onChange, onRemove }: {
       </div>
       {c.kind === "location" && (
         <Row label="Short name" help="How the script names it on a sequence (# sq01  porch): a word or two.">
-          <input className="h3-in" value={c.id} placeholder="porch" onChange={(e) => onChange({ ...c, id: castId(e.target.value) })} />
+          <input className="h3-in" value={c.id} placeholder="porch" disabled={c.fixed} onChange={(e) => onChange({ ...c, id: castId(e.target.value) })} />
         </Row>
       )}
       {fields.map((f) => (
         <FieldRow key={f.path.join(".")} f={f} value={shown(c.fields, f)}
           onChange={(v) => {
             const fields2 = { ...c.fields, [f.path[0]]: parsed(f, v) };
-            onChange({ ...c, fields: fields2, id: f.path[0] === "name" ? castId(v) : c.id });
+            onChange({ ...c, fields: fields2, id: f.path[0] === "name" && !c.fixed ? castId(v) : c.id });
           }} />
       ))}
       {problem && <span className="h3-small h3-err">{problem}</span>}

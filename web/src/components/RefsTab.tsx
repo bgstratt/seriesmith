@@ -10,6 +10,7 @@ import {
 } from "../actions";
 import { CARD_KINDS, type CardKind } from "../lib/seriesForm";
 import { useView } from "../lib/viewPref";
+import { addFromFiles, fileDrop } from "../dropAdd";
 import { LazyBg } from "./LazyBg";
 import {
   cutNeighbour, isKeyframeRef, keyframeBlocks, keyframeGroups, keyframeOf, keyframePlan, keyframeSource, methodLabel, methodTitle,
@@ -1567,7 +1568,8 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
                     {ADD_KIND[g.id] && (
                       <>
                         <span className="h3-grow" />
-                        <button className="h3-btn h3-add" title={`Add a new ${ADD_KIND[g.id]} to the series config`}
+                        <button className="h3-btn h3-add" title={`Add a new ${ADD_KIND[g.id]} to the series config, or drop ${ADD_KIND[g.id] === "voice" ? "sound files" : "pictures"} here for a new one each`}
+                          {...fileDrop((f) => void addFromFiles(ADD_KIND[g.id]!, f))}
                           onClick={(e) => { e.stopPropagation(); openSubjectCard({ kind: ADD_KIND[g.id]!, id: null }); }}>
                           <i className="pi pi-plus" /> {ADD_LABEL[g.id]}
                         </button>
@@ -1581,7 +1583,8 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
                           onOpen={() => { setView("list"); focusRef(r.id); }} />
                       ))}
                       {ADD_KIND[g.id] && (
-                        <button className="h3-add-tile" onClick={() => openSubjectCard({ kind: ADD_KIND[g.id]!, id: null })}>
+                        <button className="h3-add-tile" {...fileDrop((f) => void addFromFiles(ADD_KIND[g.id]!, f))}
+                          onClick={() => openSubjectCard({ kind: ADD_KIND[g.id]!, id: null })}>
                           <i className="pi pi-plus" /> {ADD_LABEL[g.id]}
                         </button>
                       )}

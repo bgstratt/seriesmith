@@ -335,8 +335,8 @@ function ClipMaker({ ep, root }: { ep: string; root: string | null }) {
         {tabs.map((x) => (
           <button key={x.id} className={mode === x.id ? "sm-on" : ""} title={x.title} onClick={() => setMode(x.id)}>{x.label}</button>
         ))}
-        <button title="A series with episodes: the step-by-step wizard (then Advanced)" disabled={!root}
-          onClick={() => { if (root) { setSimple(false); openWizard({ parent: root, newSeries: true }); } }}>A series…</button>
+        <button title="A series with episodes: step by step, from the idea to the finished film" disabled={!root}
+          onClick={() => { if (root) openWizard({ parent: root, newSeries: true }); }}>A series…</button>
       </nav>
 
       <section className="sm-card">

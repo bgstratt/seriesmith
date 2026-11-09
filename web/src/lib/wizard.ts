@@ -1,11 +1,12 @@
-// The new episode wizard (docs/EDITOR.md, "New series, new episode"): where it
-// goes, the series (a new one only), who and where it's about, and its first
-// shot — then one POST /seriesmith/episode/new with the series config and the
-// script it made. A next episode starts from its newest neighbour's config
+// The new episode wizard (docs/EDITOR.md, "New series, new episode"): the idea,
+// the story and who and where it's about — then one POST
+// /seriesmith/episode/new with the series config and the script it made. A
+// next episode starts from its newest neighbour's config
 // (GET /seriesmith/episode/new), so the cast, look and settings carry over and
 // only what's new is added.
 
 import { entryFor, getPath, idProblem, newSeries, slug, type CardKind, type Raw } from "./seriesForm";
+import { nameOfId, scriptNames } from "./filmPath";
 import { writeShot, type ShotForm } from "./shotForm";
 
 /** A cast entry the wizard adds: its kind, the id made from its name, and the
@@ -14,6 +15,8 @@ export interface NewCast {
   kind: Extract<CardKind, "character" | "prop" | "vehicle" | "location">;
   id: string;
   fields: Raw;
+  /** named by a script already: renaming it keeps the id the script uses */
+  fixed?: boolean;
 }
 
 /** The kinds the wizard's cast step offers, with what each is. */
@@ -38,6 +41,7 @@ export function castProblems(raw: Raw, cast: NewCast[]): string[] {
     const p = idProblem(raw, c.id);
     if (p) return p;
     if (cast.slice(0, i).some((o) => o.id === c.id)) return `${c.id} is here twice.`;
+    if (c.fixed && c.kind === "location" && !String(c.fields.description ?? "").trim()) return "Describe the place: the build needs it.";
     return "";
   });
 }
@@ -71,6 +75,25 @@ export function castOfConfig(raw: Raw): { characters: { id: string; name: string
     things: Object.entries(subj).filter(([, e]) => kindOf(e) === "prop" || kindOf(e) === "vehicle").map(([id, e]) => named(id, e)),
     locations: Object.keys((getPath(raw, ["locations"]) ?? {}) as object),
   };
+}
+
+/** Cards for what a script names and the series hasn't got, after the ones already there. */
+export function withScriptNames(cast: NewCast[], raw: Raw, text: string): NewCast[] {
+  const have = castOfConfig(raw);
+  const known = new Set([...have.characters.map((c) => c.id), ...have.things.map((c) => c.id), ...have.locations, ...cast.map((c) => c.id)]);
+  const found = scriptNames(text);
+  const out = [...cast];
+  const add = (kind: NewCast["kind"], ids: string[]) => {
+    for (const id of ids) {
+      if (known.has(id)) continue;
+      known.add(id);
+      out.push({ kind, id, fixed: true, fields: kind === "location" ? {} : { name: nameOfId(id) } });
+    }
+  };
+  add("character", found.characters);
+  add("location", found.locations);
+  add("prop", found.things);
+  return out;
 }
 
 /** The new episode's script: its title line, the first sequence, the first shot. */

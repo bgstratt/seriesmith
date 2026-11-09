@@ -415,6 +415,34 @@ export function idProblem(raw: Raw, id: string): string {
   return "";
 }
 
+/** A supplied picture of a character is one whole picture of them unless it is
+ * shaped like a sheet of panels side by side (refs.STRIP_RATIO: 4:1 is a
+ * four-panel sheet). An unknown size is taken as one picture, as before. */
+export function isOnePicture(width: number | null | undefined, height: number | null | undefined): boolean {
+  return !(width && height && width / height >= 2.5);
+}
+
+/** New entries for files dropped on an add button, one per `onePicture`: a numbered name that's
+ * free, and the words the build requires pointing at the file until someone writes their own. */
+export function droppedEntries(raw: Raw, kind: CardKind, onePicture: boolean[], prefix: string): { id: string; entry: Raw }[] {
+  const required = kind === "location" ? "description" : kind === "voice" ? "voice" : "design";
+  const words = kind === "voice" ? "as in the sample" : "as in the reference picture";
+  const label = `${kind[0].toUpperCase()}${kind.slice(1)}`;
+  const used = new Set<string>();
+  let n = 0;
+  return onePicture.map((one) => {
+    do n += 1; while (idProblem(raw, `${kind}_${n}`) || used.has(`${kind}_${n}`));
+    const id = `${kind}_${n}`;
+    used.add(id);
+    return { id, entry: entryFor(kind, undefined, { name: `${label} ${n}`, [required]: words, ...(one ? { sheet_panels: 1 } : {}) }, id, prefix) };
+  });
+}
+
+/** A variant's card: what its dialogue is written under in the script, and what its shots name. */
+export function variantSpeaking(id: string, of: string): string {
+  return `In the script, its lines are written under ${of.toUpperCase()}: and its shots say who: ${id || "this id"}.`;
+}
+
 /** The fields of a card, by kind (paths inside the entry). */
 export function cardFields(kind: CardKind, raw: Raw, id: string): Field[] {
   const others = (block: "subjects" | "locations", ok: (e: Raw) => boolean): Choice[] =>
@@ -424,7 +452,7 @@ export function cardFields(kind: CardKind, raw: Raw, id: string): Field[] {
   const name: Field = { path: ["name"], label: "Name", kind: "text",
     placeholder: kind === "group" ? "the ladies" : kind === "prop" ? "the porch lantern" : kind === "vehicle" ? "the green pickup" : "Ada",
     help: kind === "character" || kind === "voice"
-      ? "How the prompt names them, and the name their lines are written under (ADA: ...) in capitals."
+      ? "How the prompt names them. It can differ from the id: their lines are written under the id, in capitals (ADA: ...)."
       : "How the prompt names it: \"the porch lantern\", \"Riley's backpack\"." };
   const design: Field = { path: ["design"], label: "Design", kind: "long",
     placeholder: kind === "group"
@@ -448,7 +476,7 @@ export function cardFields(kind: CardKind, raw: Raw, id: string): Field[] {
   const variant: Field = { path: ["of"], label: "Variant of", kind: "select", more: true,
     choices: [{ value: "", label: "- (their own person)" },
       ...others("subjects", (e) => !e.of && (typeof e.kind === "string" ? e.kind : "character") === (kind === "group" ? "character" : kind))],
-    help: "The same character in other clothes (or a prop in another state): it keeps their name and voice, and its sheet is drawn from theirs. Needs only its own design." };
+    help: "The same character in other clothes (or a prop in another state): it keeps their name and voice, and its sheet is drawn from theirs. Its lines are written under that character's id. Needs only its own design." };
   switch (kind) {
     case "character": return [name, design, voice, variant, sheet, panels, sample];
     case "group": return [name, design, { path: ["members"], label: "How many people", kind: "number", min: 2, max: 12, step: 1,

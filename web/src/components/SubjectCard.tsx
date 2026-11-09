@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { afterAuthoredWrite, loadRefs, noteCardAdded, openSubjectCard } from "../actions";
 import { api, host } from "../host";
 import {
-  CARD_KINDS, blockOf, cardFields, cardKindOf, entryFor, getPath, idProblem, isEmpty, refIdOf, refsPrefix, serialize, setPath, slug,
+  CARD_KINDS, blockOf, cardFields, cardKindOf, entryFor, getPath, idProblem, isEmpty, isOnePicture, refIdOf, variantSpeaking, refsPrefix, serialize, setPath, slug,
   type CardKind, type Raw,
 } from "../lib/seriesForm";
 import { useApp } from "../store";
@@ -31,12 +31,7 @@ function defaultRect(): Rect {
   return { x: Math.max(16, Math.min(420, W - w - 16)), y: 72, w, h: Math.max(360, H - 140) };
 }
 
-/** A supplied picture of a character is one whole picture of them unless it is
- * shaped like a sheet of panels side by side (refs.STRIP_RATIO: 4:1 is a
- * four-panel sheet). An unknown size is taken as one picture, as before. */
-export function isOnePicture(width: number | null | undefined, height: number | null | undefined): boolean {
-  return !(width && height && width / height >= 2.5);
-}
+export { isOnePicture };
 
 /** `sheet_panels: 1` on a character, written to the series config as it is now. */
 async function markOnePicture(ep: string, block: string, id: string) {
@@ -132,6 +127,27 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
     }
   }
 
+  // nothing uses it, in either pass, as a picture or a voice: its id can still change
+  const refs = useRefs(ep);
+  const unused = !isNew && !!refs && [refIdOf(kind, id), `voice:${id}`].every((rid) => {
+    const r = refs.find((x) => x.id === rid);
+    return !r || Object.values(r.used_by ?? {}).every((shots) => !shots.length);
+  });
+
+  async function rename() {
+    if (changed && !window.confirm("Rename without saving your changes here?")) return;
+    const to = window.prompt(`A new id for ${id}: lower case letters, digits and underscores.`, id)?.trim();
+    if (!to || to === id) return;
+    try {
+      const r = await api().renameEntry({ ep, id, to });
+      afterAuthoredWrite(r.build);
+      await loadRefs(ep);
+      openSubjectCard({ kind, id: to });
+    } catch (e) {
+      host().toast("error", `Couldn't rename ${id}`, (e as Error).message);
+    }
+  }
+
   async function remove() {
     if (!sc.base || isNew) return;
     if (!window.confirm(`Remove ${id} from series.json? Its pictures stay on disk; shots that name it stop building until they don't.`)) return;
@@ -165,17 +181,23 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
             {(!simple || kind === "location" || (!!id && !!problem)) && (
               <div className="h3-col" style={{ gap: 2 }}>
                 <span className="h3-small"><b>{simple && kind === "location" ? "Name" : "Id"}</b></span>
-                <input className="h3-in" value={id} disabled={!isNew}
-                  placeholder={simple && kind === "location" ? "harbour" : ""}
-                  onChange={(e) => { setIdTouched(true); setId(simple ? slug(e.target.value) : e.target.value.trim()); }} />
+                <div className="h3-row" style={{ gap: 4 }}>
+                  <input className="h3-in h3-grow" value={id} disabled={!isNew}
+                    placeholder={simple && kind === "location" ? "harbour" : ""}
+                    onChange={(e) => { setIdTouched(true); setId(simple ? slug(e.target.value) : e.target.value.trim()); }} />
+                  {unused && <button className="h3-btn" title="Change the id: nothing uses it yet, so its pictures and voice move with it" onClick={() => void rename()}>Rename…</button>}
+                </div>
                 <span className={`h3-small ${problem && id ? "h3-err" : "h3-muted"}`}>
                   {(problem && id) ? problem : simple
                     ? (kind === "location" ? "A word or two to pick it by." : "")
                     : (isNew
                       ? `What the script calls it (who: ${id || "ada"}${kind === "location" ? `, plate: ${id || "porch"}` : ""}). Made from the name; it can't change once saved.`
-                      : "What the script calls it. It can't change here: shots name it.")}
+                      : unused ? "What the script calls it. No shot uses it yet." : "What the script calls it. It can't change here: shots name it.")}
                 </span>
               </div>
+            )}
+            {kind === "character" && !isEmpty(form.of) && (
+              <div className="h3-note h3-small" id="sm-card-variant-lines">{variantSpeaking(id, String(form.of))}</div>
             )}
             {fields.filter((f) => !f.more && !(simple && f.path[0] === "of")).map((f) => (
               <FieldRow key={f.path.join(".")} f={f} value={form[f.path[0]] == null ? "" : String(form[f.path[0]])}
