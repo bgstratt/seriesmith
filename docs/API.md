@@ -1076,7 +1076,19 @@ why one can't be used: it doesn't read, or its episode isn't beside this one).
 The story structures with a Music table (docs/STORY_STRUCTURES.md, as
 `seriesmith/core/structures.json`): `{"structures": [{"id": "5.1", "name": "The Pixar Story
 Spine", "beats": [their names as a `// beat:` line writes them, a repeat once]}]}`. The shot
-form offers the beats of the script's `// structure:`.
+form offers the beats of the script's `// structure:`. Your own come after the built-in ones, with
+`"own": true`, and `own_file` is where they're kept.
+
+### `POST /seriesmith/structures/own`
+Body `{"name", "beats": [{"beat", "share", "act"?, "guidance"?}], "replace"?}`: a story structure of
+your own, for every show on this machine, in `structures.json` beside the settings file. `share` is
+any number above zero (they're scaled to the whole story); an empty `act` is the act above it. 400
+for a name a built-in structure answers to, or one of yours without `replace`. Answers
+`{"structure", "own_file"}`. It's the storyboard's only: it has no Music table, so the score is
+unchanged.
+
+### `DELETE /seriesmith/structures/own?name=…`
+Forgets one of your own. Scripts that name it keep their beats.
 
 ### `GET /seriesmith/storyboard/block?structure=…&duration=…&shot=…`
 A story structure and a duration as shots per beat (`core/blocking.py`; docs/PLAN.md, the

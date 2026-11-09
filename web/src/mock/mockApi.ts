@@ -1380,6 +1380,14 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       });
       return { structure, duration, shot_seconds: each, wanted_shots: wanted, shots: at, warnings: [], acts };
     },
+    async saveStructure() {
+      await wait();
+      return { own_file: "structures.json" };
+    },
+    async deleteStructure() {
+      await wait();
+      return { own_file: "structures.json" };
+    },
     async storyboard(_ep, structure) {
       await wait();
       return { hash: "mock", plan: { id: "ep01", title: "Mock", structure, structure_known: true, duration: null, shots: 0, seconds: 0,

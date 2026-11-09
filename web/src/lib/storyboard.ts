@@ -233,6 +233,72 @@ export function toGenerate(shots: Pick<BoardShot, "id">[], fresh: Set<string>): 
   return shots.filter((s) => !fresh.has(s.id)).map((s) => s.id);
 }
 
+/** A row of the Save as structure table. */
+export interface OwnBeat {
+  beat: string;
+  share: number;
+  act?: string;
+  guidance?: string;
+}
+
+/** The table Save as structure opens with: the script's beats in order, each one's share from its
+ * real shots. These are guides: a beat with no shots yet still gets a small share to adjust. */
+export function ownBeatsFrom(acts: BoardAct[]): OwnBeat[] {
+  const rows = acts.flatMap((a) => a.beats.filter((b) => b.plain !== null && b.in_script).map((b) => ({ a, b })));
+  const whole = rows.reduce((n, { b }) => n + b.shots, 0);
+  return rows.map(({ a, b }, i) => ({
+    beat: b.plain ?? "",
+    share: whole ? Math.max(1, Math.round((b.shots / whole) * 1000) / 10) : 1,
+    // only where the act changes: the rows below it carry it
+    act: i === 0 || rows[i - 1].a !== a ? a.act : "",
+    guidance: b.guidance,
+  }));
+}
+
+export interface ActGroup {
+  /** "" until it's named */
+  name: string;
+  /** the first of its beats, and one past the last */
+  start: number;
+  end: number;
+}
+
+/** The acts over a table of beats: a row with an act starts one, an empty one carries on. */
+export function actGroups(rows: Pick<OwnBeat, "act">[]): ActGroup[] {
+  const out: ActGroup[] = [];
+  rows.forEach((r, i) => {
+    const name = (r.act ?? "").trim();
+    if (i === 0 || name) out.push({ name, start: i, end: i + 1 });
+    else out[out.length - 1].end = i + 1;
+  });
+  return out;
+}
+
+/** A break between acts just before beat `i`: added if there's none (the acts numbered till you
+ * name them), taken away if there is, the beats joining the act before. Never before the first. */
+export function toggleActBreak<T extends OwnBeat>(rows: T[], i: number): T[] {
+  if (i <= 0 || i >= rows.length) return rows;
+  if ((rows[i].act ?? "").trim()) return rows.map((r, k) => (k === i ? { ...r, act: "" } : r));
+  const groups = actGroups(rows);
+  const nth = groups.findIndex((g) => g.start < i && i < g.end) + 2;
+  return rows.map((r, k) => {
+    if (k === i) return { ...r, act: `Act ${nth}` };
+    if (k === 0 && !(r.act ?? "").trim()) return { ...r, act: "Act 1" };
+    return r;
+  });
+}
+
+/** Beat `i` and the one after it share `by` between them: the divider moved, the rest untouched.
+ * Neither goes below `least`. */
+export function moveDivider<T extends OwnBeat>(rows: T[], i: number, by: number, least = 0.5): T[] {
+  const left = rows[i];
+  const right = rows[i + 1];
+  if (!left || !right) return rows;
+  const both = left.share + right.share;
+  const share = Math.round(Math.min(both - least, Math.max(least, left.share + by)) * 10) / 10;
+  return rows.map((r, k) => (k === i ? { ...r, share } : k === i + 1 ? { ...r, share: Math.round((both - share) * 10) / 10 } : r));
+}
+
 export type DropSide = "before" | "after";
 
 /** Where on a tile a drop lands. A shot being moved goes to the nearer side. A file on the middle

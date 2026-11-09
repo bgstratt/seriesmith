@@ -160,12 +160,24 @@ def text_of(doc: dict) -> str:
     return "".join(line for block in doc["blocks"] for line in block["lines"])
 
 
-def _table(name: str | None) -> tuple[str | None, dict[str, list[dict]]]:
+def find_structure(name: str, own: list[dict] | tuple = ()) -> dict:
+    """A built-in structure by any name it answers to, else one of `own` (own_structures: saved
+    for this machine) by its exact name. SpotError when there's neither."""
+    try:
+        return SP.structure(name)
+    except SP.SpotError:
+        for st in own:
+            if SP.norm(st["name"]) == SP.norm(name):
+                return st
+        raise
+
+
+def _table(name: str | None, own: list[dict] | tuple = ()) -> tuple[str | None, dict[str, list[dict]]]:
     """The structure's own name and its beats by every name they go by; (None, {}) if it has none."""
     if not name:
         return None, {}
     try:
-        st = SP.structure(name)
+        st = find_structure(name, own)
     except SP.SpotError:
         return None, {}
     table: dict[str, list[dict]] = {}
@@ -183,7 +195,7 @@ def _episode(head: list[str]) -> tuple[str, str]:
     return "", ""
 
 
-def outline(doc: dict) -> dict:
+def outline(doc: dict, own: list[dict] | tuple = ()) -> dict:
     """{"id", "title", "structure", "structure_known", "duration", "shots", "seconds", "untimed",
     "acts": [{"act", "own", "beats": [{"beat" (None: shots before any beat), "known", "guidance",
     "block", "runs": [{"sequence", "place", "opens", "block", "shots": [shot view + "block"]}]}]}]}.
@@ -193,7 +205,7 @@ def outline(doc: dict) -> dict:
     `// beat:` does for the score, so the sequence opens inside that beat."""
     blocks = doc["blocks"]
     named = next((b["value"] for b in blocks if b["kind"] == "structure" and b["value"]), None)
-    known_name, table = _table(named)
+    known_name, table = _table(named, own)
     duration = next((s for b in blocks if b["kind"] == "duration" for s in [seconds_of(b["value"])] if s), None)
     head = next((b["lines"] for b in blocks if any(ln.startswith("= ") for ln in b["lines"])), [])
     ep_id, title = _episode(head)
@@ -292,13 +304,13 @@ def _beat_row(beat: dict | None, entry: dict | None, plain: str | None, nth: int
     return row
 
 
-def plan(doc: dict, block: dict | None) -> dict:
+def plan(doc: dict, block: dict | None, own: list[dict] | tuple = ()) -> dict:
     """outline(doc), each beat with its target from `block` (core/blocking.py's answer, or None for
     no targets) and the structure's beats the script hasn't got yet, in the structure's order: every
     beat gains "plain" (its name as a script writes it), "nth" (which time that name comes),
     "in_script", "target_shots", "target_seconds", "thin", "shots", "seconds"; every act "shots",
     "target_shots". A beat of the script's own stays where it is, among the structure's."""
-    view = outline(doc)
+    view = outline(doc, own)
     table = [b for a in (block or {}).get("acts", []) for b in a["beats"]]
     keyed: dict[tuple[str, int], int] = {}
     nth_of: list[int] = []
@@ -685,7 +697,7 @@ def remove_act(doc: dict, beat: int) -> None:
     del doc["blocks"][_own_act_of(doc["blocks"], beat)]
 
 
-def lay_out(doc: dict, structure: str, typical: float) -> int:
+def lay_out(doc: dict, structure: str, typical: float, own: list[dict] | tuple = ()) -> int:
     """A structure's beats laid over a script that has shots and no beat lines, each on the shot
     nearest its place in the story (spotting.layout, as the score draft's guess), above its
     sequence's header when it starts one; how many beats. An untimed shot counts as the script's
@@ -708,7 +720,7 @@ def lay_out(doc: dict, structure: str, typical: float) -> int:
             t += seconds
     if not shots:
         raise BoardError("this script has no shots to lay a structure over")
-    st = SP.structure(structure)
+    st = find_structure(structure, own)
     placed = SP.layout(shots, st)
     for sid in sorted(placed, key=lambda s: at_block[s], reverse=True):
         at = at_block[sid]

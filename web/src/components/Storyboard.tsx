@@ -2,7 +2,7 @@
 // row. A beat shows its target and its real shots; `+` adds a stand-in and Fill makes the rest. The
 // script is what's saved: every edit here goes to disk the way the script editor's do.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { openSeriesForm, openShotForm, openSource, openStoryboard, refreshEpisode, requestRender, uploadRef } from "../actions";
 import { moveClip } from "../cutActions";
 import { dropFileOnto } from "../takeActions";
@@ -14,7 +14,7 @@ import { videoTargets } from "../lib/targets";
 import { clipTake } from "../lib/playlist";
 import {
   bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, runtimeMinutes, runWidth, seriesChoices, TILE_SIZES, tileSize, type TileSize,
-  pushed, type DropSide, type BoardAct, type BoardBeat, type BoardRun, type BoardShot, type SeriesChoices, type StoryboardAnswer, type StoryboardEdit,
+  actGroups, moveDivider, ownBeatsFrom, pushed, toggleActBreak, type DropSide, type OwnBeat, type BoardPlan, type BoardAct, type BoardBeat, type BoardRun, type BoardShot, type SeriesChoices, type StoryboardAnswer, type StoryboardEdit,
 } from "../lib/storyboard";
 import { statusKey, store, useApp } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
@@ -33,6 +33,185 @@ function placeName(id: string): string {
 }
 
 interface Picked { block: number; place: string; who: string[] }
+
+/** Save as structure: the episode's beats as a table, a guide to adjust before it's kept. */
+function SaveStructure({ plan, saved, file, close, done }: {
+  plan: BoardPlan;
+  saved: string[];
+  file: string;
+  close: () => void;
+  done: (name: string) => void;
+}) {
+  const [name, setName] = useState(plan.structure ?? "");
+  const [rows, setRows] = useState<OwnBeat[]>(() => ownBeatsFrom(plan.acts));
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const exists = saved.some((s) => s.toLowerCase() === name.trim().toLowerCase());
+  const total = rows.reduce((n, r) => n + (Number(r.share) || 0), 0);
+  const setRow = (i: number, next: Partial<OwnBeat>) => setRows((all) => all.map((r, k) => (k === i ? { ...r, ...next } : r)));
+  const [selected, setSelected] = useState(0);
+  const [view, setView] = useState<"table" | "timeline">("table");
+  const track = useRef<HTMLDivElement>(null);
+  const dragging = useRef<{ i: number; x: number; from: OwnBeat[]; moved: boolean } | null>(null);
+  const groups = actGroups(rows);
+  const picked = rows[selected];
+  const share = (from: number, to: number) => rows.slice(from, to).reduce((n, r) => n + r.share, 0);
+  /** The divider after beat `i`: drag it to trade share with the next beat, click it for an act break. */
+  const divider = (i: number) => (
+    <div className={`h3-sb-gantt-div${(rows[i + 1].act ?? "").trim() ? " h3-sb-actbreak" : ""}`}
+      title="Drag to change the two beats' shares. Click to start or end an act here."
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        dragging.current = { i, x: e.clientX, from: rows, moved: false };
+      }}
+      onPointerMove={(e) => {
+        const d = dragging.current;
+        const width = track.current?.clientWidth;
+        if (!d || !width || Math.abs(e.clientX - d.x) < 3) return;
+        d.moved = true;
+        setRows(moveDivider(d.from, d.i, ((e.clientX - d.x) / width) * total));
+      }}
+      onPointerUp={() => {
+        const d = dragging.current;
+        dragging.current = null;
+        if (d && !d.moved) setRows((all) => toggleActBreak(all, d.i + 1));
+      }} />
+  );
+
+  async function run(work: () => Promise<unknown>, after: string) {
+    setBusy(true);
+    setErr(null);
+    try {
+      await work();
+      done(after);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const head = (
+    <>
+      <i className="pi pi-bookmark" />
+      <b className="h3-grow">Save as structure</b>
+      <button className="h3-btn h3-icon" title="Close" onClick={close}><i className="pi pi-times" /></button>
+    </>
+  );
+  return (
+    <FloatingWindow storageKey="seriesmith.storyboard.save.rect" head={head} minW={520} minH={320}
+      defaultRect={() => ({ x: 120, y: 90, w: Math.min(860, window.innerWidth - 160), h: Math.min(640, window.innerHeight - 140) })}>
+      <div className="h3-col" style={{ padding: 10, gap: 8, height: "100%", boxSizing: "border-box" }}>
+        <label className="h3-row" style={{ gap: 6 }}>Name
+          <input className="h3-in h3-grow" value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <div className="h3-row" style={{ gap: 8, alignItems: "flex-start" }}>
+          <span className="h3-small h3-muted h3-grow">
+            {view === "table"
+              ? "Each share comes from this episode's shots. An act runs until the next one starts: the arrow beside a beat starts a new act there. These are guides, and an episode can stray from them."
+              : "Each beat's width is its share of the story, from this episode's shots: drag a divider to adjust it. Click a divider to start or end an act there. These are guides, and an episode can stray from them."}
+          </span>
+          <span className="h3-seg">
+            <button className={view === "table" ? "h3-on" : ""} onClick={() => setView("table")}>Table</button>
+            <button className={view === "timeline" ? "h3-on" : ""} onClick={() => setView("timeline")}>Timeline</button>
+          </span>
+        </div>
+        {view === "table" ? (
+          <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+            <table className="h3-table h3-sb-acttable">
+              <thead><tr><th>Act</th><th /><th>Beat</th><th>Share %</th><th>Guidance</th></tr></thead>
+              <tbody>
+                {groups.flatMap((g) => rows.slice(g.start, g.end).map((r, k) => {
+                  const i = g.start + k;
+                  return (
+                    <tr key={i} className={k === 0 && i > 0 ? "h3-sb-actstart" : ""}>
+                      {k === 0 && (
+                        <td rowSpan={g.end - g.start} className="h3-sb-actcell">
+                          <input className="h3-in" value={g.name} placeholder="Act" aria-label="Act" onChange={(e) => setRow(g.start, { act: e.target.value })} />
+                        </td>
+                      )}
+                      <td>
+                        {i > 0 && (
+                          <button className={`h3-btn h3-icon${(r.act ?? "").trim() ? " h3-on" : ""}`}
+                            title={(r.act ?? "").trim() ? "Join this beat to the act above" : "Start a new act at this beat"}
+                            onClick={() => setRows((all) => toggleActBreak(all, i))}><i className="pi pi-arrow-down-left" /></button>
+                        )}
+                      </td>
+                      <td>{r.beat}</td>
+                      <td><input className="h3-in h3-sb-num" type="number" min="0.1" step="any" value={r.share}
+                        onChange={(e) => setRow(i, { share: Number(e.target.value) })} /></td>
+                      <td><input className="h3-in" style={{ width: "100%" }} value={r.guidance ?? ""} placeholder="What this beat is for"
+                        onChange={(e) => setRow(i, { guidance: e.target.value })} /></td>
+                    </tr>
+                  );
+                }))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <>
+            <div className="h3-sb-gantt" ref={track}>
+              {groups.map((g, n) => (
+                <Fragment key={g.start}>
+                  {n > 0 && divider(g.start - 1)}
+                  <div className="h3-sb-gantt-act" style={{ flexGrow: share(g.start, g.end), flexBasis: 0 }}>
+                    <input className="h3-sb-gantt-actname" value={g.name} placeholder={groups.length > 1 ? "Name this act" : "One act: click a divider below to split"}
+                      onChange={(e) => setRow(g.start, { act: e.target.value })} />
+                    <div className="h3-sb-gantt-beats">
+                      {rows.slice(g.start, g.end).map((r, k) => {
+                        const i = g.start + k;
+                        return (
+                          <Fragment key={i}>
+                            {k > 0 && divider(i - 1)}
+                            <button className={`h3-sb-gantt-beat${selected === i ? " h3-sb-sel" : ""}`} style={{ flexGrow: r.share, flexBasis: 0 }}
+                              title={`${r.beat}: ${r.share}%`} onClick={() => setSelected(i)}>
+                              <span className="h3-sb-name">{r.beat}</span>
+                            </button>
+                          </Fragment>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </Fragment>
+              ))}
+            </div>
+            {picked && (
+              <div className="h3-col" style={{ gap: 6 }}>
+                <div className="h3-row" style={{ gap: 8 }}>
+                  <b>{picked.beat}</b>
+                  <label className="h3-row" style={{ gap: 6 }}>Share %
+                    <input className="h3-in h3-sb-num" type="number" min="0.1" step="any" value={picked.share}
+                      onChange={(e) => setRow(selected, { share: Number(e.target.value) })} />
+                  </label>
+                </div>
+                <label className="h3-col" style={{ gap: 3 }}>
+                  <span className="h3-small h3-muted">Guidance: what this beat is for. It shows under the beat on the board, and a new stand-in starts with it as its action.</span>
+                  <textarea className="h3-in" rows={2} value={picked.guidance ?? ""} onChange={(e) => setRow(selected, { guidance: e.target.value })} />
+                </label>
+              </div>
+            )}
+          </>
+        )}
+        {view === "timeline" && <span className="h3-grow" />}
+        <span className="h3-small h3-muted">Adds up to {Math.round(total * 10) / 10}%; it's scaled to the whole story when saved. Kept on this machine, in {file}: copy that file to pass them along.</span>
+        {err && <span className="h3-small h3-err">{err}</span>}
+        <div className="h3-row" style={{ gap: 8 }}>
+          {exists && (
+            <button className="h3-btn" disabled={busy} onClick={() => {
+              if (window.confirm(`Forget your saved structure ${name.trim()}? Scripts that name it keep their beats.`)) void run(() => api().deleteStructure(name.trim()), "");
+            }}><i className="pi pi-trash" /> Delete saved</button>
+          )}
+          <span className="h3-grow" />
+          <button className="h3-btn" onClick={close}>Cancel</button>
+          <button className="h3-btn h3-primary" disabled={busy || !name.trim() || !rows.length}
+            onClick={() => void run(() => api().saveStructure({ name: name.trim(), beats: rows, replace: exists }), name.trim())}>
+            {exists ? "Replace saved" : "Save"}
+          </button>
+        </div>
+      </div>
+    </FloatingWindow>
+  );
+}
 
 type Menu =
   | { x: number; y: number; kind: "shot"; shot: BoardShot; last: boolean; rendered: boolean }
@@ -394,6 +573,9 @@ function Storyboard({ ep }: { ep: string }) {
   // the show's own format the script opened with: still offered after changing away from it
   const [ownFormat, setOwnFormat] = useState<string | null>(null);
   const [dropping, setDropping] = useState<string | null>(null);
+  const [ownNames, setOwnNames] = useState<string[]>([]);
+  const [ownFile, setOwnFile] = useState("");
+  const [saving, setSaving] = useState(false);
   const [undo, setUndo] = useState<string[]>([]);
   const [redo, setRedo] = useState<string[]>([]);
   const [menu, setMenu] = useState<Menu | null>(null);
@@ -403,12 +585,16 @@ function Storyboard({ ep }: { ep: string }) {
     setMenu({ ...next, x: Math.min(e.clientX, window.innerWidth - 240), y: Math.min(e.clientY, window.innerHeight - 280) } as Menu);
   };
 
+  const loadStructures = useCallback(() => api().structures().then((r) => {
+    setNames(r.structures.map((s) => s.name));
+    setOwnNames(r.structures.filter((s) => s.own).map((s) => s.name));
+    setOwnFile(r.own_file ?? "");
+  }), []);
   useEffect(() => {
     let live = true;
-    api().structures().then((r) => live && setNames(r.structures.map((s) => s.name)))
-      .catch((e) => live && setErr((e as Error).message));
+    loadStructures().catch((e) => live && setErr((e as Error).message));
     return () => { live = false; };
-  }, [ep]);
+  }, [ep, loadStructures]);
 
   // the places and cast on offer, again when the series settings close
   const seriesOpen = useApp((s) => s.seriesFormOpen);
@@ -673,6 +859,8 @@ function Storyboard({ ep }: { ep: string }) {
               {names.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
+          <button className="h3-btn h3-icon" aria-label="Save as structure" disabled={!allBeats.some((b) => b.plain !== null && b.in_script)}
+            title="Save this episode's beats as a structure of your own, to start other episodes from" onClick={() => setSaving(true)}><i className="pi pi-bookmark" /></button>
           <label className="h3-row" title="The length it's aiming at. It sets every beat's target, and only that.">Minutes
             <input className="h3-sb-num" type="number" min="0.1" step="any" value={minutes}
               onChange={(e) => setMinutes(e.target.value)} />
@@ -724,6 +912,13 @@ function Storyboard({ ep }: { ep: string }) {
             <summary>{plan.warnings.length} {plan.warnings.length === 1 ? "warning" : "warnings"} at this length</summary>
             <ul>{plan.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
           </details>
+        )}
+        {saving && plan && (
+          <SaveStructure plan={plan} saved={ownNames} file={ownFile} close={() => setSaving(false)} done={() => {
+            setSaving(false);
+            void loadStructures();
+            if (length !== null && each !== null) void api().storyboard(ep, chosen, length * 60, each).then(setData);
+          }} />
         )}
         {menu && (
           <BoardMenu menu={menu} choices={choices} busy={busy} edit={(e) => void edit(e)} close={() => setMenu(null)}

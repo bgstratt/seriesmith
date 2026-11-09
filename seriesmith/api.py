@@ -2999,18 +2999,45 @@ def get_structures(ctx: Context, query: dict):
     """The story structures with a Music table (docs/STORY_STRUCTURES.md, core/structures.json):
     `{"structures": [{"id", "name", "beats": [their names, as a script's // beat: line writes
     them]}]}`: what the shot form offers for a shot's beat."""
+    from seriesmith import own_structures as OS
     from seriesmith.core import spotting as SP
-    return 200, {"structures": [
-        {"id": s["id"], "name": s["name"],
+    own = OS.load()
+    return 200, {"own_file": OS.path(), "structures": [
+        {"id": s["id"], "name": s["name"], "own": bool(s.get("own")),
          "beats": list(dict.fromkeys(re.sub(r"\s*\(again\)\s*$", "", b["beat"]) for b in s["beats"]))}
-        for s in SP.structures()]}
+        for s in [*SP.structures(), *own]]}
+
+
+@handler
+def post_structure_own(ctx: Context, body):
+    """Save a story structure of your own, for every show on this machine: `{name, beats: [{beat,
+    share, act?, guidance?}], replace?}`."""
+    from seriesmith import own_structures as OS
+    body = body_dict(body)
+    try:
+        made = OS.save(body.get("name"), body.get("beats"), body.get("replace") is True)
+    except OS.StructureError as e:
+        raise ApiError(400, str(e)) from None
+    return 200, {"structure": made, "own_file": OS.path()}
+
+
+@handler
+def delete_structure_own(ctx: Context, query: dict):
+    """Forget a structure of your own (`name`). Scripts that name it keep their beats."""
+    from seriesmith import own_structures as OS
+    if not OS.delete(query.get("name") or ""):
+        raise ApiError(404, f"you have no structure called {query.get('name')!r}")
+    return 200, {"own_file": OS.path()}
 
 
 @handler
 def get_storyboard_block(ctx: Context, query: dict):
     """A story structure and a duration as shots per beat (core/blocking.py): `structure` (a name
     or number), `duration` and optionally `shot` in seconds. Nothing is written."""
+    from seriesmith import own_structures as OS
     from seriesmith.core import blocking as BL
+    from seriesmith.core import board as BD
+    from seriesmith.core import spotting as SP
 
     def number(key: str, default: float | None = None) -> float:
         raw = query.get(key)
@@ -3021,20 +3048,23 @@ def get_storyboard_block(ctx: Context, query: dict):
         except (TypeError, ValueError):
             raise ApiError(400, f"{key} must be a number of seconds, not {raw!r}") from None
     try:
-        return 200, BL.block(str(query.get("structure") or ""), number("duration"),
+        return 200, BL.block(BD.find_structure(str(query.get("structure") or ""), OS.load()), number("duration"),
                              number("shot", BL.TYPICAL_SHOT))
-    except BL.BlockError as e:
+    except (BL.BlockError, SP.SpotError) as e:
         raise ApiError(400, str(e)) from None
 
 
 def _board_block(body: dict, structure: str | None):
     """The targets a storyboard request asks for: None without a structure and a duration."""
+    from seriesmith import own_structures as OS
     from seriesmith.core import blocking as BL
+    from seriesmith.core import board as BD
     duration, shot = body.get("duration"), body.get("shot")
     if not structure or duration in (None, ""):
         return None
     try:
-        return BL.block(structure, float(duration), float(shot) if shot not in (None, "") else BL.TYPICAL_SHOT)
+        return BL.block(BD.find_structure(structure, OS.load()), float(duration),
+                        float(shot) if shot not in (None, "") else BL.TYPICAL_SHOT)
     except (TypeError, ValueError) as e:
         raise ApiError(400, str(e)) from None
 
@@ -3060,10 +3090,12 @@ def _board_structure(view: dict, asked: str | None) -> str | None:
 
 
 def _board_answer(ep: str, doc: dict, structure: str | None, body: dict, hash_: str, **more) -> tuple[int, dict]:
+    from seriesmith import own_structures as OS
     from seriesmith.core import board as BD
-    view = BD.outline(doc)
+    own = OS.load()
+    view = BD.outline(doc, own)
     named = _board_structure(view, structure)
-    plan = BD.plan(doc, _board_block({**body, "duration": body.get("duration") or view["duration"]}, named))
+    plan = BD.plan(doc, _board_block({**body, "duration": body.get("duration") or view["duration"]}, named), own)
     card = BD.gray_card()
     for act in plan["acts"]:
         for beat in act["beats"]:
@@ -3101,6 +3133,7 @@ def post_storyboard_edit(ctx: Context, body):
     `name`), `add_after` (`block`, optionally `before`), `move_shot` (`block`, `target`, `after`), `convert` (`shots`, `target`), `delete_shot` (`block`: a shot's), `add_sequence` (`block`, `place`),
     `add_beat` (`beat`, `name`, optionally `act`), `lay_out` (`name`: a structure over a script with no beats), `remove_beat`, `rename_act` or `remove_act`
     (`block`: the beat's, `name`)."""
+    from seriesmith import own_structures as OS
     from seriesmith.core import blocking as BL
     from seriesmith.core import board as BD
     body = body_dict(body)
@@ -3117,7 +3150,8 @@ def post_storyboard_edit(ctx: Context, body):
     place = body.get("place") or None
     if place is not None and place not in places:
         raise ApiError(400, f"{place!r} is not a location in the series config")
-    view = BD.outline(doc)
+    own = OS.load()
+    view = BD.outline(doc, own)
     structure = _board_structure(view, body.get("structure"))
     each = body.get("each")
     if each is not None and (not isinstance(each, int) or isinstance(each, bool) or each < 1):
@@ -3136,7 +3170,7 @@ def post_storyboard_edit(ctx: Context, body):
             for ask in wanted:
                 if not isinstance(ask, dict) or not isinstance(ask.get("plain"), str) or not ask["plain"].strip():
                     raise ApiError(400, "a beat is {plain, nth}")
-                rows = [b for a in BD.plan(doc, block)["acts"] for b in a["beats"]]
+                rows = [b for a in BD.plan(doc, block, own)["acts"] for b in a["beats"]]
                 nth = int(ask.get("nth") or 0)
                 index = next((i for i, b in enumerate(rows) if b["plain"] == ask["plain"] and b["nth"] == nth), None)
                 row = rows[index] if index is not None else {"guidance": "", "target_shots": None, "shots": 0}
@@ -3193,7 +3227,7 @@ def post_storyboard_edit(ctx: Context, body):
             duration = body.get("duration") or view["duration"]
             block = _board_block({**body, "duration": duration}, structure)
             BD.set_marks(doc, structure, float(duration) if duration not in (None, "") else None)
-            rows = [b for a in BD.plan(doc, block)["acts"] for b in a["beats"]]
+            rows = [b for a in BD.plan(doc, block, own)["acts"] for b in a["beats"]]
             nth = int(ask.get("nth") or 0)
             index = next((i for i, b in enumerate(rows) if b["plain"] == ask["plain"] and b["nth"] == nth), None)
             later = [(b["plain"], b["nth"]) for b in rows[index + 1:] if b["plain"]] if index is not None else []
@@ -3201,7 +3235,7 @@ def post_storyboard_edit(ctx: Context, body):
         elif op == "remove_beat":
             BD.remove_beat(doc, int(body.get("block")))
         elif op == "lay_out":
-            BD.lay_out(doc, str(body.get("name") or ""), BL.TYPICAL_SHOT)
+            BD.lay_out(doc, str(body.get("name") or ""), BL.TYPICAL_SHOT, own)
             if body.get("duration") not in (None, ""):
                 BD.set_marks(doc, None, float(body.get("duration")))
         elif op == "rename_act":
@@ -6811,6 +6845,8 @@ ROUTES = [
     ("POST", "/seriesmith/cue/theme", post_cue_theme, "body"),
     ("POST", "/seriesmith/cue/draft", post_cue_draft, "body"),
     ("GET", "/seriesmith/structures", get_structures, "query"),
+    ("POST", "/seriesmith/structures/own", post_structure_own, "body"),
+    ("DELETE", "/seriesmith/structures/own", delete_structure_own, "query"),
     ("GET", "/seriesmith/storyboard/block", get_storyboard_block, "query"),
     ("GET", "/seriesmith/storyboard", get_storyboard, "query"),
     ("POST", "/seriesmith/storyboard/edit", post_storyboard_edit, "body"),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blockedScript } from "../src/lib/wizard";
-import { bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, positive, pushed, runtimeMinutes, runWidth, tileSize, seriesChoices, UNDO_STEPS, type BoardBeat } from "../src/lib/storyboard";
+import { bandShare, bareBeats, clock, dropSide, dropTargets, heldIds, shotBefore, toGenerate, fillable, fillCount, heldToRender, meter, picturesInOrder, placeOf, actGroups, moveDivider, ownBeatsFrom, toggleActBreak, positive, pushed, runtimeMinutes, runWidth, tileSize, seriesChoices, UNDO_STEPS, type BoardAct, type BoardBeat } from "../src/lib/storyboard";
 
 function beat(over: Partial<BoardBeat>): BoardBeat {
   return { beat: "A", plain: "A", nth: 0, block: null, known: true, in_script: true, guidance: "", shots: 0, seconds: 0,
@@ -143,6 +143,72 @@ describe("shotBefore", () => {
   it("doesn't count the shot being moved", () => {
     expect(shotBefore(order, "c", "before", "b")).toBe("a");
     expect(shotBefore(order, "b", "after", "b")).toBeNull();
+  });
+});
+
+describe("ownBeatsFrom", () => {
+  const act = (name: string, beats: BoardBeat[]): BoardAct => ({ act: name, own: false, shots: 0, target_shots: 0, beats });
+
+  it("takes each beat's share from its shots, and the act where it changes", () => {
+    const out = ownBeatsFrom([
+      act("One", [beat({ plain: "A", shots: 1, guidance: "g" }), beat({ plain: "B", shots: 3 })]),
+      act("Two", [beat({ plain: "C", shots: 4 })]),
+    ]);
+    expect(out).toEqual([
+      { beat: "A", share: 12.5, act: "One", guidance: "g" },
+      { beat: "B", share: 37.5, act: "", guidance: "" },
+      { beat: "C", share: 50, act: "Two", guidance: "" },
+    ]);
+  });
+
+  it("leaves out shots before any beat and beats the script hasn't got", () => {
+    const out = ownBeatsFrom([act("", [beat({ plain: null, shots: 9 }), beat({ plain: "A", shots: 1 }), beat({ plain: "T", in_script: false })])]);
+    expect(out.map((r) => r.beat)).toEqual(["A"]);
+  });
+
+  it("gives a beat with no shots a small share to adjust", () => {
+    expect(ownBeatsFrom([act("", [beat({ plain: "A", shots: 0 }), beat({ plain: "B", shots: 10 })])])[0].share).toBe(1);
+  });
+});
+
+describe("the structure timeline", () => {
+  const row = (act: string, share = 10) => ({ beat: "b", share, act });
+
+  it("groups beats under the act that starts them", () => {
+    expect(actGroups([row("One"), row(""), row("Two")])).toEqual([
+      { name: "One", start: 0, end: 2 },
+      { name: "Two", start: 2, end: 3 },
+    ]);
+  });
+
+  it("is one unnamed act with none named", () => {
+    expect(actGroups([row(""), row("")])).toEqual([{ name: "", start: 0, end: 2 }]);
+  });
+
+  it("numbers the acts when a break is added", () => {
+    expect(toggleActBreak([row(""), row(""), row("")], 1).map((r) => r.act)).toEqual(["Act 1", "Act 2", ""]);
+  });
+
+  it("keeps a name already given when another break is added", () => {
+    expect(toggleActBreak([row("Open"), row(""), row("")], 2).map((r) => r.act)).toEqual(["Open", "", "Act 2"]);
+  });
+
+  it("takes a break away, the beats joining the act before", () => {
+    expect(toggleActBreak([row("One"), row("Two")], 1).map((r) => r.act)).toEqual(["One", ""]);
+  });
+
+  it("leaves the first beat alone", () => {
+    const rows = [row("One"), row("")];
+    expect(toggleActBreak(rows, 0)).toBe(rows);
+  });
+
+  it("moves share between two beats and leaves the rest", () => {
+    expect(moveDivider([row("", 10), row("", 20), row("", 5)], 0, 5).map((r) => r.share)).toEqual([15, 15, 5]);
+  });
+
+  it("never squeezes a beat out", () => {
+    expect(moveDivider([row("", 10), row("", 20)], 0, 99).map((r) => r.share)).toEqual([29.5, 0.5]);
+    expect(moveDivider([row("", 10), row("", 20)], 0, -99).map((r) => r.share)).toEqual([0.5, 29.5]);
   });
 });
 

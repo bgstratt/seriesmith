@@ -14,8 +14,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 from seriesmith import api as A  # noqa: E402
+from seriesmith import own_structures as OS  # noqa: E402
 from seriesmith import source as S  # noqa: E402
 from seriesmith.core import board as B  # noqa: E402
+from seriesmith.core import spotting as SP  # noqa: E402
 
 DRAFT = "= ep01  Draft\n"
 
@@ -499,6 +501,89 @@ class TestStoryboardRoutes(unittest.TestCase):
         self.edit(status=400, op="convert", shots=["sh010"], target="no_such_model")
         self.edit(status=400, op="convert", shots="sh010", target="ltx2")
         self.assertIn("## sh010\ntarget: hold\n", self.text())
+
+    OWN = [{"beat": "Cold Open", "share": 10, "act": "Open", "guidance": "A hook."},
+           {"beat": "The Squeeze", "share": 30, "act": "", "guidance": ""},
+           {"beat": "The Cost", "share": 60, "act": "Pay"}]
+
+    def own_on(self):
+        OS.PATH_OVERRIDE = os.path.join(self._tmp.name, "user", "structures.json")
+        self.addCleanup(setattr, OS, "PATH_OVERRIDE", None)
+
+    def save(self, status: int = 200, **body) -> dict:
+        code, data = A.post_structure_own(self.ctx, {"name": "Porch Lights", "beats": self.OWN, **body})
+        self.assertEqual(code, status, data)
+        return data
+
+    def test_a_saved_structure_is_listed_with_where_it_lives(self):
+        self.own_on()
+        self.assertEqual(self.save()["own_file"], OS.path())
+        _code, data = A.get_structures(self.ctx, {})
+        mine = next(s for s in data["structures"] if s.get("own"))
+        self.assertEqual((mine["name"], mine["beats"]), ("Porch Lights", ["Cold Open", "The Squeeze", "The Cost"]))
+        self.assertEqual(data["own_file"], OS.path())
+
+    def test_shares_scale_to_the_story_and_an_empty_act_carries_on(self):
+        made = OS.build("X", [{"beat": "A", "share": 1, "act": "One"}, {"beat": "B", "share": 3}])
+        self.assertEqual([b["at"] for b in made["beats"]], [[0, 25.0], [25.0, 100]])
+        self.assertEqual([b["act"] for b in made["beats"]], ["One", "One"])
+
+    def test_a_script_naming_it_gets_targets_acts_and_guidance(self):
+        self.own_on()
+        self.save()
+        self.blank(DRAFT + "// structure: Porch Lights\n// duration: 3:00\n")
+        data = self.board()
+        self.assertTrue(data["plan"]["structure_known"])
+        self.assertEqual([a["act"] for a in data["plan"]["acts"]], ["Open", "Pay"])
+        rows = self.rows(data)
+        self.assertEqual([b["target_shots"] for b in rows], [5, 15, 31])
+        self.assertEqual(rows[0]["guidance"], "A hook.")
+
+    def test_fill_uses_it(self):
+        self.own_on()
+        self.save()
+        self.blank()
+        data = self.edit(op="fill", structure="Porch Lights", duration="180", beats=[{"plain": "Cold Open", "nth": 0}])
+        self.assertEqual(len(data["made"]), 5)
+        self.assertIn("// structure: Porch Lights", self.text())
+        self.assertIn("A hook.", self.text())
+
+    def test_it_can_lay_out_an_existing_script(self):
+        self.own_on()
+        self.save()
+        self.blank(self.PLAIN)
+        self.edit(op="lay_out", name="Porch Lights", duration="160")
+        self.assertIn("// beat: The Cost", self.text())
+
+    def test_saved_names_are_guarded(self):
+        self.own_on()
+        self.save()
+        self.save(status=400)
+        self.save(status=200, replace=True)
+        self.save(status=400, name="Three-Act")
+        self.save(status=400, name="  ")
+        self.save(status=400, beats=[])
+        self.save(status=400, beats=[{"beat": "A", "share": 0}])
+
+    def test_delete(self):
+        self.own_on()
+        self.save()
+        self.assertEqual(A.delete_structure_own(self.ctx, {"name": "porch lights"})[0], 200)
+        self.assertEqual(OS.load(), [])
+        self.assertEqual(A.delete_structure_own(self.ctx, {"name": "porch lights"})[0], 404)
+
+    def test_a_broken_file_is_no_structures(self):
+        self.own_on()
+        os.makedirs(os.path.dirname(OS.path()), exist_ok=True)
+        with open(OS.path(), "w", encoding="utf-8") as fh:
+            fh.write("not json")
+        self.assertEqual(OS.load(), [])
+
+    def test_the_score_does_not_see_it(self):
+        self.own_on()
+        self.save()
+        with self.assertRaises(SP.SpotError):
+            SP.structure("Porch Lights")
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@
 //    shot's per-pass prompt override is ignored, so the inspector shows its
 //    `effective.prompt` read-only.
 
-import type { StoryboardAnswer, StoryboardBlock, StoryboardEdit } from "./lib/storyboard";
+import type { OwnBeat, StoryboardAnswer, StoryboardBlock, StoryboardEdit } from "./lib/storyboard";
 import type { MixBeats } from "./lib/beats";
 import type {
   ColorMatch,
@@ -405,7 +405,11 @@ export interface Api {
   pinCueTheme(req: { ep: string; cue: string; take: number; name: string; role?: string | null; words?: string | null; for?: string[] | null; everywhere?: boolean }):
     Promise<{ theme: { name: string; ep: string; cue: string; take: number; role?: string; words?: string }; written: string[]; same: string[] }>;
   /** GET /seriesmith/structures: the story structures with a Music table, each with its beats' names. */
-  structures(): Promise<{ structures: { id: string; name: string; beats: string[] }[] }>;
+  structures(): Promise<{ structures: { id: string; name: string; beats: string[]; own?: boolean }[]; own_file?: string }>;
+  /** POST /seriesmith/structures/own: a story structure of your own, for every show on this machine. */
+  saveStructure(req: { name: string; beats: OwnBeat[]; replace?: boolean }): Promise<{ own_file: string }>;
+  /** DELETE /seriesmith/structures/own */
+  deleteStructure(name: string): Promise<{ own_file: string }>;
   /** GET /seriesmith/storyboard/block: a structure and a duration, in seconds, as shots per beat. */
   storyboardBlock(structure: string, duration: number, shot?: number): Promise<StoryboardBlock>;
   /** GET /seriesmith/storyboard: the episode's script against a structure's targets. */
@@ -948,6 +952,8 @@ export function createHttpApi(t: Transport): Api {
     pinCueTheme: (req) => call("POST", "/seriesmith/cue/theme", req),
     scoreDraft: (req) => call("POST", "/seriesmith/cue/draft", req),
     structures: () => get("/seriesmith/structures"),
+    saveStructure: (req) => call("POST", "/seriesmith/structures/own", req),
+    deleteStructure: (name) => call("DELETE", `/seriesmith/structures/own?${qs({ name })}`),
     storyboard: (ep, structure, duration, shot) => get(`/seriesmith/storyboard?${qs({ ep, structure, duration: String(duration), shot: String(shot) })}`),
     storyboardEdit: (req) => call("POST", "/seriesmith/storyboard/edit", req),
     storyboardBlock: (structure, duration, shot) => get(`/seriesmith/storyboard/block?${qs({ structure, duration: String(duration), shot: shot === undefined ? undefined : String(shot) })}`),

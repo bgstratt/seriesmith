@@ -2501,6 +2501,10 @@ To build, each ending in something that runs:
 - [x] **Convert held shots** (2026-11-08). Right-click a sequence, beat or act: its held shots'
       `target: hold` to a model or the series default, nothing else. Whoever sends a paid render owns
       having read its shots: no guard on guidance text left in place.
+- [x] **Your own structures** (2026-11-08). `own_structures.py`, `structures.json` beside the
+      settings file, for every show on this machine (the file is the way to pass them along). Save
+      as structure takes the shares from the open episode's shots, to adjust, with acts and
+      guidance. The storyboard's only: not in `spotting.structure`, so the score is unchanged.
 - [x] **Docs** (2026-11-08). `docs/STORYBOARD.md`, the tutorial `docs/site/tutorials/storyboard.mdx`.
 
 ## Later
