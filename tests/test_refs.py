@@ -641,31 +641,6 @@ class KreagenTest(RefsTest):
         self.assertEqual(T.file_sha1(plate), T.file_sha1(R.list_takes(kitchen)[2].paths.image))
 
 
-class SaveNodeTest(unittest.TestCase):
-    def test_h3saverettake_writes_and_closes(self):
-        try:
-            import torch
-            from PIL import Image
-        except ImportError as exc:                       # pragma: no cover
-            self.skipTest(f"needs torch and PIL: {exc}")
-        import h3_shotlist as N
-        with tempfile.TemporaryDirectory() as tmp:
-            ref = R.Ref("location:x", "series", "location", "x", "refs/x.png", tmp)
-            t = R.reserve_take(ref, None, {"status": "queued", "ep": tmp, "seed": 5})
-            img = torch.zeros((1, 24, 40, 3))
-            img[..., 0] = 1.0
-            (status,) = N.H3SaveRefTake().save(img, t.paths.sidecar)["result"]
-            self.assertIn("ok", status)
-            sc = T.read_json(t.paths.sidecar)
-            self.assertEqual((sc["status"], sc["width"], sc["height"], sc["seed"]),
-                             ("ok", 40, 24, 5))
-            self.assertEqual(sc["image"], "location__x_t01.png")
-            with Image.open(t.paths.image) as im:
-                self.assertEqual(im.size, (40, 24))
-                self.assertEqual(im.getpixel((3, 3))[:3], (255, 0, 0))
-            self.assertTrue(R.list_takes(ref)[0].usable)
-
-
 class ImageSizeTest(unittest.TestCase):
     """A picture's size from its header, stdlib only: PNG, JPEG and the three
     kinds of WebP (lossy, lossless, extended), as Pillow reads them."""

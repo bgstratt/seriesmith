@@ -3,7 +3,7 @@ The post pass (post.py, docs/POST_PROCESSING.md): an upscale finished by an
 enhance step (pixel, SeedVR2, SUPIR; the tiers name them) and motion blur.
 
 What it refuses, when a post is fresh, the graph for each step, readiness,
-the recipe; then its nodes (comfy_nodes/h3_post.py), which need torch and are
+the recipe; then its nodes (comfy_nodes/finish.py), which need torch and are
 skipped without it.
 """
 from __future__ import annotations
@@ -271,8 +271,8 @@ class PostNodesTest(unittest.TestCase):
         comfy.model_management = mm
         self._mods = {k: sys.modules.get(k) for k in ("comfy", "comfy.model_management")}
         sys.modules.update({"comfy": comfy, "comfy.model_management": mm})
-        import h3_post
-        self.N = h3_post
+        import importlib
+        self.N = importlib.import_module("comfy_nodes.finish")
 
     def tearDown(self):
         for k, v in self._mods.items():
@@ -316,16 +316,6 @@ class PostNodesTest(unittest.TestCase):
         self.assertGreater(int((row > 0.01).sum()), int((sharp > 0.01).sum()))   # wider
         self.assertAlmostEqual(float(row.sum()), float(sharp.sum()), delta=0.5)   # same light
         self.assertEqual(tuple(out.shape), tuple(x.shape))
-
-    def test_tracks_round_trip(self):
-        doc = {"width": 8, "height": 8, "num_frames": 2, "tracks": [
-            {"track_id": 0, "frames": {"0": {"bbox": [1, 1, 2, 2]}}},
-            {"track_id": 3, "frames": {"1": {"bbox": [1, 1, 2, 2]}}}]}
-        ft = self.N.tracks_from_json(json.loads(json.dumps(doc)), {3})
-        self.assertEqual([t["track_id"] for t in ft["tracks"]], [3])
-        self.assertEqual(list(ft["tracks"][0]["frames"]), [1])
-        self.assertEqual(self.N._ids(" 1, 3 "), {1, 3})
-        self.assertIsNone(self.N._ids(""))
 
 
 if __name__ == "__main__":

@@ -130,27 +130,24 @@ class NodeTest(unittest.TestCase):
         try:
             import torch  # noqa: F401
             from PIL import Image  # noqa: F401
-            import h3_upscale
-        except Exception as e:                  # noqa: BLE001 (no torch here)
+        except ImportError as e:
             self.skipTest(f"needs torch and PIL: {e}")
-        self.N = h3_upscale
+        import importlib
+        self.N = importlib.import_module("comfy_nodes.upscale")
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
 
-    def test_a_kept_frame_loads_back(self):
+    def test_a_kept_frame_is_the_upscales_last_picture(self):
+        """Reading it back is ComfyUI's LoadImage (finishing.py puts it in)."""
         import torch
+        from PIL import Image
         frame = torch.zeros(4, 6, 3)
         frame[..., 0] = 1.0
         path = os.path.join(self._tmp.name, "renders", "sh010_t01.up_last.png")
         self.N.save_frame(frame, path)
-        img, mask = self.N.H3LoadTakeFrame().load(self._tmp.name, "renders/sh010_t01.up_last.png", "")
-        self.assertEqual(tuple(img.shape), (1, 4, 6, 3))
-        self.assertAlmostEqual(float(img[0, 0, 0, 0]), 1.0, places=2)
-        self.assertEqual(tuple(mask.shape), (1, 4, 6))
-
-    def test_no_frame_and_no_fallback_says_so(self):
-        with self.assertRaisesRegex(FileNotFoundError, "isn't there yet"):
-            self.N.H3LoadTakeFrame().load(self._tmp.name, "renders/missing.png", "")
+        with Image.open(path) as im:
+            self.assertEqual(im.size, (6, 4))
+            self.assertEqual(im.convert("RGB").getpixel((0, 0)), (255, 0, 0))
 
 
 if __name__ == "__main__":

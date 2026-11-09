@@ -5,7 +5,7 @@ _history/ copies, line endings and the BOM kept, in-memory checks with line
 numbers), and promote (promote: the plan, what maps where and what is left,
 applying it, the overrides it drops, and that every shot renders with exactly
 the values it did before). The routes run through h3pipe_api with test_api's
-built kitchen_sink episode; the aiohttp adapter is in test_routes.
+built kitchen_sink episode; the aiohttp adapter is in test_server.
 """
 from __future__ import annotations
 
