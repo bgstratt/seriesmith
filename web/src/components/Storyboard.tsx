@@ -3,7 +3,7 @@
 // script is what's saved: every edit here goes to disk the way the script editor's do.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { openShotForm, openStoryboard, refreshEpisode, requestRender, uploadRef } from "../actions";
+import { openSeriesForm, openShotForm, openStoryboard, refreshEpisode, requestRender, uploadRef } from "../actions";
 import { moveClip } from "../cutActions";
 import { dropFileOnto } from "../takeActions";
 import { gapAfter } from "../lib/takeDrop";
@@ -406,10 +406,18 @@ function Storyboard({ ep }: { ep: string }) {
     let live = true;
     api().structures().then((r) => live && setNames(r.structures.map((s) => s.name)))
       .catch((e) => live && setErr((e as Error).message));
+    return () => { live = false; };
+  }, [ep]);
+
+  // the places and cast on offer, again when the series settings close
+  const seriesOpen = useApp((s) => s.seriesFormOpen);
+  useEffect(() => {
+    if (seriesOpen) return undefined;
+    let live = true;
     api().source(ep, "series").then((d) => live && setChoices(seriesChoices(d.text)))
       .catch((e) => live && setErr(`The series config: ${(e as Error).message}`));
     return () => { live = false; };
-  }, [ep]);
+  }, [ep, seriesOpen]);
 
   const length = positive(minutes);
   const each = positive(shot);
@@ -612,6 +620,8 @@ function Storyboard({ ep }: { ep: string }) {
     <>
       <i className="pi pi-th-large" />
       <b className="h3-grow">Storyboard{plan?.title ? `: ${plan.title}` : ""}</b>
+      <button className="h3-btn h3-icon" aria-label="Series settings" title="Series settings: the series config as a form (its cast and places)"
+        onClick={() => openSeriesForm()}><i className="pi pi-cog" /></button>
       <button className="h3-btn h3-icon" title="Close" onClick={() => openStoryboard(false)}><i className="pi pi-times" /></button>
     </>
   );
