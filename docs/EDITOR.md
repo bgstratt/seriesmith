@@ -236,7 +236,8 @@ of the mix, the proxies, and what doesn't come through) before **Import** makes 
 and opens it. The footage is made on the queue, a job per source in Jobs, each shot's take
 appearing as it's done. [IMPORT_XML.md](IMPORT_XML.md) is the guide.
 
-The buttons are off when the folder isn't inside a project root: add it as a root first.
+In a folder that isn't inside a project root, these buttons add it as one first (on the PC
+only; another device can't add a root).
 `seriesmith new Shows\ep02 --title "…"` makes an episode without the UI, from the newest
 episode there or the starter pair (one character, one prop, one location, three shots).
 

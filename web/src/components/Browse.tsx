@@ -132,6 +132,14 @@ function BrowseBody({ b }: { b: BrowseState }) {
   // itself an episode (then the folder we're in is the show's)
   const newParent = selDir && !selDir.episode ? selDir.path : here;
   const outsideRoots = !!newParent && !insideRoot(newParent, roots);
+  // something new goes in a project folder: a folder outside them becomes one first
+  // (only this PC can add one; elsewhere the refusal is the toast)
+  async function intoRoot(then: () => void) {
+    if (!newParent) return;
+    if (outsideRoots && !(await addRoot(newParent))) return;
+    then();
+  }
+  const addsRoot = outsideRoots ? ` (adds ${newParent} as a project folder first)` : "";
   async function makeProject() {
     if (!newParent || !projectName?.trim()) return;
     setBusyProject(true);
@@ -203,27 +211,27 @@ function BrowseBody({ b }: { b: BrowseState }) {
               <span className="h3-muted h3-small h3-grow">Double-click an episode to open it.</span>
               <button
                 className="h3-btn"
-                disabled={!newParent || outsideRoots}
-                title={outsideRoots ? `${newParent} isn't inside a project root: add it as one first` : newParent ? `A new episode in ${newParent}, step by step` : "Browse to the folder your episodes live in"}
-                onClick={() => { closeBrowse(); openWizard({ parent: newParent, newSeries: false }); }}
+                disabled={!newParent || busyRoots}
+                title={newParent ? `A new episode in ${newParent}, step by step${addsRoot}` : "Browse to the folder your episodes live in"}
+                onClick={() => void intoRoot(() => { closeBrowse(); openWizard({ parent: newParent, newSeries: false }); })}
               >
                 <i className="pi pi-file-plus" /> New episode…
               </button>
               <button
                 className="h3-btn"
-                disabled={!newParent || outsideRoots || projectName !== null}
-                title={outsideRoots ? `${newParent} isn't inside a project root: add it as one first` : !newParent ? "Browse to the folder your shows live in"
-                  : simple ? `A project of its own in ${newParent}: name it, and its clips, people and places stay together`
-                    : `Start a new series in a show folder inside ${newParent}, step by step`}
-                onClick={() => { if (simple) setProjectName(""); else { closeBrowse(); openWizard({ parent: newParent, newSeries: true }); } }}
+                disabled={!newParent || busyRoots || projectName !== null}
+                title={!newParent ? "Browse to the folder your shows live in"
+                  : (simple ? `A project of its own in ${newParent}: name it, and its clips, people and places stay together`
+                    : `Start a new series in a show folder inside ${newParent}, step by step`) + addsRoot}
+                onClick={() => void intoRoot(() => { if (simple) setProjectName(""); else { closeBrowse(); openWizard({ parent: newParent, newSeries: true }); } })}
               >
                 <i className="pi pi-star" /> New series/project…
               </button>
               <button
                 className="h3-btn"
-                disabled={!newParent || importingSeries}
-                title={newParent ? `Into ${newParent}: a seriesmith series (its config and scripts), or an edit (FCP7 XML) as a new show` : "Browse to the folder your shows live in"}
-                onClick={() => { setImportingSeries(true); }}
+                disabled={!newParent || importingSeries || busyRoots}
+                title={newParent ? `Into ${newParent}: a seriesmith series (its config and scripts), or an edit (FCP7 XML) as a new show${addsRoot}` : "Browse to the folder your shows live in"}
+                onClick={() => void intoRoot(() => setImportingSeries(true))}
               >
                 <i className="pi pi-upload" /> Import…
               </button>
