@@ -108,6 +108,20 @@ Any take can be continued. SeriesmithChainLatent holds the previous take's kept 
 encodes that take's last frames and sound through the VAEs. Re-rendering the previous shot
 is never needed.
 
+### At the cut's out point (2026-11-10)
+
+Both carry on from the last frame the cut shows of the shot before, not from its file's end.
+`edit.cut_bounds` says how many of a take's frames the cut skips at each end, as assemble plays
+the entry: the dialogue window kept from the head, then `trim_in` and `trim_out`, a take at
+another rate counted by duration. `first` cuts its keyframe at the out point (`refs.join_frame`:
+frame `-(1 + tail)`; a `last` keyframe, the next shot's first frame shown, at its in point).
+`latent` holds the frames ending at the out point: `refs.chain_source` gives the tail, and
+SeriesmithChainLatent's `skip_end` encodes them from the take's mp4, since a kept latent ends at
+the take's own end. The tail is recorded in `continued_from`, and a keyframe records its frame,
+so a trim moved later shows the continuing take stale (`chain_changed`, `keyframe_freshness`).
+An upscale of a take held at a trim doesn't hold its head on the previous upscale's latent tail,
+which ends at the take's end; it says so in its notes.
+
 ### Upscales
 
 - **`first`: built.** Every upscale keeps its last frame at the size it was made

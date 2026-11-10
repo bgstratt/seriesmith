@@ -359,8 +359,8 @@ def take_origin(sidecar: dict | None) -> dict:
 def chain_changed(root: str, pass_: str, shot_id: str, held: dict, cache: dict) -> bool:
     """Whether a `continuous: latent` take (its sidecar's `continued_from`)
     continued something other than what the cut puts before it now: another
-    shot (the cut moved), another take of it (a pick, a newer take), or that
-    take rendered again since."""
+    shot (the cut moved), another take of it (a pick, a newer take), that
+    take rendered again since, or its out point moved (its trim)."""
     key = ("cut entries", pass_)
     if key not in cache:
         cache[key] = [e for e in cut_entries(root, pass_) if not e.orphan]
@@ -374,7 +374,10 @@ def chain_changed(root: str, pass_: str, shot_id: str, held: dict, cache: dict) 
     t, n, ok = cut_take(root, prev)
     if not ok or n != held.get("take") or prev.pass_ != held.get("pass", prev.pass_):
         return True
-    return bool(held.get("sha1")) and T.file_sha1(t.paths.mp4) != held["sha1"]
+    if bool(held.get("sha1")) and T.file_sha1(t.paths.mp4) != held["sha1"]:
+        return True
+    # held up to where the cut ended that take: a trim moved since (none recorded: its end)
+    return cut_bounds(root, pass_, prev, t)[1] != int(held.get("tail") or 0)
 
 
 def cut_take(root: str, e: T.CutEntry,
@@ -1258,6 +1261,33 @@ def take_span(root: str, e: T.CutEntry, fps: float) -> int | None:
         return None
     tf = take_fps(chosen) or fps
     return n if abs(tf - fps) < 1e-3 else max(1, round(n * fps / tf))
+
+
+def cut_bounds(root: str, pass_: str, e: T.CutEntry, t: T.Take | None = None) -> tuple[int, int]:
+    """(head, tail): how many of the take's own frames the cut skips before its in point and
+    after its out point, as assemble plays the entry: the dialogue window kept from the head,
+    then trim_in and trim_out, at the cut's rate (a take at another rate counted by duration).
+    What continuity carries on from (its last frame shown) and leads into (its first): (0, 0)
+    for an untrimmed take with no window, or one whose frame count isn't known."""
+    if t is None:
+        t, _, ok = cut_take(root, e)
+        if not ok:
+            t = None
+    n = take_frames(t) if t is not None else None
+    if not n:
+        return 0, 0
+    fps = pass_fps(root, pass_)
+    tf = take_fps(t) or fps
+    span = n if abs(tf - fps) < 1e-3 else max(1, round(n * fps / tf))     # at the cut's rate
+    keep = dialogue_windows(root, pass_, fps).get(e.shot)
+    end = min(keep, span) if keep else span
+    head = max(0, e.trim_in)
+    tail = span - end + max(0, e.trim_out)
+    if head + tail >= span:
+        return 0, 0                                       # trims that leave nothing: the take as is
+    if abs(tf - fps) >= 1e-3:
+        head, tail = round(head * tf / fps), round(tail * tf / fps)
+    return min(head, n - 1), min(tail, n - 1 - min(head, n - 1))
 
 
 def dialogue_windows(root: str, pass_: str, fps: float) -> dict[str, int]:

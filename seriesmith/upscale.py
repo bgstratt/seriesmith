@@ -1009,6 +1009,13 @@ def set_chain(job: UpscaleJob) -> None:
         job.notes.append("its render held the shot before it, whose take is gone: the head "
                          "isn't held")
         return
+    tail = int(((job.take.sidecar or {}).get("continued_from") or {}).get("tail") or 0)
+    if tail:
+        # the render held that take's frames up to the cut's out point; its upscaled latent
+        # ends at the take's own end, so holding it would bring the trimmed frames back
+        job.notes.append(f"its render held {src.shot} t{src.take:02d} up to the cut's out point "
+                         f"({tail} frames before its end): the head isn't held on its upscale")
+        return
     job.held_from = src
     have = os.path.isfile(src.paths.up_latent)
     job.notes.append(f"holds {src.shot} t{src.take:02d}'s upscaled tail"

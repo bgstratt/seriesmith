@@ -2570,6 +2570,18 @@ match made to say what it does.
 - [ ] **Paths in a series config or script** (a ref, a recording, a theme): absolute ones still
       followed; confine them to the show and the project folders.
 - [ ] **The next release** scanned clean, or a manual review asked for with this list.
+- [x] **The skill on seriesmith.com** (seriesmith-site#11): Get the skill and How to use it on the home page.
+
+## Continuity at the cut's out point (branch `continuity-trim`, 2026-11-10)
+
+- [x] `continuous: first` and `latent` carried on from the previous take's file end, not where the
+      cut ends it, so a trimmed shot made the next one jump. `edit.cut_bounds` (the dialogue window,
+      then the trims, another rate by duration); `refs.join_frame` cuts a continuity keyframe at the
+      out point (a `last` one at the in point); `chain_source` and SeriesmithChainLatent's `skip_end`
+      hold the frames ending there, from the mp4. A moved trim shows the keyframe or the chained
+      take stale. CONTINUOUS.md, "At the cut's out point".
+- [x] **Live** (2026-11-10, the user): a latent chain re-rendered after a trim; `continuous: first`
+      and an FL2VA last frame cut anew at the trims.
 
 ## Later
 

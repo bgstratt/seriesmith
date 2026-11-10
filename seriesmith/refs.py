@@ -2397,13 +2397,30 @@ def view_from(view: str) -> str:
     return VIEW_FROM[view] + (KEEP_FACE if view == "04_face" else KEEP_SAME)
 
 
+def join_frame(s: Series, src: T.Take, src_pass: str, which: str, pass_: str):
+    """The frame of `src` a continuity keyframe is cut from: the one the pass's cut shows at
+    the join. For `first` (the shot before), its last frame shown: "last", or an index back
+    from the end by what the cut trims off (edit.cut_bounds); for `last` (the shot after),
+    its first frame shown. The take's own end when `src` isn't the take the cut uses."""
+    e = next((x for x in E.cut_entries(s.ep, pass_) if x.shot == src.shot), None)
+    if e is not None:
+        used, n, ok = E.cut_take(s.ep, e)
+        if ok and n == src.take and e.pass_ == src_pass:
+            head, tail = E.cut_bounds(s.ep, pass_, e, src)
+            if which == "first":
+                return -(1 + tail) if tail else "last"
+            return head if head else "first"
+    return "last" if which == "first" else "first"
+
+
 def keyframe_from_take(s: Series, shot: str, which: str = "first",
                        source_shot: str | None = None, source_take: int | None = None,
                        frame=None, pass_: str = "proxy", pick: bool | None = None,
                        note: str = "") -> KeyframeResult:
     """Make `shot`'s `which` keyframe from a frame of a video take: by default
-    the previous shot's last frame (`first`), or the next shot's first frame
-    (`last`); see keyframe_source for which take. `frame` is "first", "last"
+    the previous shot's last frame as the cut shows it (`first`: at its out point, its trim
+    taken off), or the next shot's first frame as shown (`last`: at its in point); see
+    keyframe_source for which take and join_frame for which frame. `frame` is "first", "last"
     or an index (negative from the end). The frame becomes a new take of
     shot:<shot>:<which> (source "frame"; the sidecar records the source shot,
     take, pass and frame index), picked when the keyframe has no live file yet
@@ -2415,7 +2432,7 @@ def keyframe_from_take(s: Series, shot: str, which: str = "first",
     ref = find_ref(s, f"shot:{shot}:{which}")
     src, src_pass = keyframe_source(s, shot, which, pass_, source_shot, source_take)
     if frame is None:
-        frame = "last" if which == "first" else "first"
+        frame = join_frame(s, src, src_pass, which, pass_)
     t, source = frame_into(s, ref, None, src, src_pass, frame, note)
     picked = False
     if pick or (pick is None and not os.path.isfile(ref.file)
@@ -2462,6 +2479,17 @@ def keyframe_freshness(s: Series, shot: str, which: str, pass_: str) -> dict:
     if sc.get("source_sha1") and sc["source_sha1"] != T.file_sha1(src.paths.mp4):
         return {"state": "stale", "cut_from": cut_from, "wants": wants,
                 "why": f"{src.shot} {src_pass} t{src.take:02d} was rendered again since"}
+    # the frame the cut shows at the join now: a trim moved since it was cut
+    count = sc.get("source_frames")
+    if isinstance(sc.get("source_frame"), int) and isinstance(count, int) and count > 0:
+        try:
+            want = frame_index(join_frame(s, src, src_pass, which, pass_), count)
+        except RefError:
+            want = sc["source_frame"]                     # can't tell: as it was
+        if want != sc["source_frame"]:
+            return {"state": "stale", "cut_from": cut_from, "wants": wants,
+                    "why": f"cut from frame {sc['source_frame']} of {src.shot} t{src.take:02d}; the cut "
+                           f"{'ends' if which == 'first' else 'starts'} it at frame {want} now (its trim)"}
     return {"state": "ok", "why": "", "cut_from": cut_from, "wants": wants}
 
 
@@ -2615,13 +2643,20 @@ def chain_source(ep: str, shot: str, pass_: str) -> dict:
     """When a `continuous: latent` shot starts rendering (H3ChainLatent): the
     take the cut uses NOW for the shot before it (keyframe_source's rule; a
     take queued ahead of it in the same run has just become it).
-    {"from": {shot, take, pass, sha1 (of its mp4: a re-render shows)},
-    "latent": its kept latent or None, "video": its mp4}. Raises when there is
+    {"from": {shot, take, pass, sha1 (of its mp4: a re-render shows), tail?},
+    "latent": its kept latent or None, "video": its mp4, "tail": the frames the cut trims
+    off its end (held from the frames before them; 0 for none)}. Raises when there is
     none."""
-    t, src_pass = keyframe_source(load_series(ep), shot, "first", pass_)
-    lat = t.paths.latent if os.path.isfile(t.paths.latent) else None
+    s = load_series(ep)
+    t, src_pass = keyframe_source(s, shot, "first", pass_)
+    # the frames held end where the cut ends that take: its trim off (join_frame); a kept
+    # latent holds the take's own end, so a trimmed take is held from its frames instead
+    end = join_frame(s, t, src_pass, "first", pass_)
+    tail = -1 - end if isinstance(end, int) else 0
+    lat = t.paths.latent if os.path.isfile(t.paths.latent) and not tail else None
     return {"from": {"shot": t.shot, "take": t.take, "pass": src_pass,
-                     "sha1": T.file_sha1(t.paths.mp4)}, "latent": lat, "video": t.paths.mp4}
+                     "sha1": T.file_sha1(t.paths.mp4), **({"tail": tail} if tail else {})},
+            "latent": lat, "video": t.paths.mp4, "tail": tail}
 
 
 

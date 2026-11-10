@@ -142,17 +142,21 @@ def read_frames(path: str) -> torch.Tensor:
 
 
 def encoded_tail(video: str, frames: int, width: int, height: int, video_vae,
-                 audio_vae, fps: float):
+                 audio_vae, fps: float, skip_end: int = 0):
     """(video, audio or None) latents of a video's last `frames` frames and their
-    sound, through the VAEs, the picture fitted to width x height."""
+    sound, through the VAEs, the picture fitted to width x height. `skip_end`: that many
+    frames off its end first (the cut's trim: the frames held end at its out point)."""
     import comfy.utils
 
     images = read_frames(video)
     total = int(images.shape[0])
-    if total < frames:
-        raise ValueError(f"{os.path.basename(video)} has {total} frames, fewer than the "
-                         f"{frames} to hold")
-    pixels = images[total - frames:]
+    skip_end = max(0, int(skip_end or 0))
+    if total - skip_end < frames:
+        raise ValueError(f"{os.path.basename(video)} has {total} frames"
+                         + (f" ({total - skip_end} up to the cut's out point)" if skip_end else "")
+                         + f", fewer than the {frames} to hold")
+    end = total - skip_end
+    pixels = images[end - frames:end]
     if pixels.shape[1] != height or pixels.shape[2] != width:
         pixels = comfy.utils.common_upscale(pixels.movedim(-1, 1), width, height, "lanczos",
                                             "center").movedim(1, -1)
@@ -160,7 +164,7 @@ def encoded_tail(video: str, frames: int, width: int, height: int, video_vae,
     a = None
     if audio_vae is not None:
         try:
-            audio = load_audio(video, (total - frames) / fps, total / fps)
+            audio = load_audio(video, (end - frames) / fps, end / fps)
         except Exception:
             audio = None
         if audio is not None:
@@ -253,6 +257,9 @@ class SeriesmithChainLatent:
             "video_vae": ("VAE",),
             "audio_vae": ("VAE",),
             "fps": ("FLOAT", {"default": 24.0, "min": 1.0, "max": 120.0}),
+            "skip_end": ("INT", {"default": 0, "min": 0, "max": 100000,
+                                 "tooltip": "frames the cut trims off the previous take's end: "
+                                            "held from its frames before them, not its latent"}),
         }}
 
     RETURN_TYPES = ("LATENT", "STRING")
@@ -261,13 +268,15 @@ class SeriesmithChainLatent:
     CATEGORY = "seriesmith"
 
     def chain(self, latent, overlap, hold_audio, previous="", previous_video="", source="{}",
-              video_vae=None, audio_vae=None, fps=24.0):
-        overlap, fps = int(overlap), float(fps)
+              video_vae=None, audio_vae=None, fps=24.0, skip_end=0):
+        overlap, fps, skip_end = int(overlap), float(fps), int(skip_end or 0)
         try:
             src = json.loads(source or "{}")
         except ValueError:
             src = {}
         lat, video = _input_file(previous), _input_file(previous_video)
+        if skip_end:
+            lat = ""                                   # a kept latent ends at the take's end
         out = rec = via = None
         why = ""
         if lat:
@@ -288,14 +297,15 @@ class SeriesmithChainLatent:
             v_new = latent["samples"].unbind()[0]
             w, h = pixel_size(v_new, video_vae)
             v_old, a_old = encoded_tail(video, overlap, w, h, video_vae,
-                                        audio_vae if hold_audio else None, fps)
+                                        audio_vae if hold_audio else None, fps, skip_end)
             out, rec = chain(latent, v_old, a_old, overlap, hold_audio, fps)
             via = "frames"
-        log.info("seriesmith: held %d video steps%s (%d frames, from its %s)%s",
+        log.info("seriesmith: held %d video steps%s (%d frames, from its %s%s)%s",
                  rec["video_steps"],
                  f" and {rec['audio_steps']} audio steps" if rec["audio_steps"] else "",
-                 overlap, via, f"; {why}" if why else "")
-        return (out, json.dumps(dict(src, via=via, **rec)))
+                 overlap, via, f", ending {skip_end} frames before its end" if skip_end else "",
+                 f"; {why}" if why else "")
+        return (out, json.dumps(dict(src, via=via, **rec, **({"tail": skip_end} if skip_end else {}))))
 
 
 class SeriesmithChainTrim:
