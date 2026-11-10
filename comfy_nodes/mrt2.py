@@ -91,7 +91,8 @@ class SeriesmithMRT2:
             "model": (list(MODELS), {"default": "magenta-realtime-2"}),
             "schedule": ("STRING", {"multiline": True, "default": json.dumps(
                 {"segments": [{"frames": 250, "style": "cinematic orchestral strings"}]})}),
-            "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffff}),
+            # seriesmith's seeds are 63-bit (stable_seed); torch takes any to 2**64-1
+            "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             "temperature": ("FLOAT", {"default": 1.3, "min": 0.1, "max": 3.0, "step": 0.05}),
             "top_k": ("INT", {"default": 40, "min": 1, "max": 1024}),
             "cfg_musiccoca": ("FLOAT", {"default": 3.0, "min": -1.0, "max": 7.0, "step": 0.2}),
