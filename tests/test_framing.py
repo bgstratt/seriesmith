@@ -120,7 +120,7 @@ class OpeningTest(unittest.TestCase):
 
     def test_close_family_keeps_the_room_behind_the_face(self):
         for size in ("ecu", "mcu"):
-            self.assertIn("never a plain studio backdrop", opening(size), size)
+            self.assertIn("Behind them, the frame is filled by", opening(size), size)
 
 
 class JumpCutTest(unittest.TestCase):
