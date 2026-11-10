@@ -99,7 +99,7 @@
               "class_type": "LoraLoaderModelOnly", "field": "lora_name", "folder": "loras"},
     "text_encoder": {"family": "qwen3vl-32b", "patterns": ["*qwen3*vl*32b*"], "tier": "required",
                      "default": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"},
-    "video_vae": {"family": "minimax-h3-video-vae", "patterns": ["*h3*video*vae*"], "tier": "required",
+    "video_vae": {"family": "minimax-h3-video-vae", "prefer": ["*h3*video*vae*int8*", "*h3*video*vae*"], "patterns": ["*h3*video*vae*"], "tier": "required",
                   "default": "minimax_h3_video_vae_fp16.safetensors"},
     "audio_vae": {"family": "minimax-h3-audio-vae", "patterns": ["*h3*audio*vae*"], "tier": "required",
                   "default": "minimax_h3_audio_vae_fp32.safetensors"}

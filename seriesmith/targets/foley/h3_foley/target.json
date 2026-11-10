@@ -38,7 +38,7 @@
   "models": {
     "model": {"family": "minimax-h3-fl2va", "patterns": ["*h3*fl2v*", "*fl2va*"], "tier": "required", "folder": "diffusion_models"},
     "text_encoder": {"family": "qwen3vl-32b", "patterns": ["*qwen3*vl*32b*"], "tier": "required", "folder": "text_encoders"},
-    "video_vae": {"family": "minimax-h3-video-vae", "patterns": ["*h3*video*vae*"], "tier": "required", "folder": "vae"},
+    "video_vae": {"family": "minimax-h3-video-vae", "prefer": ["*h3*video*vae*int8*", "*h3*video*vae*"], "patterns": ["*h3*video*vae*"], "tier": "required", "folder": "vae"},
     "audio_vae": {"family": "minimax-h3-audio-vae", "patterns": ["*h3*audio*vae*"], "tier": "required", "folder": "vae"}
   },
 
