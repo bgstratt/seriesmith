@@ -416,6 +416,10 @@ somewhere, it shows their picture: a character's face, cut from the last panel o
 sheet (a whole body doesn't read that small), a group's or a prop's whole picture, a
 location's plate; initials until there is one. **select…** and the location buttons open the
 pictures to pick from, and pointing at a name shows it larger.
+- **What renders** (the right side, at the top) starts with **Video model**: the model this
+  shot renders on (*the episode's*, or another, with the Models button beside it). A held shot
+  says it has no model yet and won't be filmed; pick one here to film it. Under it, the size,
+  the length and the audio, and **What the model is told**.
 - **What happens**, **Dialogue** (a row per line: speaker, on screen / V.O. / O.S., how
   it's said, the words), **Camera** (type it, or build it from H3's moves: a move, its
   amplitude and its speed, and **where it goes**: what the move travels toward or reveals,
@@ -428,9 +432,8 @@ pictures to pick from, and pointing at a name shows it larger.
   `sound.format`, else the script's `// structure:` line: a `// beat:` line above the shot;
   its help links the spotting sheet, whose Draft… drafts the score from them), **Theme mark** (a theme on this moment, `glance,   given`: a `// theme:` line) and **Hit** (accent, arrive, drop or turn on the shot's first
   frame as it plays in the cut, in the pass's mix: one undoable mix edit, saved with the
-  shot); **Video model class** (another model for this shot, with
-  the Models button beside it) and right under it what that model loads, its **Model
-  file**, **LoRAs** and **Steps**, each picked from what it can load; continuity
+  shot); what the shot's model loads, its **Model file**, **LoRAs** and **Steps**, each
+  picked from what it can load; continuity
   (**Continues**: its own line, or *the sequence's (latent)* when the `#` header sets it,
   with a line under it saying how it carries on and on what model); first and last frames (the default, generate, import, none, or **a
   picture you have…**, picked in the folder browser and kept relative to the episode); the

@@ -5,7 +5,7 @@
 // length. Saving rewrites only this shot's lines in the script (lib/shotForm.ts)
 // through PUT /seriesmith/source: the check, the history copy and the rebuild.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { afterAuthoredWrite, copyText, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
 import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
@@ -460,16 +460,7 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
                     <input className="h3-in" value={form.keys.music ?? ""} onChange={(e) => set("music", e.target.value)} />
                   </Row>
                   <ScoreMarks ep={ep} text={doc?.text ?? ""} marks={marks} setMarks={setMarks} hit={hitKind} setHit={setHitKind} />
-                  <Row label="Video model class" help="Which model draws this shot, only when it needs something one model does; empty: the episode's.">
-                    <div className="h3-row" style={{ gap: 4 }}>
-                      <select className="h3-in h3-grow" value={form.keys.target ?? ""} onChange={(e) => set("target", e.target.value)}>
-                        <option value="">the episode's</option>
-                        <ModelOptions targets={videoTargets} />
-                      </select>
-                      <ModelsButton />
-                    </div>
-                  </Row>
-                  {/* what that model loads: its file, its LoRAs, its steps */}
+                  {/* what the model (picked in What renders) loads: its file, its LoRAs, its steps */}
                   {!hosted && <Row label="Model file" help="Another file of the same model for this shot (a different quantization, a fine-tune).">
                     <ModelLine value={form.keys.model ?? ""} onChange={(v) => set("model", v)} target={renderTarget} empty="the series' (or the model's own)" />
                   </Row>}
@@ -526,7 +517,19 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
           )}
         </div>
         <div className="h3-col sm-shotform-side">
-          <Preview p={preview} pass={pass} show={showPrompt} setShow={setShowPrompt} />
+          <Preview p={preview} pass={pass} show={showPrompt} setShow={setShowPrompt} model={form && (
+            <div className="h3-col" style={{ gap: 3 }}>
+              <div className="h3-row" style={{ gap: 4 }}>
+                <label className="h3-small h3-muted" htmlFor="sm-sf-target" title="Which model draws this shot; empty: the episode's.">Video model</label>
+                <select id="sm-sf-target" className="h3-in h3-grow" value={form.keys.target ?? ""} onChange={(e) => set("target", e.target.value)}>
+                  <option value="">the episode's</option>
+                  <ModelOptions targets={videoTargets} />
+                </select>
+                <ModelsButton />
+              </div>
+              {renderTarget === "hold" && <span id="sm-sf-held" className="h3-small h3-muted">No model yet: it renders as a held picture and won't be filmed. Pick a model to film it.</span>}
+            </div>
+          )} />
         </div>
       </div>
       <div className="h3-dialog-foot">
@@ -794,12 +797,15 @@ function framingId(size: string | undefined): string | null {
   return alias[v] ?? v;
 }
 
-function Preview({ p, pass, show, setShow }: { p: ShotPreview | null; pass: string; show: boolean; setShow: (b: boolean) => void }) {
-  if (!p) return <div className="h3-card"><span className="h3-muted h3-small">What renders appears as you fill it in.</span></div>;
+/** What renders: the shot's model picked here (a held shot goes on a model from the top of the form,
+ * not from under More), then what the preview compiled. */
+function Preview({ p, pass, show, setShow, model }: { p: ShotPreview | null; pass: string; show: boolean; setShow: (b: boolean) => void; model?: ReactNode }) {
+  if (!p) return <div className="h3-card">{model}<span className="h3-muted h3-small">What renders appears as you fill it in.</span></div>;
   if (!p.ok) {
     return (
       <div className="h3-card">
         <span className="h3-card-title">Won't build yet</span>
+        {model}
         <div className="h3-note h3-note-err h3-small">{p.error}</div>
       </div>
     );
@@ -814,8 +820,9 @@ function Preview({ p, pass, show, setShow }: { p: ShotPreview | null; pass: stri
           <span className="h3-card-title h3-grow">What renders</span>
           <span className="h3-small h3-muted">{pass}</span>
         </div>
+        {model}
         <div className="h3-chips">
-          <span className="h3-sum">{p.target_label}</span>
+          {!model && <span className="h3-sum">{p.target_label}</span>}
           <span className="h3-sum">{p.width}×{p.height}</span>
           <span className="h3-sum">{p.seconds} s · {p.frames} frames</span>
           <span className="h3-sum">audio: {p.audio_policy ?? "—"}</span>
