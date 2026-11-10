@@ -2591,6 +2591,15 @@ match made to say what it does.
       upload a file from elsewhere. Imports from anywhere on the PC unchanged: they copy (or
       hard-link) into the show. `align --recording` given on its command line stays as given.
       The command line knows no project folders, so there a show's paths stay in the show.
+- [x] **Other devices pair** (`server/pairing.py`, both hosts). The PC is answered as always;
+      another device gets the page, its assets and the pairing routes, and 401 `pair: true`
+      for the rest, until it enters the six-digit code Settings → Other devices → Pair a
+      device shows (five minutes, five tries, one device a code). Its cookie (HttpOnly,
+      SameSite=Strict, a year) is kept as a SHA-256 in `devices.json` beside the settings;
+      Settings lists the devices with Remove. The standalone page shows the form in place of
+      the editor; inside ComfyUI, one seriesmith sidebar tab with the form (ComfyUI's own
+      page stays ComfyUI's). The launchers' "no password" warning is gone. Not covered: a
+      reverse proxy on the PC itself (`tailscale serve`) makes every request local.
 
 ## Continuity at the cut's out point (branch `continuity-trim`, 2026-11-10)
 

@@ -105,6 +105,10 @@ route does, as ComfyUI serves its own).
   plain machine name, a `.local`, `.lan`, `.home.arpa` or `.ts.net` name, or one given with
   `--allow-host` / `SERIESMITH_ALLOWED_HOSTS`. Otherwise 403. Inside ComfyUI, each of
   seriesmith's routes checks the Origin the same way; the names it answers to are ComfyUI's.
+- **Other devices** (`server/pairing.py`, both hosts): a request from the PC the server runs
+  on (a loopback address) is answered as always. One from any other device needs that
+  device paired, or it gets 401 `{"error", "pair": true}`; the page, its `/assets/` and the
+  pairing routes are open so the page can ask for the code.
 - Blocking work (file scans, hashing, ffmpeg, build) runs off the event loop
   (`run_in_executor`). No route blocks the server.
 
@@ -115,8 +119,21 @@ route does, as ComfyUI serves its own).
 Body `{restart?: bool}`. Stops `seriesmith serve` cleanly: the page's connection closed,
 the queue's journal written, then the process exits — with code 3 when `restart` is set,
 which `run_seriesmith*.bat` starts it again on. Only from the machine it runs on (403
-otherwise: the server may listen on the network with no password). `seriesmith stop
+otherwise: a paired device can't stop it). `seriesmith stop
 [--restart] [--port N]` calls it.
+
+### Pairing another device (both hosts)
+
+- `POST /seriesmith/pair/code` (this PC only): a new six-digit code, replacing any on offer:
+  `{code, expires, seconds}`. Good for five minutes and five wrong tries; one device per code.
+- `GET /seriesmith/pair`: `{local, paired}`, whether this device must pair first.
+- `POST /seriesmith/pair` `{code, name?}`: the device paired; the answer sets its cookie
+  (`seriesmith_device`, HttpOnly, SameSite=Strict, about a year). 403 for a wrong or
+  expired code.
+- `GET /seriesmith/devices` (this PC only): `{devices: [{id, name, added, seen, address}]}`.
+- `POST /seriesmith/devices/remove` (this PC only) `{id}`: that device unpaired; the list.
+
+The devices are kept in `devices.json` beside the settings, each cookie as its SHA-256 only.
 
 ### `GET /seriesmith/config`
 ```json

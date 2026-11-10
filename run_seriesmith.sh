@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 # seriesmith - the editor on this machine only (http://127.0.0.1:8190), as
-# run_seriesmith.bat on Windows. --ext opens it to your network (no password:
-# trusted networks only). The first start makes the repo's .venv and installs
-# seriesmith in it.
+# run_seriesmith.bat on Windows. --ext opens it to your network (another device
+# pairs once, with a code from Settings on this machine). The first start makes
+# the repo's .venv and installs seriesmith in it.
 cd "$(dirname "$0")" || exit 1
 PORT=8190
 HOST=127.0.0.1

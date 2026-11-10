@@ -18,6 +18,7 @@ import { CopyButton } from "./Readiness";
 import { ModelOptions } from "./Targets";
 import { addCommand, argsOf, commandLine, jsonBlock, type McpLaunch } from "../lib/mcpSetup";
 import { SkillLink } from "./SkillLink";
+import { DevicesCard } from "./Pairing";
 
 interface SettingsView {
   settings: {
@@ -432,8 +433,10 @@ function SettingsBody({ server }: { server: boolean }) {
           </span>
         </section>
 
-        {/* only on the PC itself: the server refuses a stop from another device (no password
-            on the network), so the buttons aren't offered there */}
+        <DevicesCard />
+
+        {/* only on the PC itself: the server refuses a stop from another device (a paired
+            one too), so the buttons aren't offered there */}
         {server && ["127.0.0.1", "localhost", "[::1]", "::1"].includes(location.hostname) && <ServerSection />}
 
         {error && <div className="h3-err">{error}</div>}

@@ -218,6 +218,7 @@ def guard_middleware(local_only: bool, allow_hosts: list[str] | None = None):
     """Refuse what another web page asks of this server (server/guard.py): a request whose
     page isn't this server, or addressed to a name this server doesn't answer to."""
     from seriesmith.server import guard as G
+    from seriesmith.server import pairing as PR
     extra = G.allowed_hosts(allow_hosts)
 
     @web.middleware
@@ -227,6 +228,8 @@ def guard_middleware(local_only: bool, allow_hosts: list[str] | None = None):
                         local_only, extra)
         if why:
             return web.json_response({"error": why}, status=403)
+        if PR.refused(request):                           # another device, not paired yet
+            return PR.refusal()
         return await handler(request)
     return guard
 
@@ -336,7 +339,7 @@ def make_app(roots: list[str] | None = None, settings=None,
     async def stop_view(request: web.Request) -> web.Response:
         """POST /seriesmith/server/stop {restart?}: stop this server cleanly
         (the editor's Stop / Restart, `seriesmith stop`). Only from this
-        machine: the server may listen on the network with no password."""
+        machine: a paired device can't stop it either."""
         if request.remote not in LOOPBACK:
             return web.json_response({"error": "the server can be stopped from its own machine only"},
                                      status=403)
@@ -522,8 +525,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  seriesmith editor: http://127.0.0.1:{args.port}/   (Ctrl+C stops it)", flush=True)
         lan = lan_address()
         if lan:
-            print(f"  on your network:   http://{lan}:{args.port}/   (no password: trusted "
-                  "networks only)", flush=True)
+            print(f"  on your network:   http://{lan}:{args.port}/   (a device pairs once, "
+                  "with a code from Settings here)", flush=True)
     else:
         print(f"  seriesmith editor: http://{args.host}:{args.port}/   (Ctrl+C stops it)", flush=True)
     if os.name == "nt" and hasattr(signal, "SIGBREAK"):

@@ -30,7 +30,9 @@ you to write into:
 2. **Run `seriesmith serve`** (`--root C:\Shows` names your project folders) and open
    http://127.0.0.1:8190. Local renders go straight to your ComfyUI. `run_seriesmith.bat`
    does the same (setting itself up the first time) and opens the page in your browser
-   (`run_seriesmith_ext.bat` opens it to your network too). To stop or restart it: **Settings → This server → Stop / Restart** (Restart
+   (`run_seriesmith_ext.bat` opens it to your network too: a laptop or phone pairs once, with
+   the code **Settings → Other devices → Pair a device** shows on the PC, and is listed there
+   with **Remove**). To stop or restart it: **Settings → This server → Stop / Restart** (Restart
    starts it again under the .bat launchers, and the page reloads), `seriesmith stop
    [--restart]`, or Ctrl+C. A stop closes the page's connection and writes the queue's
    journal first, so it's quick, and jobs on Router are picked up on the next start.

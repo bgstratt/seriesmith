@@ -582,7 +582,8 @@ seriesmith stop                        # stop that server cleanly (--restart: st
   (`local_via: "proxy"`), and picks up the jobs the last run left. `--port` (default 8190), `--host`, `--root` (repeatable), `--auto-launch` (open the
   editor in the browser once it is listening, as the .bat launchers do), `--allow-host`
   (repeatable: another name it answers to on the network; an address, a plain machine name
-  and `.local`, `.lan` and `.ts.net` names already do, INSTALL.md).
+  and `.local`, `.lan` and `.ts.net` names already do, INSTALL.md). On the network, another
+  device pairs once with a code from Settings on this machine (Other devices).
 - `stop` asks the server on this machine to stop (`--port`); `--restart` restarts it when
   it runs under `run_seriesmith.bat` / `run_seriesmith_ext.bat` (a bare `seriesmith serve`
   just stops). Jobs still running on a backend are picked up on the next start.

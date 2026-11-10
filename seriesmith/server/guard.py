@@ -20,8 +20,8 @@ answers, or open its live connection. Three checks, in `refused`:
 Inside ComfyUI, seriesmith's routes check the Origin the same way (`guarded`); the names
 ComfyUI answers to are ComfyUI's to decide.
 
-Nothing here is a password: on the network, anyone who can reach the server can still use
-it, as the launcher says.
+Who may use it is pairing's (server/pairing.py): the PC it runs on always, another device
+once it's paired with a code from Settings.
 """
 from __future__ import annotations
 
@@ -106,5 +106,8 @@ def guarded(view):
                       request.headers.get("Sec-Fetch-Site"), local_only=False, check_host=False)
         if why:
             return web.json_response({"error": why}, status=403)
+        from seriesmith.server import pairing as PR
+        if PR.refused(request):                           # another device, not paired yet
+            return PR.refusal()
         return await view(request)
     return checked

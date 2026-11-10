@@ -8,6 +8,7 @@ by each host in one loop, so the two can't drift apart.
                      only when the host has seriesmith's queue
     feature routes   the Features window (server/features_views.py): always,
                      queue or not
+    pairing routes   another device let in with a code (server/pairing.py)
 
 `seriesmith serve` answers each path under /api as well, as ComfyUI does for
 every route registered on it: the page inside ComfyUI asks through ComfyUI's
@@ -21,6 +22,7 @@ from typing import Callable
 
 from seriesmith import api as A
 from seriesmith.server import features_views as FV
+from seriesmith.server import pairing as PR
 from seriesmith.server import queue_views as QV
 from seriesmith.server.views import routes as api_routes
 
@@ -34,6 +36,7 @@ def all_routes(make_context: Callable[[], "A.Context"], settings, runner=None,
     if runner is not None:
         out += QV.queue_routes(settings, runner, connected, make_context)
     out += FV.feature_routes(settings, make_context, in_comfyui)
+    out += PR.routes()
     return out
 
 
@@ -41,7 +44,7 @@ def all_paths() -> set[str]:
     """Every path all_routes may register, known before anything starts (a
     host checks them against routes another pack already has)."""
     return ({path for _, path, _, _ in A.ROUTES} | {path for _, path in QV.PATHS}
-            | {path for _, path in FV.PATHS})
+            | {path for _, path in FV.PATHS} | {path for _, path in PR.PATHS})
 
 
 __all__ = ["all_paths", "all_routes"]
