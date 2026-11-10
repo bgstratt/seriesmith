@@ -143,6 +143,10 @@ raise SystemExit(build.main(sys.argv[1:], prog="check.py"))
 BUNDLE_FILES = ["__init__.py", "build.py", "settings.py"]
 BUNDLE_DIRS = ["core", "targets"]
 BUNDLE_SKIP = ["__pycache__", "*.pyc", "workflow.json"]
+# claude.ai takes a skill of 200 files at most, and refuses a zip inside it. A model's
+# folder (targets/<kind>/<id>/) needs no __init__.py when it holds only a docstring: its
+# code is imported by module path, which Python 3 finds without one (a namespace package).
+MAX_FILES = 200
 
 
 def read(path: str) -> str:
@@ -199,6 +203,23 @@ def skipped(name: str) -> bool:
     return any(fnmatch.fnmatch(name, pat) for pat in BUNDLE_SKIP)
 
 
+def docstring_only(path: str) -> bool:
+    """Whether a Python file holds nothing but a docstring (or nothing)."""
+    import ast
+    tree = ast.parse(read(path))
+    return all(isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant) for n in tree.body)
+
+
+def left_out(folder: str, names: list[str]) -> list[str]:
+    """What copying `folder` into the bundle leaves out: BUNDLE_SKIP, and a model
+    folder's __init__.py that holds only a docstring (see MAX_FILES)."""
+    out = [n for n in names if skipped(n)]
+    model = os.path.basename(os.path.dirname(os.path.dirname(folder))) == "targets"
+    if model and "__init__.py" in names and docstring_only(os.path.join(folder, "__init__.py")):
+        out.append("__init__.py")
+    return out
+
+
 def bundle_skill(text: str) -> str:
     """The bundled skill's SKILL.md: the skill's text and what the folder holds."""
     return skill_text(text, BUNDLE_NOTE.replace("{version}", version()))
@@ -243,7 +264,7 @@ def bundle(text: str, out: str | None = None) -> str:
         shutil.copy2(os.path.join(src, f), os.path.join(pkg, f))
     for d in BUNDLE_DIRS:
         shutil.copytree(os.path.join(src, d), os.path.join(pkg, d),
-                        ignore=lambda _dir, names: [n for n in names if skipped(n)])
+                        ignore=left_out)
     print(f"  -> {os.path.relpath(scripts, ROOT)}{os.sep} (check.py, seriesmith/: "
           f"{', '.join(BUNDLE_FILES + [d + '/' for d in BUNDLE_DIRS])})")
 
@@ -256,6 +277,7 @@ def bundle(text: str, out: str | None = None) -> str:
         for n in sorted(filenames):
             full = os.path.join(dirpath, n)
             entries.append((full, os.path.relpath(full, out).replace(os.sep, "/")))
+    assert len(entries) <= MAX_FILES, f"the skill is {len(entries)} files, over claude.ai's {MAX_FILES}"
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as zf:
         for full, arc in entries:
             info = zipfile.ZipInfo(arc, date_time=(2026, 1, 1, 0, 0, 0))

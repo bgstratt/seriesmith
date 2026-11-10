@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -56,6 +57,31 @@ class SkillBundleTest(unittest.TestCase):
         for f in P.BUNDLE_FILES:
             self.assertTrue(os.path.isfile(os.path.join(pkg, f)), f)
         self.assertFalse(os.path.exists(os.path.join(pkg, "upscale.py")))
+
+    def test_claude_ai_takes_its_file_count(self):
+        """claude.ai refuses a skill of over 200 files (and a zip inside one): a model's
+        folder goes without its docstring-only __init__.py, imported as a namespace package."""
+        with zipfile.ZipFile(os.path.join(self.tmp, f"{P.NAME}.zip")) as zf:
+            names = zf.namelist()
+        self.assertLessEqual(len(names), P.MAX_FILES)
+        self.assertFalse(any(n.endswith(".zip") for n in names))
+        self.assertNotIn(f"{P.NAME}/scripts/seriesmith/targets/video/minimax_h3_ref2va/__init__.py", names)
+        self.assertIn(f"{P.NAME}/scripts/seriesmith/targets/video/__init__.py", names)
+
+    def test_every_model_compiles_from_the_bundle(self):
+        """Each shipped model's code imports from the bundle, with no __init__.py beside it."""
+        code = ("import sys; sys.path.insert(0, sys.argv[1]); from seriesmith import targets as T\n"
+                "bad = []\n"
+                "for kind in T.KINDS:\n"
+                "    for t in T.list_targets(kind):\n"
+                "        if t.custom or t.spec.get('code', '').startswith('builtin:'): continue\n"
+                "        try: t.module\n"
+                "        except Exception as e: bad.append(f'{kind}/{t.id}: {e}')\n"
+                "print('\\n'.join(bad)); sys.exit(1 if bad else 0)\n")
+        env = {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")}
+        r = subprocess.run([sys.executable, "-I", "-S", "-c", code, os.path.join(self.tmp, P.NAME, "scripts")],
+                           capture_output=True, text=True, encoding="utf-8", env=env, cwd=self.tmp, timeout=120)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_the_demo_checks_with_its_recipes_passed_over(self):
         """The demo's series config (as the skill wrote it) has an upscale recipe:
