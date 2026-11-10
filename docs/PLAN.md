@@ -2576,6 +2576,14 @@ match made to say what it does.
 - [ ] **The next release** scanned clean, or a manual review asked for with this list.
 - [x] **The skill on seriesmith.com** (seriesmith-site#11): Get the skill and How to use it on the home page.
 
+## Security, next (branch `security-next`, 2026-11-10)
+
+- [x] **The publish job.** Its actions pinned to commits, comfy-cli to 1.25.0 (publish-node-action
+      ran `@main` and installed the newest comfy-cli with the Registry key); the key through the
+      environment; the checkout without git credentials. The version's notes are its PLAN entry
+      (`tools/release_notes.py`): the Registry shows them as one plain paragraph, its list the
+      first two lines, so a release entry leads with what a user gets.
+
 ## Continuity at the cut's out point (branch `continuity-trim`, 2026-11-10)
 
 - [x] `continuous: first` and `latent` carried on from the previous take's file end, not where the
