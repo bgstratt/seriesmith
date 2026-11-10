@@ -1147,6 +1147,10 @@ collide with the package.
       What renders (#111). Published by the merge's version bump.
 - [x] **0.1.21** (2026-11-09, `release-0.1.21`): the script-writing skill's zip under claude.ai's 200
       files, with no zip inside it (#113). Published by the merge's version bump.
+- [x] **0.1.22** (2026-11-10, `release-0.1.22`): the Registry's flags answered (#115: the package
+      trimmed, other web pages refused, keys only to their hosts, paths from other devices kept to
+      the project folders, no `python -c`; MRT2's seed and torch 2.15 under dynamic VRAM fixed);
+      continuity carries on from the cut's out point (#116). Published by the merge's version bump.
 - [x] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render. Done by the user.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
