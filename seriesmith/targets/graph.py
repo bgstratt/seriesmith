@@ -29,5 +29,7 @@ def new_id(g: dict, stem: str) -> str:
 
 
 def abs_path(root: str, p: str) -> str:
-    """`p` as given when absolute, else under `root` (an episode's file)."""
-    return p if os.path.isabs(p) else os.path.join(root, p)
+    """`p` as given when absolute, else under `root` (an episode's file); inside the
+    show or a project folder only (core.paths.show_file: OutsideShow otherwise)."""
+    from seriesmith.core.paths import show_file
+    return show_file(root, p)

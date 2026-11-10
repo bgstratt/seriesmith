@@ -723,7 +723,7 @@ def write_xml(xml_path: str, root: str, doc: dict, by_id: dict, plan: list[dict]
     recording = None
     track = doc.get("defaults", {}).get("master_track", "")
     if track:
-        track = track if os.path.isabs(track) else os.path.join(root, track)
+        track = P.show_file(root, track)
         if os.path.isfile(track):
             start = plan[0]["audio_in"] if plan[0]["audio_in"] is not None else base_in
             start += plan[0]["trim_in"] / fps
@@ -1430,7 +1430,7 @@ def main(argv: list[str] | None = None) -> int:
         if r.returncode == 0 and args.audio in ("master", "recording"):
             # under `recording` the mix below then takes this as its dialogue track
             track = doc.get("defaults", {}).get("master_track", "")
-            track = track if os.path.isabs(track) else os.path.join(root, track)
+            track = track and P.show_file(root, track)
             if not track or not os.path.isfile(track):
                 print(f"  ! --audio {args.audio}: no recorded track at {track or '<unset>'}; "
                       f"cut left silent")

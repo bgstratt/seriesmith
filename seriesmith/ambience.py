@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 
+from seriesmith.core.paths import show_file
 from seriesmith import mix as MX
 from seriesmith.core import fileio as F
 from seriesmith.core import paths as P
@@ -139,8 +140,7 @@ def laid(root: str, layout: list[dict], series_cfg: dict | None, mix: dict | Non
     out = []
     for r in runs(layout, beds_of):
         b = r["bed"]
-        full = os.path.normpath(b["path"] if os.path.isabs(b["path"])
-                                else os.path.join(home, *b["path"].split("/")))
+        full = show_file(home, b["path"])
         try:
             rel = os.path.relpath(full, root).replace(os.sep, "/")
         except ValueError:                                # another drive

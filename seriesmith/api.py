@@ -38,6 +38,7 @@ from seriesmith import upscale as U  # noqa: E402
 from seriesmith import track as K  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith.core import fileio as F
+from seriesmith.core import paths as PA
 
 HOME = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 # kept for the hosts' sake: always None now that the pipeline is a package
@@ -260,6 +261,13 @@ def config_path(ctx: Context) -> str:
 
 
 def load_roots(ctx: Context) -> list[str]:
+    """The project folders; also where a show's own paths may lead (core.paths.show_file)."""
+    roots = _read_roots(ctx)
+    PA.set_project_roots(roots)
+    return roots
+
+
+def _read_roots(ctx: Context) -> list[str]:
     p = config_path(ctx)
     if os.path.isfile(p):
         try:
@@ -2782,7 +2790,7 @@ def get_mix(ctx: Context, query: dict):
     # each item's file: its length in seconds (None: not there, or no sound)
     files = {}
     for it in mix.get("items") or []:
-        full = os.path.normpath(os.path.join(ep, *it["path"].split("/")))
+        full = PA.show_file(ep, it["path"])
         info = PK.media_info(full) if os.path.isfile(full) else {}
         files[it["path"]] = info.get("duration") if info.get("audio") else None
     from seriesmith import ambience as AMB
@@ -2876,13 +2884,13 @@ def get_mix_beats(ctx: Context, query: dict):
     for it in mix.get("items") or []:
         if kinds.get(it["track"]) != "music":
             continue
-        full = os.path.normpath(os.path.join(ep, *it["path"].split("/")))
+        full = PA.show_file(ep, it["path"])
         items.append({"id": it["id"], "path": it["path"], "grid": grid(full, it["path"])})
     rec = None
     track = E.episode_track(ep)
     if track and track.get("exists"):
         p = track["path"]
-        full = os.path.normpath(p if os.path.isabs(p) else os.path.join(ep, *p.split("/")))
+        full = PA.show_file(ep, p)
         rec = {"path": p, "grid": grid(full, None)}
     return 200, {"items": items, "recording": rec}
 

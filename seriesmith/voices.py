@@ -41,6 +41,7 @@ import subprocess
 import tempfile
 import time
 
+from seriesmith.core.paths import show_file
 from seriesmith import edit as E
 from seriesmith import ff as FF
 from seriesmith import mix as MX
@@ -257,7 +258,7 @@ def on_layout(root: str, pass_: str, layout: list[dict], mix: dict | None) -> li
     for x in layout:
         r = rows.get(x["id"])
         if r and r["plays"] == "voice":
-            x = {**x, "sound": os.path.join(root, *r["path"].split("/"))}
+            x = {**x, "sound": show_file(root, r["path"])}
         elif r and r["plays"] == "silence":
             x = {**x, "sound": None}
         out.append(x)

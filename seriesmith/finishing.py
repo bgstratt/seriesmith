@@ -73,7 +73,9 @@ def of_post(job, graph: dict) -> Finish:
 
 
 def _abs(root: str, p: str) -> str:
-    return p if os.path.isabs(p) else os.path.join(os.path.normpath(root), p)
+    """An episode's file, inside the show (core.paths.show_file): every one is sent."""
+    from seriesmith.core.paths import show_file
+    return show_file(os.path.normpath(root), p)
 
 
 def take_input_files(take: T.Take, root: str) -> dict[str, str]:

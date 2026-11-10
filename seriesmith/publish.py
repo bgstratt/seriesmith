@@ -70,6 +70,7 @@ from seriesmith import assemble as ASM  # noqa: E402
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import ff as FF  # noqa: E402
+from seriesmith.core.paths import show_file  # noqa: E402
 
 LEVEL = {"match": True, "under_lu": 0.0}
 # the title's font when the series config names none and the default (Windows' Segoe Script)
@@ -199,11 +200,14 @@ def find_font(font: str, home: str | None = None, fonts: dict[str, str] | None =
     """The font file `font` names, or None: a full path as it is; a relative path (one with a
     folder in it) from `home`, the folder holding series.json; a bare file name in `home`,
     else in this machine's font folders, any case, its extension optional (georgia finds
-    georgia.ttf)."""
+    georgia.ttf). A path the series config names stays inside the show or this machine's font
+    folders (core.paths.show_file: OutsideShow otherwise)."""
     if os.path.isabs(font):
+        if home:
+            font = show_file(home, font, also=font_dirs())
         return font if os.path.isfile(font) else None
     if home:
-        path = os.path.normpath(os.path.join(home, font))
+        path = show_file(home, font)
         if os.path.isfile(path):
             return path
     if os.path.dirname(font):
@@ -680,7 +684,7 @@ def _clip(root: str, block: dict, key: str) -> str | None:
     the episode folder or the show folder above it, else None."""
     rel = block.get(key)
     if rel:
-        path = os.path.normpath(os.path.join(root, rel))
+        path = show_file(root, rel)
         if not os.path.isfile(path):
             raise PublishError(f"publish.{key} is {rel}, which isn't there ({path})")
         return path

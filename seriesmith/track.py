@@ -366,8 +366,9 @@ def recording_path(ep: str, track: str | None = None) -> str | None:
         track = audio.get("track") if isinstance(audio, dict) else None
         if not isinstance(track, str) or not track.strip():
             return None
-    full = track if os.path.isabs(track) else os.path.join(ep, track)
-    return os.path.normpath(full) if os.path.isfile(full) else None
+    from seriesmith.core.paths import show_file
+    full = show_file(ep, track)
+    return full if os.path.isfile(full) else None
 
 
 def attach_track(ep: str, source: str, name: str | None = None) -> dict:

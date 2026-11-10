@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 
+from seriesmith.core.paths import show_file
 from seriesmith import cue as CU
 from seriesmith import edit as E
 from seriesmith import mix as MX
@@ -102,7 +103,7 @@ def crossing(root: str, pass_: str, frame: int, origins: dict, fps: float) -> li
             continue
         if e is None and not item.get("out"):
             try:
-                with wave.open(os.path.join(root, *item["path"].split("/")), "rb") as w:
+                with wave.open(show_file(root, item["path"]), "rb") as w:
                     secs = w.getnframes() / float(w.getframerate())
                 e = s + round(max(0.0, secs - float(item.get("offset") or 0.0)) * fps)
             except (OSError, EOFError, wave.Error):
