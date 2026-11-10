@@ -1,4 +1,4 @@
 """seriesmith: a series config and episode scripts in, finished episodes out
 (docs/DESIGN.md)."""
 
-__version__ = "0.1.20"  # pyproject.toml's, kept equal (tests/test_commands.py)
+__version__ = "0.1.21"  # pyproject.toml's, kept equal (tests/test_commands.py)
