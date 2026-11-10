@@ -6114,7 +6114,7 @@ def post_refs_generate_missing(ctx: Context, body):
     each series ref this pass uses with no live file (not cleared, nothing
     queued or waiting), and every needed keyframe filled as `seriesmith keyframe
     --missing` does. Returns {queued, picked, skipped, errors}; `dry_run`
-    writes and queues nothing."""
+    writes and queues nothing; `unused` adds the pictures no shot uses yet."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     pass_ = check_pass(body.get("pass"))
@@ -6129,6 +6129,9 @@ def post_refs_generate_missing(ctx: Context, body):
     dry_run = body.get("dry_run", False)
     if not isinstance(dry_run, bool):
         raise ApiError(400, "dry_run must be true or false")
+    unused = body.get("unused", False)
+    if not isinstance(unused, bool):
+        raise ApiError(400, "unused must be true or false")
     s = _series(ep)
     J.load_shotlist(ep, pass_)                           # 404 without a build
     base = None
@@ -6142,7 +6145,7 @@ def post_refs_generate_missing(ctx: Context, body):
                                 keyframe_target, dry_run, base, listing=listing,
                                 resolve=ctx.model_resolve, cache=ctx.model_cache,
                                 runner=None if dry_run else ctx.runner,
-                                backend=_opt_backend(ctx, body))
+                                backend=_opt_backend(ctx, body), unused=unused)
     if not dry_run:
         for q in result["queued"]:
             ref_event(ctx, ep, q["ref"], q["view"], q["take"], "queued")

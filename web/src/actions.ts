@@ -2522,15 +2522,17 @@ export async function generateRef(req: Omit<RefGenerateRequest, "ep">): Promise<
  * the neighbouring take, else a still; a script path imported). A dry run
  * first lists what it would do, to confirm: it can be a lot of GPU work.
  */
-export async function generateMissing(ask = true): Promise<void> {
+/** `unused`: also the pictures no shot uses yet (the guide's: a new episode has no shots). */
+export async function generateMissing(ask = true, unused = false): Promise<void> {
   const s = get();
   const ep = s.ep;
   if (!ep) return;
   const pass = s.pass;
+  const scope = unused ? { unused: true } : {};
   await withBusy("refgen|missing", async () => {
     try {
       if (ask) {
-        const plan = await api().refsGenerateMissing({ ep, pass, dry_run: true });
+        const plan = await api().refsGenerateMissing({ ep, pass, dry_run: true, ...scope });
         const lines = [
           ...plan.queued.map((q) => `• ${refLabel(q.ref, q.view)}${q.method && q.method !== "generate" ? ` (${q.method})` : ""}`),
           ...plan.picked.map((p) => `• ${refLabel(p.ref, p.view)} (${p.method ?? "import"})`),
@@ -2550,7 +2552,7 @@ export async function generateMissing(ask = true): Promise<void> {
           + "\n\nEach becomes live automatically when it finishes (you can pick another candidate later).")) return;
       }
       const backend = get().renderBackend || undefined;
-      const r = await api().refsGenerateMissing({ ep, pass, ...(backend ? { backend } : {}) });
+      const r = await api().refsGenerateMissing({ ep, pass, ...scope, ...(backend ? { backend } : {}) });
       const learned: Record<string, RefTakeRef> = {};
       for (const q of r.queued) if (q.prompt_id && q.take != null) learned[q.prompt_id] = { ep, ref: q.ref, view: q.view ?? null, take: q.take };
       set((st) => ({

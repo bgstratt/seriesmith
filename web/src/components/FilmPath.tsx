@@ -113,7 +113,7 @@ function FilmPath({ ep }: { ep: string }) {
               <span>{missing.length ? `${missing.length} ${missing.length === 1 ? "picture" : "pictures"} to make, so people and places stay the same from shot to shot.` : "Every person and place has a picture."}</span>
               {missing.length > 0 && <ul className="h3-small" style={{ margin: 0, paddingLeft: 18 }}>{missing.slice(0, 12).map((r) => <li key={r.id}>{r.name}</li>)}{missing.length > 12 && <li>and {missing.length - 12} more</li>}</ul>}
               <div className="h3-row h3-wrap">
-                <button id="sm-guide-pictures" className="h3-btn h3-primary" disabled={!missing.length} onClick={() => void generateMissing(true)}><i className="pi pi-image" /> Make the pictures</button>
+                <button id="sm-guide-pictures" className="h3-btn h3-primary" disabled={!missing.length} onClick={() => void generateMissing(true, true)}><i className="pi pi-image" /> Make the pictures</button>
                 <button className="h3-btn" onClick={() => openSeriesForm()}><i className="pi pi-cog" /> Cast and places</button>
               </div>
               <span className="h3-small h3-muted">To pick another candidate or use a picture you have, open the Refs tab.</span>

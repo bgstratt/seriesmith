@@ -4148,18 +4148,21 @@ def _waiting(takes: list[RefTake]) -> str | None:
     return None
 
 
-def missing_series(s: Series, pass_: str = "proxy") -> tuple[list[tuple[Ref, str | None]],
-                                                             list[dict]]:
+def missing_series(s: Series, pass_: str = "proxy", unused: bool = False
+                   ) -> tuple[list[tuple[Ref, str | None]], list[dict]]:
     """The series refs "generate missing" queues: every one this episode
     uses in `pass_` (used_by) with no live file, not cleared and with no
     candidate queued or waiting, as [(ref, view)] (view None: the ref, or a
     character's four views sharing a seed; else the views still missing),
-    and [{"ref", "view"?, "reason"}] for missing ones it leaves alone."""
+    and [{"ref", "view"?, "reason"}] for missing ones it leaves alone.
+    `unused` adds the pictures no shot uses yet (the guide's, before the
+    episode has shots); a voice or a bed still waits for a shot."""
     refs = series_refs(s)
     usage = used_by(s, refs)
     todo, skipped = [], []
     for ref in refs:
-        if not usage.get(ref.id, {}).get(pass_) or not ref.path or os.path.isfile(ref.file):
+        used = usage.get(ref.id, {}).get(pass_) or (unused and ref_target_kind(ref) == "image")
+        if not used or not ref.path or os.path.isfile(ref.file):
             continue
         why = can_generate(s, ref)
         if why:
@@ -4197,9 +4200,10 @@ def generate_missing(s: Series, comfy, pass_: str = "proxy", kinds=MISSING_KINDS
                      target: str | None = None, keyframe_target: str | None = None,
                      dry_run: bool = False, base=None, listing=None, resolve=None,
                      cache=None, save_node: bool = True, runner=None,
-                     backend: str | None = None) -> dict:
+                     backend: str | None = None, unused: bool = False) -> dict:
     """POST /seriesmith/refs/generate-missing: fill every missing ref at once,
-    without waiting. Series refs (missing_series) get one candidate each
+    without waiting. Series refs (missing_series; `unused` adds the pictures
+    no shot uses yet) get one candidate each
     (queue_generate, the image target `target` or each ref's default);
     needed keyframes (missing_keyframes: required ones and ones the script
     asks for) are filled as `seriesmith keyframe --missing` does (keyframe_plan):
@@ -4236,7 +4240,7 @@ def generate_missing(s: Series, comfy, pass_: str = "proxy", kinds=MISSING_KINDS
         out["errors"] += res["errors"]
 
     if "series" in kinds:
-        todo, skipped = missing_series(s, pass_)
+        todo, skipped = missing_series(s, pass_, unused)
         out["skipped"] += skipped
         for ref, view in todo:
             queue(ref, view, target, "generate")

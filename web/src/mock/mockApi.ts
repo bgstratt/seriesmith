@@ -1911,7 +1911,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       const inFlight = (ts: { status: string }[]) => ts.some((t) => t.status === "queued" || t.status === "ok");
       if (kinds.includes("series")) {
         for (const r of list) {
-          if (r.kind === "keyframe" || r.exists || !r.path || r.cleared || !(r.used_by[pass] ?? []).length) continue;
+          const used = (r.used_by[pass] ?? []).length || (req.unused && r.kind !== "voice");
+          if (r.kind === "keyframe" || r.exists || !r.path || r.cleared || !used) continue;
           if (r.can_generate === false) {
             out.skipped.push({ ref: r.id, reason: r.why_not ?? "can't be generated" });
             continue;
