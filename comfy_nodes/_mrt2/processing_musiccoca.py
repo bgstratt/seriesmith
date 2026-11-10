@@ -34,11 +34,9 @@ class MusicCoCaProcessor:
     def from_pretrained(cls, pretrained_model_name_or_path, device="cpu", **kwargs):
         from .musiccoca import MusicCoCa
         p = pretrained_model_name_or_path
-        if p is not None and os.path.isdir(p) and os.path.exists(os.path.join(p, "text_encoder.pt")):
-            mc = MusicCoCa(resource_dir=p, device=device)
-        else:
-            mc = MusicCoCa(repo_id=p, device=device) if p else MusicCoCa(device=device)
-        return cls(mc)
+        if not (p and os.path.isdir(p) and os.path.exists(os.path.join(p, "text_encoder.pt"))):
+            raise FileNotFoundError(f"MusicCoCa needs a local folder with text_encoder.pt: {p!r}")
+        return cls(MusicCoCa(resource_dir=p, device=device))
 
     def save_pretrained(self, save_directory, **kwargs):
         # Artifacts live in the MusicCoCa hub repo; nothing extra to serialize here.

@@ -35,13 +35,6 @@ from .depthformer import Depthformer, DepthformerConfig, SpecDims
 from .cudagraph import CudaGraphStreamer, GUIDANCE_CFG_WARN, _warn_high_cfg  # noqa: F401 (re-export)
 from .spectrostream import SpectroStreamDecoder, codes_to_embeddings
 
-# Force `trust_remote_code` to bundle every dependency module. transformers only
-# traces `from .X import ...` (not `from . import X`), so we name them explicitly.
-from .layers import JaxLinear as _ensure_layers  # noqa: F401
-from .musiccoca import MusicCoCa as _ensure_musiccoca  # noqa: F401
-from .processing_musiccoca import MusicCoCaProcessor as _ensure_processor  # noqa: F401
-from .aoti import load_compiled_steps as _ensure_aoti  # noqa: F401
-
 SR = 48000
 FRAME_SAMPLES = 1920
 STREAM_DECODE_CONTEXT = 16
@@ -158,10 +151,10 @@ class MagentaRT2ForConditionalGeneration(MagentaRT2PreTrainedModel):
         self.processor = processor
         return self
 
-    def load_processor(self, repo_id="magenta-torch/magenta-rt-musiccoca-torch", device=None):
-        """Load + attach the MusicCoCa style processor (text/audio -> RVQ tokens)."""
+    def load_processor(self, folder, device=None):
+        """Load + attach the MusicCoCa style processor (text/audio -> RVQ tokens) from a local folder."""
         from .processing_musiccoca import MusicCoCaProcessor
-        self.processor = MusicCoCaProcessor.from_pretrained(repo_id, device=device or str(self._dev))
+        self.processor = MusicCoCaProcessor.from_pretrained(folder, device=device or str(self._dev))
         return self
 
     # ---- speedups ----
@@ -174,39 +167,12 @@ class MagentaRT2ForConditionalGeneration(MagentaRT2PreTrainedModel):
         dec._depth_step_logits = torch.compile(dec._depth_step_logits, dynamic=dynamic, **kwargs)
         return self
 
-    # ---- AOTI: export your own ahead-of-time graphs (skip runtime compile) ----
-    def export_aoti(self, out_dir):
-        """AOTInductor-compile the per-frame step to `out_dir` (temporal.pt2 +
-        depth.pt2). Run once on your target GPU; the graphs are architecture-
-        specific. Reload with `load_aoti(out_dir)` to generate with no compile-time."""
-        import os
-        from . import aoti
-        os.makedirs(out_dir, exist_ok=True)
-        dec = self.depthformer.decoder
-        torch._inductor.aoti_compile_and_package(
-            aoti.export_temporal(dec), package_path=os.path.join(out_dir, "temporal.pt2"))
-        torch._inductor.aoti_compile_and_package(
-            aoti.export_depth(dec), package_path=os.path.join(out_dir, "depth.pt2"))
-        return out_dir
-
-    def load_aoti(self, out_dir):
-        """Load AOTI step graphs produced by `export_aoti` and use them for generation."""
-        import os
-        t = torch._inductor.aoti_load_package(os.path.join(out_dir, "temporal.pt2"))
-        d = torch._inductor.aoti_load_package(os.path.join(out_dir, "depth.pt2"))
-        return self.apply_compiled(t, d)
-
     def apply_compiled(self, temporal_step=None, depth_step=None):
         if temporal_step is not None:
             self._temporal_step = temporal_step
         if depth_step is not None:
             self._depth_step = depth_step
         return self
-
-    def load_compiled(self, repo_id=None, local_dir=None):
-        from . import aoti
-        t, d = aoti.load_compiled_steps(self.depthformer.decoder, repo_id=repo_id, local_dir=local_dir)
-        return self.apply_compiled(t, d)
 
     # ---- conditioning ----
     def _tokenize_style(self, style, pca_coeffs=None):

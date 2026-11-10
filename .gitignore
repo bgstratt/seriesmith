@@ -57,6 +57,8 @@ tests/local/
 # Editor UI (web/): sources and the mock's media are committed, build junk isn't.
 # The built editor (seriesmith/server/static/, comfy_nodes/web/) is committed on purpose.
 web/node_modules/
+# vitest's cache when it's run from the repo root
+/node_modules/
 web/dist-dev/
 web/*.tsbuildinfo
 !web/mock/media/**

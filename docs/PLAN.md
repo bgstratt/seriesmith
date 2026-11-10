@@ -2321,9 +2321,9 @@ download with the key). Reading the reference moved up from step 7 (decided with
 - [ ] `fishaudio_drama3` live: not run, it's paid. Each take's Instant Voice Clone makes a private
       voice on Fish Audio's side; ComfyUI reuses the node's output while the sample is the same, but
       a restart makes another.
-- [ ] Qwen's cloning on transformers 5.21+ waits on flybirdxx/ComfyUI-Qwen-TTS#115 (opened
-      2026-11-07); until it merges, the pack from GitHub fails a clone with "property 'upsample' ...
-      has no setter".
+- [x] Qwen's cloning on transformers 5.21+: flybirdxx/ComfyUI-Qwen-TTS#115 merged 2026-11-10, so the
+      pack's main clones again (before it, a clone failed with "property 'upsample' ... has no
+      setter").
 
 **7. Presets**
 - [ ] Presets as data files: fal, Replicate, ElevenLabs, Runway, BytePlus, Atlas, OpenAI, xAI,
