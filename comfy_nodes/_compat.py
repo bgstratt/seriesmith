@@ -33,6 +33,8 @@ INTERNALS = [
     ("folder_paths", "get_folder_paths", "Magenta RT 2"),
     ("folder_paths", "get_full_path", "the vocal stem"),
     ("folder_paths", "get_annotated_filepath", "the shot loader, latent chains"),
+    ("folder_paths", "get_input_directory", "the shot loader, latent chains (inputs kept inside it)"),
+    ("folder_paths", "get_temp_directory", "the shot loader, latent chains (inputs kept inside it)"),
     ("folder_paths", "get_output_directory", "the shot saver, the upscalers"),
     ("folder_paths", "models_dir", "the vocal stem's and Magenta RT 2's model folders"),
 ]

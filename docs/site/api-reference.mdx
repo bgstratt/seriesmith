@@ -96,6 +96,11 @@ route does, as ComfyUI serves its own).
   roots, 404 unknown episode/shot/take/file, 409 conflict (e.g. picking an unusable
   take), 415 a body not sent as `application/json` (or `multipart/form-data` where a route
   takes an upload), 500 anything else. The message is written for a person.
+- **`source_path`** (an import's file on this machine: a take, a ref, a video, a
+  recording, a character's lines, an FCP7 XML and the media it names) is an absolute
+  path, anywhere from the PC running seriesmith and inside a root from another device
+  (403: send it as a multipart upload instead). `ffmpeg_dir` and `comfyui_dir` in
+  `PUT /seriesmith/settings` change from that PC only.
 - **Who it answers** (`seriesmith serve`, `server/guard.py`): a request with an `Origin`
   must come from the server's own page (the Origin's host and port are the request's
   `Host`), and one the browser marks `Sec-Fetch-Site: cross-site` is refused; a request with
@@ -142,6 +147,9 @@ than 45). `binding.review_nodes` still lists those classes, so a *saved* graph t
 ### `PUT /seriesmith/config`
 Body `{"roots": [...], "review_copy": true|false}`. The roots must exist; `review_copy` is
 optional and keeps its stored value when the body leaves it out. Returns the new config.
+The roots are what every path is checked against, so they change only from the PC running
+seriesmith (403 from another device), and a new one can't be a whole drive or a folder
+holding the user's own (400); one already set stays.
 
 ## Episodes
 
@@ -1643,9 +1651,10 @@ model family; see **Model families** at the end.)
 ## Round 2 additions
 
 ### `GET /seriesmith/browse?path=…`
-A folder picker for choosing roots and episodes. It isn't limited to the roots,
-because this is how roots are chosen. It lists folder names only, never file
-contents.
+A folder picker for choosing roots and episodes. On the PC running seriesmith it isn't
+limited to the roots, because this is how roots are chosen; from another device it is: no
+`path` lists the roots, `parent` is `""` at a root, and a folder outside them is 403. It
+lists folder names (and, with `files`, file names and sizes) only, never file contents.
 ```json
 {"path": "C:\Shows\MyShow", "parent": "C:\Shows",
  "episode": false, "truncated": false,

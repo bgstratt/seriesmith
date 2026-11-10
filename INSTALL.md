@@ -250,8 +250,9 @@ editor's **Settings → This server → Restart** (or `seriesmith stop --restart
 to, and closes when it is stopped (**Stop**, `seriesmith stop`, or Ctrl+C, without cmd's
 "Terminate batch job" question). Stop and Restart are offered only on the PC that runs
 the server. The network one has no password:
-anyone on that network can open your project folders, import files from the PC, see the
-API key in Settings and queue paid runs, so use it on home Wi-Fi you trust and never
+anyone on that network can open your project folders and queue paid runs (adding a
+project folder, browsing or importing beyond them, and choosing which ffmpeg or ComfyUI
+folder seriesmith runs are for the PC itself: from a laptop, drag a file in instead), so use it on home Wi-Fi you trust and never
 port-forward it. Away from home, a private network between your own devices (Tailscale)
 is the safe way in: `seriesmith serve --host <the PC's Tailscale address>`.
 

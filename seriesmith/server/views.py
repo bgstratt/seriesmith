@@ -93,6 +93,14 @@ def drop_uploads(form) -> None:
                 pass
 
 
+LOOPBACK_ADDRS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+
+
+def is_local(request: web.Request) -> bool:
+    """Whether a request came from the PC the server runs on (its address, never a header)."""
+    return (request.remote or "") in LOOPBACK_ADDRS
+
+
 def json_type(request: web.Request) -> bool:
     """Whether a request's body is declared JSON (application/json, or a +json type)."""
     ct = request.content_type
@@ -135,6 +143,7 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str):
             arg = dict(request.query)
         ctx = make_context()
         ctx.sweep_later = True             # a server answers first, then tidies (get_refs)
+        ctx.local = is_local(request)      # this PC, or another device (api.check_source)
         loop = asyncio.get_running_loop()
         # a request that queues work is kept with its jobs (runner.ASKED), so
         # one still waiting when the server stops can be asked for again

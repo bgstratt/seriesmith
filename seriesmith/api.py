@@ -103,6 +103,10 @@ class Context:
         # a server sets it: work that can follow a reply (get_refs' sweep) is
         # done after it, on a thread; a direct caller (the CLI, tests) waits
         self.sweep_later = False
+        # whether the request came from the PC running seriesmith (a server sets it from the
+        # request's address; a direct caller is that PC). Only that PC may change the project
+        # folders, or browse and import beyond them (check_source, put_config, get_browse).
+        self.local = True
 
     @property
     def runner(self):
@@ -309,6 +313,36 @@ def _inside(path: str, root: str) -> bool:
         return False
 
 
+def in_roots(ctx: Context, path: str) -> bool:
+    real = _real(path)
+    return any(_inside(real, _real(r)) for r in load_roots(ctx))
+
+
+def too_wide(path: str) -> bool:
+    """Whether a folder is too wide to be a project folder: a whole drive (or /), or one that
+    holds the user's own folder (the Users folder, the home folder itself)."""
+    real = _real(path)
+    return os.path.dirname(real) == real or _inside(_real(os.path.expanduser("~")), real)
+
+
+def from_this_pc(ctx: Context, what: str) -> None:
+    if not ctx.local:
+        raise ApiError(403, f"{what} can be changed only on the PC running seriesmith")
+
+
+def check_source(ctx: Context, path, what: str = "source_path") -> str:
+    """A file on this machine a request names (an import's source): an absolute path; from
+    another device, inside a project folder (bring other files in by dragging them in)."""
+    if not isinstance(path, str) or not path or "\0" in path:
+        raise ApiError(400, f"{what} must be a file's absolute path")
+    if not os.path.isabs(path):
+        raise ApiError(400, f"{what} must be an absolute path, not {path!r}")
+    if not ctx.local and not in_roots(ctx, path):
+        raise ApiError(403, f"from another device, {what} must be inside a project folder: "
+                            "drag the file in instead")
+    return path
+
+
 def check_ep(ctx: Context, ep) -> str:
     """The episode folder `ep` (absolute, inside a configured root), or ApiError.
 
@@ -395,6 +429,15 @@ def put_config(ctx: Context, body):
         a = os.path.abspath(r)
         if os.path.normcase(a) not in {os.path.normcase(c) for c in clean}:
             clean.append(a)
+    # the project folders are what every path is checked against: changed on this PC only,
+    # and never a whole drive or a folder holding the user's own (one already set stays)
+    have = {_real(r) for r in load_roots(ctx)}
+    if {_real(c) for c in clean} != have:
+        from_this_pc(ctx, "The project folders")
+    wide = [c for c in clean if _real(c) not in have and too_wide(c)]
+    if wide:
+        raise ApiError(400, f"{wide[0]} is too wide for a project folder (a whole drive, or one "
+                            "holding your user folder): pick or make a folder for your shows")
     keep = body.get("review_copy", load_config(ctx).get("review_copy", False))
     if not isinstance(keep, bool):
         raise ApiError(400, "review_copy must be true or false")
@@ -478,10 +521,23 @@ def get_take(ctx: Context, query: dict):
 
 @handler
 def get_browse(ctx: Context, query: dict):
-    """Folder picker. Not limited to the roots: it is how roots are chosen.
-    Lists folder names only, never file contents."""
+    """Folder picker. On the PC running seriesmith, the whole disk: it is how project folders
+    are chosen. From another device, the project folders and what's inside them. Lists folder
+    names (and, with `files`, file names and sizes), never file contents."""
+    path = query.get("path") or None
+    if not ctx.local:
+        if not path:
+            roots = [r for r in load_roots(ctx) if os.path.isdir(r)]
+            return 200, {"path": "", "parent": None,
+                         "dirs": [{"name": r, "path": r, "episode": False, "series_config": False}
+                                  for r in roots]}
+        if not os.path.isabs(path) or not in_roots(ctx, path):
+            raise ApiError(403, "from another device, only the project folders can be browsed")
     try:
-        return 200, E.browse(query.get("path") or None, query.get("files") or None)
+        out = E.browse(path, query.get("files") or None)
+        if not ctx.local and out.get("parent") and not in_roots(ctx, out["parent"]):
+            out["parent"] = ""                            # up from a project folder: the list of them
+        return 200, out
     except ValueError as e:
         raise ApiError(400, str(e))
     except FileNotFoundError as e:
@@ -881,7 +937,9 @@ def _video_path(s, video) -> str:
         raise ApiError(400, "video must be the video's path, as POST /seriesmith/refs/video gave it")
     path = os.path.normpath(os.path.join(s.ep, video))
     d = os.path.normpath(R.videos_dir(s))
-    if os.path.normcase(os.path.dirname(path)) != os.path.normcase(d):
+    # by name and where it really is: a link in the folder to a file elsewhere isn't one
+    if (os.path.normcase(os.path.dirname(path)) != os.path.normcase(d)
+            or os.path.dirname(_real(path)) != _real(d)):
         raise ApiError(400, f"{video} isn't one of the show's videos (refs/{R.VIDEOS_DIR}/)")
     if not os.path.isfile(path):
         raise ApiError(404, f"no video at {video}")
@@ -908,7 +966,7 @@ def post_refs_video(ctx: Context, body):
     if up is not None:
         raise ApiError(400, "file must be sent as multipart/form-data")
     if isinstance(src, str) and src.strip():
-        return 200, R.import_video(s, src.strip())
+        return 200, R.import_video(s, check_source(ctx, src.strip()))
     raise ApiError(400, "send source_path (a video on this machine) or a multipart `file`")
 
 
@@ -2448,7 +2506,7 @@ def post_take_import(ctx: Context, body):
         if not isinstance(src, str) or not src.strip():
             raise ApiError(400, "source_path is required: the video's absolute path on "
                                 "this machine (or send it as multipart `file`)")
-        src = src.strip()
+        src = check_source(ctx, src.strip())
     t = TI.import_take(ep, pass_, shot, src, note=_opt_str(body, "note") or "",
                        original_name=name)
     take_event(ctx, ep, t)
@@ -4843,7 +4901,7 @@ def post_lines_character(ctx: Context, body):
             raise ApiError(413, f"the file is over {MAX_UPLOAD // (1024 * 1024)} MB")
         source, name = up.path, up.filename or ""
     elif isinstance(src, str) and src.strip():
-        source, name = src.strip(), ""
+        source, name = check_source(ctx, src.strip()), ""
     else:
         raise ApiError(400, "send the file as multipart `file`, or its path on this machine as `source_path`")
     try:
@@ -6051,7 +6109,7 @@ def post_refs_import(ctx: Context, body):
         if not isinstance(src, str) or not src.strip():
             raise ApiError(400, "source_path is required: the file's absolute path on this "
                                 "machine (or upload it as multipart `file`)")
-        src = src.strip()
+        src = check_source(ctx, src.strip())
     t = R.import_take(s, ref, view, src, note=_opt_str(body, "note") or "",
                       original_name=name)
     ref_event(ctx, ep, ref.id, view, t.take, t.status)
@@ -6511,7 +6569,7 @@ def post_track(ctx: Context, body):
     elif up is not None:
         raise ApiError(400, "file must be sent as multipart/form-data")
     elif isinstance(src, str) and src.strip():
-        res = K.attach_track(ep, src.strip())
+        res = K.attach_track(ep, check_source(ctx, src.strip()))
     elif src is not None:
         raise ApiError(400, "source_path must be the recording's absolute path on this "
                             "machine (or upload it as multipart `file`)")
@@ -6548,7 +6606,7 @@ def post_audio_import(ctx: Context, body):
     elif up is not None:
         raise ApiError(400, "file must be sent as multipart/form-data")
     elif isinstance(src, str) and src.strip():
-        res = K.import_audio(ep, src.strip())
+        res = K.import_audio(ep, check_source(ctx, src.strip()))
     else:
         raise ApiError(400, "source_path must be the file's absolute path on this "
                             "machine (or upload it as multipart `file`)")
@@ -6756,9 +6814,7 @@ def post_import_xml(ctx: Context, body):
         if not isinstance(path, str) or not path.strip():
             raise ApiError(400, "send path (the XML's absolute path on this machine) or a "
                                 "multipart `file`")
-        path = path.strip()
-        if not os.path.isabs(path):
-            raise ApiError(400, f"path must be absolute, not {path!r}")
+        path = check_source(ctx, path.strip(), "path")
         if not os.path.isfile(path):
             raise ApiError(404, f"no file at {path}")
         xml_name, base = os.path.basename(path), os.path.dirname(path)
@@ -6773,9 +6829,12 @@ def post_import_xml(ctx: Context, body):
     if handles in (None, ""):
         handles = XI.HANDLES_S
     in_show = _flag(body.get("in_show"))
+    # from another device, the media it names come from the project folders only
+    allow = None if ctx.local else (lambda p: in_roots(ctx, p))
     if _flag(body.get("dry_run")):
-        return 200, XI.public(XI.plan(text, parent, xml_name, name, media, handles, base, in_show))
-    res = XI.make(text, parent, xml_name, name, media, handles, base, in_show)
+        return 200, XI.public(XI.plan(text, parent, xml_name, name, media, handles, base, in_show,
+                                      allow))
+    res = XI.make(text, parent, xml_name, name, media, handles, base, in_show, allow)
     episode_event(ctx, res["ep"])
     res["jobs"] = [_start_local(ctx, "xmlmedia", {"ep": res["ep"], "index": g["index"]}).id
                    for g in res["groups"]]

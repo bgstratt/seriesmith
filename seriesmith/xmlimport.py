@@ -833,12 +833,13 @@ def _next_series(raw: dict, fps: float, size: tuple[int, int], warnings: list[st
 
 def plan(text: str, parent: str, xml_name: str = "edit.xml", name: str | None = None,
          media: str = "handles", handles: float = HANDLES_S, base_dir: str | None = None,
-         in_show: bool = False) -> dict:
+         in_show: bool = False, allow=None) -> dict:
     """The import worked out, nothing written: the summary (what make answers), with
     `_shots`, `_files` etc. for make. `in_show`: `parent` is a show's folder and the edit
     its next episode (ep03 after ep02), the series config its newest episode's (else the
-    edit's own); `name` then titles the episode. XmlImportError for an XML or an option
-    that can't be."""
+    edit's own); `name` then titles the episode. `allow(path)`: whether a media file the XML
+    names may be used (from another device, one in the project folders); one that may not is
+    left out as missing. XmlImportError for an XML or an option that can't be."""
     if media not in MEDIA:
         raise XmlImportError(f"media must be one of {', '.join(MEDIA)}, not {media!r}")
     try:
@@ -849,6 +850,15 @@ def plan(text: str, parent: str, xml_name: str = "edit.xml", name: str | None = 
         raise XmlImportError("handles must be 0 to 60 seconds")
     ed = read(text, base_dir)
     warnings = list(ed["warnings"])
+    if allow is not None:
+        refused = set()
+        for c in ed["v1"] + ed["audio"]:
+            if c.get("path") and not allow(c["path"]):
+                refused.add(c["path"])
+                c["path"] = None
+        for p in sorted(refused):
+            warnings.append(f"{p} is outside the project folders, so it isn't used from another "
+                            "device: import the XML on the PC running seriesmith to bring it in")
     fps = ed["fps"]
     shots = _lay_shots(ed, warnings)
     if not any(not s["black"] for s in shots):
@@ -943,7 +953,7 @@ def public(summary: dict) -> dict:
 
 def make(text: str, parent: str, xml_name: str = "edit.xml", name: str | None = None,
          media: str = "handles", handles: float = HANDLES_S, base_dir: str | None = None,
-         in_show: bool = False) -> dict:
+         in_show: bool = False, allow=None) -> dict:
     """The show and its episode (`in_show`: the show's next episode) written and built:
     series config, script, cut.json,
     mix.json (both passes), the mix's files in audio/, the XML kept in _import/, the media
@@ -954,7 +964,7 @@ def make(text: str, parent: str, xml_name: str = "edit.xml", name: str | None = 
     from seriesmith import source as S
     if not parent or not os.path.isdir(parent):
         raise XmlImportError(f"no folder at {parent!r} to import into")
-    p = plan(text, parent, xml_name, name, media, handles, base_dir, in_show)
+    p = plan(text, parent, xml_name, name, media, handles, base_dir, in_show, allow)
     if in_show:
         S.new_episode(parent, p["episode"], title=p["title"],
                       series=json.dumps(p["_series"], indent=2), script=p["_script"])
