@@ -30,7 +30,7 @@ import sys
 from typing import Callable
 
 from seriesmith import targets as TG
-from seriesmith.core import framing, ir  # noqa: F401
+from seriesmith.core import framing, ir, wording  # noqa: F401
 from seriesmith.core.series_config import (character_ids, load_series_config, profile_styles,
                                            series_info, subject_ids, variant_of)
 # Model-neutral pieces, re-exported under their old names: the aligner and
@@ -198,6 +198,7 @@ def story_warnings(story: ir.Episode, series_cfg: dict | None = None) -> list[st
                 f"location an angle per speaker and name it with `plate:`.")
     out += jump_cuts(story, person, name)
     out += no_eyeline(story, person)
+    out += wording_warnings(story, series_cfg or {}, person)
     # the old forms of `continuous:` (docs/CONTINUOUS.md), read as the new ones
     for sq in story.sequences:
         out += list(getattr(sq, "legacy", None) or [])
@@ -315,8 +316,67 @@ def no_eyeline(story: ir.Episode, person) -> list[str]:
         return []
     return [f"{', '.join(bare)}: one person speaks on screen and the action doesn't say where "
             f"they look, so the model has them talk to the camera. Say it in the action "
-            f"(\"his eyes off to frame left, not at the camera\") "
+            f"(\"his eyes down and off to frame left\") "
             f"(docs/AUTHORING.md, \"Keep them on one side of the line\")."]
+
+
+# the shot's words that reach a model's prompt (`text:` is lettering on screen,
+# `music:` a music model's, and neither is read as a scene)
+SHOT_WORDS = ("action", "camera", "extras", "sound")
+
+
+def wording_warnings(story: ir.Episode, series_cfg: dict, person) -> list[str]:
+    """What the words ask of the model that the writer didn't mean (core/wording.py):
+    a thing named to forbid it, in a shot or in the series config's descriptions
+    and looks; a person the action names who isn't in the shot's `who:`; words
+    said in quotation marks in the action, which belong in a dialogue line."""
+    out = []
+    say = ("names what it forbids: the model attends to every word and has no negative "
+           "prompt, so it tends to show it. Say what is there instead (\"bare plaster "
+           "walls\", \"his eyes down and off to frame left\") (docs/AUTHORING.md, \"Say "
+           "what is there\").")
+
+    def quoted(phrases: list[str]) -> str:
+        return ", ".join(f"\"{p}\"" for p in phrases)
+
+    book = series_cfg.get("subjects") or {}
+    people = {s["name"]: person(sid) for sid, s in book.items()
+              if isinstance(s, dict) and s.get("name") and s.get("kind", "character") == "character"}
+    for sq in story.sequences:
+        for sh in sq.shots:
+            for f in SHOT_WORDS:
+                found = wording.negations(getattr(sh, f, None) or "")
+                if found:
+                    out.append(f"{sh.id} {f}: {quoted(found)} {say}")
+            absent = wording.named_absent(sh.action or "", people, {person(c) for c in sh.cast})
+            if absent:
+                names = " and ".join(absent)
+                out.append(f"{sh.id}: the action names {names}, not in its `who:`, so they "
+                           f"are drawn from the words alone, without their picture. Add "
+                           f"{'them' if len(absent) > 1 else 'the name'} to `who:` if "
+                           f"{'they are' if len(absent) > 1 else 'that person is'} in the "
+                           f"shot; if not, leave the name out of the action.")
+            said = wording.quoted_speech(sh.action or "")
+            if said:
+                out.append(f"{sh.id}: the action has {quoted(said)} said in quotation marks: "
+                           f"write it as a dialogue line, so the model voices it and the cut "
+                           f"times it.")
+    # a subject's design reaches a prompt only when they're in a shot, their voice
+    # when they're in one or speak (a narrator who is never seen is described freely)
+    shown = {c for sq in story.sequences for sh in sq.shots for c in sh.cast}
+    heard = shown | {ln.speaker for sq in story.sequences for sh in sq.shots for ln in sh.dialogue}
+    fields = [(f"subjects.{sid}.{f}", s.get(f)) for sid, s in book.items() if isinstance(s, dict)
+              for f, used in (("design", shown), ("voice", heard)) if sid in used]
+    fields += [(f"locations.{lid}.description", (lo or {}).get("description"))
+               for lid, lo in (series_cfg.get("locations") or {}).items() if isinstance(lo, dict)]
+    fields += [("style.look", (series_cfg.get("style") or {}).get("look"))]
+    fields += [(f"profiles.{pid}.look", (p or {}).get("look"))
+               for pid, p in (series_cfg.get("profiles") or {}).items() if isinstance(p, dict)]
+    for where, text in fields:
+        found = wording.negations(text if isinstance(text, str) else "")
+        if found:
+            out.append(f"series.json {where}: {quoted(found)} {say}")
+    return out
 
 
 # ---------------------------------------------------------------------------

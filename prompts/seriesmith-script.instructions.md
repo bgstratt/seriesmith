@@ -127,7 +127,7 @@ sound: a metal hook ringing, the soft pop of a flame going out
 who: ada
 size: close
 dur: auto
-Ada grins and pulls her hood up, her eyes out over the lawn, off to frame left, not on the camera.
+Ada grins and pulls her hood up, her eyes out over the lawn, off to frame left.
 camera: pushes in with small amplitude at slow speed
 ADA: It rained all night and nobody saw it but me.
 sound: rustling raincoat, dripping water, distant birds
@@ -798,26 +798,26 @@ who: skye
 plate: cafe_couch_on_skye
 size: close
 dur: 2.33
-Skye looks up over the rim of her cup, her eyes off to frame right, not on the camera.
+Skye looks up over the rim of her cup, her eyes off to frame right.
 SKYE: You're early.
 ```
 
 **Keep them on one side of the line.** Decide who sits on which side and keep it: if Skye is
 on the left of the two-shot, she stays screen-left in her single and looks off to frame
 right, and Walter looks off to frame left. Write that into the **action** line — *"her eyes
-off to frame right, not on the camera"*, *"he answers without looking up, his eyes down and to
-frame left"*. There is no field for it; the action sentence reaches every target's prompt and
-is where a real script would put it anyway. Without it a model does what it was trained to do
-and talks to the camera.
+off to frame right"*, *"he answers with his head bowed, his eyes down and to frame left"*.
+There is no field for it; the action sentence reaches every target's prompt and is where a
+real script would put it anyway. Without it a model does what it was trained to do and talks
+to the camera. Say only where the eyes go: "not at the camera" puts the camera in the prompt,
+and the model turns to it (see **Say what is there**).
 
 The same applies to a character alone in a room who is meant to be aware of someone off
-screen: say where they are looking, and say that it is not at the camera. `seriesmith check`
-warns about a single whose one person speaks and whose action never says where they look.
+screen: say where they are looking. `seriesmith check` warns about a single whose one person
+speaks and whose action never says where they look.
 
 **An eyeline is a direction, never a person.** In a single, the one being spoken to isn't in
-the shot, so don't name them in it: write where the eyes go, "looking off to frame left, not
-at the camera", not "looking off to frame left at Junior", "at him" or even "at Junior, who
-is out of frame". The model draws whoever the words mention, wherever the sentence puts them.
+the shot, so don't name them in it: write where the eyes go, "looking off to frame left", not
+"looking off to frame left at Junior", "at him" or even "at Junior, who is out of frame". The model draws whoever the words mention, wherever the sentence puts them.
 The same goes for anyone the action reaches toward or stages ("holds up a hand to stop her at
 the foot of the steps", "slides the folder toward him") or puts where the frame can see in
 passing ("her shoulder soft in the foreground", "past her"): say the gesture and its
@@ -825,7 +825,25 @@ direction ("holds up a flat hand off to frame right"). In one H3 test, a single 
 "looking off to frame right down at her", with no one else in `who:`, got an invented girl
 in a plaid bow. Who they're looking at is the cut's job: the reverse shot shows them. If the
 shot really does hold both people, put both in `who:` (an over-the-shoulder is `size: ots`),
-and then naming them is right.
+and then naming them is right. `seriesmith check` warns when the action names a character
+who isn't in the shot's `who:`.
+
+### Say what is there
+
+A video model attends to every word of its prompt, and most have no negative prompt to steer
+away from anything. A thing named in order to forbid it is still
+named: "no photographs on the wall" hangs the wall with photographs, "never looks at the
+camera" turns the head to it, "without a cut" asks for a cut. Say what is there instead:
+"bare plaster walls", "her eyes off to frame left", "one unbroken take". This holds for
+every line that reaches a prompt: a shot's action, `camera:`, `extras:` and `sound:`, and
+the series config's look, the designs and voices of the people in the shots, and the
+locations' descriptions. `seriesmith check` warns about each such phrase ("no", "not",
+"never", "without" and the rest, passing over "no more than" and its like).
+
+Words someone says go in a dialogue line, never in quotation marks in the action (`Ada says,
+"Run."`): a line is what the model voices and the cut times. `seriesmith check` warns about
+quoted words with a speaking verb in the action; quoted lettering (a sign that reads "OPEN")
+is left alone, though on-screen lettering has its own field, `text:`.
 
 ### A wardrobe change is a new subject
 
