@@ -28,6 +28,7 @@ from seriesmith import api as A  # noqa: E402
 from seriesmith import refs as R  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import kreagen  # noqa: E402
+from seriesmith.core.fileio import read_json, write_json  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 import test_api  # noqa: E402
 import test_phase85  # noqa: E402
@@ -312,6 +313,20 @@ class GenerateMissingTest(RefsHelpers):
         self.assertEqual(self.gm(kinds=["series"], dry_run=True)["skipped"],
                          [x for x in again["skipped"] if x["ref"] not in
                           ("location:kitchen", "subject:ada", "subject:kettle")])
+
+    def test_unused(self):
+        """A picture no shot uses waits, unless `unused` (the guide, before any shots)."""
+        path = os.path.join(self.ep, "series.json")
+        cfg = read_json(path)
+        cfg["subjects"]["doug"] = {"kind": "character", "name": "Doug", "design": "a hippy",
+                                   "voice": "slow", "sheet": "../refs/doug/doug_sheet_4panel.png"}
+        write_json(path, cfg)
+        refs = lambda **kw: {q["ref"] for q in self.gm(dry_run=True, kinds=["series"], **kw)["queued"]}
+        self.assertNotIn("subject:doug", refs())
+        got = refs(unused=True)
+        self.assertIn("subject:doug", got)
+        self.assertNotIn("voice:doug", got)                # a voice waits for a line
+        self.gm(400, unused="yes")
 
     def test_cleared_and_one_view(self):
         s = R.load_series(self.ep)

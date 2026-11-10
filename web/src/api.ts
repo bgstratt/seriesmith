@@ -1061,6 +1061,7 @@ export function createHttpApi(t: Transport): Api {
       const body: Record<string, unknown> = { ep: req.ep };
       for (const k of ["pass", "kinds", "target", "keyframe_target", "backend"] as const) if (req[k] != null) body[k] = req[k];
       if (req.dry_run) body.dry_run = true;
+      if (req.unused) body.unused = true;
       return call("POST", "/seriesmith/refs/generate-missing", body);
     },
     refsPick: (req) => call("PUT", "/seriesmith/refs/pick", req),

@@ -2974,8 +2974,10 @@ that is `queued` (cancel it first).
 
 ### Generate missing, one route
 - **`POST /seriesmith/refs/generate-missing`** `{ep, pass?, kinds?: ["series", "keyframe"],
-  target?, keyframe_target?, dry_run?: false}`: queues one candidate for every series ref
-  that is missing (no live file, not cleared, no queued candidate), and fills every needed
+  target?, keyframe_target?, dry_run?: false, unused?: false}`: queues one candidate for every
+  series ref a shot in the pass uses that is missing (no live file, not cleared, no queued
+  candidate); `unused` adds the pictures no shot uses yet (the guide's **Make the pictures**,
+  before a new episode has shots; a voice or a bed still waits for a shot), and fills every needed
   keyframe as `seriesmith keyframe --missing` does (continuity when the previous shot has a usable
   take in the pass's cut, else a still; a script path is imported and picked). Returns
   `{"queued": [{ref, view, take, prompt_id, seed, target, method}], "picked": [{ref, take,

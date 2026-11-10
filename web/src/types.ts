@@ -1851,6 +1851,8 @@ export interface RefGenerateMissingRequest {
   dry_run?: boolean;
   /** seriesmith: make it on this backend (absent: its target's own). Only sent when set. */
   backend?: string;
+  /** also the pictures no shot uses yet (the guide's, before the episode has shots) */
+  unused?: boolean;
 }
 
 /** How Generate missing filled a ref: a generated candidate, a frame from the
