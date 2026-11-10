@@ -68,6 +68,31 @@ def load(name: str):
     return _LOADED["model"]
 
 
+class _NoTorchTriton:
+    """torch's own Triton kernels off while a cue renders (torch 2.15+, `torch._native`), and on
+    again after. Inside ComfyUI with dynamic VRAM (comfy-aimdo hooks CUDA's allocator), a Triton
+    kernel can't read that memory ("Pointer argument cannot be accessed from Triton (cpu
+    tensor?)"), and the failed launch leaves CUDA broken for the next job. Off, torch uses its
+    usual kernels. Nothing to do on a torch without them."""
+
+    def __enter__(self):
+        try:
+            from torch._native import registry
+            registry.deregister_op_overrides(disable_dsl_names="triton")
+            self.registry = registry
+        except Exception:                                 # noqa: BLE001  an older torch
+            self.registry = None
+        return self
+
+    def __exit__(self, *exc):
+        if self.registry is not None:
+            try:
+                self.registry.reenable_op_overrides(enable_dsl_names="triton")
+            except Exception:                             # noqa: BLE001  leave them off
+                pass
+        return False
+
+
 def _style(proc, style, cache: dict, theme=None, theme_weight: float = 0.0) -> list[int]:
     """12 style tokens: a text, or [[text, weight], ...] blended (MusicCoCa's embeddings
     averaged by weight), then the theme's embedding mixed in at `theme_weight`."""
@@ -118,6 +143,7 @@ class SeriesmithMRT2:
         mm.free_memory(12 * 1024 ** 3, dev)
         m.to(dev)
         proc.to(str(dev))
+        quiet = _NoTorchTriton().__enter__()
         try:
             t_emb = None
             if theme is not None and theme_weight > 0:
@@ -156,6 +182,7 @@ class SeriesmithMRT2:
             del streamer
             wave = torch.cat(out, dim=0).T.unsqueeze(0).contiguous()          # [1, 2, samples]
         finally:
+            quiet.__exit__(None, None, None)
             m.to("cpu")
             proc.to("cpu")
             mm.soft_empty_cache()

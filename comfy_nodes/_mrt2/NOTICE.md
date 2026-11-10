@@ -9,7 +9,9 @@ Changed by seriesmith (2026-11-10), so the port loads only from local folders an
 code seriesmith doesn't run: `aoti.py` is removed, and with it `export_aoti`, `load_aoti` and
 `load_compiled` in `modeling_magenta_rt2.py` and the imports that bundled modules for
 `trust_remote_code`; `musiccoca.py` and `processing_musiccoca.py` take a local folder only (their
-Hugging Face downloads are removed); `load_processor` takes a folder; `resampy` is a plain import.
+Hugging Face downloads are removed); `load_processor` takes a folder; `resampy` is a plain import;
+`layers.dot_product_attention` multiplies instead of calling matmul when there is one key (the same
+numbers: torch 2.15's own kernel for a batched outer product fails on it).
 Otherwise unchanged (line endings aside).
 
 Copyright 2026 Google LLC. Licensed under the Apache License, Version 2.0
