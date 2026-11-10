@@ -259,6 +259,13 @@ API key in Settings and queue paid runs, so use it on home Wi-Fi you trust and n
 port-forward it. Away from home, a private network between your own devices (Tailscale)
 is the safe way in: `seriesmith serve --host <the PC's Tailscale address>`.
 
+Either way, the server answers only its own page and programs (curl, `seriesmith mcp`),
+never another web site open in the same browser: a request from a page elsewhere is refused
+(403), and so is a request addressed to a name it doesn't answer to. On this PC only, that's
+`localhost` and `127.0.0.1`; on the network, an address, a plain machine name, and `.local`,
+`.lan` and Tailscale's `.ts.net` names too. For any other name, start it with
+`--allow-host <name>` (or set `SERIESMITH_ALLOWED_HOSTS`, comma-separated).
+
 ### The upscaler (optional)
 
 Only for upscaling takes (`seriesmith upscale`, the editor's **Upscale**, `master`); a

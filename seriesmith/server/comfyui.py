@@ -68,9 +68,11 @@ def register(server, wait: float = 120.0) -> bool:
     make_context, settings, runner = start(server, wait=wait)
     # every route (server/routes.py, as `seriesmith serve` has them); ComfyUI
     # answers each under /api itself
+    # each refusing another web page's requests (guard.py), as `seriesmith serve` does
+    from seriesmith.server.guard import guarded
     for method, path, view in all_routes(make_context, settings, runner, lambda: True,
                                          in_comfyui=True):
-        server.routes.route(method, path)(view)
+        server.routes.route(method, path)(guarded(view))
     REGISTERED = True
     return True
 

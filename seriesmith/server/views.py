@@ -93,6 +93,12 @@ def drop_uploads(form) -> None:
                 pass
 
 
+def json_type(request: web.Request) -> bool:
+    """Whether a request's body is declared JSON (application/json, or a +json type)."""
+    ct = request.content_type
+    return ct == "application/json" or ct.endswith("+json")
+
+
 def make_view(make_context: Callable[[], "A.Context"], fn, takes: str):
     """An aiohttp view of a handler (ctx, arg) -> (status, data): `takes` says
     what arg is ("query", "body": JSON, "form": multipart); the handler's
@@ -113,6 +119,12 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str):
             except (ValueError, AssertionError, UnicodeDecodeError) as e:
                 return _json(400, {"error": f"the multipart body can't be read: {e}"})
         elif takes in ("body", "form"):
+            # JSON only as JSON: a form or a text/plain post (which another web page can send
+            # without asking the browser) is refused before it's read (guard.py)
+            if not json_type(request):
+                return _json(415, {"error": "the request body must be sent as application/json"
+                                            + (" or multipart/form-data" if takes == "form"
+                                               else "")})
             try:
                 arg = await request.json()
             except (ValueError, UnicodeDecodeError):

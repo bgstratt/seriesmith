@@ -90,7 +90,16 @@ route does, as ComfyUI serves its own).
   JavaScript numbers lose precision above 2^53. Never parse them to a JS number.
 - Errors: status 4xx/5xx with `{"error": "message"}`. 400 bad input, 403 path outside
   roots, 404 unknown episode/shot/take/file, 409 conflict (e.g. picking an unusable
-  take), 500 anything else. The message is written for a person.
+  take), 415 a body not sent as `application/json` (or `multipart/form-data` where a route
+  takes an upload), 500 anything else. The message is written for a person.
+- **Who it answers** (`seriesmith serve`, `server/guard.py`): a request with an `Origin`
+  must come from the server's own page (the Origin's host and port are the request's
+  `Host`), and one the browser marks `Sec-Fetch-Site: cross-site` is refused; a request with
+  no Origin (a program) is answered. The `Host` must be `localhost`, `127.0.0.1` or `::1`
+  when the server listens on this machine only; on every interface, also an address, a
+  plain machine name, a `.local`, `.lan`, `.home.arpa` or `.ts.net` name, or one given with
+  `--allow-host` / `SERIESMITH_ALLOWED_HOSTS`. Otherwise 403. Inside ComfyUI, each of
+  seriesmith's routes checks the Origin the same way; the names it answers to are ComfyUI's.
 - Blocking work (file scans, hashing, ffmpeg, build) runs off the event loop
   (`run_in_executor`). No route blocks the server.
 

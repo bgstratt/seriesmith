@@ -214,8 +214,28 @@ def start_queue(settings, user_dir: str, emit, comfy_url: str | None = None, env
     return runner, make_context, recover_all
 
 
+def guard_middleware(local_only: bool, allow_hosts: list[str] | None = None):
+    """Refuse what another web page asks of this server (server/guard.py): a request whose
+    page isn't this server, or addressed to a name this server doesn't answer to."""
+    from seriesmith.server import guard as G
+    extra = G.allowed_hosts(allow_hosts)
+
+    @web.middleware
+    async def guard(request: web.Request, handler):
+        why = G.refused(request.method, request.headers.get("Host"),
+                        request.headers.get("Origin"), request.headers.get("Sec-Fetch-Site"),
+                        local_only, extra)
+        if why:
+            return web.json_response({"error": why}, status=403)
+        return await handler(request)
+    return guard
+
+
 def make_app(roots: list[str] | None = None, settings=None,
-             backends: dict | None = None) -> web.Application:
+             backends: dict | None = None, host: str = "127.0.0.1",
+             allow_hosts: list[str] | None = None) -> web.Application:
+    """`host` is the address it listens on: anything but every interface keeps the names it
+    answers to to this machine's (guard.py); `allow_hosts` adds names on the network."""
     settings = settings or load_settings()
     events = Events()
     user_dir = os.path.dirname(settings_path())
@@ -228,7 +248,9 @@ def make_app(roots: list[str] | None = None, settings=None,
     recover_all()
     queue, backends = runner.queue, runner.backends
 
-    app = web.Application(client_max_size=A.MAX_UPLOAD + (1 << 20))
+    local_only = host not in ("0.0.0.0", "::", "")
+    app = web.Application(client_max_size=A.MAX_UPLOAD + (1 << 20),
+                          middlewares=[guard_middleware(local_only, allow_hosts)])
     app["events"], app["settings"], app["comfy_connected"] = events, settings, False
     app["queue"], app["runner"], app["backends"] = queue, runner, backends
     app["make_context"] = make_context
@@ -469,6 +491,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--host", default="127.0.0.1",
                     help="the address to listen on (default 127.0.0.1: this machine only)")
+    ap.add_argument("--allow-host", action="append", metavar="NAME", default=[],
+                    help="another name this server answers to on the network (an address, a plain "
+                         "machine name and .local, .lan and .ts.net names already do)")
     ap.add_argument("--root", action="append", metavar="FOLDER",
                     help="a folder of shows the editor may open (repeat for more; it also "
                          "keeps the ones you add in the editor)")
@@ -477,7 +502,7 @@ def main(argv: list[str] | None = None) -> int:
                          "listening (as ComfyUI's --auto-launch)")
     args = ap.parse_args(argv)
     try:
-        app = make_app(args.root)
+        app = make_app(args.root, host=args.host, allow_hosts=args.allow_host)
     except ValueError as e:
         print(f"seriesmith: {e}", file=sys.stderr)
         return 1
