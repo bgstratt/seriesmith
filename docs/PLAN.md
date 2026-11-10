@@ -2600,6 +2600,11 @@ match made to say what it does.
       the editor; inside ComfyUI, one seriesmith sidebar tab with the form (ComfyUI's own
       page stays ComfyUI's). The launchers' "no password" warning is gone. Not covered: a
       reverse proxy on the PC itself (`tailscale serve`) makes every request local.
+- [x] **SECURITY.md** (shipped in the Registry's package): what seriesmith reaches and what
+      bounds each (the server's guard and pairing, files, programs, keys, downloads), what it
+      doesn't cover, and how to report a problem (GitHub's private reporting, which the repo's
+      Settings must turn on). The page to point the Registry's reviewers at.
+- [ ] **Pinned hashes** for the Features downloads (the item above, next).
 
 ## Continuity at the cut's out point (branch `continuity-trim`, 2026-11-10)
 
