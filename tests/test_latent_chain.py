@@ -220,6 +220,50 @@ class ChainStaleTest(_Episode):
         self.assertIn("chain", self.stale(b))
 
 
+class ChainTrimTest(_Episode):
+    """A latent chain holds the previous take up to where the cut ends it (its trim), not to
+    the file's end; a trim moved since makes the take stale."""
+
+    def test_the_tail_the_cut_trims_off(self):
+        from seriesmith import edit as E
+        from seriesmith import refs as R
+        a = self.take("sh070", frames=100)
+        with open(a.paths.latent, "wb") as fh:
+            fh.write(b"latent")
+        src = R.chain_source(self.root, "sh080", "final")
+        self.assertEqual((src["tail"], src["latent"]), (0, a.paths.latent))
+        self.assertNotIn("tail", src["from"])
+        E.set_cut_entry(self.root, "final", "sh070", trim_out=8)
+        src = R.chain_source(self.root, "sh080", "final")
+        # the kept latent ends at the take's end: the frames before the trim are held instead
+        self.assertEqual((src["tail"], src["latent"], src["from"]["tail"]), (8, None, 8))
+        self.assertEqual(src["video"], a.paths.mp4)
+
+    def test_a_take_at_another_rate(self):
+        """Trims are the cut's frames; a 16 fps take in a 24 fps episode is counted by duration."""
+        from seriesmith import edit as E
+        fps = E.pass_fps(self.root, "final")
+        a = self.take("sh070", frames=64, fps=fps * 2 / 3)          # 64 of its frames: 96 of the cut's
+        E.set_cut_entry(self.root, "final", "sh070", trim_in=3, trim_out=12)
+        e = next(x for x in E.cut_entries(self.root, "final") if x.shot == "sh070")
+        self.assertEqual(E.cut_bounds(self.root, "final", e, a), (2, 8))
+        self.assertEqual(E.cut_bounds(self.root, "final", e, self.take("sh070")), (0, 0))  # frames unknown
+
+    def test_a_moved_trim_is_stale(self):
+        from seriesmith import edit as E
+        a = self.take("sh070", frames=100)
+        held = {"shot": "sh070", "take": a.take, "pass": "final",
+                "sha1": T.file_sha1(a.paths.mp4), "via": "latent", "overlap": 39}
+        b = self.take("sh080", continued_from=held)
+        self.assertNotIn("chain", self.stale(b))
+        E.set_cut_entry(self.root, "final", "sh070", trim_out=8)
+        self.assertIn("chain", self.stale(b))            # it held frames the cut no longer shows
+        b = self.take("sh080", continued_from=dict(held, tail=8, via="frames"))
+        self.assertNotIn("chain", self.stale(b))
+        E.set_cut_entry(self.root, "final", "sh070", trim_out=0)
+        self.assertIn("chain", self.stale(b))
+
+
 class ChainUpscaleTest(_Episode):
     """Phase c: a latent chain's upscales meet on one picture."""
 
@@ -374,6 +418,40 @@ class ChainNodeTest(unittest.TestCase):
         self.assertEqual(json.loads(record)["video_steps"], 12)
         self.assertEqual((json.loads(record)["via"], json.loads(record)["shot"]),
                          ("latent", "sh070"))
+
+    def test_frames_up_to_the_cuts_out_point(self):
+        """skip_end: the frames held end that many before the file's end, the sound with them,
+        and a kept latent (which ends at the take's end) isn't used."""
+        from unittest import mock
+        utils = types.ModuleType("comfy.utils")
+        sys.modules["comfy.utils"] = utils
+        self.addCleanup(sys.modules.pop, "comfy.utils", None)
+        images = torch.arange(100, dtype=torch.float32).view(100, 1, 1, 1).expand(100, 4, 6, 3)
+
+        class VAE:
+            def encode(self, px):
+                return px[:, 0, 0, 0].clone()
+
+        heard = []
+        with mock.patch.object(self.N, "read_frames", return_value=images),                 mock.patch.object(self.N, "load_audio", side_effect=lambda v, a, b: heard.append((a, b))):
+            v, _ = self.N.encoded_tail("v.mp4", 10, 6, 4, VAE(), object(), 25.0, skip_end=8)
+            self.assertEqual(v.tolist(), list(range(82, 92)))
+            self.assertEqual(heard, [(82 / 25.0, 92 / 25.0)])
+            with self.assertRaisesRegex(ValueError, "up to the cut's out point"):
+                self.N.encoded_tail("v.mp4", 95, 6, 4, VAE(), None, 25.0, skip_end=8)
+        v_new, a_new = torch.zeros(1, 4, 42, 6, 10), torch.zeros(1, 8, 235)
+        seen = {}
+
+        def tail(video, frames, w, h, vae, avae, fps, skip_end=0):
+            seen.update(video=video, skip_end=skip_end)
+            return torch.ones(1, 4, 37, 6, 10), None
+        node = self.N.SeriesmithChainLatent()
+        with mock.patch.object(self.N, "_input_file", side_effect=lambda name: name),                 mock.patch.object(self.N, "kept_latent", side_effect=AssertionError("not the latent")),                 mock.patch.object(self.N, "pixel_size", return_value=(10, 6)),                 mock.patch.object(self.N, "encoded_tail", side_effect=tail):
+            _, record = node.chain({"samples": _Nested((v_new, a_new))}, 39, False,
+                                   previous="a.latent.safetensors", previous_video="a.mp4",
+                                   video_vae=object(), skip_end=8)
+        self.assertEqual(seen, {"video": "a.mp4", "skip_end": 8})
+        self.assertEqual((json.loads(record)["via"], json.loads(record)["tail"]), ("frames", 8))
 
     def test_the_trim_cuts_the_held_frames_and_their_sound(self):
         images = torch.arange(141, dtype=torch.float32).view(141, 1, 1, 1).expand(141, 2, 2, 3)

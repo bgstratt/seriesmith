@@ -384,6 +384,42 @@ class KeyframeTest(unittest.TestCase):
         r = self.cli("sh020", "--from", "sh010:x", "--proxy")
         self.assertEqual(r.returncode, 2)
 
+    # -- at the cut's trims ------------------------------------------------
+
+    def counted(self, shot: str, frames: int = 17, source: str = "testsrc") -> T.Take:
+        """A take whose saver recorded its frames (what the cut's trims are checked by)."""
+        t = make_take(self.root, "proxy", shot, frames, source)
+        T.update_sidecar(t.paths.sidecar, frames=frames)
+        return T.get_take(self.root, "proxy", shot, t.take)
+
+    def test_continuity_carries_on_from_the_out_point(self):
+        """The first frame is the last one the cut shows of the shot before: its trim off,
+        not the file's last frame; the next shot's first frame is the first one shown."""
+        src = self.counted("sh010")
+        frames = rgb_frames(src.paths.mp4)
+        E.set_cut_entry(self.root, "proxy", "sh010", trim_out=4)
+        res = self.kf()
+        self.assertEqual(res.source["frame"], 12)                       # 17 frames, 4 off the end
+        self.assertEqual(self.pixels(res.take.paths.image), frames[12])
+        nxt = self.counted("sh030", source="testsrc2")
+        E.set_cut_entry(self.root, "proxy", "sh030", trim_in=3)
+        res = self.kf("sh020", which="last")
+        self.assertEqual(res.source["frame"], 3)
+        self.assertEqual(self.pixels(res.take.paths.image), rgb_frames(nxt.paths.mp4)[3])
+        # a frame asked for by number is that frame, trims or not
+        self.assertEqual(self.kf(frame=-1).source["frame"], 16)
+
+    def test_a_moved_trim_makes_the_frame_stale(self):
+        self.counted("sh010")
+        self.kf(pick=True)
+        self.assertEqual(R.keyframe_freshness(self.s, "sh020", "first", "proxy")["state"], "ok")
+        E.set_cut_entry(self.root, "proxy", "sh010", trim_out=4)
+        f = R.keyframe_freshness(self.s, "sh020", "first", "proxy")
+        self.assertEqual(f["state"], "stale")
+        self.assertIn("frame 12", f["why"])
+        self.kf(pick=True)                                              # cut again: at the out point
+        self.assertEqual(R.keyframe_freshness(self.s, "sh020", "first", "proxy")["state"], "ok")
+
 
 if __name__ == "__main__":
     unittest.main()

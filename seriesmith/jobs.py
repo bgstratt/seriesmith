@@ -2949,6 +2949,8 @@ def chain_portable(g: dict, src: dict) -> None:
             new["source"] = json.dumps(src.get("from") or {})
             new["previous"] = File(src["latent"]) if src.get("latent") else ""
             new["previous_video"] = File(src["video"]) if src.get("video") else ""
+            if src.get("tail"):
+                new["skip_end"] = int(src["tail"])   # the frames the cut trims off its end
             v["class_type"], v["inputs"] = "SeriesmithChainLatent", new
             v.setdefault("_meta", {})["title"] = "Chain latent (seriesmith)"
         elif v["class_type"] == "H3ChainTrim":
