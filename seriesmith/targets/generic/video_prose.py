@@ -734,7 +734,9 @@ def split_stages(target, g: dict, job) -> int:
 
 
 def abs_path(root: str, p: str) -> str:
-    return p if os.path.isabs(p) else os.path.join(root, p)
+    """An episode's file, inside the show (targets.graph.abs_path)."""
+    from seriesmith.targets.graph import abs_path as inside_show
+    return inside_show(root, p)
 
 
 # ---------------------------------------------------------------------------

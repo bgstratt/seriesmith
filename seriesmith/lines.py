@@ -35,6 +35,7 @@ import tempfile
 import threading
 import wave
 
+from seriesmith.core.paths import show_file
 from seriesmith import build as BLD
 from seriesmith import ff as FF
 from seriesmith import takes as T
@@ -236,7 +237,7 @@ def held_take(ep: str, who: str, line_id: str) -> dict | None:
 def held_voice(ep: str, who: str, line_id: str) -> str:
     """The file of held_take: "" for none."""
     take = held_take(ep, who, line_id)
-    return os.path.join(ep, take["file"]) if take else ""
+    return show_file(ep, take["file"]) if take else ""
 
 
 def local_job(ep: str, line: dict, n: int, target):
@@ -257,7 +258,7 @@ def local_job(ep: str, line: dict, n: int, target):
     if not (job.ref.file and os.path.isfile(job.ref.file)):
         held = held_take(ep, line["who"], line["id"])
         if held:
-            job.held_sample = os.path.join(ep, held["file"])
+            job.held_sample = show_file(ep, held["file"])
             job.held_text = held.get("text") or ""
     return job
 
@@ -389,7 +390,7 @@ def shot_sound_file(ep: str, shot: str) -> str | None:
     for i, (_, take) in enumerate(got):
         if i:
             pcm.extend(_silence(WITHIN_SHOT))
-        with wave.open(os.path.join(ep, take["file"]), "rb") as w:
+        with wave.open(show_file(ep, take["file"]), "rb") as w:
             pcm.extend(w.readframes(w.getnframes()))
     buf = io.BytesIO()
     with wave.open(buf, "wb") as w:
@@ -608,7 +609,7 @@ def lay(ep: str) -> dict:
                 notes.append(f"{ln['id']}: its take says something else now: generate it again")
             if i:
                 add(_silence(WITHIN_SHOT))
-            with wave.open(os.path.join(ep, take["file"]), "rb") as w:
+            with wave.open(show_file(ep, take["file"]), "rb") as w:
                 data = w.readframes(w.getnframes())
             if not take.get("words"):
                 guessed += 1

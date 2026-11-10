@@ -178,8 +178,10 @@ def load_series(ep: str) -> Series:
 def ref_file(home: str, path: str) -> str:
     """THE rule for where a ref path points: relative to the ref's home (the
     series config's folder for series refs, the episode for shot keyframes), unless
-    absolute. Every file this module reads or writes goes through it."""
-    return os.path.normpath(path if os.path.isabs(path) else os.path.join(home, path))
+    absolute. Every file this module reads or writes goes through it. Inside the show or
+    a project folder only (core.paths.show_file: OutsideShow otherwise)."""
+    from seriesmith.core.paths import show_file
+    return show_file(home, path)
 
 
 def ep_rel(ep: str, path: str | None) -> str | None:

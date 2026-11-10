@@ -78,6 +78,7 @@ import subprocess
 import threading
 import wave
 
+from seriesmith.core.paths import show_file
 from seriesmith import beats as B
 from seriesmith import edit as E
 from seriesmith import ff as FF
@@ -681,7 +682,7 @@ def series_theme(root: str, series: dict | None, name: str) -> tuple[dict | None
                 "label": f"{name} ({t['ep']} {t['cue']} t{t['take']:02d})"}, None
     from seriesmith.core import paths as P
     home = P.series_home(root) or root
-    return {"root": None, "file": os.path.normpath(os.path.join(home, *t["file"].split("/"))),
+    return {"root": None, "file": show_file(home, t["file"]),
             "label": f"{name} ({t['file']})", "bpm": t.get("bpm"), "beats": t.get("beats")}, None
 
 
@@ -811,7 +812,7 @@ def theme_for(root: str, spec: dict, target, pass_: str | None = None,
                     beats = 4
                 out["grid"] = {"bpm": float(bpm), "downbeat": float(m["downbeat"]), "beats": beats}
     else:
-        f = th["file"] if os.path.isabs(th["file"]) else os.path.normpath(os.path.join(root, *th["file"].split("/")))
+        f = show_file(root, th["file"])
         if os.path.isfile(f):
             out["audio"] = f
         else:
@@ -1193,7 +1194,7 @@ def take_seconds(root: str, sc: dict) -> float | None:
     if sc.get("status") != "ok" or not sc.get("file"):
         return None
     try:
-        with wave.open(os.path.join(root, *sc["file"].split("/")), "rb") as w:
+        with wave.open(show_file(root, sc["file"]), "rb") as w:
             return round(w.getnframes() / float(w.getframerate()), 3)
     except (OSError, EOFError, wave.Error, ZeroDivisionError):
         return None
@@ -1421,7 +1422,7 @@ def remeasure(root: str, cid: str, n: int, p: dict) -> dict:
     asked = ((sc.get("plan") or {}).get("fit") or {}).get("ask_bpm") or p["fit"]["ask_bpm"]
     if abs(asked - p["fit"]["bpm"]) / p["fit"]["bpm"] > STRETCH_MAX:
         raise CueError(f"cue {cid} t{n:02d} was played at {asked} bpm, too far from {p['fit']['bpm']}")
-    raw = os.path.join(root, *sc["raw"].split("/"))
+    raw = show_file(root, sc["raw"])
     q = dict(p, fit=dict(p["fit"], ask_bpm=asked, stretch=round(p["fit"]["bpm"] / asked, 5)))
     m = measure(raw, take_paths(root, cid, n)["wav"], q)
     return update(root, cid, n, measured=m, rendered_for=fingerprint(p), remeasured=T.now())
@@ -1590,7 +1591,7 @@ def repaint(root: str, pass_: str, cid: str, n: int, bars: tuple[int, int],
     a, b = bars
     if not 0 <= a < b <= p["bars"]:
         raise CueError(f"bars {a}-{b} aren't inside cue {cid}'s {p['bars']}")
-    raw = os.path.join(root, *sc["raw"].split("/"))
+    raw = show_file(root, sc["raw"])
     if not os.path.isfile(raw):
         raise CueError(f"cue {cid} t{n:02d}'s file as it came ({sc['raw']}) isn't there")
     seconds = len(MX.decode(raw)) / MX.RATE

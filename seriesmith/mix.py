@@ -100,6 +100,7 @@ import os
 import re
 import subprocess
 
+from seriesmith.core.paths import show_file
 from seriesmith import ff as FF
 from seriesmith.core import fileio as F
 
@@ -656,7 +657,7 @@ def placed(mix: dict, origins: dict, total: int, fps: float, root: str,
     for item in mix.get("items") or []:
         s = place(item["in"], origins)
         e = place(item["out"], origins) if item.get("out") else None
-        path = os.path.normpath(os.path.join(root, *item["path"].split("/")))
+        path = show_file(root, item["path"])
         n = length(path) if length and os.path.isfile(path) else None
         if s is None or (item.get("out") and e is None):
             dropped.append(f"{item['id']}: its shot isn't in the cut")
@@ -772,7 +773,7 @@ def render_item(item: dict, origins: dict, total: int, fps: float, root: str):
     end_f = place(item["out"], origins) if item.get("out") else None
     if item.get("out") and end_f is None:
         return None, f"{item['id']}: {item['out']['shot']} isn't in the cut"
-    path = os.path.normpath(os.path.join(root, *item["path"].split("/")))
+    path = show_file(root, item["path"])
     if not os.path.isfile(path):
         return None, f"{item['id']}: {item['path']} isn't there"
     start_f = max(0, start_f)

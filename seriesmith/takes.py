@@ -65,6 +65,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 
+from seriesmith.core.paths import show_file
 from seriesmith import color as COL
 from seriesmith.core import fileio as F
 from seriesmith.core import paths as P
@@ -1184,7 +1185,7 @@ def audio_source_file(root: str, spec: dict | None, list_pass: str = PASSES[0]) 
     if not spec or spec.get("source") == "none":
         return None
     if spec.get("source") == "file":
-        p = os.path.normpath(os.path.join(root, *str(spec["path"]).split("/")))
+        p = show_file(root, str(spec["path"]))
         return p if os.path.isfile(p) else None
     from seriesmith import peaks as PK           # imported on demand
     tp = take_paths(root, spec.get("pass") or list_pass, spec["shot"], spec["take"])

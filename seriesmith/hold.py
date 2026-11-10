@@ -24,6 +24,7 @@ from seriesmith import ff as FF
 from seriesmith import finish as F
 from seriesmith import takes as T
 from seriesmith.core import fileio
+from seriesmith.core.paths import show_file
 
 TIMEOUT = 3600
 
@@ -90,7 +91,7 @@ def picture_of(job) -> str:
     rel = ((job.recompiled or job.shot).get("keyframes") or {}).get("first")
     if not rel:
         raise HoldError(f"{job.id} has no first keyframe to hold")
-    path = rel if os.path.isabs(rel) else os.path.join(job.root, rel)
+    path = show_file(job.root, rel)
     if not os.path.isfile(path):
         raise HoldError(f"{job.id}'s first keyframe isn't there: {rel}")
     return path
@@ -107,8 +108,7 @@ def dub_audio(job) -> str | None:
     if entry.get("audio_policy") not in HA.DUB:
         return None
     (slot,) = HA.recording_slot(job.doc, entry)
-    track = slot["path"] and (slot["path"] if os.path.isabs(slot["path"])
-                              else os.path.join(job.root, slot["path"]))
+    track = slot["path"] and show_file(job.root, slot["path"])
     if not track or not os.path.isfile(track):
         job.notes.append(f"dub without its recording ({slot['path'] or 'audio.track unset'}): "
                          "held silent")

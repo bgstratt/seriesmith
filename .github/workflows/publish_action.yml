@@ -4,6 +4,10 @@
 # since a published version can never be changed; or by hand (Run workflow),
 # again on main only. Feature branches and pull requests never publish.
 # The key is the repo secret REGISTRY_ACCESS_TOKEN, never in the repo.
+# Every action is pinned to a commit and comfy-cli to a version, since this job holds
+# that key: a moved tag or a new comfy-cli never runs with it unseen. The key reaches
+# comfy-cli through the environment, never pasted into the command. The version's
+# notes (the Registry's Updates) are its entry in docs/PLAN.md (tools/release_notes.py).
 name: Publish to the Comfy Registry
 
 on:
@@ -20,9 +24,10 @@ jobs:
     if: github.repository == 'bgstratt/seriesmith' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
           fetch-depth: 2
+          persist-credentials: false
 
       - name: Did the version change?
         id: version
@@ -35,14 +40,32 @@ jobs:
           echo "version $was -> $now"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$now" != "$was" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "version=$now" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
             echo "pyproject.toml changed but its version didn't: nothing to publish"
           fi
 
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
+        if: steps.version.outputs.publish == 'true'
+        with:
+          python-version: "3.12"
+
+      - name: The version's notes
+        if: steps.version.outputs.publish == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python tools/release_notes.py "$VERSION" -o "$RUNNER_TEMP/notes.txt"
+          cat "$RUNNER_TEMP/notes.txt"
+
       - name: Publish
         if: steps.version.outputs.publish == 'true'
-        uses: Comfy-Org/publish-node-action@main
-        with:
-          personal_access_token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
-          skip_checkout: "true"
+        shell: bash
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
+        run: |
+          pip install "comfy-cli==1.25.0"
+          comfy --skip-prompt --no-enable-telemetry env
+          comfy node publish --token "$REGISTRY_TOKEN" --changelog-file "$RUNNER_TEMP/notes.txt"

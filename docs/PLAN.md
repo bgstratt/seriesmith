@@ -2571,10 +2571,40 @@ match made to say what it does.
       a render, drag and drop, imports inside the project folders, nothing outside them), Settings
       saved from it; on the PC, localhost and 127.0.0.1, the whole disk.
 - [ ] **Pinned hashes** for the Features downloads (the ffmpeg build, models, hub files).
-- [ ] **Paths in a series config or script** (a ref, a recording, a theme): absolute ones still
-      followed; confine them to the show and the project folders.
+- [x] **Paths in a series config or script** (a ref, a recording, a theme): absolute ones still
+      followed; confine them to the show and the project folders. Done on `security-next`.
 - [ ] **The next release** scanned clean, or a manual review asked for with this list.
 - [x] **The skill on seriesmith.com** (seriesmith-site#11): Get the skill and How to use it on the home page.
+
+## Security, next (branch `security-next`, 2026-11-10)
+
+- [x] **The publish job.** Its actions pinned to commits, comfy-cli to 1.25.0 (publish-node-action
+      ran `@main` and installed the newest comfy-cli with the Registry key); the key through the
+      environment; the checkout without git credentials. The version's notes are its PLAN entry
+      (`tools/release_notes.py`): the Registry shows them as one plain paragraph, its list the
+      first two lines, so a release entry leads with what a user gets.
+- [x] **A show's paths.** Every file a show's own files name (series config, script, mix.json, a
+      take's record: refs, the recording, themes, beds, title clips and fonts, mix items, line and
+      cue takes) through `core.paths.show_file`: inside the show (the folder holding its
+      episodes) or a project folder, a link that leads out refused (`OutsideShow`, 403); a title
+      font also from this machine's font folders. A show handed over can no longer make a render
+      upload a file from elsewhere. Imports from anywhere on the PC unchanged: they copy (or
+      hard-link) into the show. `align --recording` given on its command line stays as given.
+      The command line knows no project folders, so there a show's paths stay in the show.
+- [x] **Other devices pair** (`server/pairing.py`, both hosts). The PC is answered as always;
+      another device gets the page, its assets and the pairing routes, and 401 `pair: true`
+      for the rest, until it enters the six-digit code Settings → Other devices → Pair a
+      device shows (five minutes, five tries, one device a code). Its cookie (HttpOnly,
+      SameSite=Strict, a year) is kept as a SHA-256 in `devices.json` beside the settings;
+      Settings lists the devices with Remove. The standalone page shows the form in place of
+      the editor; inside ComfyUI, one seriesmith sidebar tab with the form (ComfyUI's own
+      page stays ComfyUI's). The launchers' "no password" warning is gone. Not covered: a
+      reverse proxy on the PC itself (`tailscale serve`) makes every request local.
+- [x] **SECURITY.md** (shipped in the Registry's package): what seriesmith reaches and what
+      bounds each (the server's guard and pairing, files, programs, keys, downloads), what it
+      doesn't cover, and how to report a problem (GitHub's private reporting, which the repo's
+      Settings must turn on). The page to point the Registry's reviewers at.
+- [ ] **Pinned hashes** for the Features downloads (the item above, next).
 
 ## Continuity at the cut's out point (branch `continuity-trim`, 2026-11-10)
 

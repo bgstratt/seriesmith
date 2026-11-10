@@ -833,7 +833,8 @@ def episode_track(root: str) -> dict | None:
     track = audio.get("track") if isinstance(audio, dict) else None
     if not isinstance(track, str) or not track.strip():
         return None
-    full = os.path.normpath(track if os.path.isabs(track) else os.path.join(root, track))
+    from seriesmith.core.paths import show_file
+    full = show_file(root, track)
     try:
         path = os.path.relpath(full, root).replace(os.sep, "/")
     except ValueError:                                    # another drive

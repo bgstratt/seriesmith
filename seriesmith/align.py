@@ -522,8 +522,11 @@ def main(argv: list[str] | None = None) -> int:
     rec = args.recording or series_cfg.get("audio", {}).get("track")
     if not rec:
         sys.exit("  !! give the recording path (none set in series.json)")
-    rec_abs = rec if os.path.isabs(rec) else (
-        rec if os.path.isfile(rec) else os.path.join(ep, rec))
+    if args.recording:                                    # named on this command line: as given
+        rec_abs = rec if os.path.isabs(rec) or os.path.isfile(rec) else os.path.join(ep, rec)
+    else:                                                 # the series config's: inside the show
+        from seriesmith.core.paths import show_file
+        rec_abs = show_file(ep, rec)
     if not os.path.isfile(rec_abs):
         sys.exit(f"  !! recording not found: {rec_abs}")
     try:

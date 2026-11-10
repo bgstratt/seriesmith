@@ -18,6 +18,8 @@ import { api, setApi, setHost, type Host, type HostEvent, type Surface } from ".
 import { store, type BackendInfo } from "./store";
 import { injectStyles, mountOverlay, mountSurface } from "./surfaces";
 import { installSplitters } from "./splitters";
+import { PairScreen } from "./components/Pairing";
+import { pairStatus } from "./lib/pairing";
 
 // ---- events: the server's websocket, reconnecting -------------------------
 
@@ -85,83 +87,98 @@ setApi(
   }),
 );
 
-for (const t of ["shots", "refs"] as Tab[]) {
-  document.querySelector(`[data-tab="${t}"]`)?.addEventListener("click", () => showTab(t));
-}
-let first: Tab = "shots";
-try {
-  first = (localStorage.getItem(TAB_KEY) as Tab) || "shots";
-} catch {
-  /* ignore */
-}
-showTab(first === "refs" ? "refs" : "shots");
-
-// simple mode: one panel, "Make"; the Refs tab waits in Advanced
-let wasSimple: boolean | null = null;
-function syncSimple() {
-  const on = store.get().simple;
-  if (on === wasSimple) return;
-  wasSimple = on;
-  const refsTab = document.querySelector<HTMLElement>('[data-tab="refs"]');
-  const shotsTab = document.querySelector<HTMLElement>('[data-tab="shots"]');
-  if (refsTab) refsTab.style.display = on ? "none" : "";
-  if (shotsTab) shotsTab.textContent = on ? "Make" : "Shots";
-  if (on) showTab("shots");
-}
-store.subscribe(syncSimple);
-syncSimple();
-
-mountSurface("shots", document.getElementById("sm-shots")!);
-mountSurface("refs", document.getElementById("sm-refs")!);
-mountSurface("timeline", document.getElementById("sm-timeline")!);
-dockWindow(VIEWER_RECT_KEY, document.getElementById("sm-viewer"));
-installSplitters(document.getElementById("sm")!);
-// the floating layer, with the page's own Jobs and Settings in it: every
-// floating window in one layer, so the one last opened or clicked is on top
-// (Features over Settings), and the context menu, dialogs and toasts above them
-mountOverlay(
-  <Boundary name="Jobs">
-    <JobsWindow />
-    <SettingsWindow server />
-  </Boundary>,
-);
-
-// the top bar's queue controls (their Jobs and Settings windows are in the
-// floating layer, above)
-injectStyles();
-createRoot(document.getElementById("sm-queue")!).render(
-  <StrictMode>
-    <Boundary name="Queue">
-      <BackendChoice />
-      <JobsButton />
-    </Boundary>
-  </StrictMode>,
-);
-
-/** The backends renders can go to, and whether each answers (every 30 s). */
-async function loadBackends() {
-  try {
-    const r = await api().fetch("/seriesmith/backends");
-    if (r.ok) setBackends(((await r.json()) as { backends: BackendInfo[] }).backends);
-  } catch {
-    /* the server is away */
+// a device that isn't paired yet (another one on the network) gets the code form, and
+// nothing of the editor until it pairs; this PC, and a paired device, the editor
+void pairStatus().then((s) => {
+  if (s.paired) {
+    boot();
+    return;
   }
-}
-void loadBackends();
-setInterval(() => void loadBackends(), 30000);
-// ?jobs opens the Jobs window (a link to the queue)
-if (new URLSearchParams(location.search).has("jobs")) openJobs(true);
+  injectStyles();
+  const box = document.createElement("div");
+  document.body.appendChild(box);
+  createRoot(box).render(<PairScreen />);
+});
 
-connect();
-void start();
-
-document.getElementById("sm-settings")?.addEventListener("click", () => openSettings(!store.get().settingsOpen));
-
-document.getElementById("sm-theme")?.addEventListener("click", () => {
-  const light = document.documentElement.classList.toggle("light");
+function boot() {
+  for (const t of ["shots", "refs"] as Tab[]) {
+    document.querySelector(`[data-tab="${t}"]`)?.addEventListener("click", () => showTab(t));
+  }
+  let first: Tab = "shots";
   try {
-    localStorage.setItem("seriesmith.theme", light ? "light" : "dark");
+    first = (localStorage.getItem(TAB_KEY) as Tab) || "shots";
   } catch {
     /* ignore */
   }
-});
+  showTab(first === "refs" ? "refs" : "shots");
+
+  // simple mode: one panel, "Make"; the Refs tab waits in Advanced
+  let wasSimple: boolean | null = null;
+  function syncSimple() {
+    const on = store.get().simple;
+    if (on === wasSimple) return;
+    wasSimple = on;
+    const refsTab = document.querySelector<HTMLElement>('[data-tab="refs"]');
+    const shotsTab = document.querySelector<HTMLElement>('[data-tab="shots"]');
+    if (refsTab) refsTab.style.display = on ? "none" : "";
+    if (shotsTab) shotsTab.textContent = on ? "Make" : "Shots";
+    if (on) showTab("shots");
+  }
+  store.subscribe(syncSimple);
+  syncSimple();
+
+  mountSurface("shots", document.getElementById("sm-shots")!);
+  mountSurface("refs", document.getElementById("sm-refs")!);
+  mountSurface("timeline", document.getElementById("sm-timeline")!);
+  dockWindow(VIEWER_RECT_KEY, document.getElementById("sm-viewer"));
+  installSplitters(document.getElementById("sm")!);
+  // the floating layer, with the page's own Jobs and Settings in it: every
+  // floating window in one layer, so the one last opened or clicked is on top
+  // (Features over Settings), and the context menu, dialogs and toasts above them
+  mountOverlay(
+    <Boundary name="Jobs">
+      <JobsWindow />
+      <SettingsWindow server />
+    </Boundary>,
+  );
+
+  // the top bar's queue controls (their Jobs and Settings windows are in the
+  // floating layer, above)
+  injectStyles();
+  createRoot(document.getElementById("sm-queue")!).render(
+    <StrictMode>
+      <Boundary name="Queue">
+        <BackendChoice />
+        <JobsButton />
+      </Boundary>
+    </StrictMode>,
+  );
+
+  /** The backends renders can go to, and whether each answers (every 30 s). */
+  async function loadBackends() {
+    try {
+      const r = await api().fetch("/seriesmith/backends");
+      if (r.ok) setBackends(((await r.json()) as { backends: BackendInfo[] }).backends);
+    } catch {
+      /* the server is away */
+    }
+  }
+  void loadBackends();
+  setInterval(() => void loadBackends(), 30000);
+  // ?jobs opens the Jobs window (a link to the queue)
+  if (new URLSearchParams(location.search).has("jobs")) openJobs(true);
+
+  connect();
+  void start();
+
+  document.getElementById("sm-settings")?.addEventListener("click", () => openSettings(!store.get().settingsOpen));
+
+  document.getElementById("sm-theme")?.addEventListener("click", () => {
+    const light = document.documentElement.classList.toggle("light");
+    try {
+      localStorage.setItem("seriesmith.theme", light ? "light" : "dark");
+    } catch {
+      /* ignore */
+    }
+  });
+}

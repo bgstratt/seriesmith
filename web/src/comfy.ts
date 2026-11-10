@@ -19,7 +19,11 @@ import { api as comfyApi } from "comfyui/api";
 import { pushToast, setBackends, start } from "./actions";
 import { createHttpApi, xhrUpload } from "./api";
 import { setApi, setHost, type Host, type HostEvent, type Surface } from "./host";
-import { mountOverlay, mountSurface, unmountSurface } from "./surfaces";
+import { createElement } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { PairScreen } from "./components/Pairing";
+import { pairStatus } from "./lib/pairing";
+import { injectStyles, mountOverlay, mountSurface, unmountSurface } from "./surfaces";
 import { store, type BackendInfo } from "./store";
 
 interface CustomTab {
@@ -103,13 +107,38 @@ const comfyHost: Host = {
   },
 };
 
+// false on a device that isn't paired with seriesmith yet (ComfyUI on the network): the
+// timeline tab says so instead of asking the API, and the sidebar has the code form
+let paired = true;
+
 function tab(surface: Surface, title: string): CustomTab {
   return {
     id: IDS[surface],
     title,
     type: "custom",
-    render: (el) => mountSurface(surface, el),
+    render: (el) => {
+      if (paired) mountSurface(surface, el);
+      else el.textContent = "Pair this device first: the seriesmith tab in the sidebar.";
+    },
     destroy: () => unmountSurface(surface),
+  };
+}
+
+/** The sidebar's one seriesmith tab on a device that isn't paired: the code form. */
+function pairTab(): SidebarTab {
+  let root: Root | null = null;
+  return {
+    id: "seriesmith-pair", title: "seriesmith", type: "custom", icon: "pi pi-video",
+    tooltip: "seriesmith: pair this device",
+    render: (el) => {
+      injectStyles();
+      root ??= createRoot(el);
+      root.render(createElement(PairScreen, { inline: true }));
+    },
+    destroy: () => {
+      root?.unmount();
+      root = null;
+    },
   };
 }
 
@@ -144,6 +173,11 @@ export function install() {
       const em = app.extensionManager;
       if (!em?.registerSidebarTab) {
         console.error("[seriesmith] this ComfyUI frontend has no extensionManager.registerSidebarTab; the editor needs frontend >= 1.3");
+        return;
+      }
+      if (!(await pairStatus()).paired) {
+        paired = false;
+        em.registerSidebarTab(pairTab());
         return;
       }
       em.registerSidebarTab({ ...tab("shots", "seriesmith Shots"), icon: "pi pi-video", tooltip: "seriesmith: episode, shots and takes" });

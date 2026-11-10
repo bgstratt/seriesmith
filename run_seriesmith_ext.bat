@@ -31,10 +31,8 @@ echo   On this PC:        http://127.0.0.1:%SM_PORT%
 if defined LANIP echo   Laptop / phone:    http://%LANIP%:%SM_PORT%
 echo.
 echo  Both devices must be on the same network/Wi-Fi.
-echo  There is NO password on this - anyone on the network can
-echo  open your project folders, import files from this PC, see
-echo  the API key in Settings and queue paid runs. Home Wi-Fi
-echo  you trust only; never port-forward it.
+echo  A laptop or phone asks for a code the first time: make one
+echo  in Settings on this PC (Other devices). Never port-forward it.
 echo ==========================================================
 echo.
 

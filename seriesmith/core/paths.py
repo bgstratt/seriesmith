@@ -11,6 +11,14 @@ targets use it.
     episode_script(root)       the episode's script, or None
     episode_files(root)        (series.json, script), or ValueError saying what's missing
     safe_id(text, fallback)    an id made safe for a file or folder name
+    show_file(base, p)         a path a show's own files name, kept inside the show
+
+A path a show's own files name (a sheet or plate, the recording, a theme, a mix item, a
+take record's file) is followed only inside the show: the folder holding the episode
+(its refs/, audio/, _titles/, the other episodes) or a project folder. A show handed
+over by someone else can't make a render read, or upload to a hosted model, a file
+elsewhere on the disk. Importing from anywhere on the PC is unchanged: an import copies
+(or hard-links) the file into the show, so the show names it there.
 """
 from __future__ import annotations
 
@@ -64,6 +72,70 @@ def episode_files(root: str) -> tuple[str, str]:
         raise ValueError(f"can't tell which script to use in {root}: "
                          f"{[os.path.basename(c) for c in cands] or 'no .md found'}")
     return cfg, md
+
+
+class OutsideShow(ValueError):
+    """A path a show names that leads outside the show and the project folders."""
+    http_status = 403
+
+
+# The project folders, as the editor's server knows them (api.load_roots keeps this
+# current); the command line has none, so there a show's paths stay in the show.
+_project_roots: list[str] = []
+
+
+def _real(p: str) -> str:
+    return os.path.normcase(os.path.realpath(os.path.abspath(p)))
+
+
+def _inside(path: str, root: str) -> bool:
+    try:
+        return os.path.commonpath([path, root]) == root
+    except ValueError:                                    # another drive
+        return False
+
+
+def set_project_roots(roots) -> None:
+    """The project folders a show's paths may also lead into."""
+    global _project_roots
+    _project_roots = [_real(r) for r in roots or () if isinstance(r, str) and r]
+
+
+def show_folder(base: str) -> str:
+    """The show a folder of it belongs to. `base` is an episode (it has a script: the
+    show is the folder holding it, with the shared refs/ and audio/ beside it) or a
+    series folder (the series config's, episodes under it: the show itself)."""
+    d = os.path.normpath(os.path.abspath(base))
+    if (os.path.isfile(os.path.join(d, SERIES_CONFIG)) and not episode_script(d)
+            and _has_episodes(d)):
+        return d                                          # the series folder
+    up = os.path.dirname(d)
+    return d if os.path.dirname(up) == up else up         # an episode's show; never a whole drive
+
+
+def _has_episodes(d: str) -> bool:
+    try:
+        subs = [os.path.join(d, n) for n in os.listdir(d)]
+    except OSError:
+        return False
+    return any(os.path.isdir(s) and episode_script(s) for s in subs)
+
+
+def show_file(base: str, p: str, also=()) -> str:
+    """`p`, a path one of the show's own files names, made whole against `base` (the
+    episode, or the series config's folder for its own paths): the path, as joined,
+    when it lands inside the show (`show_folder(base)`), a project folder or one of
+    `also`; OutsideShow otherwise, a link that leads out included."""
+    if not isinstance(p, str) or not p or "\x00" in p:
+        raise OutsideShow(f"not a path: {p!r}")
+    full = os.path.normpath(p if os.path.isabs(p) else os.path.join(base, p))
+    real = _real(full)
+    show = show_folder(base)
+    for root in (_real(show), *_project_roots, *(_real(a) for a in also if a)):
+        if _inside(real, root):
+            return full
+    raise OutsideShow(f"{p} is outside the show ({show}): import it, or move it into "
+                      "the show's folder or a project folder")
 
 
 def safe_id(text: str, fallback: str = "") -> str:
