@@ -80,7 +80,12 @@ class SharedSeriesConfigCommandTest(unittest.TestCase):
             show = os.path.join(tmp, "Show")
             ep = os.path.join(show, "ep01")
             os.makedirs(ep)
-            shutil.copy(os.path.join(STARTER, "series.json"), show)
+            # the starter's config sits in its episode, its refs one up ("../refs/"); a
+            # level up itself, in the show, they are the show's own "refs/"
+            with open(os.path.join(STARTER, "series.json"), encoding="utf-8") as f:
+                config = f.read().replace('"../refs/', '"refs/')
+            with open(os.path.join(show, "series.json"), "w", encoding="utf-8") as f:
+                f.write(config)
             shutil.copy(os.path.join(STARTER, "ep01.md"), ep)
             os.makedirs(os.path.join(show, "refs"))                  # not an episode
             env = dict(os.environ)
@@ -93,6 +98,19 @@ class SharedSeriesConfigCommandTest(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             self.assertIn("=== check: " + ep, r.stdout)
             self.assertNotIn(os.path.join(show, "refs"), r.stdout)
+
+    def test_a_path_outside_the_show_is_said_not_a_traceback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            show = os.path.join(tmp, "Show")
+            ep = os.path.join(show, "ep01")
+            os.makedirs(ep)
+            shutil.copy(os.path.join(STARTER, "series.json"), show)   # "../refs/": outside
+            shutil.copy(os.path.join(STARTER, "ep01.md"), ep)
+            r = subprocess.run([sys.executable, "-m", "seriesmith.commands", "check", ep],
+                               capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+            self.assertIn("is outside the show", r.stderr)
+            self.assertNotIn("Traceback", r.stderr)
 
 
 if __name__ == "__main__":

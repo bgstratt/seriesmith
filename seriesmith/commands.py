@@ -502,6 +502,9 @@ def main(argv: list[str] | None = None) -> int:
     except UsageError as e:
         print(f"seriesmith {c.name}: {e}\n{usage(c)}", file=sys.stderr)
         return 2
+    except PATHS.OutsideShow as e:                           # a show's path that leads out of it
+        print(f"seriesmith {c.name}: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

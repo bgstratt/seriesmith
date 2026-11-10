@@ -39,7 +39,9 @@ don't open a public issue for it.
   a script, a mix or a take's record must lead inside the show or a project folder; anything
   else is refused, including a link that leads outside. A show someone hands you can't make a
   render read a file from elsewhere on your disk, or upload one to a hosted model. Importing a
-  file copies it into the show.
+  file copies it into the show. The one exception is an edit imported with proxies: the
+  original footage stays where it was, and the export reads it only while its size and
+  modified time still match what the import recorded.
 - **The node pack's inputs** (`comfy_nodes/_inputs.py`). A file a node is given must be inside
   ComfyUI's input, output or temp folder.
 - **Writes** go through `seriesmith/core/fileio.py`: atomic, never a partial file.
