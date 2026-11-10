@@ -1142,6 +1142,9 @@ collide with the package.
       storyboard (#104, #106); one guided wizard, the guide and sketches, drops on the board and the add
       buttons, Rename on an unused entry (#107); instructions for your own agent in the guide (#108).
       Published by the merge's version bump.
+- [x] **0.1.20** (2026-11-09, `release-0.1.20`): the guide's Make the pictures makes the pictures no
+      shot uses yet, as a new episode has no shots (#110); the shot form's model picker at the top, in
+      What renders (#111). Published by the merge's version bump.
 - [x] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render. Done by the user.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
