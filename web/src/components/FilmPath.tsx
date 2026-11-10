@@ -8,6 +8,7 @@ import { api, host } from "../host";
 import { agentInstructions, FILM_STEPS, filmStep, scriptShots, type FilmFacts, type FilmStep } from "../lib/filmPath";
 import { statusKey, store, useApp } from "../store";
 import { FloatingWindow } from "./FloatingWindow";
+import { SkillLink } from "./SkillLink";
 
 export function FilmPathWindow() {
   const open = useApp((s) => s.filmPath);
@@ -96,6 +97,7 @@ function FilmPath({ ep }: { ep: string }) {
                       Write it with the script-writing skill in the agent you already use, connected with <code>seriesmith mcp</code>.
                       These instructions tell it where the episode is, and to add the cast and places to the series config too:
                     </span>
+                    <SkillLink />
                     <div className="h3-row h3-wrap">
                       <button id="sm-guide-copy-ask" className="h3-btn h3-primary" onClick={() => void copyAsk()}><i className="pi pi-copy" /> Copy instructions for your agent</button>
                     </div>

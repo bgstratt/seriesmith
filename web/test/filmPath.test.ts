@@ -88,4 +88,8 @@ describe("the instructions for your agent", () => {
     expect(text.indexOf("save_source it with its hash")).toBeLessThan(text.lastIndexOf("save_source it with its hash"));
     expect(text.indexOf("check_source the series config")).toBeLessThan(text.indexOf("check_source the script"));
   });
+
+  it("say where the skill is, for an agent without it", () => {
+    expect(agentInstructions("C:\\shows\\ep01")).toContain("prompts/seriesmith-episode-script.zip");
+  });
 });

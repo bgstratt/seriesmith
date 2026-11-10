@@ -171,6 +171,9 @@ short wizard:
 script** (a seriesmith script, pasted or from a file), **My agent** (written by the script-writing
 skill in your own agent and sent here over MCP: the guide's **Copy instructions for your agent** has the
 episode's folder and the steps, the cast and places included), **A single shot**, or **An edit (FCP7 XML)…**.
+Wherever the editor says to use the skill (these two, the guide, and Settings' **Your agent**), **Get the
+skill** downloads its zip and **How to use it** opens the page on installing it; the copied instructions
+say where it is too, for an agent that doesn't have it.
 
 1. **Idea**: for a new series its title and its look; for a next episode its title. When the
    folder already has episodes, it says so: the new one continues that series. **More** has
@@ -1178,7 +1181,9 @@ platform.comfy.org; paid use is billed to that account; under it, while Comfy's 
 for Cloud and Router, how that is going; the Cloud address), then each API provider (Atlas
 Cloud, ElevenLabs, ...: its key, **get a key** and its **docs**), and **Add a provider…**,
 which opens Models on **Add a model from another API** with its provider form open (as in
-[ADDING_MODELS.md](ADDING_MODELS.md)), its first model following. **Paid runs** is the cap per session on
+[ADDING_MODELS.md](ADDING_MODELS.md)), its first model following. **Your agent** is where to get the
+script-writing skill (**Get the skill**, **How to use it**), for writing or converting scripts in Claude or
+your own agent over `seriesmith mcp`. **Paid runs** is the cap per session on
 every billed run (Cloud, Router, a deployment or a provider; empty is none). **This computer**
 has where your **ComfyUI** is, the **Video
 model** and **Picture model** a series naming none renders on (what seriesmith found

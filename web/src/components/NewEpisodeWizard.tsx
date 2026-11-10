@@ -27,6 +27,7 @@ import { LengthPicker } from "./LengthPicker";
 import { FieldRow, SizeField } from "./SeriesForm";
 import { Hover, Thumb, type Named } from "./Picture";
 import { CameraField, Chips, DialogueRows, PlacePick, Row, type Cast } from "./ShotForm";
+import { SkillLink } from "./SkillLink";
 import { XmlImportPanel } from "./XmlImportPanel";
 
 const RECT_KEY = "seriesmith.wizard.rect";
@@ -364,11 +365,13 @@ function Wizard({ parent, startNew, startFrom }: { parent: string; startNew: boo
               <input type="file" accept=".md,.txt" onChange={(e) => loadScript(e.target.files?.[0])} />
             </label>
             <div className="h3-small h3-muted">The people, things and places it names get cards on the next step.</div>
+            <SkillLink />
           </>
         )}
         {step === STORY && fromAgent && (
           <div className="h3-col h3-small" style={{ gap: 6 }}>
             <span>This makes the series and an empty episode. Then write the script with the script-writing skill in the agent you already use, connected with <code>seriesmith mcp</code>, and have it save the script to the episode.</span>
+            <SkillLink />
             <span>After Create, the guide gives you instructions to paste into your agent.</span>
             <span className="h3-muted">It moves on by itself when the script arrives.</span>
           </div>
