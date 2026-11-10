@@ -1151,6 +1151,14 @@ collide with the package.
       trimmed, other web pages refused, keys only to their hosts, paths from other devices kept to
       the project folders, no `python -c`; MRT2's seed and torch 2.15 under dynamic VRAM fixed);
       continuity carries on from the cut's out point (#116). Published by the merge's version bump.
+- [x] **0.1.23** (2026-11-10, `release-0.1.23`): a laptop or phone on your network now pairs
+      once with a six-digit code from Settings on the PC before it can use seriesmith, and
+      Settings lists the paired devices and removes them. A show's files must be inside the
+      show or a project folder, so a show someone hands you can't read files from elsewhere on
+      your PC. In Project folders, New episode, New series and Import now work in any folder
+      on the PC (it becomes a project folder) and say where they'll make things. SECURITY.md
+      says what seriesmith reaches and what bounds it, and releases publish from a pinned job
+      with these notes (#118). Published by the merge's version bump.
 - [x] **Live:** a clean ComfyUI (no clone, no link), installed from Manager: the nodes, the
       editor in the sidebar, a local render, a Router render. Done by the user.
 - Ask Comfy: whether our page may ask Manager's own API to install a missing pack (the user
