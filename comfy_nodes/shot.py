@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import math
 import os
 import re
 import subprocess
@@ -285,8 +286,15 @@ def silent_audio(seconds: float = 0.1, sr: int = 44100) -> dict:
     return {"waveform": torch.zeros((1, 1, n), dtype=torch.float32), "sample_rate": sr}
 
 
-def save_audio(audio: dict, path: str) -> None:
-    """Write a 16-bit PCM wav with the stdlib.
+def save_audio(audio: dict, path: str) -> float:
+    """Write a 16-bit PCM wav with the stdlib. Returns the gain in dB it took
+    the sound down by (0.0 when none was needed).
+
+    A decoder's waveform can peak past full scale (H3's does, by a little, in
+    about one take in sixteen). Clamping it there would flatten those peaks
+    into a clip that nothing later can undo, so a waveform that goes over is
+    scaled down whole until its peak fits: usually a fraction of a dB, which
+    the mix's loudness gain gives back.
 
     Deliberately not torchaudio.save: as of 2.13 it routes through torchcodec
     and raises ImportError without it. Writing the wav directly removes a
@@ -300,13 +308,19 @@ def save_audio(audio: dict, path: str) -> None:
         wav = wav[0]                                   # [B, C, T] -> [C, T]
     if wav.dim() == 1:
         wav = wav.unsqueeze(0)
-    arr = wav.detach().cpu().float().clamp(-1.0, 1.0).numpy()
-    pcm = np.round(arr.T * 32767.0).astype("<i2")      # [T, C], interleaved
+    arr = np.nan_to_num(wav.detach().cpu().float().numpy())
+    peak = float(np.max(np.abs(arr))) if arr.size else 0.0
+    gain_db = 0.0
+    if peak > 1.0:
+        arr = arr / peak
+        gain_db = -20.0 * math.log10(peak)
+    pcm = np.round(np.clip(arr, -1.0, 1.0).T * 32767.0).astype("<i2")  # [T, C], interleaved
     with wave.open(path, "wb") as w:
         w.setnchannels(int(pcm.shape[1]))
         w.setsampwidth(2)
         w.setframerate(int(audio["sample_rate"]))
         w.writeframes(pcm.tobytes())
+    return gain_db
 
 
 # ---------------------------------------------------------------------------
@@ -684,8 +698,9 @@ class SeriesmithSaveTake:
         mux_audio = None
         if audio is not None:
             t0 = clock()
-            save_audio(audio, h3_wav)
-            notes.append("H3 mix -> _h3.wav")
+            down = save_audio(audio, h3_wav)
+            notes.append("H3 mix -> _h3.wav" + (f" ({down:.2f} dB down: it peaked past full scale)"
+                                                 if down else ""))
             # H3's mix is the shot's real sound: the lines it spoke, or on a dub the voice it
             # was given with whatever it made around that, so a take plays wherever it's
             # heard, ComfyUI's own assets too. A recording laid in at conform replaces it there.
@@ -697,8 +712,9 @@ class SeriesmithSaveTake:
             ms["audio"] = round((clock() - t0) * 1000)
         if lines is not None:
             try:
-                save_audio(lines, os.path.join(shot_dir, f"{stem}_lines.wav"))
-                notes.append("the dubbed lines -> _lines.wav")
+                down = save_audio(lines, os.path.join(shot_dir, f"{stem}_lines.wav"))
+                notes.append("the dubbed lines -> _lines.wav"
+                             + (f" ({down:.2f} dB down: they peaked past full scale)" if down else ""))
             except Exception as exc:
                 notes.append(f"lines not kept: {exc}")
 
