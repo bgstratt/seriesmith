@@ -358,7 +358,16 @@ class AlignRouteTest(ApiTest):
         super().setUp()
         self.stub = os.path.join(self.tmp, "stub_align.py")
         stub_align(self.stub, OK_BODY)
+        # the stub runs by path (tool_cmd itself runs only seriesmith's own modules); the
+        # build after it, as it really does
+        real = E.tool_cmd
+
+        def tool_cmd(script, args, python=None):
+            if script == self.stub:
+                return [python or sys.executable, script, *args]
+            return real(script, args, python)
         self.patches = [mock.patch.object(K, "ALIGN_SCRIPT", self.stub),
+                        mock.patch.object(E, "tool_cmd", tool_cmd),
                         mock.patch.object(K, "align_ready", self.fake_ready)]
         for p in self.patches:
             p.start()
@@ -481,16 +490,31 @@ class AlignRouteTest(ApiTest):
 
 class AlignImportsTest(unittest.TestCase):
     def test_align_leaves_the_standard_library_alone(self):
-        """align runs as seriesmith.align with the package's parent on sys.path
-        (edit.RUN_MODULE); it put the package's own folder there too, so
-        Whisper's `import queue` found seriesmith/queue.py and every
+        """align runs as seriesmith.align through _run.py, with the package's parent on
+        sys.path; the package's own folder there too (a file run by path has its folder
+        first) made Whisper's `import queue` find seriesmith/queue.py, and every
         transcription failed ("module 'queue' has no attribute 'SimpleQueue'")."""
         import subprocess
-        code = ("import sys; sys.path.insert(0, sys.argv[1]); import seriesmith.align; "
-                "import queue; print(hasattr(queue, 'SimpleQueue'))")
-        out = subprocess.run([sys.executable, "-c", code, E.PACKAGE_PARENT],
+        here = os.path.dirname(E.RUNNER)
+        code = ("import sys, runpy; sys.path.insert(0, sys.argv[2]); "
+                "runpy.run_path(sys.argv[1], run_name='setup_only'); sys.modules.pop('queue', None); "
+                "import seriesmith.align; import queue; print(hasattr(queue, 'SimpleQueue'))")
+        out = subprocess.run([sys.executable, "-c", code, E.RUNNER, here],
                              capture_output=True, text=True, timeout=120)
         self.assertEqual(out.stdout.strip(), "True", out.stderr)
+
+    def test_a_tool_runs_through_the_runner(self):
+        import subprocess
+        out = subprocess.run(E.tool_cmd("build.py", ["--help"]), capture_output=True, text=True,
+                             timeout=120, env=E.tool_env())
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("usage", out.stdout.lower())
+        for bad in ("../x.py", os.path.abspath(__file__)):
+            with self.assertRaises(ValueError):
+                E.tool_cmd(bad, [])
+        out = subprocess.run([sys.executable, E.RUNNER, "os.system"], capture_output=True,
+                             text=True, timeout=60)
+        self.assertNotEqual(out.returncode, 0)
 
 
 class AlignArgsTest(ApiTest):
@@ -520,8 +544,8 @@ class AlignArgsTest(ApiTest):
         # the Python that has a Whisper (here: maybe not the one running the tests)
         self.assertEqual(cmd[0], K.align_python())
         # seriesmith.align, run as a module of the package (edit.tool_cmd)
-        self.assertEqual(cmd[3:5], [E.PACKAGE_PARENT, "seriesmith.align"])
-        self.assertEqual(cmd[5:7], [self.ep, rec])
+        self.assertEqual(cmd[1:3], [E.RUNNER, "seriesmith.align"])
+        self.assertEqual(cmd[3:5], [self.ep, rec])
         self.assertIn("--progress", cmd)
         self.assertIn("--dry-run", cmd)
         self.assertIn("--no-snap", cmd)

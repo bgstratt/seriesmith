@@ -144,5 +144,24 @@ class NodeInputsTest(unittest.TestCase):
                 self.I.input_file(name)
 
 
+class HelperCommandsTest(unittest.TestCase):
+    """The helpers run what they're handed only when it's an ffmpeg, an ffprobe, or Python
+    running PyAV's stand-in beside them."""
+
+    def test_only_ffmpeg_and_ffprobe(self):
+        spec = importlib.util.spec_from_file_location(
+            "seriesmith_helper_stills_test", os.path.join(ROOT, "seriesmith", "helpers", "stills.py"))
+        S = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(S)
+        stand_in = os.path.join(ROOT, "seriesmith", "helpers", "ffprobe_av.py")
+        for ok in (["C:/ffmpeg/bin/ffmpeg.exe"], ["/usr/bin/ffprobe"],
+                   ["ffmpeg-win-x86_64-v7.1.exe"], [sys.executable, stand_in]):
+            self.assertEqual(S._checked(ok), ok)
+        for bad in (["cmd", "/c", "calc"], [sys.executable, "-c", "print(1)"],
+                    [sys.executable, os.path.join(ROOT, "x", "ffprobe_av.py")], []):
+            with self.assertRaises(ValueError, msg=bad):
+                S._checked(bad)
+
+
 if __name__ == "__main__":
     unittest.main()

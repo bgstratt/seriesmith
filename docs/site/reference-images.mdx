@@ -139,8 +139,7 @@ take picked, which copies it to the path above (a character's sheet is stitched
 once all four views are picked). `--redo` adds a take without touching the live
 file; `--pick` puts it live.
 
-`seriesmith/kreagen.py` expects `seriesmith/mksheet.py` beside it — keep both in `seriesmith/`, or pass
-`--mksheet`. Every take is a job on seriesmith's queue (this process's own),
+`seriesmith/kreagen.py` stitches sheets with `seriesmith/mksheet.py`, the package's own. Every take is a job on seriesmith's queue (this process's own),
 made on `--backend` (`local`, `cloud`, `deployment:<target>`; default: each target's
 own, usually `local`, a Router target's `router`): the graph keeps its SaveImage, and
 the picture the backend hands back closes the take.

@@ -101,19 +101,23 @@ class LinkTest(unittest.TestCase):
 
         def runner(cmd, cwd=None, timeout=0):
             ran.append(cmd)
-            os.makedirs(cmd[-2])                     # mklink /J <dest> <src>: made
             return ""
         place = INS.Place({}, cn, None)
         ins = INS.Installer(lambda: place, runner=runner, downloader=None)
+        dest = os.path.join(cn, "seriesmith")
+        st = ins.wait(ins.start([FT.OWN_PACK]) and 10)
+        self.assertEqual(st["tasks"][0]["status"], "done", st)
+        self.assertTrue(st["restart"])
+        # a junction (a symlink elsewhere) to this repo's comfy_nodes, made with no shell
+        self.assertEqual(ran, [])
+        self.assertTrue(os.path.realpath(dest).endswith("comfy_nodes"), os.path.realpath(dest))
+        self.assertTrue(os.path.isfile(os.path.join(dest, "__init__.py")))
         if os.name == "nt":
-            st = ins.wait(ins.start([FT.OWN_PACK]) and 10)
-            self.assertEqual(st["tasks"][0]["status"], "done", st)
-            self.assertTrue(st["restart"])
-            self.assertEqual(ran[0][:4], ["cmd", "/c", "mklink", "/J"])
-            self.assertEqual(ran[0][4], os.path.join(cn, "seriesmith"))
-            self.assertTrue(ran[0][5].endswith("comfy_nodes"))
+            os.rmdir(dest)                           # the junction, not what it points at
+        else:
+            os.unlink(dest)
         # already there: nothing done
-        os.makedirs(os.path.join(cn, "seriesmith"), exist_ok=True)
+        os.makedirs(dest, exist_ok=True)
         ins = INS.Installer(lambda: place, runner=runner, downloader=None)
         st = ins.wait(ins.start([FT.OWN_PACK]) and 10)
         self.assertEqual(st["tasks"][0]["note"], "already there")

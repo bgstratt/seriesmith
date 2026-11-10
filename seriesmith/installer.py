@@ -435,10 +435,14 @@ class Installer:
         dest = os.path.join(place.custom_nodes, item.name)
         if os.path.lexists(dest):
             return "already there"
-        if os.name == "nt":
-            self._run(["cmd", "/c", "mklink", "/J", dest, src], timeout=60)
-        else:
-            os.symlink(src, dest, target_is_directory=True)
+        try:
+            if os.name == "nt":
+                import _winapi                    # a junction, as mklink /J makes, without a shell
+                _winapi.CreateJunction(src, dest)
+            else:
+                os.symlink(src, dest, target_is_directory=True)
+        except OSError as e:
+            raise InstallError(f"couldn't link {dest} to {src}: {e}") from None
         with self._lock:
             self.restart = True
         return f"linked {dest} -> {src}"
@@ -497,11 +501,10 @@ def python_has(python: str | None, module: str) -> bool | None:
     if hit and time.monotonic() - hit[1] < 60:
         return hit[0]
     try:
-        r = subprocess.run([python, "-c", f"import importlib.util,sys; "
-                            f"sys.exit(0 if importlib.util.find_spec({module!r}) else 1)"],
-                           capture_output=True, timeout=30)
-        ok = r.returncode == 0
-    except (OSError, subprocess.TimeoutExpired):
+        probe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "helpers", "probe.py")
+        r = subprocess.run([python, probe, f"{module}={module}"], capture_output=True, timeout=30)
+        ok = json.loads(r.stdout.decode("utf-8", "replace").strip().splitlines()[-1]).get(module) is not None
+    except (OSError, subprocess.TimeoutExpired, ValueError, IndexError):
         return None
     _PY_HAS[key] = (ok, time.monotonic())
     return ok

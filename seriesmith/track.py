@@ -85,29 +85,8 @@ PACKAGES = (("numpy", "numpy"), ("faster-whisper", "faster_whisper"),
             ("openai-whisper", "whisper"))
 WHISPER_NAMES = ("faster-whisper", "openai-whisper")     # what `missing` may call them
 
-PROBE = r"""
-import json
-import importlib.util as u
-try:
-    from importlib.metadata import version
-except Exception:
-    version = None
-out = {}
-for dist, mod in (("numpy", "numpy"), ("faster-whisper", "faster_whisper"),
-                  ("openai-whisper", "whisper")):
-    try:
-        found = u.find_spec(mod) is not None
-    except Exception:
-        found = False
-    v = ""
-    if found and version is not None:
-        try:
-            v = version(dist) or ""
-        except Exception:
-            v = ""
-    out[dist] = v if found else None
-print(json.dumps(out))
-"""
+# what align's Python has: helpers/probe.py, run by path in it
+PROBE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "helpers", "probe.py")
 
 _probe_cache: dict[str, tuple[float, dict]] = {}
 
@@ -121,7 +100,8 @@ def probe(python: str) -> dict:
         return dict(hit[1])
     found = None
     try:
-        r = subprocess.run([python, "-c", PROBE], capture_output=True, timeout=120,
+        r = subprocess.run([python, PROBE, *(f"{d}={m}" for d, m in PACKAGES)],
+                           capture_output=True, timeout=120,
                            env=E.tool_env())
         out = r.stdout.decode("utf-8", "replace").strip().splitlines()
         if out:

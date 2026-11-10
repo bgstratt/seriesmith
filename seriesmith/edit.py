@@ -2627,19 +2627,10 @@ def _workflow_action(args) -> int:
     return 0
 
 
-# Runs a script with its own folder on sys.path. `python script.py` normally
-# does that, but not under an embedded Python whose ._pth file fixes sys.path
-# (ComfyUI's python_embeded), where PYTHONPATH is ignored as well.
-RUN_SCRIPT = ("import os, runpy, sys; s = sys.argv[1]; sys.argv = sys.argv[1:]; "
-              "sys.path.insert(0, os.path.dirname(os.path.abspath(s))); "
-              "runpy.run_path(s, run_name='__main__')")
-
-# The same for one of seriesmith's own modules: the folder holding the
-# package goes on sys.path, then the module runs as `python -m` would run it.
-RUN_MODULE = ("import runpy, sys; sys.path.insert(0, sys.argv[1]); m = sys.argv[2]; "
-              "sys.argv = [m] + sys.argv[3:]; runpy.run_module(m, run_name='__main__', "
-              "alter_sys=True)")
-PACKAGE_PARENT = os.path.dirname(HERE)
+# The pipeline's tools run as seriesmith's own modules through _run.py, which puts the
+# package on sys.path itself (ComfyUI's embedded Python ignores PYTHONPATH and `-m` finds
+# nothing there).
+RUNNER = os.path.join(HERE, "_run.py")
 
 # h3pipe's script names, as callers still pass them -> seriesmith's modules
 TOOLS = {"build.py": "seriesmith.build", "assemble.py": "seriesmith.assemble",
@@ -2648,16 +2639,17 @@ TOOLS = {"build.py": "seriesmith.build", "assemble.py": "seriesmith.assemble",
 
 
 def tool_cmd(script: str, args: list[str], python: str | None = None) -> list[str]:
-    """The command that runs a pipeline tool: one of TOOLS (named, or a path
-    to the package's own copy) as its module, else a script file by path."""
+    """The command that runs a pipeline tool: one of TOOLS, or another module of the package,
+    named or by the path of the package's own file, run by _run.py. ValueError for anything
+    else: only seriesmith's own code runs."""
     py = python or sys.executable
     name = os.path.basename(script)
     ours = not os.path.isabs(script) or os.path.dirname(os.path.abspath(script)) == HERE
     if ours and name in TOOLS:
-        return [py, "-c", RUN_MODULE, PACKAGE_PARENT, TOOLS[name], *args]
+        return [py, RUNNER, TOOLS[name], *args]
     if ours and name.endswith(".py") and os.path.isfile(os.path.join(HERE, name)):
-        return [py, "-c", RUN_MODULE, PACKAGE_PARENT, "seriesmith." + name[:-3], *args]
-    return [py, "-c", RUN_SCRIPT, os.path.join(HERE, script), *args]
+        return [py, RUNNER, "seriesmith." + name[:-3], *args]
+    raise ValueError(f"{script} isn't one of seriesmith's own tools")
 
 
 # A progress line a script prints for whoever runs it: `##<tool> {json}`

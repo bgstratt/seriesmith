@@ -604,8 +604,15 @@ class Target:
                     raise TargetError(f"{self.kind} target {self.id}: there is no builtin "
                                       f"{name!r} ({e})") from None
             else:
-                self._module = importlib.import_module(
-                    f"{__name__}.{self.kind}.{self.id}.{os.path.splitext(code)[0]}")
+                # a file beside a shipped target.json, by its plain name: a show's own target
+                # ships no Python, so it names a builtin or nothing
+                mod = os.path.splitext(code)[0]
+                if self.custom:
+                    raise TargetError(f"{self.kind} target {self.id}: a show's own target runs a "
+                                      f"builtin (code: \"builtin:<name>\"), not {code!r}")
+                if not (mod.isidentifier() and self.kind.isidentifier() and self.id.isidentifier()):
+                    raise TargetError(f"{self.kind} target {self.id}: {code!r} is not a module name")
+                self._module = importlib.import_module(f"{__name__}.{self.kind}.{self.id}.{mod}")
         return self._module
 
     @property
