@@ -35,6 +35,10 @@ def sdk_client(base_url: str, api_key: str | None, *, router_url: str | None = N
         from seriesmith import sdk as SDK
         raise BackendError("Comfy's SDK (comfy-sdk) isn't installed in this Python: run "
                            f"{SDK.state()['command']}, then restart") from None
+    from seriesmith.settings import comfy_key_ok, comfy_key_refused
+    for url in (base_url, router_url):
+        if api_key and url and not comfy_key_ok(url):
+            raise BackendError(comfy_key_refused(url))
     with _ENV_LOCK:
         saved = {k: os.environ.get(k) for k in (comfy_sdk.BASE_URL_ENV_VAR,
                                                 comfy_sdk.ROUTER_BASE_URL_ENV_VAR,
@@ -56,9 +60,10 @@ def sdk_client(base_url: str, api_key: str | None, *, router_url: str | None = N
 
 def health(base_url: str, api_key: str | None = None, timeout: float = 5.0) -> str | None:
     """None when `base_url` answers the v2 health check, else why not."""
+    from seriesmith.settings import comfy_key_ok
     req = urllib.request.Request(base_url.rstrip("/") + "/api/v2/health")
-    if api_key:
-        req.add_header("Authorization", f"Bearer {api_key}")
+    if api_key and comfy_key_ok(base_url):
+        req.add_unredirected_header("Authorization", f"Bearer {api_key}")
     try:
         with urllib.request.urlopen(req, timeout=timeout,
                                     context=tls() if req.full_url.startswith("https") else None) as r:

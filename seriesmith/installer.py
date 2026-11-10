@@ -165,9 +165,8 @@ def download(url: str, dest: str, token: str | None = None,
     os.makedirs(os.path.dirname(os.path.abspath(dest)), exist_ok=True)
     part = dest + ".part"
     have = os.path.getsize(part) if os.path.isfile(part) else 0
-    req = urllib.request.Request(url, headers={"User-Agent": "seriesmith"})
-    if token and "huggingface.co" in url:
-        req.add_header("Authorization", f"Bearer {token}")
+    from seriesmith.hubcache import is_hub, with_token
+    req = with_token(urllib.request.Request(url, headers={"User-Agent": "seriesmith"}), token)
     if have:
         req.add_header("Range", f"bytes={have}-")
     try:
@@ -183,7 +182,7 @@ def download(url: str, dest: str, token: str | None = None,
         if e.code == 416 and have:                        # the .part is already whole
             F.replace(part, dest)
             return
-        if e.code in (401, 403) and "huggingface.co" in url:
+        if e.code in (401, 403) and is_hub(url):
             page = url.split("/resolve/")[0]
             raise InstallError(
                 ("gated: accept the licence at " + page + (", then try again" if token else

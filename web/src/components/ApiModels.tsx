@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { openMissing, openSettings, saveCustomTarget } from "../actions";
 import type { ModelMakes, ProviderDraft, ProviderRow, ProviderSpecRead } from "../api";
-import { api } from "../host";
+import { api, host } from "../host";
 import { useApp } from "../store";
 import { PromptMapping, type PanelEdits } from "./PromptMapping";
 import { ProviderVoices } from "./ProviderVoices";
@@ -138,9 +138,12 @@ export function AddProvider({ onSaved, onCancel }: {
     setBusy(true);
     setErr(null);
     try {
-      await api().putProvider(draft.definition);
+      const saved = await api().putProvider(draft.definition);
       const id = String(draft.definition.id);
       const got = key.trim() ? await api().putProviderKey(id, key) : await api().providers();
+      if (saved.key_dropped && !key.trim()) {
+        host().toast("info", `${id}'s key was removed`, "This definition sends the key to a host the saved one didn't. Type the key again to use it there.");
+      }
       onSaved(got.providers, id, model, text);
     } catch (e) {
       setErr((e as Error).message);

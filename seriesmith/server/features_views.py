@@ -36,9 +36,9 @@ _SIZES: dict[str, int | None] = {}
 def head_size(url: str, token: str | None) -> int | None:
     """A download's size from its server (HEAD, redirects followed); None when
     it won't say (or refuses: a gated file without a token)."""
-    req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "seriesmith"})
-    if token and "huggingface.co" in url:
-        req.add_header("Authorization", f"Bearer {token}")
+    from seriesmith.hubcache import with_token
+    req = with_token(urllib.request.Request(url, method="HEAD", headers={"User-Agent": "seriesmith"}),
+                     token)
     from seriesmith.backends import tls
     try:
         with urllib.request.urlopen(req, timeout=20, context=tls() if url.startswith("https") else None) as r:

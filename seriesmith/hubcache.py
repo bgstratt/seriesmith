@@ -135,12 +135,26 @@ def where_text(item) -> str:
 # downloading
 # ---------------------------------------------------------------------------
 
+def is_hub(url: str) -> bool:
+    """Whether `url` is Hugging Face's own (huggingface.co, hf.co, or a name under them): by its
+    host, never by what the rest of the address says."""
+    host = (urllib.parse.urlsplit(url).hostname or "").lower()
+    return url.lower().startswith("https://") and any(
+        host == h or host.endswith("." + h) for h in ("huggingface.co", "hf.co"))
+
+
+def with_token(req: urllib.request.Request, token: str | None) -> urllib.request.Request:
+    """`req` with the Hugging Face token, when it goes to Hugging Face, and on that request only:
+    a redirect (the Hub's to its file servers, which need no token) never carries it on."""
+    if token and is_hub(req.full_url):
+        req.add_unredirected_header("Authorization", f"Bearer {token}")
+    return req
+
+
 def repo_listing(repo: str, token: str | None = None, opener=None) -> tuple[str, list[tuple[str, int | None]]]:
     """(the commit main names, [(file, size)]) from the Hub's API."""
     url = f"{HF}/api/models/{repo}/revision/main?blobs=true"
-    req = urllib.request.Request(url, headers={"User-Agent": "seriesmith"})
-    if token:
-        req.add_header("Authorization", f"Bearer {token}")
+    req = with_token(urllib.request.Request(url, headers={"User-Agent": "seriesmith"}), token)
     if opener is not None:
         r = opener(req, timeout=60)
     else:

@@ -4727,7 +4727,9 @@ key_from_env, env_name, endpoints, docs, definition}]}`. A key is never returned
 ### `PUT /seriesmith/providers`
 
 Add or replace a provider's definition on this machine. Body `{definition}`. 400: what's wrong with
-it. Returns `{ok, id, path, providers}`.
+it (`hosts`, the other hosts the key goes to, are host names: `host` or `host:port`). Returns
+`{ok, id, path, key_dropped, providers}`: `key_dropped` when the definition sends the key to a host
+the one it replaces didn't, so the key saved for it was removed (typed again to use it there).
 
 ### `DELETE /seriesmith/providers`
 
@@ -4747,7 +4749,8 @@ a pasted cURL isn't kept, only how it was sent.
 ### `POST /seriesmith/providers/check`
 
 Whether a provider can be reached with a key, by one read that starts nothing: asking after a job that
-doesn't exist. Body `{definition, key?}`: `key`, else the one saved. The key isn't kept. Returns
+doesn't exist. Body `{definition, key?}`: `key`, else the one saved, but only when this definition
+sends it to no host the saved definition doesn't (400 otherwise: type the key). The key isn't kept. Returns
 `{reached, key_ok, status, says}`. A 401 or 403 can be the key or a firewall in front of it.
 
 ### `GET /seriesmith/lines`

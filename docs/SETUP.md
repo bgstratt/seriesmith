@@ -167,12 +167,16 @@ Anything not in the environment can go in a settings file,
 The other keys, most of them written by the editor rather than by hand:
 
 - `cloud_url` (default `https://cloud.comfy.org`) and `api_key` (better kept in
-  `COMFY_API_KEY`).
+  `COMFY_API_KEY`). The key goes with every request to Cloud and to a deployment, so
+  `cloud_url` and each deployment's URL must be Comfy's own: https, on `comfy.org` or
+  `comfy.app` (or this machine). Any other address is refused when saved, and the key is
+  never sent to one.
 - `default_targets`: `{"video": id, "image": id}`, the models a series naming none
   renders on (Settings' **Video model** / **Picture model**); `detected_targets`: the
   ones found installed, written by seriesmith (**The default models**, above).
 - `hf_token`: a Hugging Face read token, for the gated downloads (LTX-2.5, FLUX) the
-  Features window makes; `HF_TOKEN` in the environment wins.
+  Features window makes; `HF_TOKEN` in the environment wins. It goes to Hugging Face's own
+  hosts only (`huggingface.co`, `hf.co`), never on to where they redirect.
 - `ffmpeg_dir`: a folder holding your own ffmpeg and ffprobe, used before anything else
   (`seriesmith/ff.py`).
 - `comfyui_dir`: ComfyUI's folder (the one with `main.py`), for the Features window to

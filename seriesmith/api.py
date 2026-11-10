@@ -4579,15 +4579,26 @@ def put_provider(ctx: Context, body):
     """Add or replace a provider's definition on this machine. Body {definition}. 400: what's
     wrong with it."""
     from seriesmith import providers as PR
+    from seriesmith import settings as S
     d = body_dict(body).get("definition")
     if not isinstance(d, dict):
         raise ApiError(400, "definition must be the provider's definition, as an object")
+    before = PR.definitions().get(d.get("id")) if isinstance(d.get("id"), str) else None
     try:
         path = PR.save(d)
     except PR.ProviderError as e:
         raise ApiError(400, str(e))
+    # a key saved for it goes to the hosts it was saved for, never to new ones: typed again
+    dropped = False
+    if PR.moves_key(d, before) and (S.load_settings().provider_keys or {}).get(d["id"]):
+        try:
+            S.save_settings({"provider_keys": {d["id"]: None}})
+            dropped = True
+        except (OSError, ValueError) as e:
+            raise ApiError(500, f"the settings couldn't be saved: {e}")
     _refresh_providers(ctx)
-    return 200, {"ok": True, "id": d["id"], "path": path, "providers": PR.listing()}
+    return 200, {"ok": True, "id": d["id"], "path": path, "key_dropped": dropped,
+                 "providers": PR.listing()}
 
 
 @handler
@@ -5036,7 +5047,14 @@ def post_provider_check(ctx: Context, body):
     if wrong:
         raise ApiError(400, wrong[0])
     key = (body.get("key") or "").strip() if isinstance(body.get("key"), str) else ""
-    key = key or PR.key_of(str(d.get("id")))
+    if not key:
+        # the saved key, only to the hosts the saved definition sends it to
+        saved = PR.definitions().get(str(d.get("id")))
+        key = PR.key_of(str(d.get("id"))) if saved else None
+        if key and PR.moves_key(d, saved):
+            raise ApiError(400, "this definition sends the key to "
+                                f"{', '.join(sorted(PR.key_hosts(d) - PR.key_hosts(saved)))}, which the "
+                                "saved one doesn't: type the key to check it there")
     if not key:
         raise ApiError(400, "there's no key to check: type it in")
     return 200, check_key(d, key)

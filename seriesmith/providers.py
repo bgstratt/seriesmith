@@ -113,6 +113,10 @@ def problems(d: dict) -> list[str]:
         out.append(f"auth.type must be one of {', '.join(AUTH_TYPES)}")
     elif auth["type"] in ("header", "query") and not auth.get("name"):
         out.append(f"auth.name says which {auth['type']} takes the key")
+    hosts = d.get("hosts")
+    if hosts is not None and not (isinstance(hosts, list) and all(
+            isinstance(h, str) and re.fullmatch(r"[A-Za-z0-9.-]+(:[0-9]{1,5})?", h) for h in hosts)):
+        out.append("hosts must be host names (host or host:port, no https:// and no path): the key goes to them")
     extra = d.get("headers")
     if extra is not None and not (isinstance(extra, dict) and all(isinstance(v, (str, int)) for v in extra.values())):
         out.append("headers must be names and their values")
@@ -164,6 +168,18 @@ def delete(pid: str) -> bool:
         return False
     os.remove(path)
     return True
+
+
+def key_hosts(d: dict) -> set[str]:
+    """The hosts a definition sends its key to: base_url's and `hosts`, by host and port, as
+    backends/http.py decides."""
+    base = urllib.parse.urlparse(str(d.get("base_url") or "")).netloc
+    return {h.lower() for h in [base, *(d.get("hosts") or [])] if isinstance(h, str) and h}
+
+
+def moves_key(new: dict, old: dict | None) -> bool:
+    """Whether `new` would send a key saved for `old` somewhere `old` didn't."""
+    return old is not None and not key_hosts(new) <= key_hosts(old)
 
 
 def key_of(pid: str, settings=None, env=None) -> str | None:

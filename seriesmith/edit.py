@@ -1126,6 +1126,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL_ENV = {"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
 
 
+def tool_env() -> dict[str, str]:
+    """The environment a pipeline tool runs in: this one, less the keys it never needs (the
+    Comfy API key, a provider's SERIESMITH_KEY_*), with TOOL_ENV."""
+    keep = {k: v for k, v in os.environ.items()
+            if k != "COMFY_API_KEY" and not k.startswith("SERIESMITH_KEY_")}
+    return {**keep, **TOOL_ENV}
+
+
 class NotUsable(Exception):
     """A pick of a take the cut can't use (queued, failed, or no mp4)."""
     http_status = 409               # api.handler answers it with this
@@ -2670,7 +2678,7 @@ def run_tool(script: str, args: list[str], cwd: str, timeout: int,
     progress line (PROGRESS_LINE) goes to progress(tool, event) instead of
     into stdout. `stop(kill)` is handed what kills the run once it has started
     (a queue job's cancel: Queue.arm_cancel)."""
-    env = dict(os.environ, **TOOL_ENV)
+    env = tool_env()
     if progress is not None or stop is not None:
         return _stream_tool(tool_cmd(script, args), script, cwd, env, timeout,
                             progress or (lambda tool, ev: None), stop)

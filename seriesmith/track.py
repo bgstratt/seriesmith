@@ -122,7 +122,7 @@ def probe(python: str) -> dict:
     found = None
     try:
         r = subprocess.run([python, "-c", PROBE], capture_output=True, timeout=120,
-                           env=dict(os.environ, **E.TOOL_ENV))
+                           env=E.tool_env())
         out = r.stdout.decode("utf-8", "replace").strip().splitlines()
         if out:
             got = json.loads(out[-1])
@@ -449,7 +449,7 @@ def _stream(cmd: list[str], cwd: str, timeout: float, on_progress,
     is handed what kills it (a queue job's cancel)."""
     log: list[str] = []
     stopped: list[bool] = []
-    p = subprocess.Popen(cmd, cwd=cwd, env=dict(os.environ, **E.TOOL_ENV),
+    p = subprocess.Popen(cmd, cwd=cwd, env=E.tool_env(),
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     def kill():

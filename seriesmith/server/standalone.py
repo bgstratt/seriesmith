@@ -306,8 +306,10 @@ def make_app(roots: list[str] | None = None, settings=None,
             async with ClientSession() as s, s.get(settings.comfyui_url + "/queue",
                                                    timeout=3) as r:
                 q = await r.json()
-                running += q.get("queue_running") or []
-                pending += q.get("queue_pending") or []
+                # each entry's number and prompt id only: the rest is the job itself (its
+                # extra_data can hold the Comfy API key a partner node's job carries)
+                running += [e[:2] for e in q.get("queue_running") or [] if isinstance(e, list)]
+                pending += [e[:2] for e in q.get("queue_pending") or [] if isinstance(e, list)]
         except Exception:                                 # noqa: BLE001  no ComfyUI: ours only
             pass
         lst = queue.list()

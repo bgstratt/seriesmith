@@ -111,11 +111,17 @@ class StandaloneTest(unittest.TestCase):
         async def body(client, app):
             got = await (await client.get("/seriesmith/settings")).json()
             put = await client.put("/seriesmith/settings", json={
-                "api_key": "comfyui-test", "cloud_url": "https://cloud.example.com/",
-                "deployments": {"minimax_h3_ref2va": "https://h3.example.com"}})
+                "api_key": "comfyui-test", "cloud_url": "https://stagingcloud.comfy.org/",
+                "deployments": {"minimax_h3_ref2va": "https://h3.run.comfy.app"}})
             saved = await put.json()
             with_key = sorted(app["backends"])
             bad = await client.put("/seriesmith/settings", json={"cloud_url": "ftp://x"})
+            # the key goes with them: Comfy's own addresses only
+            elsewhere = [(await client.put("/seriesmith/settings", json=j)).status for j in (
+                {"cloud_url": "https://cloud.example.com"},
+                {"cloud_url": "http://cloud.comfy.org"},
+                {"deployments": {"minimax_h3_ref2va": "https://h3.comfy.app.example.com"}})]
+            self.assertEqual(elsewhere, [400, 400, 400])
             off = await (await client.put("/seriesmith/settings", json={"api_key": None})).json()
             return got, put.status, saved, with_key, bad.status, off, sorted(app["backends"])
 
@@ -125,14 +131,14 @@ class StandaloneTest(unittest.TestCase):
         self.assertEqual(got["from_env"], {})
         self.assertEqual(status, 200)
         self.assertEqual(saved["settings"]["api_key"], "set")
-        self.assertEqual(saved["settings"]["cloud_url"], "https://cloud.example.com")
+        self.assertEqual(saved["settings"]["cloud_url"], "https://stagingcloud.comfy.org")
         self.assertEqual(with_key, ["cloud", "deployment:minimax_h3_ref2va", "local", "router"])
         self.assertEqual(bad, 400)
         self.assertEqual(off["settings"]["api_key"], None)
         self.assertEqual(after, ["deployment:minimax_h3_ref2va", "local"])
         with open(os.environ["SERIESMITH_SETTINGS"], encoding="utf-8") as fh:
-            self.assertEqual(json.load(fh), {"cloud_url": "https://cloud.example.com",
-                                             "deployments": {"minimax_h3_ref2va": "https://h3.example.com"}})
+            self.assertEqual(json.load(fh), {"cloud_url": "https://stagingcloud.comfy.org",
+                                             "deployments": {"minimax_h3_ref2va": "https://h3.run.comfy.app"}})
 
     def test_every_route_answers_under_api_too(self):
         """As inside ComfyUI: the queue's, Settings' and Features' routes were

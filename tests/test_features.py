@@ -12,6 +12,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import urllib.request
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -420,15 +421,33 @@ class DownloadTest(unittest.TestCase):
         self.assertTrue(os.path.getsize(dest + ".part") > 0)
 
     def test_a_gated_file_asks_for_the_licence_and_a_token(self):
-        # the token only goes to Hugging Face: pretend this server is it
-        url = self.srv.url + "/gated/g.bin?huggingface.co"
-        with self.assertRaises(INS.InstallError) as cm:
-            INS.download(url, os.path.join(self.dir, "g"), token=None)
-        self.assertIn("Hugging Face token", str(cm.exception))
-        INS.download(url, os.path.join(self.dir, "g"), token="good")
+        # the token only goes to Hugging Face, by host: pretend this server is it
+        from unittest import mock
+        url = self.srv.url + "/gated/g.bin"
+        with mock.patch("seriesmith.hubcache.is_hub", lambda u: u.startswith(self.srv.url)):
+            with self.assertRaises(INS.InstallError) as cm:
+                INS.download(url, os.path.join(self.dir, "g"), token=None)
+            self.assertIn("Hugging Face token", str(cm.exception))
+            INS.download(url, os.path.join(self.dir, "g"), token="good")
         with open(os.path.join(self.dir, "g"), "rb") as fh:
             self.assertEqual(fh.read(), b"secret")
         self.assertEqual(self.srv.seen[-1]["auth"], "Bearer good")
+
+    def test_the_token_goes_to_hugging_face_by_host_only(self):
+        from seriesmith import hubcache as HC
+        for url in ("https://huggingface.co/a/b/resolve/main/x", "https://cdn-lfs.huggingface.co/x",
+                    "https://hf.co/a"):
+            self.assertTrue(HC.is_hub(url), url)
+        for url in ("https://evil.example/huggingface.co/x", "https://huggingface.co.evil.example/x",
+                    "https://evil.example/?huggingface.co", "http://huggingface.co/x"):
+            self.assertFalse(HC.is_hub(url), url)
+        # a server that only names huggingface.co in its address gets no token
+        INS.download(self.srv.url + "/f.bin?huggingface.co", os.path.join(self.dir, "f"), token="good")
+        self.assertIsNone(self.srv.seen[-1]["auth"])
+        # nor does a redirect on from Hugging Face: the token is on the first request only
+        req = HC.with_token(urllib.request.Request("https://huggingface.co/x"), "good")
+        self.assertEqual(req.unredirected_hdrs.get("Authorization"), "Bearer good")
+        self.assertNotIn("Authorization", req.headers)
 
 
 class InstallerTest(unittest.TestCase):
