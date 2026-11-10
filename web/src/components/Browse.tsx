@@ -208,7 +208,12 @@ function BrowseBody({ b }: { b: BrowseState }) {
             </>
           ) : (
             <>
-              <span className="h3-muted h3-small h3-grow">Double-click an episode to open it.</span>
+              <span className="h3-muted h3-small h3-grow h3-ell" id="sm-browse-into"
+                title={newParent ? `New episodes, series and imports are made in ${newParent}. Select or browse into another folder to change it. Double-click an episode to open it.` : "Double-click an episode to open it."}>
+                {newParent
+                  ? <>New and imported go in <b>{newParent}</b>{outsideRoots ? " (it becomes a project folder)" : ""}</>
+                  : "Browse to the folder new episodes and imports go in. Double-click an episode to open it."}
+              </span>
               <button
                 className="h3-btn"
                 disabled={!newParent || busyRoots}
