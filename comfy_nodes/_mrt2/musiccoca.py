@@ -28,7 +28,6 @@ MAX_TEXT_LEN = 128
 TARGET_SOS_ID = 1
 EMBEDDING_DIM = 768
 RVQ_DEPTH = 12
-DEFAULT_REPO = "magenta-torch/magenta-rt-musiccoca-torch"
 AUDIO_SR = 16000
 CLIP_SAMPLES = 160000  # 10s @ 16kHz
 _MEL_FL, _MEL_HOP, _MEL_NFFT, _PREEMPH = 400, 160, 2048, 0.97
@@ -37,17 +36,11 @@ _MEL_FL, _MEL_HOP, _MEL_NFFT, _PREEMPH = 400, 160, 2048, 0.97
 class MusicCoCa:
     """Text -> 768-d style embedding -> 12 RVQ style tokens, all in torch."""
 
-    def __init__(self, repo_id=DEFAULT_REPO, resource_dir=None, device="cpu"):
+    def __init__(self, resource_dir, device="cpu"):
         import sentencepiece
-        if resource_dir is not None:
-            te = os.path.join(resource_dir, "text_encoder.pt")
-            q = os.path.join(resource_dir, "quantizer.pt")
-            spm = os.path.join(resource_dir, "spm.model")
-        else:
-            from huggingface_hub import hf_hub_download
-            te = hf_hub_download(repo_id, "text_encoder.pt")
-            q = hf_hub_download(repo_id, "quantizer.pt")
-            spm = hf_hub_download(repo_id, "spm.model")
+        te = os.path.join(resource_dir, "text_encoder.pt")
+        q = os.path.join(resource_dir, "quantizer.pt")
+        spm = os.path.join(resource_dir, "spm.model")
         self.device = device
         self._te = torch.jit.load(te, map_location=device).eval()
         self._q = torch.jit.load(q, map_location=device).eval()
@@ -60,19 +53,13 @@ class MusicCoCa:
         self._mel = None
         self._hann = None
         self._resource_dir = resource_dir
-        self._repo_id = repo_id
         self.pca_basis = None  # [K,768] PCA axes for style steering
 
     def _ensure_audio(self):
         if self._me is not None:
             return
-        if self._resource_dir is not None:
-            mep = os.path.join(self._resource_dir, "music_encoder.pt")
-            melp = os.path.join(self._resource_dir, "mel_params.npz")
-        else:
-            from huggingface_hub import hf_hub_download
-            mep = hf_hub_download(self._repo_id, "music_encoder.pt")
-            melp = hf_hub_download(self._repo_id, "mel_params.npz")
+        mep = os.path.join(self._resource_dir, "music_encoder.pt")
+        melp = os.path.join(self._resource_dir, "mel_params.npz")
         self._me = torch.jit.load(mep, map_location=self.device).eval()
         d = np.load(melp)
         self._mel = torch.from_numpy(d["mel"]).float().to(self.device)
@@ -109,8 +96,7 @@ class MusicCoCa:
         if x.ndim == 2:
             x = x.mean(1)
         if sample_rate != AUDIO_SR:
-            import importlib
-            resampy = importlib.import_module("resampy")  # optional; off the import graph
+            import resampy  # optional: only for audio not at 16 kHz
             x = resampy.resample(x, sample_rate, AUDIO_SR)
         # split into 10s clips (pad last), embed each, mean-pool
         embs = []

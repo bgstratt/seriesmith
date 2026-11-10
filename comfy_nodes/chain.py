@@ -33,6 +33,7 @@ import numpy as np
 import torch
 
 from . import _ff
+from ._inputs import input_file
 from .shot import load_audio, load_latent
 from .shotplan import GRIDS
 
@@ -231,11 +232,9 @@ def pixel_size(v_new, video_vae) -> tuple[int, int]:
 
 
 def _input_file(name: str) -> str:
-    """An uploaded input's path in ComfyUI's input folder ("" for none)."""
-    if not (name or "").strip():
-        return ""
-    import folder_paths
-    return folder_paths.get_annotated_filepath(name.strip())
+    """An uploaded input's path in ComfyUI's input folder ("" for none), never outside
+    ComfyUI's own folders (_inputs.input_file)."""
+    return input_file(name)
 
 
 class SeriesmithChainLatent:

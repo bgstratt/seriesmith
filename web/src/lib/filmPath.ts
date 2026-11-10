@@ -1,6 +1,8 @@
 // The guided film path (docs/DESIGN.md, section 10): where an episode has got to, worked out from
 // what's on disk, so the guide can be closed and come back with no record of its own.
 
+import { SKILL_URL } from "./skill";
+
 export const FILM_STEPS = ["Idea", "Story", "Cast and places", "Storyboard", "Film", "Watch"] as const;
 export type FilmStep = 1 | 2 | 3 | 4 | 5;
 
@@ -87,6 +89,7 @@ export function filmStep(f: FilmFacts): FilmStep {
 export function agentInstructions(ep: string): string {
   return [
     "Use the seriesmith script-writing skill to write this episode. Ask me what it's about if I haven't said.",
+    `If you don't have the skill, I can install it from ${SKILL_URL}`,
     "",
     `The episode folder is: ${ep}`,
     "",

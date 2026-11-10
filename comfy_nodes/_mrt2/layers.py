@@ -137,7 +137,13 @@ def dot_product_attention(q, k, v, per_dim_scale, sink_k, sink_v, mask):
         sink_vb = sink_v.to(vh.dtype).permute(1, 0, 2).unsqueeze(0).expand(b, -1, -1, -1)  # [b,nh,num_sink,uph]
         vh = torch.cat([sink_vb, vh], dim=2)
 
-    ctx = torch.matmul(weights, vh)  # [b, nh, tq, uph]
+    if weights.shape[-1] == 1:
+        # one key: the product is an outer one, the same as this broadcast; torch 2.15 sends
+        # a batched outer product to a Triton kernel of its own that fails here ("Pointer
+        # argument cannot be accessed from Triton"), so it isn't asked for (seriesmith)
+        ctx = weights * vh  # [b, nh, tq, 1] * [b, nh, 1, uph]
+    else:
+        ctx = torch.matmul(weights, vh)  # [b, nh, tq, uph]
     return ctx.transpose(1, 2)  # [b, tq, nh, uph]
 
 

@@ -606,7 +606,8 @@ export interface Api {
   /** Save how a model's prompt is written and where its values go, for this show; empty goes back to the model's own. */
   putTargetPrompt(ep: string, id: string, template: string, request: string, inputs?: Record<string, unknown>, args?: Record<string, unknown>): Promise<{ ok: boolean; id: string; path: string; changed: boolean }>;
   providers(): Promise<{ providers: ProviderRow[] }>;
-  putProvider(definition: Record<string, unknown>): Promise<{ ok: boolean; id: string; providers: ProviderRow[] }>;
+  /** `key_dropped`: the definition sends the key to hosts the saved one didn't, so the saved key was removed */
+  putProvider(definition: Record<string, unknown>): Promise<{ ok: boolean; id: string; key_dropped?: boolean; providers: ProviderRow[] }>;
   /** Write-only: null removes it. */
   putProviderKey(id: string, key: string | null): Promise<{ ok: boolean; id: string; providers: ProviderRow[] }>;
   draftProvider(req: { text?: string; answer?: string; poll?: string; poll_answer?: string; path?: string; form?: Record<string, unknown> }): Promise<ProviderDraft>;

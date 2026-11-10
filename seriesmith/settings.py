@@ -182,6 +182,26 @@ def from_env(env: dict | None = None) -> dict[str, str]:
     return {k: v for k, v in ENV_NAMES.items() if env.get(v)}
 
 
+COMFY_KEY_DOMAINS = ("comfy.org", "comfy.app")
+
+
+def comfy_key_ok(url: str) -> bool:
+    """Whether the Comfy API key may go to `url`: Comfy's own (comfy.org, comfy.app and names
+    under them, over https) or this machine (the local proxy)."""
+    from urllib.parse import urlsplit
+    u = urlsplit(url or "")
+    host = (u.hostname or "").lower()
+    if host in ("127.0.0.1", "localhost", "::1"):
+        return u.scheme in ("http", "https")
+    return u.scheme == "https" and any(host == d or host.endswith("." + d) for d in COMFY_KEY_DOMAINS)
+
+
+def comfy_key_refused(url: str) -> str:
+    from urllib.parse import urlsplit
+    return (f"the Comfy API key goes only to Comfy's own addresses (https, comfy.org or comfy.app) "
+            f"or this machine, not {urlsplit(url or '').netloc or url!r}")
+
+
 def save_settings(updates: dict, path: str | None = None) -> str:
     """Write `updates` into the settings file (made if missing; its other keys
     kept). A field absent from `updates` is left as it is; an empty URL or
@@ -266,6 +286,8 @@ def save_settings(updates: dict, path: str | None = None) -> str:
             for t, u in v.items():
                 if not isinstance(u, str) or not u.startswith(("http://", "https://")):
                     raise ValueError(f"deployment {t}: its URL must start with http:// or https://")
+                if not comfy_key_ok(u):
+                    raise ValueError(f"deployment {t}: {comfy_key_refused(u)}")
             data[k] = {str(t): u.rstrip("/") for t, u in v.items()}
             continue
         if v in (None, ""):
@@ -281,6 +303,8 @@ def save_settings(updates: dict, path: str | None = None) -> str:
             continue
         if k not in ("api_key", "hf_token") and not v.startswith(("http://", "https://")):
             raise ValueError(f"{k}: a URL starting with http:// or https://")
+        if k == "cloud_url" and not comfy_key_ok(v):
+            raise ValueError(f"{k}: {comfy_key_refused(v)}")
         data[k] = v if k in ("api_key", "hf_token") else v.rstrip("/")
     F.write_json(path, data, ensure_ascii=True)
     return path

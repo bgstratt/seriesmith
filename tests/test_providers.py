@@ -357,6 +357,56 @@ class Definitions(unittest.TestCase):
         self.assertEqual(made["api:atlas"].parallel, 3)
 
 
+class TheKeyStaysWithItsHosts(unittest.TestCase):
+    """A saved key goes to the hosts its definition was saved with: a definition sent to the
+    check, or saved over it, that names others never takes it there."""
+
+    def setUp(self):
+        from unittest import mock
+        from seriesmith import api as A
+        self.A = A
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        patch = mock.patch.dict(os.environ, {"SERIESMITH_SETTINGS": os.path.join(self.tmp, "settings.json")})
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.ctx = A.Context(self.tmp, "http://127.0.0.1:0", env={})
+        self.mine = {**Definitions.GOOD}
+        PR.save(self.mine)
+        S.save_settings({"provider_keys": {"mine": KEY}})
+
+    def test_the_check_wont_send_the_saved_key_somewhere_new(self):
+        for moved in ({"base_url": "https://attacker.example"}, {"hosts": ["attacker.example"]}):
+            status, out = self.A.post_provider_check(self.ctx, {"definition": {**self.mine, **moved}})
+            self.assertEqual(status, 400, moved)
+            self.assertIn("attacker.example", out["error"])
+            self.assertIn("type the key", out["error"])
+
+    def test_saving_it_somewhere_new_drops_the_key(self):
+        status, out = self.A.put_provider(self.ctx, {"definition": {**self.mine, "label": "Mine"}})
+        self.assertEqual((status, out["key_dropped"]), (200, False))
+        self.assertEqual(PR.key_of("mine", env={}), KEY)
+        status, out = self.A.put_provider(self.ctx, {"definition": {**self.mine, "hosts": ["b.example"]}})
+        self.assertEqual((status, out["key_dropped"]), (200, True))
+        self.assertIsNone(PR.key_of("mine", env={}))
+
+    def test_a_pipeline_tool_gets_no_keys(self):
+        from unittest import mock
+        from seriesmith import edit as E
+        with mock.patch.dict(os.environ, {"COMFY_API_KEY": "c", "SERIESMITH_KEY_ATLAS": "a",
+                                          "HF_TOKEN": "h"}):
+            env = E.tool_env()
+        self.assertNotIn("COMFY_API_KEY", env)
+        self.assertNotIn("SERIESMITH_KEY_ATLAS", env)
+        self.assertEqual((env["HF_TOKEN"], env["PYTHONUTF8"]), ("h", "1"))   # whisper's models
+
+    def test_hosts_are_host_names(self):
+        for bad in (["https://b.example"], ["b.example/path"], ["*.example"], "b.example"):
+            self.assertIn("hosts", " ".join(PR.problems({**self.mine, "hosts": bad})), bad)
+        self.assertEqual(PR.problems({**self.mine, "hosts": ["b.example", "c.example:8443"]}), [])
+        self.assertEqual(PR.key_hosts({**self.mine, "hosts": ["B.example"]}), {"a.example", "b.example"})
+
+
 class ReadingAReference(unittest.TestCase):
     def propose(self, text, kind="video", path=None, model="bytedance/seedance-2.5/reference-to-video"):
         base = TG.load_target("seedance_2_5", "video").spec

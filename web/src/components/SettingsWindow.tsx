@@ -17,6 +17,7 @@ import { FloatingWindow } from "./FloatingWindow";
 import { CopyButton } from "./Readiness";
 import { ModelOptions } from "./Targets";
 import { addCommand, argsOf, commandLine, jsonBlock, type McpLaunch } from "../lib/mcpSetup";
+import { SkillLink } from "./SkillLink";
 
 interface SettingsView {
   settings: {
@@ -376,6 +377,17 @@ function SettingsBody({ server }: { server: boolean }) {
             </div>
           </details>
           <ProvidersCard />
+        </section>
+
+        <section className="h3-card" id="sm-set-agent">
+          <div className="h3-card-head">
+            <span className="h3-card-title h3-grow">Your agent</span>
+          </div>
+          <span className="h3-small">
+            Write a script, or turn a screenplay into one, with the script-writing skill in Claude or the agent you
+            already use. Connect it to seriesmith with <code>seriesmith mcp</code> and it can read and save the episode itself.
+          </span>
+          <SkillLink />
         </section>
 
         <section className="h3-card">

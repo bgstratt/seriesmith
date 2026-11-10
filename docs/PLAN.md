@@ -2321,9 +2321,9 @@ download with the key). Reading the reference moved up from step 7 (decided with
 - [ ] `fishaudio_drama3` live: not run, it's paid. Each take's Instant Voice Clone makes a private
       voice on Fish Audio's side; ComfyUI reuses the node's output while the sample is the same, but
       a restart makes another.
-- [ ] Qwen's cloning on transformers 5.21+ waits on flybirdxx/ComfyUI-Qwen-TTS#115 (opened
-      2026-11-07); until it merges, the pack from GitHub fails a clone with "property 'upsample' ...
-      has no setter".
+- [x] Qwen's cloning on transformers 5.21+: flybirdxx/ComfyUI-Qwen-TTS#115 merged 2026-11-10, so the
+      pack's main clones again (before it, a clone failed with "property 'upsample' ... has no
+      setter").
 
 **7. Presets**
 - [ ] Presets as data files: fal, Replicate, ElevenLabs, Runway, BytePlus, Atlas, OpenAI, xAI,
@@ -2536,6 +2536,40 @@ To build, each ending in something that runs:
       shots through the keyframe path; a shot whose action is still its beat's guidance is left out
       and named.
 - [ ] **A logline.** The Idea step's one line was left out: nothing reads it yet.
+
+## The Registry's flags (branch `registry-hardening`, 2026-11-10)
+
+Every published version is flagged by the Comfy Registry's scanner (policy v0.7/v0.8:
+arbitrary-file-read, too-many-findings; a few command-injection, credential-exfiltration,
+code-execution), so none is active. Audited by kind; what was real is fixed, what was a pattern
+match made to say what it does.
+
+- [x] **The package.** `node_modules/` (vitest's cache, committed by accident) untracked; the skill's
+      zip (a second copy of the build) left out by `.comfyignore`, linked from the docs and the
+      editor instead; MRT2's unused AOTI code and Hugging Face fallbacks removed (NOTICE.md). 802 files
+      to 569.
+- [x] **Other web pages.** `server/guard.py`: the server answers its own page and programs; Origin,
+      Sec-Fetch-Site, Host (DNS rebinding), JSON bodies only. The network launcher, a laptop on Wi-Fi
+      or Tailscale included, unchanged; `--allow-host` for other names.
+- [x] **Keys.** A provider's saved key to the hosts it was saved for; the Hugging Face token to its
+      hosts by name, never on a redirect; the Comfy key to comfy.org, comfy.app or this machine; the
+      queue relay without ComfyUI's extra_data; tools without the keys in their environment.
+- [x] **Paths.** The whole disk from the PC running seriesmith, the project folders from any other
+      device (browse, every `source_path`, an XML's media); project folders, `ffmpeg_dir` and
+      `comfyui_dir` changed on that PC only, never a whole drive or the user's folder; the node
+      pack's file inputs inside ComfyUI's folders.
+- [x] **Running code.** Tools through `seriesmith/_run.py` (the package's modules only), no `python
+      -c`, no `cmd /c`; helpers run only ffmpeg/ffprobe; a show's own model runs builtin code only.
+- [x] **Found on the way.** MRT2's seed cap (2**32-1) refused every cue; MRT2 inside ComfyUI with
+      dynamic VRAM hit torch 2.15's own Triton kernels (comfy-aimdo's allocator), now avoided.
+- [x] **Live** (2026-11-10, the user): Router and local renders, a latent chain, Export, an MRT2
+      cue, a Qwen clone, align, a sheet stitched; the editor from a laptop on Wi-Fi (new show, refs,
+      a render, drag and drop, imports inside the project folders, nothing outside them), Settings
+      saved from it; on the PC, localhost and 127.0.0.1, the whole disk.
+- [ ] **Pinned hashes** for the Features downloads (the ffmpeg build, models, hub files).
+- [ ] **Paths in a series config or script** (a ref, a recording, a theme): absolute ones still
+      followed; confine them to the show and the project folders.
+- [ ] **The next release** scanned clean, or a manual review asked for with this list.
 
 ## Later
 

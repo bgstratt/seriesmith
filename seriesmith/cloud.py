@@ -71,6 +71,9 @@ def object_info(base_url: str, api_key: str | None, timeout: float = 120.0) -> d
         hit = _INFO.get(base)
     if hit and time.monotonic() - hit[0] < TTL:
         return hit[1]
+    from seriesmith.settings import comfy_key_ok, comfy_key_refused
+    if api_key and not comfy_key_ok(base):
+        raise BackendError(comfy_key_refused(base))
     try:
         info = http_json(base + "/api/object_info",
                          headers={"X-API-Key": api_key} if api_key else None, timeout=timeout)

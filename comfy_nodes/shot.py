@@ -51,6 +51,7 @@ import torch
 try:
     from . import _ff
     from . import _hub
+    from . import _inputs
     from . import shotplan as _plan
 except ImportError:                       # this file loaded on its own (a test), not as the pack
     import importlib.util as _iu
@@ -63,6 +64,7 @@ except ImportError:                       # this file loaded on its own (a test)
         return mod
     _ff = _sibling("_ff", "seriesmith_nodes_ff")
     _hub = _sibling("_hub", "seriesmith_nodes_hub")
+    _inputs = _sibling("_inputs", "seriesmith_nodes_inputs")
     _plan = _sibling("shotplan", "seriesmith_nodes_shotplan")
 
 # ---------------------------------------------------------------------------
@@ -387,7 +389,7 @@ class SeriesmithShotLoader:
         for i, rel in enumerate(names):
             name = (uploaded.get(file_input(i)) or "").strip()
             if name:
-                where[str(rel).replace("\\", "/")] = folder_paths.get_annotated_filepath(name)
+                where[str(rel).replace("\\", "/")] = _inputs.input_file(name)
 
         def resolve(path: str) -> str:
             return where.get(str(path or "").replace("\\", "/"), "") if path else ""

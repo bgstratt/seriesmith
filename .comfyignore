@@ -8,3 +8,8 @@
 /CLAUDE.md
 /CONTRIBUTING.md
 /.github/
+# the script-writing skill's zip carries a copy of the build: it's installed from the repo
+# (seriesmith.com links it), not from ComfyUI. prompts/SKILL.md stays: `seriesmith mcp` serves it.
+/prompts/*.zip
+# never meant to be tracked; listed in case a cache is committed again
+/node_modules/

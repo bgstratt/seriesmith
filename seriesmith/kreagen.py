@@ -359,7 +359,6 @@ def main(argv: list[str] | None = None) -> int:
                     help="per-panel generation size for sheets (default 1024x1024 "
                          "-> a 4096x1024 stitched strip)")
     ap.add_argument("--panel-height", type=int, default=1024, help="passed to mksheet.py")
-    ap.add_argument("--mksheet", default=None, help="path to mksheet.py (default: beside this file)")
     ap.add_argument("--timeout", type=int, default=900,
                     help="seconds to wait per image (default %(default)s)")
     ap.add_argument("--unet", default="", help=f"image model file name (default {UNET})")
@@ -571,8 +570,7 @@ def main(argv: list[str] | None = None) -> int:
                       f"the editor, or pass --pick)")
                 continue
             for job, take in made:
-                res = R.pick_take(s, r, job.view, take.take, panel_height=args.panel_height,
-                                  mksheet=args.mksheet)
+                res = R.pick_take(s, r, job.view, take.take, panel_height=args.panel_height)
                 if res.report:
                     sys.stdout.write(res.report)
             print(f"  -> {j['out']}")

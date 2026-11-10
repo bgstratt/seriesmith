@@ -250,10 +250,18 @@ editor's **Settings → This server → Restart** (or `seriesmith stop --restart
 to, and closes when it is stopped (**Stop**, `seriesmith stop`, or Ctrl+C, without cmd's
 "Terminate batch job" question). Stop and Restart are offered only on the PC that runs
 the server. The network one has no password:
-anyone on that network can open your project folders, import files from the PC, see the
-API key in Settings and queue paid runs, so use it on home Wi-Fi you trust and never
+anyone on that network can open your project folders and queue paid runs (adding a
+project folder, browsing or importing beyond them, and choosing which ffmpeg or ComfyUI
+folder seriesmith runs are for the PC itself: from a laptop, drag a file in instead), so use it on home Wi-Fi you trust and never
 port-forward it. Away from home, a private network between your own devices (Tailscale)
 is the safe way in: `seriesmith serve --host <the PC's Tailscale address>`.
+
+Either way, the server answers only its own page and programs (curl, `seriesmith mcp`),
+never another web site open in the same browser: a request from a page elsewhere is refused
+(403), and so is a request addressed to a name it doesn't answer to. On this PC only, that's
+`localhost` and `127.0.0.1`; on the network, an address, a plain machine name, and `.local`,
+`.lan` and Tailscale's `.ts.net` names too. For any other name, start it with
+`--allow-host <name>` (or set `SERIESMITH_ALLOWED_HOSTS`, comma-separated).
 
 ### The upscaler (optional)
 
@@ -1007,8 +1015,9 @@ does the same.
 - [docs/AUTHORING.md](docs/AUTHORING.md) is the format itself: every field, the frame
   grids, the syllable budget, how to break a scene into shots.
 - To draft with an AI assistant, the guide comes as a skill:
-  `prompts/seriesmith-episode-script.zip` (in the repo, and in a Manager install's
-  `custom_nodes\seriesmith\prompts\`). Upload it in Claude (Settings → Skills →
+  `prompts/seriesmith-episode-script.zip` in the repo ([download it from
+  GitHub](https://github.com/bgstratt/seriesmith/raw/main/prompts/seriesmith-episode-script.zip);
+  a Manager install doesn't carry it). Upload it in Claude (Settings → Skills →
   Upload a skill), or unzip it into `.claude/skills/` for Claude Code. It carries the build, so the
   assistant can check a script with nothing installed.
 

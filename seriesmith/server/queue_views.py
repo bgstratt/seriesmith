@@ -108,6 +108,10 @@ def queue_routes(settings, runner, connected=lambda: False,
         from seriesmith.backends import available
         from seriesmith.settings import FIELDS, from_env, save_settings
         body = A.body_dict(body)
+        # which ffmpeg and which ComfyUI folder (its Python) seriesmith runs: this PC only
+        for k in ("ffmpeg_dir", "comfyui_dir"):
+            if k in body and (body[k] or None) != (getattr(settings, k, None) or None):
+                A.from_this_pc(ctx, f"{k} (which programs seriesmith runs)")
         try:
             save_settings({k: v for k, v in body.items() if k in FIELDS})
             fresh = load_settings()

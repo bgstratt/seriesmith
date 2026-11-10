@@ -31,7 +31,21 @@ import sys
 def _cmd(tool: str) -> list[str]:
     """A tool given as a path, or as a command (a JSON list: tour.py passes
     ffprobe so, since it may be a Python running PyAV's stand-in)."""
-    return json.loads(tool) if tool.startswith("[") else [tool]
+    return _checked(json.loads(tool) if tool.startswith("[") else [tool])
+
+
+def _checked(cmd: list[str]) -> list[str]:
+    """`cmd` when it is an ffmpeg or an ffprobe (by its program's name, imageio-ffmpeg's
+    "ffmpeg-win-x86_64-...exe" too), or a Python running PyAV's stand-in beside this file
+    (helpers/ffprobe_av.py); ValueError for anything else: this helper runs nothing but those."""
+    prog = os.path.basename(cmd[0]).lower() if cmd else ""
+    if prog.startswith(("ffmpeg", "ffprobe")):
+        return cmd
+    here = os.path.normcase(os.path.dirname(os.path.abspath(__file__)))
+    if (len(cmd) > 1 and prog.startswith("python")
+            and os.path.normcase(os.path.abspath(cmd[1])) == os.path.join(here, "ffprobe_av.py")):
+        return cmd
+    raise ValueError(f"not an ffmpeg or ffprobe: {cmd[:2]}")
 
 
 def probe(ffprobe: str, path: str) -> tuple[int, int, float]:
