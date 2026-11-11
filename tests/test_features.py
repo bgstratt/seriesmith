@@ -249,8 +249,7 @@ class CoverageTest(unittest.TestCase):
                 self.assertTrue(i.url.startswith("https://"))
                 self.assertTrue(i.folder)
                 self.assertTrue(i.files or i.folder == "torch")
-                # Install asks for it by name (two features may list one: MMAudio's beds and effects)
-                self.assertEqual(known.get(name), i)
+                self.assertIs(known.get(name), i)          # Install asks for it by name
                 self.assertFalse(i.manual)
 
     def test_every_whisper_model_align_offers_is_in_a_feature(self):

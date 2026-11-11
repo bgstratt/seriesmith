@@ -57,7 +57,7 @@ class TargetTest(unittest.TestCase):
     def test_the_kind_and_its_default(self):
         self.assertIn("foley", TG.KINDS)
         self.assertEqual(sorted(t.id for t in TG.list_targets("foley")),
-                         ["h3_foley", "hunyuan_xl_foley", "ltx23_foley", "mmaudio_foley"])
+                         ["h3_foley", "hunyuan_xl_foley", "ltx23_foley"])
         self.assertEqual(TG.DEFAULT_TARGETS["foley"], "h3_foley")
         self.assertEqual(TG.DEFAULT_FOLEY_TARGET, "h3_foley")
 

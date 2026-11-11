@@ -1554,7 +1554,7 @@ with stems beside it.
   automatic: many takes already have their model's effects in their own sound, so ask only for
   the shots that need them (a dubbed or cloned shot, a model with no sound). The default model
   is MiniMax H3 (about 10 s a shot once loaded); **Make effects on…** offers the others
-  installed (LTX-2.3 Foley, HunyuanVideo-Foley XL: a minute or two; MMAudio). The words are the shot's
+  installed (LTX-2.3 Foley, HunyuanVideo-Foley XL: a minute or two). The words are the shot's
   `sound:` line, else its action: give a shot a `sound:` line ("cup taps on formica, hands
   clapping") for effects worth having, since an action written for the picture can mislead
   ("…looks up, about to sing" gets a voice). The job shows in the Jobs list, and a toast says

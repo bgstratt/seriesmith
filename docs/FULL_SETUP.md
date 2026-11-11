@@ -83,7 +83,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Recorded dialogue | | | faster-whisper; demucs for `dub_keep_foley`; seriesmith's node pack for the vocal stem (optional) |
 | Music cues and songs | | Stable Audio 3 Medium's 2 (score); YuE2's checkpoint (songs), SheetSage2's for a theme from a recording; ACE-Step 1.5's 4 | |
 | Ambience beds | ComfyUI-MMAudio | MMAudio's 4 files (or Stable Audio 3 Small SFX's 2) | |
-| Effects from the picture | ComfyUI-LTXVideo for LTX-2.3 Foley; ComfyUI-HunyuanVideo-Foley for Hunyuan; ComfyUI-MMAudio for MMAudio | H3 FL2VA's 4 files (or LTX-2.3 Foley's 7, HunyuanVideo-Foley XL's 3, MMAudio's 4) | |
+| Effects from the picture | ComfyUI-LTXVideo for LTX-2.3 Foley; ComfyUI-HunyuanVideo-Foley for Hunyuan | H3 FL2VA's 4 files (or LTX-2.3 Foley's 7, HunyuanVideo-Foley XL's 3) | |
 | Voices only (the takes' voices without their music) | seriesmith's node pack (its vocal-stem node) | Hybrid Demucs's weights (Features: Vocal stem; a copy torchaudio downloaded before counts) | |
 | Upscaling H3 takes | None on ComfyUI 0.44 or later; before that Comfyui_Minimax_h3_latent_Upscaler or its Plus version, and comfyui-obvpm-timeline for takes over 5.5 s | H3's latent upscaler | |
 | Upscaling any take | Nvidia RTX Nodes (optional) | RealESRGAN, or SeedVR2 | |
@@ -386,9 +386,6 @@ and seven files, about 36 GB (the dev transformer, the text projection and both 
 [Comfy-Org/ltx-2.3](https://huggingface.co/Comfy-Org/ltx-2.3), Gemma 3 12B fp8 from
 [Comfy-Org/ltx-2](https://huggingface.co/Comfy-Org/ltx-2), the foley LoRA from
 [Lightricks/LTX-2.3-22b-LoRA-Foley-V2A](https://huggingface.co/Lightricks/LTX-2.3-22b-LoRA-Foley-V2A)).
-`mmaudio_foley` is MMAudio through [ComfyUI-MMAudio](https://github.com/kijai/ComfyUI-MMAudio) and the
-four files the ambience beds use (BigVGAN v2 downloaded by the Features window), sampled by seriesmith's
-own node (`SeriesmithMMAudioSampler`), which takes MMAudio's 8 fps and 25 fps frames at their moments.
 `hunyuan_xl_foley` is Tencent's HunyuanVideo-Foley XL through
 [ComfyUI-HunyuanVideo-Foley](https://github.com/phazei/ComfyUI-HunyuanVideo-Foley) and three
 files in `models/foley` from [phazei/HunyuanVideo-Foley](https://huggingface.co/phazei/HunyuanVideo-Foley)
