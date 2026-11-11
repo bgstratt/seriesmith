@@ -2639,7 +2639,8 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
       installed. int8 measured 58-61 dB from fp16 and 3-13 s faster per decode, but its
       gradients band on skin zoomed in (the user, 2026-11-10); fp16 stays the download.
 - [x] 3b. FastH3's sparse attention at 864x480 x 124 frames, two shots x two seeds: keep 10%
-      (trained), 20% and dense look near-identical; 10% and 20% ~25 s, dense ~32 s. Keep 10%.
+      (trained), 20% and dense look alike in framing and motion; 10% and 20% ~25 s, dense ~32 s.
+      Faces held truest at 20%, then 10%, dense worst (the user, 2026-11-10): FastH3 keeps 20%.
 - [x] 4. Take checks (`takecheck.py`), recorded in the take's sidecar on a thread of their own
       once it finishes, badges in the bin and the gallery, `seriesmith takes --check` for older
       takes (EDITOR.md "Take checks"). Measured on 213 takes on this machine:

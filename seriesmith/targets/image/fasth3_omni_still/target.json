@@ -27,7 +27,7 @@
     "size_multiple": 32
   },
   "binding": {
-    "_note": "minimax_h3_still's graph with FastH3's model chain (as fasth3_omni's): the Omni checkpoint, no turbo LoRA (LoRAs go in after UNETLoader), MiniMaxH3SigmaShift 12 / 3, and ComfyUI's BlockSparseAttention in `vsa` mode at 10% in place of the SLA node (a 5-frame still is usually under its min_tokens, so it runs dense).",
+    "_note": "minimax_h3_still's graph with FastH3's model chain (as fasth3_omni's): the Omni checkpoint, no turbo LoRA (LoRAs go in after UNETLoader), MiniMaxH3SigmaShift 12 / 3, and ComfyUI's BlockSparseAttention in `vsa` mode keeping 20% (as fasth3_omni) in place of the SLA node (a 5-frame still is usually under its min_tokens, so it runs dense).",
     "workflow": "workflow.json",
     "workflow_name": "seriesmith_fasth3_omni_still.json",
     "env": "SERIESMITH_FASTH3_OMNI_STILL_WORKFLOW",
