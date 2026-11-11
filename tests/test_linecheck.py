@@ -54,7 +54,7 @@ class CheckTest(unittest.TestCase):
 
     def test_a_stall_inside_and_one_that_runs_on(self):
         p = os.path.join(self.tmp, "gap.wav")
-        _wav(p, [("tone", 0.8), ("quiet", 1.6), ("tone", 0.8)])
+        _wav(p, [("tone", 0.8), ("quiet", 2.4), ("tone", 0.8)])
         self.assertEqual(LC.check(self.tmp, p, "Cut it now.", words=False)["flags"], ["gap"])
         q = os.path.join(self.tmp, "long.wav")
         _wav(q, [("tone", 9.0)])

@@ -4605,7 +4605,8 @@ continuing its sample if it has one, else its first line. Body `{ep, confirm_cha
 character with no speaker is **400**. Nothing is sent in either case. Returns `{queued, errors}`;
 `seriesmith.lines` follows each. Each finished take is checked (seriesmith/linecheck.py, a thread of
 the runner's): `takes[].checks` `{v, seconds, expected, gap, words: {heard, match, model} | {why}, flags}`, `flags` of `words` (under takecheck.WORDS_MATCH), `long` (over 2 x the line's spoken length +
-2 s) and `gap` (a silence of 1.2 s or more between its first and last sound). `retry: {tries: 1-5, paid?}` makes another take of a line whose take is flagged, `tries` times (on a provider or a partner
+2 s) and `gap` (2 s or more under -20 dB of its loudest, between its first and last sound: a
+pause between sentences is 1-1.4 s). `retry: {tries: 1-5, paid?}` makes another take of a line whose take is flagged, `tries` times (on a provider or a partner
 node only with `paid`), then picks the best of them (no flags, then the words heard, then the shortest
 silence).
 

@@ -2684,7 +2684,8 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
         talk over once this list is through (the user, 2026-11-10).
 - [x] 6. Line checks and retries (`linecheck.py`, runner._check_line; RECORDED_DIALOGUE.md "Line
       checks"): each take of a line checked as it's made, its words (Whisper on the CPU), too long
-      (over 2 x its spoken length + 2 s) or a silence inside it (1.2 s+); the Lines window's **If a
+      (over 2 x its spoken length + 2 s) or a stall inside it (2 s+ under -20 dB: Drama 3's pauses
+      sit 20-33 dB down, the longest 1.35 s); the Lines window's **If a
       line fails its checks**: 1-5 more takes, new seeds, the best kept; local models only (a
       provider's with `paid`). Any voice model, Drama 3 the first in mind.
       - [ ] Live: Drama 3 lines on LAST LIGHT's copy; the thresholds against its real stalls.

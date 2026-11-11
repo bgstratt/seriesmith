@@ -56,7 +56,7 @@ To build the recording from the lines:
 
 **Line checks.** Each take is checked once it's made. Whisper listens to it on the processor, and its
 length and silences are measured. A take shows **✓ checked**, or what to listen for: **words 70%** (a word
-dropped, said twice, or garbled), **9 s, about 3 s expected** (it kept going after the line), or **a 1.6 s
+dropped, said twice, or garbled), **9 s, about 3 s expected** (it kept going after the line), or **a 2.4 s
 silence** (it stalled in the middle). Whisper can mishear a name, so listen before you redo one. With a model
 on your GPU, **If a line fails its checks** next to Generate makes another take, with a new seed, of a line
 that fails, up to five times, and keeps the best. It isn't offered on a paid model, where each take costs.

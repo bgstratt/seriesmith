@@ -10,7 +10,11 @@ and keeps the best (runner.enqueue_line).
 - **long**: the take runs past LONG times the line's spoken length (core.speech, with its air)
   plus LONG_PAD seconds: a model that kept going after the words (Drama 3 ends at end of speech
   when it's well; a stall runs on to its limit).
-- **gap**: a silence of GAP seconds or more between its first and last sound: a stall mid-line.
+- **gap**: GAP seconds or more of quiet between its first and last sound: a stall mid-line.
+  Measured 2026-11-10 on Drama 3 (W4A8), LAST LIGHT's four lines: its pauses between sentences
+  sit 20-33 dB under the voice (room tone and breath, never silence), the longest 1.35 s
+  ("Still alive. Good. Let's get you home."); QUIET_DB and GAP clear them. No stall was seen
+  yet to set GAP against.
 
 Never raises (a take that can't be read has none); a check is a reason to listen, not a verdict.
 """
@@ -24,9 +28,9 @@ from seriesmith import takecheck as TC
 VERSION = 1
 LONG = 2.0
 LONG_PAD = 2.0
-GAP = 1.2                   # seconds of silence inside a line
+GAP = 2.0                   # seconds of quiet inside a line: a stall, not a pause between sentences
 WINDOW = 0.05               # seconds per level reading
-QUIET_DB = -45.0            # a window this far under the take's loudest is silence
+QUIET_DB = -20.0            # a window this far under the take's loudest is quiet (a pause, room tone)
 
 
 def levels(path: str) -> tuple[list[float], float]:
