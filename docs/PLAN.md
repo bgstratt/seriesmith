@@ -2625,7 +2625,7 @@ match made to say what it does.
 - [x] **Live** (2026-11-10, the user): a latent chain re-rendered after a trim; `continuous: first`
       and an FL2VA last frame cut anew at the trims.
 
-## Enhancements, and earlier decisions revisited with new data (branch `istudio-ideas`, 2026-11-10)
+## Enhancements, and earlier decisions revisited with new data (branch `enhancements-revisited`, 2026-11-10)
 
 Each fits a 32 GB card and 64 GB of RAM. In order:
 
