@@ -164,6 +164,22 @@ export function ContextMenu() {
         </button>
       )}
       {take && (
+        <button
+          disabled={!usable}
+          title={(usable
+            ? `${menu.shot}'s own first keyframe = ${menu.frame == null || menu.frame === "last" ? "the first frame" : `frame ${menu.frame}`} of ${tn(take.take)}: `
+              + "a model that starts from a frame (H3 FL2VA, FastH3 FL2VA) renders on from it, keeping what this take got right"
+            : "Only a finished take with video has frames") + kfNote(shot)}
+          onClick={run(() => void keyframeFromTake({
+            shot: menu.shot, which: "first", sourceShot: menu.shot, sourceTake: take.take,
+            frame: menu.frame == null || menu.frame === "last" ? "first" : menu.frame, pass: menu.pass, pick: true,
+          }))}
+        >
+          <i className="pi pi-replay" /> Use this frame as this shot's first frame
+          <span className="h3-muted"> ({menu.frame == null || menu.frame === "last" ? "first frame" : `frame ${menu.frame}`})</span>
+        </button>
+      )}
+      {take && (
         <button disabled={!usable}
           title={usable ? `A new shot right after ${menu.shot}: ${frameLabel} of ${tn(take.take)} held still (a freeze frame), as long as you say`
             : "Only a finished take with video has frames"}

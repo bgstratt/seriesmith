@@ -2,6 +2,7 @@
   "id": "fasth3_omni",
   "kind": "video",
   "label": "FastH3 Omni (8-step H3, up to 8 subjects)",
+  "retry": {"_note": "A render that asked for retries and whose takes kept failing their checks (takecheck) renders once more on `fallback`, from the failed take's first frame as its first keyframe (api's retry step): the same model family, led by a frame instead of the pictures.", "fallback": "fasth3_fl2va"},
   "default_rank": 15,
   "short": "Omni",
   "code": "compile.py",

@@ -2660,10 +2660,17 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
         1002: street to rooftop with no cut). Would need the take compared with its plate.
       - [ ] Live: a render's checks arriving in the editor; the cut's trims (a cut before the
         in point is already trimmed off: LAST LIGHT's sh210 and sh220 in the cut).
-- [ ] 5. A retry ladder (opt-in): a failed check renders the next seed, up to N; then a Ref2VA
-      shot falls through to FL2VA with the failed take's first frame as its first keyframe
-      (`refs.keyframe_from_take`). Never over a circled take; hosted retries ask first. Also an
-      editor command: any frame of a shot's take as its FL2VA first frame.
+- [x] 5. A retry ladder (opt-in, `retries.py`, api's retry step; EDITOR.md "Retries"): the Render
+      dialogs' **If a take fails its checks**: 1-5 new seeds, then once on the target's
+      `retry.fallback` (H3 Ref2VA -> H3 FL2VA, FastH3 Omni -> FastH3 FL2VA, Singularity and Pika
+      to theirs) from the failed take's first frame as the shot's first keyframe. Stops on a
+      pass, a pick in the cut, or a paid backend (unless `paid`). The context menu's **Use this
+      frame as this shot's first frame**: any frame of its own take, by hand.
+      - takecheck.register: more checks join the cut and the words, flag like them and drive
+        the retries; the hook a vision-language model comes in by.
+      - [ ] Live: a render with retries on local ComfyUI, a failed take retried and fallen through.
+      - Later: language models in seriesmith beyond MCP (a VLM's look at a take among them), to
+        talk over once this list is through (the user, 2026-11-10).
 - [ ] 6. Drama 3 (Fish Audio) retries: a stalled or wrong line found by the word check, the next
       seed, the best kept.
 - [ ] 7. MMAudio Foley re-tested on our own sampler (frames timed by time, 8 and 25 fps).

@@ -21,12 +21,20 @@ rendered compares against the new ones (its staleness says so). Measured 2026-11
 on the CPU; LAST LIGHT's and the A/B's speaking takes all heard word for word. Skipped (`words`
 null, `why` said) when faster-whisper or the model isn't there.
 
-    check(root, take) -> checks           both, read now
+**More checks** (a vision-language model's look at the frames, say) join through `register(name,
+fn)`: fn(root, take, frozen_shot) -> {"flag": bool, "why": str, ...} or None (nothing to say),
+kept under `checks["more"][name]`; a flagged one is one of `flags`, so the badges and the retry
+ladder (api's retry step) treat it as they do a cut. A check that raises is recorded as
+{"flag": false, "why": the error}: a check is never the reason a take has none.
+
+    check(root, take) -> checks           all of them, read now
     record(root, take)                    checks into its record; never raises
     checks_of(sidecar, mp4) -> checks     the recorded ones, unless the mp4 changed since
-    flags(checks) -> ["cut", "words"]     what to look at
+    flags(checks) -> ["cut", "words", ...]  what to look at
+    register(name, fn)                    another check
 
-A check is a reason to look, not a verdict: nothing is re-rendered or picked by it.
+A check is a reason to look, not a verdict: nothing is picked by it, and a take is rendered
+again only when its render asked for retries (docs/EDITOR.md, "Retries").
 """
 from __future__ import annotations
 
@@ -45,6 +53,9 @@ WORDS_MODELS = ("small.en", "base.en", "medium.en", "large-v3-turbo", "large-v3"
 WORDS_MATCH = 0.85
 MODEL_SPEAKS = ("generate", "clone")        # the audio policies whose lines the model voices
 TIMEOUT = 300
+
+# more checks than the cut and the words (register): {name: fn(root, take, frozen_shot)}
+CHECKERS: dict = {}
 
 _SCORE = re.compile(r"lavfi\.scd\.score=([\d.]+)")
 _WORD = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)*")
@@ -175,7 +186,25 @@ def check(root: str, take, words: bool = True) -> dict:
     if words:
         out["words"] = words_check(root, take, shot)
         out["words_match"] = WORDS_MATCH
+    more = {}
+    for name, fn in list(CHECKERS.items()):
+        try:
+            got = fn(root, take, shot)
+        except Exception as e:                  # noqa: BLE001  a check never costs the others
+            got = {"flag": False, "why": f"{name} failed: {str(e)[:200]}"}
+        if got is not None:
+            more[name] = got
+    if more:
+        out["more"] = more
     return out
+
+
+def register(name: str, fn) -> None:
+    """Another check, run on every finished take after the cut and the words: fn(root, take,
+    frozen_shot) -> {"flag": bool, "why": str, ...} | None. `name` is its flag."""
+    if name in ("cut", "words"):
+        raise ValueError(f"{name} is one of takecheck's own checks")
+    CHECKERS[name] = fn
 
 
 def flags(checks: dict | None) -> list[str]:
@@ -186,6 +215,21 @@ def flags(checks: dict | None) -> list[str]:
     w = checks.get("words") or {}
     if w.get("match") is not None and w["match"] < checks.get("words_match", WORDS_MATCH):
         out.append("words")
+    out += [name for name, got in (checks.get("more") or {}).items()
+            if isinstance(got, dict) and got.get("flag")]
+    return out
+
+
+def reasons(checks: dict | None) -> list[str]:
+    """Each flag in words, as a take's note says it: "a cut at 0.58 s", ..."""
+    out = []
+    for f in flags(checks):
+        if f == "cut":
+            out.append("a cut at " + ", ".join(f"{c.get('t')} s" for c in checks.get("cuts") or []))
+        elif f == "words":
+            out.append(f"its words {round(100 * checks['words']['match'])}% of the lines")
+        else:
+            out.append(f"{f}: {(checks.get('more') or {}).get(f, {}).get('why') or 'flagged'}")
     return out
 
 
@@ -211,7 +255,9 @@ def summary(sidecar: dict | None, mp4: str | None = None, size: int | None = Non
     w = c.get("words") or {}
     return {"flags": flags(c), "cuts": [x.get("t") for x in c.get("cuts") or []],
             "match": w.get("match"), "heard": w.get("heard"), "want": w.get("want"),
-            "why": w.get("why")}
+            "why": w.get("why"),
+            "more": {k: v.get("why") for k, v in (c.get("more") or {}).items()
+                     if isinstance(v, dict) and v.get("flag")}}
 
 
 def record(root: str, take, words: bool = True) -> dict | None:

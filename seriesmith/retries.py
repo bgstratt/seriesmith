@@ -1,0 +1,102 @@
+"""
+retries.py — what happens after a take a render asked retries for has been checked
+(docs/EDITOR.md, "Retries"): the retry ladder's decisions; api's retry step carries them out.
+
+A render may ask, per shot, for `tries` more takes when a take fails its checks (takecheck: a
+cut it wasn't asked for, its words, or a check registered there, a vision-language model's
+look among them). Each one is a new seed on the same model. When they're spent and `fallback`
+is on, the shot renders once more on its target's `retry.fallback` (H3 Ref2VA -> H3 FL2VA,
+FastH3 Omni -> FastH3 FL2VA, ...), from the last failed take's first frame as its first
+keyframe: the same model, led by a frame the pictures already gave, which often settles what a
+new seed didn't.
+
+It stops, and says why, when:
+- the take passed its checks, or has none (they're off, or couldn't read it);
+- the shot has a take picked in the cut (a circled take: the choice is made);
+- the take rendered on a paid backend and the render didn't say retries may cost (`paid`);
+- there are no tries left and no fallback.
+
+Stdlib only; nothing here renders.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from seriesmith import takecheck as TC
+from seriesmith import takes as T
+
+MAX_TRIES = 5
+
+
+@dataclass
+class Plan:
+    """What a render asked of its takes' checks (POST /render's `retry`)."""
+    tries: int = 0              # new seeds after a failed take, at most MAX_TRIES
+    fallback: bool = False      # then once on the target's retry.fallback, from the take's first frame
+    paid: bool = False          # a hosted (paid) backend's takes are retried too
+
+    def to_json(self) -> dict:
+        return {"tries": self.tries, "fallback": self.fallback, "paid": self.paid}
+
+    @classmethod
+    def from_json(cls, d) -> "Plan":
+        """A request's `retry`, checked (its `fallback` on unless it says not): ValueError says
+        what's wrong. None: no retries."""
+        if d is None:
+            return cls()
+        if not isinstance(d, dict):
+            raise ValueError("retry must be {tries, fallback?, paid?}")
+        tries = d.get("tries", 0)
+        if not isinstance(tries, int) or isinstance(tries, bool) or not 0 <= tries <= MAX_TRIES:
+            raise ValueError(f"retry's tries must be a whole number, 0 to {MAX_TRIES}")
+        for k in ("fallback", "paid"):
+            if k in d and not isinstance(d[k], bool):
+                raise ValueError(f"retry's {k} must be true or false")
+        return cls(tries, d.get("fallback", True), d.get("paid", False))
+
+    @property
+    def asks(self) -> bool:
+        return self.tries > 0 or self.fallback
+
+
+@dataclass
+class Next:
+    """The ladder's next rung: do "stop", "seed" (a new seed on `target`) or "fallback" (on
+    `target`, from the take's first frame); `why` in words; `plan` the next take's own."""
+    do: str
+    why: str
+    target: str | None = None
+    plan: Plan | None = None
+    note: str = ""
+
+
+def decide(take: T.Take | None, plan: Plan, picked: bool, attempt: int = 1,
+           fallback_of=None) -> Next:
+    """The next rung after `take` (its checks recorded). `picked`: the shot's cut entry picks a
+    take. `attempt`: which try this take was (1: the render's own). `fallback_of(target_id)`:
+    that target's retry.fallback (targets.Target.retry_fallback), None for none."""
+    sc = (take.sidecar or {}) if take else {}
+    if take is None or sc.get("status") != "ok":
+        return Next("stop", f"the take is {sc.get('status') or 'gone'}")
+    checks = TC.checks_of(sc, take.paths.mp4)
+    if checks is None:
+        return Next("stop", "the take wasn't checked")
+    found = TC.reasons(checks)
+    if not found:
+        return Next("stop", "it passed its checks")
+    if picked:
+        return Next("stop", "a take is picked in the cut")
+    backend = str(sc.get("backend") or "local")
+    if backend.split(":", 1)[0] != "local" and not plan.paid:
+        return Next("stop", f"it rendered on {backend}, which costs: retry it by hand")
+    target = sc.get("target") or T.DEFAULT_TARGET
+    tag = f"t{take.take:02d}: " + "; ".join(found)
+    if plan.tries > 0:
+        return Next("seed", f"a new seed ({tag})", target,
+                    Plan(plan.tries - 1, plan.fallback, plan.paid),
+                    note=f"retry {attempt} after {tag}")
+    fb = fallback_of(target) if (plan.fallback and fallback_of) else None
+    if fb and fb != target:
+        return Next("fallback", f"on {fb} from its first frame ({tag})", fb,
+                    Plan(0, False, plan.paid), note=f"fallback to {fb} from {tag}")
+    return Next("stop", f"out of retries ({tag})")

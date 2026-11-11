@@ -33,6 +33,7 @@ from seriesmith import mix as MX  # noqa: E402
 from seriesmith import peaks as PK  # noqa: E402
 from seriesmith import promote as P  # noqa: E402
 from seriesmith import refs as R  # noqa: E402
+from seriesmith import retries as RT  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import upscale as U  # noqa: E402
 from seriesmith import track as K  # noqa: E402
@@ -892,6 +893,61 @@ def _dub_step(ctx: Context, p: dict) -> str:
         spec={"step": "dub", "params": p})
 
 
+RETRY_WAIT = 300          # seconds a finished take's retry step waits for its checks
+
+
+def _retry_step(ctx: Context, p: dict) -> str:
+    """A take's retry step (POST /render's `retry`): once the take has finished and been
+    checked, the retry ladder's next rung (retries.decide): a new seed, the target's fallback
+    from the take's first frame, or nothing; each new take asks for the rest of the plan."""
+    from seriesmith import runner as RN
+    from seriesmith import takecheck as TC
+    ep, pass_, shot, n = p["ep"], p["pass"], p["shot"], int(p["take"])
+    queue = ctx.runner.queue
+
+    def wait() -> bool:
+        t = T.get_take(ep, pass_, shot, n)
+        sc = (t.sidecar or {}) if t else {}
+        if sc.get("status") == "queued":
+            return sc.get("comfy_prompt_id") in queue.alive()
+        if sc.get("status") == "ok" and TC.checks_of(sc) is None and RN.CHECK_TAKES:
+            # its checks come a few seconds after it (runner._check_take)
+            done = T._parse_time(sc.get("finished"))
+            return done is not None and (T._parse_time(T.now()) - done).total_seconds() < RETRY_WAIT
+        return False
+
+    def then(report) -> str:
+        t = T.get_take(ep, pass_, shot, n)
+        e = next((x for x in E.cut_entries(ep, pass_) if x.shot == shot), None)
+        nxt = RT.decide(t, RT.Plan.from_json(p.get("retry")), picked=bool(e and e.take is not None),
+                        attempt=int(p.get("attempt") or 1),
+                        fallback_of=lambda tid: TG.load_target(tid, "video", root=ep).retry_fallback)
+        report(line=f"{shot} t{n:02d}: {nxt.do if nxt.do != 'stop' else 'done'}, {nxt.why}")
+        if nxt.do == "stop":
+            return "succeeded"
+        if nxt.do == "fallback":
+            s = R.load_series(ep)
+            R.keyframe_from_take(s, shot, "first", source_shot=shot, source_take=n, frame="first",
+                                 pass_=pass_, pick=True, note=nxt.note)
+            report(line=f"{shot}'s first keyframe: t{n:02d}'s first frame")
+            ref_event(ctx, ep, f"shot:{shot}:first", None, None, "ok")
+        body = {"ep": ep, "pass": pass_, "shots": [shot], "redo": True, "seed_mode": "new",
+                "target": nxt.target, "note": nxt.note, "retry": nxt.plan.to_json(),
+                "retry_attempt": int(p.get("attempt") or 1) + 1,
+                **({"backend": p["backend"]} if p.get("backend") else {})}
+        status, data = post_render(ctx, body) if ctx.runner.ask is None             else ctx.runner.ask("/seriesmith/render", body)
+        if status >= 400 or data.get("errors"):
+            err = data.get("error") or (data.get("errors") or [{}])[0].get("error")
+            raise RuntimeError(str(err or "the render wasn't queued")[:400])
+        q = (data.get("queued") or [{}])[0]
+        report(line=f"{shot} t{int(q.get('take') or 0):02d} queued on {nxt.target}")
+        return "succeeded"
+    return ctx.runner.enqueue_step(
+        f"{os.path.basename(os.path.normpath(ep))} {shot} t{n:02d}: retry if its checks fail",
+        then, info={"ep": ep, "shot": shot, "pass": pass_}, wait=wait,
+        spec={"step": "retry", "params": p})
+
+
 def _sketch_open(ep: str, shot: str) -> bool:
     """Whether a shot's first frame is free for a sketch: nothing there, or the gray card."""
     from seriesmith.core import board as BD
@@ -923,7 +979,7 @@ def _sketch_step(ctx: Context, p: dict) -> str:
 
 
 STEPS = {"clip": _clip_step, "frame": _frame_step, "views": _views_step, "dub": _dub_step,
-         "sketch": _sketch_step}
+         "sketch": _sketch_step, "retry": _retry_step}
 
 
 def rebuild_step(ctx: Context, resume: dict) -> str | None:
@@ -1534,6 +1590,17 @@ def post_render(ctx: Context, body):
             if via != "frames":
                 raise ApiError(400, 'redo_range\'s via can only be "frames"')
             redo_range["via"] = via
+    # a take that fails its checks (takecheck) rendered again: new seeds, then the target's
+    # fallback from its first frame (retries.py; a step per take, _retry_step)
+    try:
+        retry = RT.Plan.from_json(body.get("retry"))
+    except ValueError as e:
+        raise ApiError(400, str(e)) from None
+    if retry.asks and body.get("retry") is not None and ctx.runner is None:
+        raise ApiError(400, "retry needs seriesmith's queue (this host has none)")
+    attempt = body.get("retry_attempt", 1)
+    if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt < 1:
+        raise ApiError(400, "retry_attempt must be a whole number from 1")
     template = J.RenderRequest(
         shot_id="", redo=redo, seed=seed_in(body.get("seed")), seed_mode=seed_mode,
         model=_opt_str(body, "model") or None, loras=_opt_loras(body.get("loras")),
@@ -1598,6 +1665,12 @@ def post_render(ctx: Context, body):
         result["steps"] = [_dub_step(ctx, {"ep": ep, "pass": pass_, "shot": q["shot"], "take": q["take"],
                                            **({"backend": body["backend"]} if body.get("backend") else {})})
                            for q in result["queued"]]
+    if body.get("retry") is not None and retry.asks and not dub_track:
+        result["steps"] = result.get("steps", []) + [
+            _retry_step(ctx, {"ep": ep, "pass": pass_, "shot": q["shot"], "take": q["take"],
+                              "retry": retry.to_json(), "attempt": attempt,
+                              **({"backend": body["backend"]} if body.get("backend") else {})})
+            for q in result["queued"]]
     result["continuity"] = cont["cut"]
     result["continuity_at_start"] = [{"shot": w["shot"], "after": wait_reason(w)}
                                      for w in cont["wait"]]

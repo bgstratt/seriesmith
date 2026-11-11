@@ -902,6 +902,10 @@ export interface RenderRequest {
   then_render?: boolean;
   /** seriesmith: render on this backend (absent: each shot's own). Only sent when set. */
   backend?: string | null;
+  /** a take that fails its checks rendered again (seriesmith/retries.py): `tries` new seeds,
+   * then once on the target's fallback from its first frame; local renders only unless `paid`.
+   * Only sent when asked for. */
+  retry?: { tries: number; fallback: boolean; paid?: boolean };
   /** frames of a take made again, the rest and its sound held; `prompt` when they
    * should ask something else than the take did. Only sent when set. */
   redo_range?: { take: number; first: number; last: number; prompt?: string };

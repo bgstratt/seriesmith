@@ -558,6 +558,13 @@ class Target:
     def __repr__(self) -> str:
         return f"<Target {self.kind}/{self.id}>"
 
+    @property
+    def retry_fallback(self) -> str | None:
+        """The video target a render asking for retries falls through to once its new seeds
+        keep failing their checks (target.json `retry.fallback`), led by the failed take's
+        first frame; None: no fallback."""
+        return ((self.spec.get("retry") or {}).get("fallback")) or None
+
     # -- draft ---------------------------------------------------------------
 
     @property

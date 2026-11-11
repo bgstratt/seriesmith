@@ -686,6 +686,23 @@ null when there was nothing to hear. `GET /seriesmith/episode` gives each take `
 it has none or its mp4 changed since (its size). `seriesmith takes --check` checks the takes
 without any, `--recheck` every one.
 
+More checks join through `takecheck.register(name, fn)`: fn(root, take, frozen_shot) ->
+`{"flag", "why", ...}` or null, kept under `checks.more[name]`; a flagged one is one of
+`flags` (and `summary.more`: \{name: why\}), so the badges and the retries treat it as a cut.
+The hook a vision-language model's look at a take's frames comes in by.
+
+### Retries: `POST /seriesmith/render`'s `retry`
+`retry: {tries: 0-5, fallback?: true, paid?: false}` (seriesmith's queue only; not with
+`dub_track`): each queued take gets a step (`steps`, journaled as `{"step": "retry"}`) that
+waits for it to finish and be checked (up to 300 s after it finishes), then
+`retries.decide`: with a flag and `tries` left, the shot again with `seed_mode: new` on the
+take's own target, `retry.tries` one less; with none left and `fallback`, its target's
+`retry.fallback` (target.json) after the take's first frame is made the shot's live first
+keyframe (`refs.keyframe_from_take`, picked), its own `retry` `{tries: 0, fallback: false}`.
+It stops when the take passed, wasn't checked, the shot's cut entry picks a take, or the take
+rendered on a backend other than `local` without `paid`. Each new take's `note` says why
+(`retry 1 after t03: a cut at 0.58 s`); `retry_attempt` counts them.
+
 ### `POST /seriesmith/color/match`
 `{ep, pass?, base, shots?, by?}`: the colour that brings clips in line with clip `base`, worked
 out, not written: `{"base", "colors": {shot: colour}, "skipped": [{"shot", "why"}]}`.

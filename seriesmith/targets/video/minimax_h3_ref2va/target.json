@@ -2,6 +2,7 @@
   "id": "minimax_h3_ref2va",
   "kind": "video",
   "label": "MiniMax H3 Ref2VA",
+  "retry": {"_note": "A render that asked for retries and whose takes kept failing their checks (takecheck) renders once more on `fallback`, from the failed take's first frame as its first keyframe (api's retry step): the same model family, led by a frame instead of the pictures.", "fallback": "minimax_h3_fl2va"},
   "default_rank": 10,
   "short": "H3",
   "code": "compile.py",

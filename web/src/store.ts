@@ -530,6 +530,9 @@ export interface AppState {
   backends: BackendInfo[] | null;
   /** seriesmith: where renders go this session ("" : each shot's own backend) */
   renderBackend: string;
+  /** what a render asks when a take fails its checks, this session: `tries` new seeds, then
+   * `fallback` (the target's FL2VA from the take's first frame); sent as `retry` */
+  renderRetry: { tries: number; fallback: boolean };
   /** seriesmith: the Jobs window is open */
   jobsOpen: boolean;
   /** the queue's controls live in the editor's own panels (inside ComfyUI,
@@ -662,6 +665,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     cutAudio: "clips",
     backends: null,
     renderBackend: "",
+    renderRetry: { tries: 0, fallback: false },
     jobsOpen: false,
     queueInPanel: false,
     draftsOpen: false,

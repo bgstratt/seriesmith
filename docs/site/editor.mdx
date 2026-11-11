@@ -388,6 +388,28 @@ seconds after the take does. It doesn't hold up the next render. A place that sl
 into another during one camera move isn't a cut, so it isn't caught. Takes made before
 checks existed are checked with `seriesmith takes <episode> --check`.
 
+### Retries
+
+A render can try again by itself when a take fails its checks. In the **Render** dialog, or
+**New take like this one…**, **If a take fails its checks** sets it for the rest of the session:
+
+- **1 to 5 new seeds**: each failed take is followed by another on the same model with a new
+  seed, until one passes or the seeds are spent. Each retry's note says which take it follows
+  and why ("retry 1 after t03: a cut at 0.58 s").
+- **then from its first frame (FL2VA)**: when the seeds are spent (or with none asked for),
+  the shot renders once more on the model's first-and-last-frame version: H3 Ref2VA on H3
+  FL2VA, FastH3 Omni on FastH3 FL2VA, H3 Singularity and Pika H3 Flex on theirs. The failed
+  take's first frame becomes the shot's first keyframe, so the new take starts from a frame
+  where the characters and the place already look right.
+
+It stops as soon as a take passes. It also stops once you pick a take for the shot in the
+cut, since that choice is made. Retries run on local renders only, because each one on a
+paid backend costs. Jobs shows each retry as a step that waits for its take's checks.
+
+**Use this frame as this shot's first frame** (a take's context menu, under Frames) does the
+fallback by hand: the frame on screen in the viewer, else the take's first frame, becomes the
+shot's live first keyframe. Render the shot on FL2VA to go on from it.
+
 ### The context menu
 
 Everything you do to a shot lives here. What you do to the take comes first; the rest is in
