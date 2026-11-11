@@ -48,6 +48,9 @@ LOG_LINES = 200
 KEEP_DONE = 200                  # finished jobs kept in the list
 
 
+# seconds between looks at a job waiting on a test (Job.wait) while nothing else wakes the queue
+WAIT_POLL = 5.0
+
 class PaidLimit(ValueError):
     """A paid run refused: this session has made as many as Settings allows."""
 
@@ -133,6 +136,7 @@ class Queue:
         self.paid_limit: int | None = None
         self._lock = threading.RLock()
         self._wake = threading.Condition(self._lock)
+        self._recheck: threading.Timer | None = None    # _recheck_later's timer
         self.lanes: dict[str, Lane] = {}
         self.jobs: dict[str, Job] = {}
         self._order = itertools.count()
@@ -286,6 +290,27 @@ class Queue:
         for j in done[:max(0, len(done) - KEEP_DONE)]:
             del self.jobs[j.id]
 
+    def nudge(self) -> None:
+        """Look at the waiting jobs again now: something a job's wait() reads has changed (a
+        take's checks recorded: its retry step)."""
+        self._dispatch()
+
+    def _recheck_later(self) -> None:
+        """While a job waits on a test (wait()), look again every WAIT_POLL seconds: what it
+        waits for may change without any job of this queue starting or ending."""
+        with self._lock:
+            if self._recheck is not None or not any(
+                    j.wait is not None for lane in self.lanes.values() for j in lane.waiting):
+                return
+            t = self._recheck = threading.Timer(WAIT_POLL, self._rechecked)
+        t.daemon = True
+        t.start()
+
+    def _rechecked(self) -> None:
+        with self._lock:
+            self._recheck = None
+        self._dispatch()
+
     def _dispatch(self) -> None:
         start = []
         with self._lock:
@@ -310,6 +335,7 @@ class Queue:
                              name=f"seriesmith-{job.lane}").start()
         if start:
             self.write_journal()
+        self._recheck_later()
 
     def _waits(self, job: Job) -> bool:
         """Still waiting for the job (or any of the jobs) it comes after."""

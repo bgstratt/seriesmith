@@ -2670,7 +2670,11 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
       frame as this shot's first frame**: any frame of its own take, by hand.
       - takecheck.register: more checks join the cut and the words, flag like them and drive
         the retries; the hook a vision-language model comes in by.
-      - [ ] Live: a render with retries on local ComfyUI, a failed take retried and fallen through.
+      - Live (2026-11-10): the retry step sat until something else woke the queue (its take's
+        checks land seconds after the take's job ends, and the queue only looked again when a
+        job started or ended): the checks nudge it now, and a queue with a job waiting on a test
+        looks again every 5 s.
+      - [ ] Live: a failed take retried and fallen through to FL2VA.
       - Later: language models in seriesmith beyond MCP (a VLM's look at a take among them), to
         talk over once this list is through (the user, 2026-11-10).
 - [ ] 6. Drama 3 (Fish Audio) retries: a stalled or wrong line found by the word check, the next

@@ -1106,6 +1106,8 @@ class Runner:
             with _CHECKING:
                 if TC.record(ep, take) is not None:
                     self._take_event(ep, take)
+            # a retry step waits for these checks: it can go now
+            self.queue.nudge()
         threading.Thread(target=run, name=f"takecheck {take.shot} t{take.take:02d}").start()
 
     def _take_event(self, ep: str, take: T.Take) -> None:
