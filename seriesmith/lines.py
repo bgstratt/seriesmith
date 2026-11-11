@@ -354,6 +354,32 @@ def pick(ep: str, line_id: str, n: int) -> None:
         save(ep, record)
 
 
+def set_take_fields(ep: str, line_id: str, n: int, **fields) -> None:
+    """Fields set on take `n` of a line (its checks), nothing else touched."""
+    with _WRITING:
+        record = load(ep)
+        for t in (record["lines"].get(line_id) or {}).get("takes") or []:
+            if t.get("take") == n:
+                t.update(fields)
+                save(ep, record)
+                return
+
+
+def pick_best(ep: str, line_id: str, takes: list[int], score) -> int | None:
+    """Of a line's finished `takes` (one render's retries), the one `score(checks)` likes best
+    picked: what a run of retries keeps. Its number, or None (none finished)."""
+    with _WRITING:
+        record = load(ep)
+        row = record["lines"].get(line_id) or {}
+        done = [t for t in row.get("takes") or [] if t.get("take") in takes and t.get("status") == "ok"]
+        if not done:
+            return None
+        best = max(done, key=lambda t: (score(t.get("checks")), t["take"]))
+        row["picked"] = best["take"]
+        save(ep, record)
+        return best["take"]
+
+
 def _shot_takes(ep: str, shot: str) -> list[tuple[str, dict]]:
     """A shot's lines that have a picked take, in order, read from lines.json alone: the status asks
     this for every shot on dub, so the script isn't parsed for it."""

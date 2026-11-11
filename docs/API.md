@@ -4834,9 +4834,15 @@ to_make}], to_make: {lines, chars}, no_speaker, recording, can_lay}`.
 Queues a take of each line in `lines`, else of each without one matching the script, of one character with
 `who`. Paid on a provider; on a local voice model (LTX's) it's your GPU, from the character's description,
 continuing its sample if it has one, else its first line. Body `{ep, confirm_chars, target?, lines?, who?,
-backend?}`: `confirm_chars` is the total shown, and any other is **409**. A
+backend?, retry?}`: `confirm_chars` is the total shown, and any other is **409**. A
 character with no speaker is **400**. Nothing is sent in either case. Returns `{queued, errors}`;
-`seriesmith.lines` follows each.
+`seriesmith.lines` follows each. Each finished take is checked (seriesmith/linecheck.py, a thread of
+the runner's): `takes[].checks` `{v, seconds, expected, gap, words: {heard, match, model} | {why},
+flags}`, `flags` of `words` (under takecheck.WORDS_MATCH), `long` (over 2 x the line's spoken length +
+2 s) and `gap` (a silence of 1.2 s or more between its first and last sound). `retry: {tries: 1-5,
+paid?}` makes another take of a line whose take is flagged, `tries` times (on a provider or a partner
+node only with `paid`), then picks the best of them (no flags, then the words heard, then the shortest
+silence).
 
 ### `POST /seriesmith/lines/character`
 

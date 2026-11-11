@@ -4982,7 +4982,9 @@ def get_lines(ctx: Context, query):
 @handler
 def post_lines_generate(ctx: Context, body):
     """Queue a take of each line asked (`lines`: ids), else each with none that matches the script, of
-    one character with `who`. Paid on a provider. Body {ep, confirm_chars, target?, lines?, who?, backend?}:
+    one character with `who`. Paid on a provider. Body {ep, confirm_chars, target?, lines?, who?, backend?,
+    retry?}: `retry` {tries, paid?} makes another take of a line whose checks fail (linecheck), and
+    keeps the best (on a provider only with `paid`, as each costs):
     `confirm_chars` is the total the person was shown, and a different total is **409**, so what's sent
     is what was agreed. **400** naming the characters with no speaker, and nothing is sent. Returns
     {queued: [{line, take, job}], errors}."""
@@ -5011,6 +5013,11 @@ def post_lines_generate(ctx: Context, body):
     silent = sorted({r["name"] for r in rows if not r["speaker"]})
     if silent:
         raise ApiError(400, f"pick a speaker first for {', '.join(silent)}: nothing was sent")
+    # a take that fails its checks (linecheck) made again, `tries` times, the best kept
+    try:
+        retry = RT.Plan.from_json(body.get("retry")) if body.get("retry") is not None else None
+    except ValueError as e:
+        raise ApiError(400, str(e)) from None
     chars = sum(r["chars"] for r in rows)
     if body.get("confirm_chars") != chars:
         raise ApiError(409, f"that's {chars} characters now, not {body.get('confirm_chars')}: look again, nothing was sent", chars=chars)
@@ -5022,7 +5029,7 @@ def post_lines_generate(ctx: Context, body):
     for r in rows:
         try:
             name = J.backend_choice({}, r["id"], t, _opt_str(body, "backend"), ep)[0]
-            n, qid = ctx.runner.enqueue_line(ep, r, t, name, local)
+            n, qid = ctx.runner.enqueue_line(ep, r, t, name, local, retry)
             out["queued"].append({"line": r["id"], "take": n, "job": qid})
         except Exception as e:                            # noqa: BLE001  said, and the rest still go
             out["errors"].append({"line": r["id"], "error": str(e)[:400]})

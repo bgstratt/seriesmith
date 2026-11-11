@@ -2682,8 +2682,12 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
       - [ ] Live: a failed take retried and fallen through to FL2VA.
       - Later: language models in seriesmith beyond MCP (a VLM's look at a take among them), to
         talk over once this list is through (the user, 2026-11-10).
-- [ ] 6. Drama 3 (Fish Audio) retries: a stalled or wrong line found by the word check, the next
-      seed, the best kept.
+- [x] 6. Line checks and retries (`linecheck.py`, runner._check_line; RECORDED_DIALOGUE.md "Line
+      checks"): each take of a line checked as it's made, its words (Whisper on the CPU), too long
+      (over 2 x its spoken length + 2 s) or a silence inside it (1.2 s+); the Lines window's **If a
+      line fails its checks**: 1-5 more takes, new seeds, the best kept; local models only (a
+      provider's with `paid`). Any voice model, Drama 3 the first in mind.
+      - [ ] Live: Drama 3 lines on LAST LIGHT's copy; the thresholds against its real stalls.
 - [ ] 7. MMAudio Foley re-tested on our own sampler (frames timed by time, 8 and 25 fps).
 - [ ] 8. Dialogue levelled per take in the mix; SRT and VTT subtitles at assemble and publish.
 - [ ] 9. A LoRAs tab in Features: Hugging Face and Civitai search, paste a link for others

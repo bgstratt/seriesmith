@@ -121,6 +121,9 @@ export interface LineTake {
   file?: string;
   seconds?: number;
   error?: string;
+  /** what its checks found (seriesmith/linecheck.py): "words", "long", "gap"; absent: not checked */
+  checks?: { flags: string[]; seconds: number; expected: number; gap: number;
+             words?: { heard?: string; match?: number; why?: string } };
 }
 
 export interface LineRow {
@@ -619,7 +622,7 @@ export interface Api {
   /** What an episode's lines are, and what generating them would make: costs nothing. */
   lines(ep: string, target?: string | null): Promise<LinesPlan>;
   /** Paid: `confirm_chars` is the total the person was shown. */
-  generateLines(req: { ep: string; confirm_chars: number; lines?: string[]; who?: string; target?: string }): Promise<{ queued: { line: string; take: number; job: string }[]; errors: { line: string; error: string }[] }>;
+  generateLines(req: { ep: string; confirm_chars: number; lines?: string[]; who?: string; target?: string; retry?: { tries: number; paid?: boolean } }): Promise<{ queued: { line: string; take: number; job: string }[]; errors: { line: string; error: string }[] }>;
   /** A character's whole file, cut into a take per line: costs nothing but Whisper. */
   characterLines(ep: string, who: string, file: File): Promise<{ job: unknown }>;
   pickLine(ep: string, line: string, take: number): Promise<{ ok: boolean }>;
