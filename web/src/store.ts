@@ -503,6 +503,8 @@ export interface AppState {
   cutMenu: { x: number; y: number } | null;
   /** the timeline's Export menu (Export, Titles, XML, each 2x; Master), open at (x, y) */
   exportMenu: { x: number; y: number } | null;
+  /** the last export's whole log is open (Export ▸ Last export's report) */
+  exportReport: boolean;
   /** Phase 9c-A: the Recording window (null: closed) */
   trackPanel: TrackPanelState | null;
   /** Phase 9c-A: GET /seriesmith/align/ready, once loaded (null: not asked yet) */
@@ -691,6 +693,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     cutUndo: {},
     cutMenu: null,
     exportMenu: null,
+    exportReport: false,
     trackPanel: null,
     alignReady: null,
     alignReadyError: null,

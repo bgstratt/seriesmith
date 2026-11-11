@@ -2859,9 +2859,21 @@ def assemble_episode(root: str, pass_: str, partial: bool = True,
         stem = os.path.splitext(os.path.join(root, *output.split("/")))[0]
         loud = FIO.read_json_or(stem + "_loudness.json", None)
         checks = FIO.read_json_or(stem + "_checks.json", None)
+    if ok:
+        # the whole log beside the pass's takes, for the editor's Export ▸ Last export's report
+        # after the toast has gone (and after a reload): the last one only
+        from seriesmith.core import fileio as FIO
+        try:
+            FIO.write_text(os.path.join(root, T.pass_subfolder(pass_), LAST_EXPORT),
+                           f"{T.now()}  {output}\n\n{out}")
+        except OSError:
+            pass
     return {"ok": ok, "output": output, "report": out, "loudness": loud if isinstance(loud, dict) else None,
             "checks": checks if isinstance(checks, dict) else None,
             "error": "" if ok else (err.strip() or "assemble wrote no cut")}
+
+
+LAST_EXPORT = "last_export.txt"
 
 
 def publish_episode(root: str, cut: str, timeout: int = 3600) -> dict:

@@ -1414,7 +1414,10 @@ The cut as an editable track, along the bottom of the page.
   says what's running (Assembling…, Adding titles…, Writing the XML…).
   **Export** assembles the pass's review cut into one mp4 (missing shots are skipped); the
   toast when it's done says its loudness against the target (see FINISHING.md, "The export's
-  loudness"), as a warning when it's off.
+  loudness"), as a warning when it's off. **Last export's report…** shows the whole log after the
+  toast has gone: what was laid, the mix and the lines levelled ("sh190 +3.2"), the loudness, the
+  subtitles and the picture's checks. It's kept as `last_export.txt` in the pass's renders folder,
+  so it's there after a reload too.
   Before anything runs it says what's wrong with the cut: shots with nothing to play (no
   take, a failed one, trims that leave nothing; and whether one is rendering now), takes
   shorter than their dialogue on the recording, and the other pass's takes standing in.
