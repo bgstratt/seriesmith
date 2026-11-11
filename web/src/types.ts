@@ -47,7 +47,7 @@ export type StaleReason = string;
 /** A take's checks (seriesmith/takecheck.py summary): a cut it wasn't asked for, its words. */
 export interface TakeChecks {
   /** "cut", "words": what to look at */
-  flags: ("cut" | "words")[];
+  flags: string[];
   /** the unasked cuts, seconds into the take */
   cuts: (number | null)[];
   /** what Whisper heard against the script's lines, 0-1 (null: not heard) */
@@ -56,6 +56,8 @@ export interface TakeChecks {
   want: string | null;
   /** why the words weren't heard (no Whisper here, no sound) */
   why: string | null;
+  /** registered checks that flagged it (takecheck.register): {name: why} */
+  more?: Record<string, string>;
 }
 
 export interface TakeSummary {

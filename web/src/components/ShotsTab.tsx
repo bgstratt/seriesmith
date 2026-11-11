@@ -331,7 +331,7 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
         </div>
         {(stale.length > 0 || t.overrides.length > 0 || checks.length > 0) && (
           <div className="h3-badges">
-            {checks.map((c) => <span key={c.label} className="h3-badge h3-b-check" title={c.title}>{c.label}</span>)}
+            {checks.map((c) => <span key={c.label} className={`h3-badge ${c.ok ? "h3-b-checked" : "h3-b-check"}`} title={c.title}>{c.ok ? "✓ " : ""}{c.label}</span>)}
             {stale.map((r) => <span key={r} className="h3-badge h3-b-stale" title={staleTitle([r])}>stale: {r}</span>)}
             {t.overrides.length > 0 && <span className="h3-badge h3-b-override" title={`Rendered with an override of: ${t.overrides.join(", ")}`}>ovr: {t.overrides.join(",")}</span>}
           </div>

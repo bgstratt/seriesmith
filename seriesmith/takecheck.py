@@ -7,8 +7,11 @@ another place partway through. One ffmpeg pass over the picture at SCALE_W wide 
 frame's scene-change score, 0-100); a frame scoring CUT_SCORE or more is a hard cut. Measured
 2026-11-10 on 213 takes (H3 Ref2VA, FastH3 Omni, FL2VA): every real cut scored 12.6 to 54, while
 an explosion's flash, fast running and a whip pan scored 10.6 at most; the median take's highest
-frame is under 1. A `continuous: multishot` group's own cuts (its members' starts, within
-ASKED_FRAMES) were asked for. A place that drifts into another during a continuous camera move
+frame is under 1. A flash isn't a cut: a jump past the line whose picture comes back (the frames a
+few after it as near the frames a few before as RETURNS of the jump itself; every cut measured
+stayed 0.32-1.9 of it, LAST LIGHT sh090's lightning came back to 0.13, a white frame to 0) is let
+go, the jump in and the jump out. A `continuous:
+multishot` group's own cuts (its members' starts, within ASKED_FRAMES) were asked for. A place that drifts into another during a continuous camera move
 isn't a cut, and isn't seen here.
 
 **Its words.** When the model voiced the take's lines (audio_policy `generate` or `clone`) and the shot has
@@ -49,6 +52,8 @@ VERSION = 1
 SCALE_W = 256
 CUT_SCORE = 12.0
 ASKED_FRAMES = 3
+RETURNS = 0.25              # a flash: the picture after it this near the picture before (is_flash)
+THUMB = (64, 36)
 WORDS_MODELS = ("small.en", "base.en", "medium.en", "large-v3-turbo", "large-v3", "tiny.en")
 WORDS_MATCH = 0.85
 MODEL_SPEAKS = ("generate", "clone")        # the audio policies whose lines the model voices
@@ -86,6 +91,40 @@ def cuts(per_frame: list[float], fps: float, asked: list[int] = ()) -> list[dict
             continue
         out.append({"frame": n, "t": round(n / fps, 2) if fps else None, "score": round(s, 1)})
     return out
+
+
+def thumbs(mp4: str, timeout: int = TIMEOUT) -> list[bytes]:
+    """Each frame at THUMB size, RGB bytes. RuntimeError when ffmpeg fails."""
+    w, h = THUMB
+    r = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-i", mp4, "-map", "0:v:0", "-vf",
+                        f"scale={w}:{h},format=rgb24", "-f", "rawvideo", "-"],
+                       capture_output=True, timeout=timeout)
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.decode("utf-8", "replace")[-400:])
+    size = w * h * 3
+    return [r.stdout[i:i + size] for i in range(0, len(r.stdout) - size + 1, size)]
+
+
+def _mean(frames: list[bytes]) -> list[float]:
+    return [sum(px) / len(frames) for px in zip(*frames)]
+
+
+def _apart(a, b) -> float:
+    return sum(abs(x - y) for x, y in zip(a, b)) / max(1, len(a))
+
+
+def is_flash(frames: list[bytes], n: int) -> bool:
+    """Whether the jump into frame n is a flash: the picture a few frames after it (n+3..n+5) is
+    back within RETURNS of the jump of the picture a few frames before (n-6..n-4), so the jump in
+    and the jump back out of a flash both go. A cut stays apart."""
+    if n < 1 or n + 3 >= len(frames):
+        return False
+    jump = _apart(frames[n - 1], frames[n])
+    if jump <= 0:
+        return False
+    before = _mean(frames[max(0, n - 6):max(1, n - 3)])
+    after = _mean(frames[n + 3:n + 6])
+    return _apart(before, after) / jump < RETURNS
 
 
 def asked_cuts(frozen_shot: dict | None) -> list[int]:
@@ -181,6 +220,9 @@ def check(root: str, take, words: bool = True) -> dict:
     shot = _frozen_shot(take)
     fps = float(sc.get("fps") or (shot or {}).get("fps") or 24.0)
     found = cuts(scores(take.paths.mp4), fps, asked_cuts(shot))
+    if found:
+        frames = thumbs(take.paths.mp4)
+        found = [c for c in found if not is_flash(frames, c["frame"])]
     out = {"v": VERSION, "size": os.path.getsize(take.paths.mp4),
            "cuts": found, "cut_score": CUT_SCORE}
     if words:

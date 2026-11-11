@@ -135,6 +135,7 @@
 }
 .h3-b-stale { color: var(--h3-stale); }
 .h3-b-check { color: var(--h3-failed); }
+.h3-b-checked { color: var(--h3-muted); }
 .h3-b-paid { color: var(--h3-paid); }
 .h3-b-override { color: var(--h3-override); }
 .h3-b-override-stale { color: var(--h3-stale); border-style: dashed; }

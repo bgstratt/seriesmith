@@ -87,6 +87,23 @@ class PictureTest(unittest.TestCase):
         _clip(p, "testsrc2", "testsrc2")
         self.assertEqual(TC.cuts(TC.scores(p), 24.0), [])
 
+    def test_a_flash_is_not_a_cut(self):
+        p = os.path.join(self.tmp, "flash.mp4")
+        ins = []
+        for src, d in (("color=c=0x303848", "1"), ("color=c=white", "0.0417"), ("color=c=0x303848", "1")):
+            ins += ["-f", "lavfi", "-i", f"{src}:s=160x90:r=24:d={d}"]
+        subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", *ins, "-filter_complex",
+                        "[0:v][1:v][2:v]concat=n=3:v=1:a=0,format=yuv420p[v]", "-map", "[v]",
+                        "-c:v", "libx264", "-crf", "18", p], check=True)
+        jumps = TC.cuts(TC.scores(p), 24.0)
+        self.assertTrue(jumps)                              # the flash scores past the line...
+        frames = TC.thumbs(p)
+        self.assertTrue(all(TC.is_flash(frames, c["frame"]) for c in jumps))   # ...and comes back
+        q = os.path.join(self.tmp, "cut2.mp4")
+        _clip(q, "color=c=0x303848", "color=c=0xc06020")
+        frames = TC.thumbs(q)
+        self.assertFalse(any(TC.is_flash(frames, c["frame"]) for c in TC.cuts(TC.scores(q), 24.0)))
+
     def test_recorded_into_the_take(self):
         d = os.path.join(self.tmp, "renders", "sh010")
         os.makedirs(d)

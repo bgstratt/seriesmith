@@ -2650,7 +2650,9 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
       takes (EDITOR.md "Take checks"). Measured on 213 takes on this machine:
       - a cut it wasn't asked for: `scdet` at 256 wide, ~0.2 s a take; real cuts scored 12.6-54,
         a flash, fast running and a whip pan 10.6 at most: the line is 12. A multishot group's
-        own cuts don't count;
+        own cuts don't count. Live, LAST LIGHT sh090's lightning scored 13.3 and was retried:
+        a jump whose picture comes back a few frames later (under 0.25 of the jump) is a flash,
+        let go (cuts measured 0.32-1.9, the lightning 0.13);
       - its words: Whisper small.en on the CPU, ~1.7 s a take, against the shot's lines, when the
         model voiced them. LAST LIGHT's speaking takes all matched; Dean's sh010 t06 heard
         "window owl" for "little owl" (0.80, flagged below 0.85);

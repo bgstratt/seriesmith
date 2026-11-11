@@ -225,8 +225,8 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
           title: [`${it.shot.shot} ${tn(it.take.take)}${it.cut ? " · in the cut" : ""}`, it.shot.action ?? "",
                   ...checkBadges(it.take.checks).map((c) => c.title)].filter(Boolean).join("\n"),
           badges: [...(it.cut ? ["cut"] : []), ...(freshUp(it.take) ? ["2x"] : []),
-                   ...(it.take.checks?.flags.includes("cut") ? ["cuts away"] : []),
-                   ...(it.take.checks?.flags.includes("words") ? ["words?"] : [])], strip: it.take.strip,
+                   ...(it.take.checks?.flags ?? []).map((f) => (f === "cut" ? "cuts away" : f === "words" ? "words?" : `${f}?`))],
+          strip: it.take.strip,
           // the video the viewer would play: the upscale under the 2x switch
           file: (hi && freshUp(it.take)) || it.take.mp4!,
           ...(ep ? {
@@ -614,7 +614,7 @@ export async function downloadAll(ep: string | null, files: string[]): Promise<v
 
 const isInUse = (badge: string) => badge === "live" || badge === "cut";
 /** a take's check (takecheck) as a tile's badge: the Shots tab's take row says what and where */
-const isCheck = (badge: string) => badge === "cuts away" || badge === "words?";
+const isCheck = (badge: string) => badge === "cuts away" || badge.endsWith("?");
 
 /** A take's upscale made from it as it is now: what the 2x switch plays. */
 function freshUp(t: TakeSummary): string | null {

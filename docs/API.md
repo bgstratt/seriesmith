@@ -701,7 +701,8 @@ A finished take is checked once it's recorded (runner, on a thread of its own, o
 time; `SERIESMITH_TAKE_CHECKS=0` turns it off): seriesmith/takecheck.py. Kept in its sidecar
 as `checks`: `{"v", "size", "cuts": [{"frame", "t", "score"}], "cut_score", "words": {"want",
 "heard", "match", "model"} | {"why"} | null, "words_match"}`. `cuts`: frames whose scene-change
-score (ffmpeg `scdet` at 256 wide) is 12 or more, less a multishot group's own cuts. `words`:
+score (ffmpeg `scdet` at 256 wide) is 12 or more, less a multishot group's own cuts and
+flashes (the picture back, a few frames on, within 0.25 of the jump: takecheck.is_flash). `words`:
 Whisper on the CPU (small.en, else the first other model downloaded: takecheck.WORDS_MODELS;
 track.transcribe_file, `--device cpu`) against the shot's lines,
 when the model voiced them (`audio_policy` generate or clone); `why` when it couldn't listen,
