@@ -2232,6 +2232,9 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       need(req.ep);
       return refs.import(req);
     },
+    async renderFallback(req) {
+      return { did: `on minimax_h3_fl2va from ${req.shot}'s first frame`, frame: "take", target: "minimax_h3_fl2va", lines: [] };
+    },
     async refsKeyframe(req) {
       await wait(250);
       need(req.ep);

@@ -3103,6 +3103,28 @@ ${warn.body}`)) return false;
  * (POST /seriesmith/refs/keyframe). With no source: the neighbouring shot in the
  * cut (previous for first, next for last) and the take its cut entry uses.
  */
+/** A take's shot rendered on its model's fallback (H3 Ref2VA: H3 FL2VA) from a first frame: the
+ * shot's own first keyframe, else the take's first frame, else one made on the keyframe model
+ * (POST /seriesmith/render/fallback; the retries' last rung, asked for by hand). */
+export async function renderFallback(shot: string, take: number, pass?: Pass): Promise<boolean> {
+  const ep = get().ep;
+  if (!ep) return false;
+  const p = pass ?? get().pass;
+  return withBusy(`fallback|${shot}`, async () => {
+    try {
+      const backend = get().renderBackend || null;
+      const r = await api().renderFallback({ ep, pass: p, shot, take, ...(backend ? { backend } : {}) });
+      host().toast("success", `${shot}: rendering ${r.did}`, r.lines.join("\n") || undefined);
+      scheduleRefsRefresh(0);
+      scheduleRefresh(0);
+      return true;
+    } catch (e) {
+      report(`Couldn't render ${shot} from a first frame`, e);
+      return false;
+    }
+  });
+}
+
 export async function keyframeFromTake(opts: {
   shot: string;
   which?: KeyframeEnd;

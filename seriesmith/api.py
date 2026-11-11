@@ -930,38 +930,46 @@ def _retry_step(ctx: Context, p: dict) -> str:
                 "target": nxt.target, "note": nxt.note, "retry": nxt.plan.to_json(),
                 "retry_attempt": int(p.get("attempt") or 1) + 1,
                 **({"backend": p["backend"]} if p.get("backend") else {})}
-        if nxt.frame == "take":
-            R.keyframe_from_take(R.load_series(ep), shot, "first", source_shot=shot, source_take=n,
-                                 frame="first", pass_=pass_, pick=True, note=nxt.note)
-            report(line=f"{shot}'s first keyframe: t{n:02d}'s first frame")
-            ref_event(ctx, ep, f"shot:{shot}:first", None, None, "ok")
-        elif nxt.frame == "make":
-            # its first frame made on the keyframe model; the render waits for it (_retry_frame_step).
-            # A hosted keyframe model costs: only when the render said retries may
-            rid = f"shot:{shot}:first"
-            try:
-                s_ = R.load_series(ep)
-                kt = R.image_target_for(s_, R.find_ref(s_, rid))
-                if TG.is_hosted(kt.spec) and not RT.Plan.from_json(p.get("retry")).paid:
-                    report(line=f"{shot}: its keyframe model ({kt.id}) is hosted and costs: the retries "
-                                "end here (make a first frame, then render it on FL2VA)")
-                    return "succeeded"
-                status, data = _generate(ctx, {"ep": ep, "ref": rid, "count": 1})
-            except (ApiError, R.RefError, TG.TargetError, ValueError) as e:
-                status, data = 400, {"error": str(e)}
-            if status >= 400 or not data.get("queued"):
-                report(line=f"{shot}: no first frame could be made ({data.get('error') or 'nothing queued'}): "
-                            "the retries end here")
-                return "succeeded"
-            report(line=f"{shot}: a first frame asked of the keyframe model")
-            _retry_frame_step(ctx, {"ep": ep, "shot": shot, "take": data["queued"][0].get("take"),
-                                    "render": body})
-            return "succeeded"
-        return _retry_render(ctx, shot, nxt.target, body, report)
+        return _fallback_render(ctx, ep, pass_, shot, n, nxt, body, p, report)
     return ctx.runner.enqueue_step(
         f"{os.path.basename(os.path.normpath(ep))} {shot} t{n:02d}: retry if its checks fail",
         then, info={"ep": ep, "shot": shot, "pass": pass_}, wait=wait,
         spec={"step": "retry", "params": p})
+
+
+def _fallback_render(ctx: Context, ep: str, pass_: str, shot: str, n: int, nxt, body: dict,
+                     p: dict, report) -> str:
+    """A rung's render asked for (`body`): a fallback's after its first keyframe (`nxt.frame`):
+    "take" cuts take n's first frame live, "make" asks the keyframe model for one and leaves the
+    render to the step waiting for it (_retry_frame_step), "live" or none renders now."""
+    if nxt.frame == "take":
+        R.keyframe_from_take(R.load_series(ep), shot, "first", source_shot=shot, source_take=n,
+                             frame="first", pass_=pass_, pick=True, note=nxt.note)
+        report(line=f"{shot}'s first keyframe: t{n:02d}'s first frame")
+        ref_event(ctx, ep, f"shot:{shot}:first", None, None, "ok")
+    elif nxt.frame == "make":
+        # its first frame made on the keyframe model; the render waits for it (_retry_frame_step).
+        # A hosted keyframe model costs: only when the render said retries may
+        rid = f"shot:{shot}:first"
+        try:
+            s_ = R.load_series(ep)
+            kt = R.image_target_for(s_, R.find_ref(s_, rid))
+            if TG.is_hosted(kt.spec) and not RT.Plan.from_json(p.get("retry")).paid:
+                report(line=f"{shot}: its keyframe model ({kt.id}) is hosted and costs: the retries "
+                            "end here (make a first frame, then render it on FL2VA)")
+                return "succeeded"
+            status, data = _generate(ctx, {"ep": ep, "ref": rid, "count": 1})
+        except (ApiError, R.RefError, TG.TargetError, ValueError) as e:
+            status, data = 400, {"error": str(e)}
+        if status >= 400 or not data.get("queued"):
+            report(line=f"{shot}: no first frame could be made ({data.get('error') or 'nothing queued'}): "
+                        "the retries end here")
+            return "succeeded"
+        report(line=f"{shot}: a first frame asked of the keyframe model")
+        _retry_frame_step(ctx, {"ep": ep, "shot": shot, "take": data["queued"][0].get("take"),
+                                "render": body})
+        return "succeeded"
+    return _retry_render(ctx, shot, nxt.target, body, report)
 
 
 def _retry_render(ctx: Context, shot: str, target: str, body: dict, report) -> str:
@@ -1737,6 +1745,37 @@ def post_render(ctx: Context, body):
     if result["queued"] or any(e.get("take") for e in result["errors"]):
         episode_event(ctx, ep)
     return 200, seeds_out(result)
+
+
+@handler
+def post_render_fallback(ctx: Context, body):
+    """POST /seriesmith/render/fallback {ep, pass, shot, take, backend?}: the take's shot rendered
+    on its target's fallback (H3 Ref2VA -> H3 FL2VA, ...) from a first frame, as the retries'
+    last rung does (retries.fallback_now): the shot's own first keyframe, else the take's first
+    frame, else one made on the keyframe model (the render then waits for it, a step).
+    {"did": what was done, "lines": [what it said], "queued": [...]} """
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shot = check_shot(body.get("shot"))
+    n = check_take(body.get("take"))
+    if ctx.runner is None:
+        raise ApiError(400, "the fallback needs seriesmith's queue (this host has none)")
+    backend = _opt_backend(ctx, body)
+    t = T.get_take(ep, pass_, shot, n)
+    if t is None:
+        raise ApiError(404, f"{shot} has no {pass_} take {n}")
+    nxt = RT.fallback_now(t, lambda tid: TG.load_target(tid, "video", root=ep).retry_fallback,
+                          has_first=not _sketch_open(ep, shot))
+    if nxt.do == "stop":
+        raise ApiError(409, f"{shot} t{n:02d}: {nxt.why}")
+    lines: list[str] = []
+    render = {"ep": ep, "pass": pass_, "shots": [shot], "redo": True, "seed_mode": "new",
+              "target": nxt.target, "note": nxt.note, **({"backend": backend} if backend else {})}
+    _fallback_render(ctx, ep, pass_, shot, n, nxt, render, {"retry": nxt.plan.to_json()},
+                     lambda line=None, **_: lines.append(line) if line else None)
+    episode_event(ctx, ep)
+    return 200, {"did": nxt.why, "frame": nxt.frame, "target": nxt.target, "lines": lines}
 
 
 def wait_reason(w: dict) -> str:
@@ -7217,6 +7256,7 @@ ROUTES = [
     ("POST", "/seriesmith/refs/discard", post_refs_discard, "body"),
     ("POST", "/seriesmith/refs/generate-missing", post_refs_generate_missing, "body"),
     ("POST", "/seriesmith/refs/keyframe", post_refs_keyframe, "body"),
+    ("POST", "/seriesmith/render/fallback", post_render_fallback, "body"),
     ("POST", "/seriesmith/refs/voice-from-take", post_refs_voice_from_take, "body"),
     ("PUT", "/seriesmith/refs/override", put_refs_override, "body"),
     ("DELETE", "/seriesmith/refs/override", delete_refs_override, "query"),

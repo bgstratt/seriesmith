@@ -122,3 +122,22 @@ def decide(take: T.Take | None, plan: Plan, picked: bool, attempt: int = 1,
                     Plan(0, False, plan.paid), note=f"fallback to {fb} from {led}, after {tag}",
                     frame=frame)
     return Next("stop", f"out of retries ({tag})")
+
+
+def fallback_now(take: T.Take | None, fallback_of, has_first: bool = False) -> Next:
+    """The fallback asked for by hand (a take's "Render on FL2VA from its first frame"), whatever
+    its checks found: the same first keyframe as the ladder's (`decide`), a take not checked yet
+    taken as clean at its opening. Stops for a take that isn't finished or a target with none."""
+    sc = (take.sidecar or {}) if take else {}
+    if take is None or sc.get("status") != "ok":
+        return Next("stop", f"the take is {sc.get('status') or 'gone'}")
+    target = sc.get("target") or T.DEFAULT_TARGET
+    fb = fallback_of(target)
+    if not fb or fb == target:
+        return Next("stop", f"{target} has no fallback")
+    checks = TC.checks_of(sc, take.paths.mp4)
+    frame = "live" if has_first else "take" if (checks is None or opening_clean(checks)) else "make"
+    led = {"live": "the shot's own first keyframe", "take": f"t{take.take:02d}'s first frame",
+           "make": "a first frame made on the keyframe model"}[frame]
+    return Next("fallback", f"on {fb} from {led}", fb, Plan(0, False, False),
+                note=f"on {fb} from {led}", frame=frame)

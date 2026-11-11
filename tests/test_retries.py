@@ -73,6 +73,17 @@ class DecideTest(unittest.TestCase):
         look = {"cuts": [], "words": None, "more": {"look": {"flag": True, "why": "two of Mara"}}}
         self.assertEqual(RT.decide(_take(self.tmp, look), plan, False, fallback_of=fallback_of).frame, "make")
 
+    def test_the_fallback_by_hand_needs_no_failure(self):
+        clean = _take(self.tmp, CLEAN)
+        nxt = RT.fallback_now(clean, fallback_of)
+        self.assertEqual((nxt.do, nxt.target, nxt.frame), ("fallback", "minimax_h3_fl2va", "take"))
+        self.assertEqual(RT.fallback_now(_take(self.tmp, None), fallback_of).frame, "take")   # not checked yet
+        self.assertEqual(RT.fallback_now(clean, fallback_of, has_first=True).frame, "live")
+        self.assertEqual(RT.fallback_now(_take(self.tmp, {"cuts": [{"frame": 2, "t": 0.08, "score": 30}],
+                                                          "words": None}), fallback_of).frame, "make")
+        self.assertEqual(RT.fallback_now(_take(self.tmp, CLEAN, target="minimax_h3_fl2va"), fallback_of).do, "stop")
+        self.assertEqual(RT.fallback_now(_take(self.tmp, CLEAN, status="queued"), fallback_of).do, "stop")
+
     def test_a_fallback_take_that_fails_stops(self):
         t = _take(self.tmp, CUT, target="minimax_h3_fl2va")
         nxt = RT.decide(t, RT.Plan(tries=0, fallback=True), picked=False, fallback_of=fallback_of)

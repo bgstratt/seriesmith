@@ -2141,6 +2141,8 @@ export interface Target {
   /** Phase 8: what the target can use; `keyframes` lists the ends it reads ([] for none) */
   capabilities?: {
     keyframes?: string[];
+    /** where a take that keeps failing its checks goes on from a first frame (H3 Ref2VA: H3 FL2VA); null: none */
+    retry_fallback?: string | null;
     policies?: string[];
     voice_reference?: boolean;
     /** it can dub a track of its own: a take's sound, a dub track */

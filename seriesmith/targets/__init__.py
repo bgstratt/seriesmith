@@ -953,6 +953,8 @@ class Target:
                                      or r.get("reference_image")),
                 "reference_sheet": bool(r.get("reference_sheet")),
                 "keyframes": list(r.get("keyframes") or []),
+                # where a take that keeps failing its checks goes on, from a first frame (retries.py)
+                "retry_fallback": self.retry_fallback,
                 "prompt": r.get("prompt", "sections" if r.get("subject_slots") else "prose"),
                 "negative_prompt": bool(self.binding.specs("negative"))}
 

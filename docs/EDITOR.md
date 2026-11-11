@@ -408,9 +408,11 @@ It stops as soon as a take passes. It also stops once you pick a take for the sh
 cut, since that choice is made. Retries run on local renders only, because each one on a
 paid backend costs. Jobs shows each retry as a step that waits for its take's checks.
 
-**Use this frame as this shot's first frame** (a take's context menu, under Frames) does the
-fallback by hand: the frame on screen in the viewer, else the take's first frame, becomes the
-shot's live first keyframe. Render the shot on FL2VA to go on from it.
+**Render on H3 FL2VA from its first frame** (a take's context menu, under Frames; named for
+the take's model's fallback) is the last retry asked for by hand, whatever the take's checks
+found: the same first frame, in the same order, then the render. **Use this frame as this
+shot's first frame** only sets the keyframe: the frame on screen in the viewer, else the
+take's first frame, becomes the shot's live first keyframe, for a render on FL2VA after.
 
 ### The context menu
 

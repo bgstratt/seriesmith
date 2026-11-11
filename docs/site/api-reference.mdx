@@ -705,6 +705,12 @@ nothing in its first 0.5 s and no registered check flagged it; else one made on 
 image model (`make`, POST /refs/generate, count 1; not on a hosted one without `paid`), a
 second step (`{"step": "retry_frame"}`) waiting for that take, picking it and rendering. One
 that doesn't come out ends the retries.
+
+`POST /seriesmith/render/fallback {ep, pass, shot, take, backend?}` is that last rung asked for
+by hand, whatever the take's checks found (`retries.fallback_now`; a take not checked yet counts
+as clean at its opening): `{"did", "frame", "target", "lines"}`; 409 when its target has no
+fallback or the take isn't finished. The targets listing's `capabilities.retry_fallback` names
+each target's.
 It stops when the take passed, wasn't checked, the shot's cut entry picks a take, or the take
 rendered on a backend other than `local` without `paid`. Each new take's `note` says why
 (`retry 1 after t03: a cut at 0.58 s`); `retry_attempt` counts them.
