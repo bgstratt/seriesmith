@@ -2625,6 +2625,42 @@ match made to say what it does.
 - [x] **Live** (2026-11-10, the user): a latent chain re-rendered after a trim; `continuous: first`
       and an FL2VA last frame cut anew at the trims.
 
+## Enhancements, and earlier decisions revisited with new data (branch `istudio-ideas`, 2026-11-10)
+
+Each fits a 32 GB card and 64 GB of RAM. In order:
+
+- [x] 1. A take's audio past full scale is scaled down, never clipped (`comfy_nodes/shot.py`
+      `save_audio`; 13 of 207 takes measured touched full scale).
+- [x] 2. Check warns about wording: a negation names what it forbids (shot fields and the series
+      config's descriptions), a character named in the action but not in `who:`, quoted speech
+      in the action (`core/wording.py`). The Ref2VA prompt writer's own negations reworded
+      (A/B on two seeds: no visible change). AUTHORING.md, "Say what is there".
+- [x] 3a. H3's video VAE: every H3 target `prefer`s fp16, int8_convrot when it's the only one
+      installed. int8 measured 58-61 dB from fp16 and 3-13 s faster per decode, but its
+      gradients band on skin zoomed in (the user, 2026-11-10); fp16 stays the download.
+- [x] 3b. FastH3's sparse attention at 864x480 x 124 frames, two shots x two seeds: keep 10%
+      (trained), 20% and dense look near-identical; 10% and 20% ~25 s, dense ~32 s. Keep 10%.
+- [ ] 4. Take checks, after a take renders (CPU, no model in VRAM), shown as badges first and
+      the thresholds tuned on real takes before anything acts on them:
+      - a cut the shot didn't ask for (a scene change mid-take: frame-difference spikes);
+      - a keyframe held (FL2VA's first or last frame frozen for many frames);
+      - the longest uncut stretch;
+      - the words: Whisper (small, CPU) on a take that speaks lines, against the script's words.
+- [ ] 5. A retry ladder (opt-in): a failed check renders the next seed, up to N; then a Ref2VA
+      shot falls through to FL2VA with the failed take's first frame as its first keyframe
+      (`refs.keyframe_from_take`). Never over a circled take; hosted retries ask first. Also an
+      editor command: any frame of a shot's take as its FL2VA first frame.
+- [ ] 6. Drama 3 (Fish Audio) retries: a stalled or wrong line found by the word check, the next
+      seed, the best kept.
+- [ ] 7. MMAudio Foley re-tested on our own sampler (frames timed by time, 8 and 25 fps).
+- [ ] 8. Dialogue levelled per take in the mix; SRT and VTT subtitles at assemble and publish.
+- [ ] 9. A LoRAs tab in Features: Hugging Face and Civitai search, paste a link for others
+      (civitai.red), the preview fetched on open, safetensors only, a sidecar with the trigger
+      words, which a shot's prompt then carries.
+
+Dropped: ComfyUI `/free` calls (ComfyUI frees memory itself), coverage, memory tables. Later:
+painting a plate.
+
 ## Later
 
 - The gallery's zips (2026-10-27): kept an hour from when they're made, swept only as the next

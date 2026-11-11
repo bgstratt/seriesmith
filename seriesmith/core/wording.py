@@ -7,9 +7,7 @@ A video model attends to every word of its prompt, and most have no negative
 prompt to steer away from anything (H3 and FastH3 run at cfg 1). So "no
 photographs on the wall" asks for photographs, and "never looks at the
 camera" turns heads to it. Say what is there instead: "bare plaster walls",
-"his eyes down and off to frame left". The evidence and the idea are Imagination
-Studio's (keys / Wasserman, Apache-2.0: app/negation.py, app/director.py),
-measured on MiniMax H3; the code here is seriesmith's own.
+"his eyes down and off to frame left".
 """
 
 from __future__ import annotations
