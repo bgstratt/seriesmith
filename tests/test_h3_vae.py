@@ -1,6 +1,6 @@
 """
 H3's video VAE: every H3 target renders with the int8_convrot file when it is
-installed, else the fp16 one (target.json `prefer`); Features downloads int8. Measured 2026-11-10 on an
+installed, else the fp16 one (target.json `prefer`). Measured 2026-11-10 on an
 RTX 5090, the same take latents decoded by both: int8 matches fp16 at 58-60 dB
 PSNR, decodes ~3 s faster at 1344x768 x 73 frames and takes 2.3 GB less VRAM.
 """
@@ -38,12 +38,9 @@ class H3VaeTest(unittest.TestCase):
         found = list(h3_targets())
         self.assertGreaterEqual(len(found), 11)
         for t in found:
-            self.assertIn(INT8, t.downloads, t.id)
-            self.assertNotIn(FP16, t.downloads, t.id)
-        for t in found:
             for installed, using in (([FP16, INT8], INT8), ([FP16], FP16), ([INT8], INT8),
                                      (["minimax_h3_sol_vae_fp16.safetensors"], None)):
-                got = TG.resolve_file(t, "video_vae", INT8, installed)
+                got = TG.resolve_file(t, "video_vae", FP16, installed)
                 self.assertEqual(got and got["using"], using, f"{t.id}: {installed}")
 
 

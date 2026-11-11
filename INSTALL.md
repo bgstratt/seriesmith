@@ -419,7 +419,7 @@ The two default targets — `minimax_h3_ref2va` (the video model every shot rend
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
 | `qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors` | `models/text_encoders/` | required | `minimax_h3_ref2va` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors) |
-| `minimax_h3_video_vae_int8_convrot.safetensors` | `models/vae/` | required | `minimax_h3_ref2va` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) |
+| `minimax_h3_video_vae_fp16.safetensors` | `models/vae/` | required | `minimax_h3_ref2va` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors) |
 | `minimax_h3_audio_vae_fp32.safetensors` | `models/vae/` | required | `minimax_h3_ref2va` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors) |
 | `minimax_h3_ref2va_pruned_int8_convrot.safetensors` | `models/diffusion_models/` | required | `minimax_h3_ref2va` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors) |
 | `wan_2.1_vae.safetensors` | `models/vae/` | required | `krea2` | [Comfy-Org/Wan_2.2_ComfyUI_Repackaged](https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors) |
@@ -455,7 +455,7 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `minimax_h3_video_vae_int8_convrot.safetensors` | `models/vae/` | required | `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `pika_h3_flex`, `pika_h3_flex_fl2va`, `fasth3_omni_still`, `minimax_h3_still`, `h3_foley` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors) |
+| `minimax_h3_video_vae_fp16.safetensors` | `models/vae/` | required | `fasth3_fl2va`, `fasth3_omni`, `h3_singularity`, `h3_singularity_fl2va`, `minimax_h3_fl2va`, `minimax_h3_ref2va`, `pika_h3_flex`, `pika_h3_flex_fl2va`, `fasth3_omni_still`, `minimax_h3_still`, `h3_foley` | [Comfy-Org/MiniMax-H3](https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors) |
 
 **MiniMax H3 audio VAE** (`minimax-h3-audio-vae`)
 

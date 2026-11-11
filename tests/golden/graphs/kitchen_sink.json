@@ -354,7 +354,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -870,7 +870,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -915,7 +915,7 @@
       "panel_view": "body",
       "panels": 1,
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Bo, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 3> is the diner kettle, defined by <Picture 3> — a single reference image of the object on a plain background. Preserve its exact design, colors and proportions: a dented chrome kettle with a black bakelite handle and a whistle cap on a chain.\n<Subject 1> and <Subject 2> each appear exactly once in this shot. The other people in frame are two customers at the counter seen through the window, backs to camera: unnamed background figures, strangers each with their own face, build and clothes.\n<Subject 4> is the location, defined by <Picture 4> — a background plate of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.\n<Audio 1> is the voice-timbre reference for <Subject 1>, with a voice that is dry, quick and precise, (S1).\n<Audio 2> is the voice-timbre reference for <Subject 2>, with a voice that is slow and cracking, (S2).",
+       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Bo, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 3> is the diner kettle, defined by <Picture 3> — a single reference image of the object on a plain background. Preserve its exact design, colors and proportions: a dented chrome kettle with a black bakelite handle and a whistle cap on a chain.\n<Subject 1> and <Subject 2> each appear exactly once in this shot. The other people in frame are two customers at the counter seen through the window, backs to camera: unnamed background figures who must look nothing like them and are never duplicates of them.\n<Subject 4> is the location, defined by <Picture 4> — a background plate of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.\n<Audio 1> is the voice-timbre reference for <Subject 1>, with a voice that is dry, quick and precise, (S1).\n<Audio 2> is the voice-timbre reference for <Subject 2>, with a voice that is slow and cracking, (S2).",
        "summary:\n[reference generation + audio reference] Bo sets the kettle down on the burner and flicks the gas on.",
        "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 2> while allowing natural poses and expressions.\n<Subject 3> (appears in [Shot 1]): fully_preserved - the object's design, colors, materials and proportions are retained from <Picture 3> while it is handled and moved naturally.\n<Subject 4> (appears in [Shot 1]): partially_preserved - the layout, color palette and lighting direction of the location are retained while the camera framing and visible portion of the space differ from the plate.\n<Audio 1>: reference - (S1) follows its voice timbre and delivery without copying the original signal.\n<Audio 2>: reference - (S2) follows its voice timbre and delivery without copying the original signal.",
        "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A medium shot frames <Subject 1>, <Subject 2>, and <Subject 3> in <Subject 4>, a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead, showing the part of the space directly behind them. Bo sets the kettle down on the burner and flicks the gas on. The camera holds a static shot with fixed composition.\n<Subject 1> (S1), warmly, says, <d>[English] You know that one whistles.</d>\n<Subject 2> (S2) says, <d>[English] I know.</d>\n<Subject 2> (S2), whispering, says, <d>[English] That's the point.</d>",
@@ -1065,7 +1065,7 @@
     "seed": 2769191069994745345,
     "seed_source": "stable",
     "shot": "sh020",
-    "shot_hash": "893420867521bc76ef30bcb7aa25c8b4e0c8f01d",
+    "shot_hash": "677ced95d2b8c519ba845fc8be1714a060533b33",
     "status": "queued",
     "steps": 6,
     "take": 1,
@@ -1428,7 +1428,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -1473,10 +1473,10 @@
       "panel_view": "face",
       "panels": 1,
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a head-and-shoulders facial close-up. Exactly one person appears in that image.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 2> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only soft color and light behind the subject.\n<Audio 1> is the voice-timbre reference for <Subject 1>, with a voice that is dry, quick and precise, (S1).",
+       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a head-and-shoulders facial close-up. Exactly one person appears in that image.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 2> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only the colours and light behind the subject; no objects, furniture or architecture are drawn.\n<Audio 1> is the voice-timbre reference for <Subject 1>, with a voice that is dry, quick and precise, (S1).",
        "summary:\n[reference generation + audio reference] Ada's eyes narrow at the kettle.",
-       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame.\n<Audio 1>: reference - (S1) follows its voice timbre and delivery without copying the original signal.",
-       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 2>, the background plate, completely blurred into soft bokeh; the rest of the space lies outside the frame. Ada's eyes narrow at the kettle. The camera holds a static shot with fixed composition.\n<Subject 1> (S1), in an off-screen voiceover, says: <d>[English] Not today.</d> while their lips remain completely closed.",
+       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame. The plain backdrop of a reference image is never used as the background.\n<Audio 1>: reference - (S1) follows its voice timbre and delivery without copying the original signal.",
+       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 2>, the background plate, completely blurred into soft bokeh, never a plain studio backdrop; the rest of the space lies outside the frame. Ada's eyes narrow at the kettle. The camera holds a static shot with fixed composition.\n<Subject 1> (S1), in an off-screen voiceover, says: <d>[English] Not today.</d> while their lips remain completely closed.",
        "overall_soundscape: Continuous room tone and environmental ambience with synchronized physical action sounds.",
        "non_diegetic_music: N/A"
       ],
@@ -1595,7 +1595,7 @@
     "seed": 9049780455082391214,
     "seed_source": "stable",
     "shot": "sh030",
-    "shot_hash": "cc335ed9dfb906d11d08be44502c03ad43bf9fe2",
+    "shot_hash": "5be58474d0d59e6ca287c18881d19bb8ff858f66",
     "status": "queued",
     "steps": 6,
     "take": 1,
@@ -1958,7 +1958,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -1998,10 +1998,10 @@
       "panel_view": "body",
       "panels": 1,
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Bo, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is the delivery van, defined by <Picture 2> — a single reference image of the object on a plain background. Preserve its exact design, colors and proportions: a boxy white delivery van with a sky-blue stripe and a cracked left headlight.\n<Subject 3> is the diner kettle, defined by <Picture 3> — a single reference image of the object on a plain background. Preserve its exact design, colors and proportions: a dented chrome kettle with a black bakelite handle and a whistle cap on a chain.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 4> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only soft color and light behind the subject.",
+       "subject_definitions:\n<Subject 1> is Bo, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is the delivery van, defined by <Picture 2> — a single reference image of the object on a plain background. Preserve its exact design, colors and proportions: a boxy white delivery van with a sky-blue stripe and a cracked left headlight.\n<Subject 3> is the diner kettle, defined by <Picture 3> — a single reference image of the object on a plain background. Preserve its exact design, colors and proportions: a dented chrome kettle with a black bakelite handle and a whistle cap on a chain.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 4> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only the colours and light behind the subject; no objects, furniture or architecture are drawn.",
        "summary:\n[reference generation] Bo leans out of the back door as the van reverses toward it, kettle in hand.",
-       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): fully_preserved - the object's design, colors, materials and proportions are retained from <Picture 2> while it is handled and moved naturally.\n<Subject 3> (appears in [Shot 1]): fully_preserved - the object's design, colors, materials and proportions are retained from <Picture 3> while it is handled and moved naturally.\n<Subject 4> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame.",
-       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, <Subject 2>, and <Subject 3>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 4>, the background plate, completely blurred into soft bokeh; the rest of the space lies outside the frame. Bo leans out of the back door as the van reverses toward it, kettle in hand. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is slow and cracking, (S1), from off-screen, outside the frame, says: <d>[English] Left! Left!</d>\nAn off-screen voice that is warm, older, unhurried (S2), into phone, in an off-screen voiceover, says: <d>[English] Nobody ever goes left.</d>",
+       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): fully_preserved - the object's design, colors, materials and proportions are retained from <Picture 2> while it is handled and moved naturally.\n<Subject 3> (appears in [Shot 1]): fully_preserved - the object's design, colors, materials and proportions are retained from <Picture 3> while it is handled and moved naturally.\n<Subject 4> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame. The plain backdrop of a reference image is never used as the background.",
+       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, <Subject 2>, and <Subject 3>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 4>, the background plate, completely blurred into soft bokeh, never a plain studio backdrop; the rest of the space lies outside the frame. Bo leans out of the back door as the van reverses toward it, kettle in hand. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is slow and cracking, (S1), from off-screen, outside the frame, says: <d>[English] Left! Left!</d>\nAn off-screen voice that is warm, older, unhurried (S2), into phone, in an off-screen voiceover, says: <d>[English] Nobody ever goes left.</d>",
        "overall_soundscape: Continuous room tone and environmental ambience with synchronized physical action sounds.",
        "non_diegetic_music: N/A"
       ],
@@ -2120,7 +2120,7 @@
     "seed": 2765843861826537092,
     "seed_source": "stable",
     "shot": "sh040",
-    "shot_hash": "e91d6805c89d0f77928b5420efc3e9d56114a7a0",
+    "shot_hash": "dfe1c658945764f51ec947e927483888da3f529b",
     "status": "queued",
     "steps": 10,
     "take": 1,
@@ -2483,7 +2483,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -2528,7 +2528,7 @@
       "panel_view": "body",
       "panels": 1,
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Cy, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Rex, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\nExactly two characters appear in this shot: <Subject 1> and <Subject 2>. They are different characters, each with their own face and clothes.\n<Subject 3> is the location, defined by <Picture 4> — a background plate of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.\n<Audio 1> is the voice-timbre reference for <Subject 1> (S1).\n<Audio 2> is the voice-timbre reference for <Subject 2>, with a voice that is a gravelly bark of a voice, (S2).",
+       "subject_definitions:\n<Subject 1> is Cy, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Rex, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\nExactly two characters appear in this shot: <Subject 1> and <Subject 2>. They are different characters, and never duplicates of one another.\n<Subject 3> is the location, defined by <Picture 4> — a background plate of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.\n<Audio 1> is the voice-timbre reference for <Subject 1> (S1).\n<Audio 2> is the voice-timbre reference for <Subject 2>, with a voice that is a gravelly bark of a voice, (S2).",
        "summary:\n[reference generation + audio reference] Cy bursts in from the back with Rex at her heels.",
        "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 2> while allowing natural poses and expressions.\n<Subject 3> (appears in [Shot 1]): partially_preserved - the layout, color palette and lighting direction of the location are retained while the camera framing and visible portion of the space differ from the plate.\n<Audio 1>: reference - (S1) follows its voice timbre and delivery without copying the original signal.\n<Audio 2>: reference - (S2) follows its voice timbre and delivery without copying the original signal.",
        "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A medium shot frames <Subject 1> and <Subject 2> in <Subject 3>, a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead, showing the part of the space directly behind them. Cy bursts in from the back with Rex at her heels. The camera holds a static shot with fixed composition.\n<Subject 1> (S1) says, <d>[English] Absolutely everybody in this entire neighbourhood is waiting outside for breakfast!</d>\n<Subject 2> (S2) says, <d>[English] Woof.</d>",
@@ -2670,7 +2670,7 @@
     "seed": 4412217473130868673,
     "seed_source": "stable",
     "shot": "sh050",
-    "shot_hash": "281cef02e1bf65d717728df37659edd58eda0c85",
+    "shot_hash": "a68a35e1d4262b5c79add8e187e105517a98ecda",
     "status": "queued",
     "steps": 6,
     "take": 1,
@@ -3033,7 +3033,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -3575,7 +3575,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -3621,7 +3621,7 @@
       "panel_view": "body",
       "panels": 1,
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Bo, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 3> is Cy, defined by <Picture 3> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\nExactly three characters appear in this shot: <Subject 1>, <Subject 2>, and <Subject 3>. They are different characters, each with their own face and clothes.\n<Subject 4> is the location, defined by <Picture 4> — a background plate of a wet night street outside the diner, neon sign reflected in the puddles, light from the left. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.\n<Audio 1> is the recorded dialogue for this shot, spoken by <Subject 1> (S1), <Subject 2> (S2), <Subject 3> (S3); its exact words, voices and timing are reused.",
+       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Bo, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 3> is Cy, defined by <Picture 3> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\nExactly three characters appear in this shot: <Subject 1>, <Subject 2>, and <Subject 3>. They are different characters, and never duplicates of one another.\n<Subject 4> is the location, defined by <Picture 4> — a background plate of a wet night street outside the diner, neon sign reflected in the puddles, light from the left. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.\n<Audio 1> is the recorded dialogue for this shot, spoken by <Subject 1> (S1), <Subject 2> (S2), <Subject 3> (S3); its exact words, voices and timing are reused.",
        "summary:\n[reference generation + audio reuse] Ada, Bo and Cy spill out of the diner door into the rain.",
        "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 2> while allowing natural poses and expressions.\n<Subject 3> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 3> while allowing natural poses and expressions.\n<Subject 4> (appears in [Shot 1]): partially_preserved - the layout, color palette and lighting direction of the location are retained while the camera framing and visible portion of the space differ from the plate.\n<Audio 1>: fully_copy - <Audio 1> is reused 1:1 as the target video's complete final audio track, and the mouth movement of <Subject 1> and <Subject 2> and <Subject 3> is synchronized only to their own lines in it.",
        "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A wide shot takes in <Subject 4>, a wet night street outside the diner, neon sign reflected in the puddles, light from the left, with <Subject 1>, <Subject 2>, and <Subject 3> in it. Ada, Bo and Cy spill out of the diner door into the rain. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is dry, quick and precise, (S1), in the recorded voice from <Audio 1>, says, <d>[English] Van.</d>\n<Subject 2>, with a voice that is slow and cracking, (S2), in the recorded voice from <Audio 1>, says, <d>[English] Where?</d>\n<Subject 3> (S3), in the recorded voice from <Audio 1>, says, <d>[English] There!</d>",
@@ -3755,7 +3755,7 @@
     "seed": 3054841815674432230,
     "seed_source": "stable",
     "shot": "sh110",
-    "shot_hash": "de73df6a5687006c6b33540351a12143beb4d586",
+    "shot_hash": "d85545855553e675f2c711e89eea7e6477ef4782",
     "status": "queued",
     "steps": 12,
     "take": 1,
@@ -4118,7 +4118,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -4643,7 +4643,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -5168,7 +5168,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -5684,7 +5684,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -6200,7 +6200,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -6245,7 +6245,7 @@
       "panel_view": "body",
       "panels": 1,
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Bo, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\nExactly two characters appear in this shot: <Subject 1> and <Subject 2>. They are different characters, each with their own face and clothes.\n<Subject 3> is the location, defined by <Picture 4> — a background plate of the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.\n<Audio 1> is the voice-timbre reference for <Subject 1>, with a voice that is dry, quick and precise, (S1).\n<Audio 2> is the voice-timbre reference for <Subject 2>, with a voice that is slow and cracking, (S2).\n<Audio 3> is the voice-timbre reference for An off-screen voice that is warm, older, unhurried (S3).",
+       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Bo, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\nExactly two characters appear in this shot: <Subject 1> and <Subject 2>. They are different characters, and never duplicates of one another.\n<Subject 3> is the location, defined by <Picture 4> — a background plate of the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.\n<Audio 1> is the voice-timbre reference for <Subject 1>, with a voice that is dry, quick and precise, (S1).\n<Audio 2> is the voice-timbre reference for <Subject 2>, with a voice that is slow and cracking, (S2).\n<Audio 3> is the voice-timbre reference for An off-screen voice that is warm, older, unhurried (S3).",
        "summary:\n[reference generation + audio reference] Ada and Bo lean on the counter, dripping, as the kettle finally whistles.",
        "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 2> while allowing natural poses and expressions.\n<Subject 3> (appears in [Shot 1]): partially_preserved - the layout, color palette and lighting direction of the location are retained while the camera framing and visible portion of the space differ from the plate.\n<Audio 1>: reference - (S1) follows its voice timbre and delivery without copying the original signal.\n<Audio 2>: reference - (S2) follows its voice timbre and delivery without copying the original signal.\n<Audio 3>: reference - (S3) follows its voice timbre and delivery without copying the original signal.",
        "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A medium shot frames <Subject 1> and <Subject 2> in <Subject 3>, the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room, showing the part of the space directly behind them. Ada and Bo lean on the counter, dripping, as the kettle finally whistles. The camera holds a static shot with fixed composition.\n<Subject 1> (S1) says, <d>[English] Well.</d>\n<Subject 2> (S2) says, <d>[English] Well what?</d>\n<Subject 1> (S1) says, <d>[English] Put the tea on.</d>\nThe same off-screen voice (S3), in an off-screen voiceover, says: <d>[English] They did.</d>",
@@ -6399,7 +6399,7 @@
     "seed": 1998322879969458948,
     "seed_source": "stable",
     "shot": "sh210",
-    "shot_hash": "211c2e89931c10a2a0274e74b887c0645c147c3d",
+    "shot_hash": "af7ddad3f08db7ee831eedadcb1b16368f5c7e7a",
     "status": "queued",
     "steps": 6,
     "take": 1,
@@ -6762,7 +6762,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -7293,7 +7293,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -7343,10 +7343,10 @@
       "panels": 1,
       "profile": "dialogue_close",
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a head-and-shoulders facial close-up. Exactly one person appears in that image.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 2> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only soft color and light behind the subject.\n<Audio 1> is the voice-timbre reference for <Subject 1>, with a voice that is dry, quick and precise, (S1).",
+       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a head-and-shoulders facial close-up. Exactly one person appears in that image.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 2> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only the colours and light behind the subject; no objects, furniture or architecture are drawn.\n<Audio 1> is the voice-timbre reference for <Subject 1>, with a voice that is dry, quick and precise, (S1).",
        "summary:\n[reference generation + audio reference] Ada points a wooden spoon at the kettle.",
-       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame.\n<Audio 1>: reference - (S1) follows its voice timbre and delivery without copying the original signal.",
-       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 2>, the background plate, completely blurred into soft bokeh; the rest of the space lies outside the frame. Ada points a wooden spoon at the kettle. The camera holds a static shot with fixed composition.\n<Subject 1> (S1) says, <d>[English] Don't you dare.</d>",
+       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame. The plain backdrop of a reference image is never used as the background.\n<Audio 1>: reference - (S1) follows its voice timbre and delivery without copying the original signal.",
+       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 2>, the background plate, completely blurred into soft bokeh, never a plain studio backdrop; the rest of the space lies outside the frame. Ada points a wooden spoon at the kettle. The camera holds a static shot with fixed composition.\n<Subject 1> (S1) says, <d>[English] Don't you dare.</d>",
        "overall_soundscape: Continuous room tone and environmental ambience with synchronized physical action sounds.",
        "non_diegetic_music: N/A"
       ],
@@ -7469,7 +7469,7 @@
     "seed": 5660381186064488857,
     "seed_source": "stable",
     "shot": "sh320",
-    "shot_hash": "aed2a5937b8e079b899fe549d65b1dd75246d5b2",
+    "shot_hash": "e07a903c38e46219a38343115586648e8f439bca",
     "status": "queued",
     "steps": 7,
     "take": 1,
@@ -7832,7 +7832,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -8363,7 +8363,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -8409,10 +8409,10 @@
       "panels": 1,
       "profile": "quick",
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a head-and-shoulders facial close-up. Exactly one person appears in that image.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 2> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only soft color and light behind the subject.\n<Audio 1> is the voice-timbre reference for <Subject 1>, with a voice that is dry, quick and precise, (S1).\n<Audio 2> is the voice-timbre reference for An off-screen voice that is warm, older, unhurried (S2).",
+       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a head-and-shoulders facial close-up. Exactly one person appears in that image.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 2> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only the colours and light behind the subject; no objects, furniture or architecture are drawn.\n<Audio 1> is the voice-timbre reference for <Subject 1>, with a voice that is dry, quick and precise, (S1).\n<Audio 2> is the voice-timbre reference for An off-screen voice that is warm, older, unhurried (S2).",
        "summary:\n[reference generation + audio reference] Ada wrings the front of her soaked apron out over the sink.",
-       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame.\n<Audio 1>: reference - (S1) follows its voice timbre and delivery without copying the original signal.\n<Audio 2>: reference - (S2) follows its voice timbre and delivery without copying the original signal.",
-       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 2>, the background plate, completely blurred into soft bokeh; the rest of the space lies outside the frame. Ada wrings the front of her soaked apron out over the sink. The camera holds a static shot with fixed composition.\n<Subject 1> (S1), flat, says, <d>[English] Don't.</d>\nThe same off-screen voice (S2), in an off-screen voiceover, says: <d>[English] He did anyway.</d>",
+       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame. The plain backdrop of a reference image is never used as the background.\n<Audio 1>: reference - (S1) follows its voice timbre and delivery without copying the original signal.\n<Audio 2>: reference - (S2) follows its voice timbre and delivery without copying the original signal.",
+       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 2>, the background plate, completely blurred into soft bokeh, never a plain studio backdrop; the rest of the space lies outside the frame. Ada wrings the front of her soaked apron out over the sink. The camera holds a static shot with fixed composition.\n<Subject 1> (S1), flat, says, <d>[English] Don't.</d>\nThe same off-screen voice (S2), in an off-screen voiceover, says: <d>[English] He did anyway.</d>",
        "overall_soundscape: Continuous room tone and environmental ambience with synchronized physical action sounds.",
        "non_diegetic_music: N/A"
       ],
@@ -8543,7 +8543,7 @@
     "seed": 2470138522001882497,
     "seed_source": "stable",
     "shot": "sh340",
-    "shot_hash": "5ac0c326b92f3fad9afdd7f7a5c064218e7c5408",
+    "shot_hash": "cf9fdb4c8aea803468790e3e098c213bb19d5c7b",
     "status": "queued",
     "steps": 5,
     "take": 1,
@@ -8904,7 +8904,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -9415,7 +9415,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -9460,7 +9460,7 @@
       "panel_view": "body",
       "panels": 1,
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Bo, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 3> is the diner kettle, defined by <Picture 3> — a single reference image of the object on a plain background. Preserve its exact design, colors and proportions: a dented chrome kettle with a black bakelite handle and a whistle cap on a chain.\n<Subject 1> and <Subject 2> each appear exactly once in this shot. The other people in frame are two customers at the counter seen through the window, backs to camera: unnamed background figures, strangers each with their own face, build and clothes.\n<Subject 4> is the location, defined by <Picture 4> — a background plate of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.",
+       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Bo, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 3> is the diner kettle, defined by <Picture 3> — a single reference image of the object on a plain background. Preserve its exact design, colors and proportions: a dented chrome kettle with a black bakelite handle and a whistle cap on a chain.\n<Subject 1> and <Subject 2> each appear exactly once in this shot. The other people in frame are two customers at the counter seen through the window, backs to camera: unnamed background figures who must look nothing like them and are never duplicates of them.\n<Subject 4> is the location, defined by <Picture 4> — a background plate of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.",
        "summary:\n[reference generation] Bo sets the kettle down on the burner and flicks the gas on.",
        "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 2> while allowing natural poses and expressions.\n<Subject 3> (appears in [Shot 1]): fully_preserved - the object's design, colors, materials and proportions are retained from <Picture 3> while it is handled and moved naturally.\n<Subject 4> (appears in [Shot 1]): partially_preserved - the layout, color palette and lighting direction of the location are retained while the camera framing and visible portion of the space differ from the plate.",
        "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A medium shot frames <Subject 1>, <Subject 2>, and <Subject 3> in <Subject 4>, a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead, showing the part of the space directly behind them. Bo sets the kettle down on the burner and flicks the gas on. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is dry, quick and precise, (S1), warmly, says, <d>[English] You know that one whistles.</d>\n<Subject 2>, with a voice that is slow and cracking, (S2) says, <d>[English] I know.</d>\n<Subject 2> (S2), whispering, says, <d>[English] That's the point.</d>",
@@ -9586,7 +9586,7 @@
     "seed": 2769191069994745345,
     "seed_source": "stable",
     "shot": "sh020",
-    "shot_hash": "782575657cb8029baf952ff89f9691e42eecf1f6",
+    "shot_hash": "51d81f674c7707dd24805101e22b8cefb46d0177",
     "status": "queued",
     "steps": 4,
     "take": 1,
@@ -9945,7 +9945,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -9990,10 +9990,10 @@
       "panel_view": "face",
       "panels": 1,
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a head-and-shoulders facial close-up. Exactly one person appears in that image.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 2> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only soft color and light behind the subject.",
+       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a head-and-shoulders facial close-up. Exactly one person appears in that image.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 2> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only the colours and light behind the subject; no objects, furniture or architecture are drawn.",
        "summary:\n[reference generation] Ada's eyes narrow at the kettle.",
-       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame.",
-       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 2>, the background plate, completely blurred into soft bokeh; the rest of the space lies outside the frame. Ada's eyes narrow at the kettle. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is dry, quick and precise, (S1), in an off-screen voiceover, says: <d>[English] Not today.</d> while their lips remain completely closed.",
+       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame. The plain backdrop of a reference image is never used as the background.",
+       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 2>, the background plate, completely blurred into soft bokeh, never a plain studio backdrop; the rest of the space lies outside the frame. Ada's eyes narrow at the kettle. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is dry, quick and precise, (S1), in an off-screen voiceover, says: <d>[English] Not today.</d> while their lips remain completely closed.",
        "overall_soundscape: Continuous room tone and environmental ambience with synchronized physical action sounds.",
        "non_diegetic_music: N/A"
       ],
@@ -10099,7 +10099,7 @@
     "seed": 9049780455082391214,
     "seed_source": "stable",
     "shot": "sh030",
-    "shot_hash": "a47384371e3edf6d9ebc0dee564ced99cc1ff216",
+    "shot_hash": "637d814c8f05c92b170af44ba944dc002c40cbc9",
     "status": "queued",
     "steps": 4,
     "take": 1,
@@ -10458,7 +10458,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -10498,10 +10498,10 @@
       "panel_view": "body",
       "panels": 1,
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Bo, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is the delivery van, defined by <Picture 2> — a single reference image of the object on a plain background. Preserve its exact design, colors and proportions: a boxy white delivery van with a sky-blue stripe and a cracked left headlight.\n<Subject 3> is the diner kettle, defined by <Picture 3> — a single reference image of the object on a plain background. Preserve its exact design, colors and proportions: a dented chrome kettle with a black bakelite handle and a whistle cap on a chain.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 4> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only soft color and light behind the subject.",
+       "subject_definitions:\n<Subject 1> is Bo, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is the delivery van, defined by <Picture 2> — a single reference image of the object on a plain background. Preserve its exact design, colors and proportions: a boxy white delivery van with a sky-blue stripe and a cracked left headlight.\n<Subject 3> is the diner kettle, defined by <Picture 3> — a single reference image of the object on a plain background. Preserve its exact design, colors and proportions: a dented chrome kettle with a black bakelite handle and a whistle cap on a chain.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 4> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only the colours and light behind the subject; no objects, furniture or architecture are drawn.",
        "summary:\n[reference generation] Bo leans out of the back door as the van reverses toward it, kettle in hand.",
-       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): fully_preserved - the object's design, colors, materials and proportions are retained from <Picture 2> while it is handled and moved naturally.\n<Subject 3> (appears in [Shot 1]): fully_preserved - the object's design, colors, materials and proportions are retained from <Picture 3> while it is handled and moved naturally.\n<Subject 4> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame.",
-       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, <Subject 2>, and <Subject 3>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 4>, the background plate, completely blurred into soft bokeh; the rest of the space lies outside the frame. Bo leans out of the back door as the van reverses toward it, kettle in hand. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is slow and cracking, (S1), from off-screen, outside the frame, says: <d>[English] Left! Left!</d>\nAn off-screen voice that is warm, older, unhurried (S2), into phone, in an off-screen voiceover, says: <d>[English] Nobody ever goes left.</d>",
+       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): fully_preserved - the object's design, colors, materials and proportions are retained from <Picture 2> while it is handled and moved naturally.\n<Subject 3> (appears in [Shot 1]): fully_preserved - the object's design, colors, materials and proportions are retained from <Picture 3> while it is handled and moved naturally.\n<Subject 4> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame. The plain backdrop of a reference image is never used as the background.",
+       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, <Subject 2>, and <Subject 3>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 4>, the background plate, completely blurred into soft bokeh, never a plain studio backdrop; the rest of the space lies outside the frame. Bo leans out of the back door as the van reverses toward it, kettle in hand. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is slow and cracking, (S1), from off-screen, outside the frame, says: <d>[English] Left! Left!</d>\nAn off-screen voice that is warm, older, unhurried (S2), into phone, in an off-screen voiceover, says: <d>[English] Nobody ever goes left.</d>",
        "overall_soundscape: Continuous room tone and environmental ambience with synchronized physical action sounds.",
        "non_diegetic_music: N/A"
       ],
@@ -10619,7 +10619,7 @@
     "seed": 2765843861826537092,
     "seed_source": "stable",
     "shot": "sh040",
-    "shot_hash": "e91d6805c89d0f77928b5420efc3e9d56114a7a0",
+    "shot_hash": "dfe1c658945764f51ec947e927483888da3f529b",
     "status": "queued",
     "steps": 10,
     "take": 1,
@@ -10978,7 +10978,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -11023,7 +11023,7 @@
       "panel_view": "body",
       "panels": 1,
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Cy, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Rex, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\nExactly two characters appear in this shot: <Subject 1> and <Subject 2>. They are different characters, each with their own face and clothes.\n<Subject 3> is the location, defined by <Picture 4> — a background plate of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.",
+       "subject_definitions:\n<Subject 1> is Cy, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Rex, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\nExactly two characters appear in this shot: <Subject 1> and <Subject 2>. They are different characters, and never duplicates of one another.\n<Subject 3> is the location, defined by <Picture 4> — a background plate of a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.",
        "summary:\n[reference generation] Cy bursts in from the back with Rex at her heels.",
        "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 2> while allowing natural poses and expressions.\n<Subject 3> (appears in [Shot 1]): partially_preserved - the layout, color palette and lighting direction of the location are retained while the camera framing and visible portion of the space differ from the plate.",
        "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A medium shot frames <Subject 1> and <Subject 2> in <Subject 3>, a cramped diner kitchen with steel counters, a hanging ticket rail and cold fluorescent light from overhead, showing the part of the space directly behind them. Cy bursts in from the back with Rex at her heels. The camera holds a static shot with fixed composition.\n<Subject 1> (S1) says, <d>[English] Absolutely everybody in this entire neighbourhood is waiting outside for breakfast!</d>\n<Subject 2>, with a voice that is a gravelly bark of a voice, (S2) says, <d>[English] Woof.</d>",
@@ -11141,7 +11141,7 @@
     "seed": 4412217473130868673,
     "seed_source": "stable",
     "shot": "sh050",
-    "shot_hash": "5086cdac97087aa79dcb70ba7cb11da4a0f505ed",
+    "shot_hash": "93cce8cedeefb386db2d6aac230c78a3c54b3813",
     "status": "queued",
     "steps": 4,
     "take": 1,
@@ -11500,7 +11500,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -12014,7 +12014,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -12060,7 +12060,7 @@
       "panel_view": "body",
       "panels": 1,
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Bo, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 3> is Cy, defined by <Picture 3> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\nExactly three characters appear in this shot: <Subject 1>, <Subject 2>, and <Subject 3>. They are different characters, each with their own face and clothes.\n<Subject 4> is the location, defined by <Picture 4> — a background plate of a wet night street outside the diner, neon sign reflected in the puddles, light from the left. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.\n<Audio 1> is the recorded dialogue for this shot, spoken by <Subject 1> (S1), <Subject 2> (S2), <Subject 3> (S3); its exact words, voices and timing are reused.",
+       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Bo, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 3> is Cy, defined by <Picture 3> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\nExactly three characters appear in this shot: <Subject 1>, <Subject 2>, and <Subject 3>. They are different characters, and never duplicates of one another.\n<Subject 4> is the location, defined by <Picture 4> — a background plate of a wet night street outside the diner, neon sign reflected in the puddles, light from the left. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.\n<Audio 1> is the recorded dialogue for this shot, spoken by <Subject 1> (S1), <Subject 2> (S2), <Subject 3> (S3); its exact words, voices and timing are reused.",
        "summary:\n[reference generation + audio reuse] Ada, Bo and Cy spill out of the diner door into the rain.",
        "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 2> while allowing natural poses and expressions.\n<Subject 3> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 3> while allowing natural poses and expressions.\n<Subject 4> (appears in [Shot 1]): partially_preserved - the layout, color palette and lighting direction of the location are retained while the camera framing and visible portion of the space differ from the plate.\n<Audio 1>: fully_copy - <Audio 1> is reused 1:1 as the target video's complete final audio track, and the mouth movement of <Subject 1> and <Subject 2> and <Subject 3> is synchronized only to their own lines in it.",
        "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A wide shot takes in <Subject 4>, a wet night street outside the diner, neon sign reflected in the puddles, light from the left, with <Subject 1>, <Subject 2>, and <Subject 3> in it. Ada, Bo and Cy spill out of the diner door into the rain. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is dry, quick and precise, (S1), in the recorded voice from <Audio 1>, says, <d>[English] Van.</d>\n<Subject 2>, with a voice that is slow and cracking, (S2), in the recorded voice from <Audio 1>, says, <d>[English] Where?</d>\n<Subject 3> (S3), in the recorded voice from <Audio 1>, says, <d>[English] There!</d>",
@@ -12193,7 +12193,7 @@
     "seed": 3054841815674432230,
     "seed_source": "stable",
     "shot": "sh110",
-    "shot_hash": "de73df6a5687006c6b33540351a12143beb4d586",
+    "shot_hash": "d85545855553e675f2c711e89eea7e6477ef4782",
     "status": "queued",
     "steps": 12,
     "take": 1,
@@ -12552,7 +12552,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -13072,7 +13072,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -13592,7 +13592,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -14103,7 +14103,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -14614,7 +14614,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -14659,7 +14659,7 @@
       "panel_view": "body",
       "panels": 1,
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Bo, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\nExactly two characters appear in this shot: <Subject 1> and <Subject 2>. They are different characters, each with their own face and clothes.\n<Subject 3> is the location, defined by <Picture 4> — a background plate of the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.",
+       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\n<Subject 2> is Bo, defined by <Picture 2> — a single reference image of ONE character, a three-quarter view of the whole body. Exactly one person appears in that image.\nExactly two characters appear in this shot: <Subject 1> and <Subject 2>. They are different characters, and never duplicates of one another.\n<Subject 3> is the location, defined by <Picture 4> — a background plate of the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room. It establishes the layout, color palette, lighting direction and depth of the space, not a fixed camera framing.",
        "summary:\n[reference generation] Ada and Bo lean on the counter, dripping, as the kettle finally whistles.",
        "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 2> while allowing natural poses and expressions.\n<Subject 3> (appears in [Shot 1]): partially_preserved - the layout, color palette and lighting direction of the location are retained while the camera framing and visible portion of the space differ from the plate.",
        "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A medium shot frames <Subject 1> and <Subject 2> in <Subject 3>, the diner's pass-through window looking out to the counter, warm tungsten light spilling in from the dining room, showing the part of the space directly behind them. Ada and Bo lean on the counter, dripping, as the kettle finally whistles. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is dry, quick and precise, (S1) says, <d>[English] Well.</d>\n<Subject 2>, with a voice that is slow and cracking, (S2) says, <d>[English] Well what?</d>\n<Subject 1> (S1) says, <d>[English] Put the tea on.</d>\nAn off-screen voice that is warm, older, unhurried (S3), in an off-screen voiceover, says: <d>[English] They did.</d>",
@@ -14778,7 +14778,7 @@
     "seed": 1998322879969458948,
     "seed_source": "stable",
     "shot": "sh210",
-    "shot_hash": "c50eb6bf31fd38700d34ee7f12df2f905a5ccfc2",
+    "shot_hash": "bca9e06be8a959f94f064ada61e74f1d8801d3ae",
     "status": "queued",
     "steps": 4,
     "take": 1,
@@ -15137,7 +15137,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -15663,7 +15663,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -15713,10 +15713,10 @@
       "panels": 1,
       "profile": "dialogue_close",
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a head-and-shoulders facial close-up. Exactly one person appears in that image.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 2> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only soft color and light behind the subject.",
+       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a head-and-shoulders facial close-up. Exactly one person appears in that image.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 2> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only the colours and light behind the subject; no objects, furniture or architecture are drawn.",
        "summary:\n[reference generation] Ada points a wooden spoon at the kettle.",
-       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame.",
-       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 2>, the background plate, completely blurred into soft bokeh; the rest of the space lies outside the frame. Ada points a wooden spoon at the kettle. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is dry, quick and precise, (S1) says, <d>[English] Don't you dare.</d>",
+       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame. The plain backdrop of a reference image is never used as the background.",
+       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 2>, the background plate, completely blurred into soft bokeh, never a plain studio backdrop; the rest of the space lies outside the frame. Ada points a wooden spoon at the kettle. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is dry, quick and precise, (S1) says, <d>[English] Don't you dare.</d>",
        "overall_soundscape: Continuous room tone and environmental ambience with synchronized physical action sounds.",
        "non_diegetic_music: N/A"
       ],
@@ -15826,7 +15826,7 @@
     "seed": 5660381186064488857,
     "seed_source": "stable",
     "shot": "sh320",
-    "shot_hash": "dad6dc51d41608ad6913a7445ad0b22bf066b305",
+    "shot_hash": "19bb30271f82d4135f5e6d0bf4b5c4c2750f894b",
     "status": "queued",
     "steps": 7,
     "take": 1,
@@ -16185,7 +16185,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -16699,7 +16699,7 @@
      },
      "class_type": "VAELoader",
      "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
      }
     },
     "7": {
@@ -16745,10 +16745,10 @@
       "panels": 1,
       "profile": "quick",
       "prompt": [
-       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a head-and-shoulders facial close-up. Exactly one person appears in that image.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 2> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only soft color and light behind the subject.",
+       "subject_definitions:\n<Subject 1> is Ada, defined by <Picture 1> — a single reference image of ONE character, a head-and-shoulders facial close-up. Exactly one person appears in that image.\nExactly one character appears in this shot: <Subject 1>.\n<Subject 2> is the background, defined by <Picture 4> — a tightly cropped, magnified portion of the background behind the subject, thrown completely out of focus. It gives only the colours and light behind the subject; no objects, furniture or architecture are drawn.",
        "summary:\n[reference generation] Ada wrings the front of her soaked apron out over the sink.",
-       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame.",
-       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 2>, the background plate, completely blurred into soft bokeh; the rest of the space lies outside the frame. Ada wrings the front of her soaked apron out over the sink. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is dry, quick and precise, (S1), flat, says, <d>[English] Don't.</d>\nAn off-screen voice that is warm, older, unhurried (S2), in an off-screen voiceover, says: <d>[English] He did anyway.</d>",
+       "retention_analysis:\n<Subject 1> (appears in [Shot 1]): fully_preserved - facial identity, hairstyle, body proportions, wardrobe and colors are retained from <Picture 1> while allowing natural poses and expressions.\n<Subject 2> (appears in [Shot 1]): partially_preserved - the background is a tightly cropped, zoomed-in part of the location directly behind the subject: its color palette and lighting direction are retained at close range, completely blurred into soft bokeh, while the rest of the space falls outside the frame. The plain backdrop of a reference image is never used as the background.",
+       "detailed_description:\nThe target video is a flat vector cartoon with thick even outlines and a limited pastel palette.\n[Shot 1] A close-up frames <Subject 1>, filling most of the frame. Behind them, the frame is filled by a tightly cropped portion of <Subject 2>, the background plate, completely blurred into soft bokeh, never a plain studio backdrop; the rest of the space lies outside the frame. Ada wrings the front of her soaked apron out over the sink. The camera holds a static shot with fixed composition.\n<Subject 1>, with a voice that is dry, quick and precise, (S1), flat, says, <d>[English] Don't.</d>\nAn off-screen voice that is warm, older, unhurried (S2), in an off-screen voiceover, says: <d>[English] He did anyway.</d>",
        "overall_soundscape: Continuous room tone and environmental ambience with synchronized physical action sounds.",
        "non_diegetic_music: N/A"
       ],
@@ -16855,7 +16855,7 @@
     "seed": 2470138522001882497,
     "seed_source": "stable",
     "shot": "sh340",
-    "shot_hash": "b74ac9d2725fc64098ecb8c6f014c3856c30b112",
+    "shot_hash": "b43dfe0544b4f5d95111d57998d23d759695cff9",
     "status": "queued",
     "steps": 5,
     "take": 1,
