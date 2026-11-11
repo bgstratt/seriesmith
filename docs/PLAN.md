@@ -2659,7 +2659,10 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
       - a held keyframe: dropped, none found (every FL2VA take moved from its first frame; a
         still start or end only flagged takes that settle on purpose);
       - not caught: a place that drifts into another during one camera move (FastH3 sh020, seed
-        1002: street to rooftop with no cut). Would need the take compared with its plate.
+        1002: street to rooftop with no cut), or a morph (LAST LIGHT sh220 t03, 0.35-0.78 s: no
+        frame scores past 1.2, yet frames 6 and 20 are 79.5 apart, 9.9 later in the take). A
+        longer gap can't tell it from a camera move: a check that knows the picture (a VLM's,
+        takecheck.register) or the take against its plate.
       - [ ] Live: a render's checks arriving in the editor; the cut's trims (a cut before the
         in point is already trimmed off: LAST LIGHT's sh210 and sh220 in the cut).
 - [x] 5. A retry ladder (opt-in, `retries.py`, api's retry step; EDITOR.md "Retries"): the Render
