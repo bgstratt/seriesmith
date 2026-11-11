@@ -100,7 +100,7 @@
     "text_encoder": {"family": "qwen3vl-32b", "patterns": ["*qwen3*vl*32b*"], "tier": "required",
                      "default": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"},
     "video_vae": {"family": "minimax-h3-video-vae", "prefer": ["*h3*video*vae*int8*", "*h3*video*vae*"], "patterns": ["*h3*video*vae*"], "tier": "required",
-                  "default": "minimax_h3_video_vae_fp16.safetensors"},
+                  "default": "minimax_h3_video_vae_int8_convrot.safetensors"},
     "audio_vae": {"family": "minimax-h3-audio-vae", "patterns": ["*h3*audio*vae*"], "tier": "required",
                   "default": "minimax_h3_audio_vae_fp32.safetensors"}
   },
@@ -146,7 +146,7 @@
     "minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors": {"folder": "loras", "url": "https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors", "source": "the Hugging Face repo lightx2v/Minimax-h3-Turbo (file and name checked on the Hugging Face repo 2026-10-09)"},
     "minimax_h3_ref2va_pruned_int8_convrot.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/diffusion_models/minimax_h3_ref2va_pruned_int8_convrot.safetensors", "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"},
     "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors", "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"},
-    "minimax_h3_video_vae_fp16.safetensors": {"folder": "vae", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors", "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"},
+    "minimax_h3_video_vae_int8_convrot.safetensors": {"folder": "vae", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors", "source": "the Hugging Face repo Comfy-Org/MiniMax-H3, vae/ (listed 2026-11-10; Comfy-Org's own layout for H3 names this one)"},
     "minimax_h3_latent_upscaler_3d_fp16.safetensors": {"folder": "latent_upscale_models", "url": "https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler/resolve/main/minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors", "source": "the Hugging Face repo LBH-123-AI/Minimax_h3_latent_Upscaler, which now publishes it as minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors (the same file: sha256 043e5a48e161..., checked 2026-10-09): save it under this name. Only needed to upscale, never to render."}
   }
 }

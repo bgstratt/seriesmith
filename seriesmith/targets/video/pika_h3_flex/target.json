@@ -227,7 +227,7 @@
         "*h3*video*vae*"
       ],
       "tier": "required",
-      "default": "minimax_h3_video_vae_fp16.safetensors"
+      "default": "minimax_h3_video_vae_int8_convrot.safetensors"
     },
     "audio_vae": {
       "family": "minimax-h3-audio-vae",
@@ -305,10 +305,10 @@
       "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
       "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"
     },
-    "minimax_h3_video_vae_fp16.safetensors": {
+    "minimax_h3_video_vae_int8_convrot.safetensors": {
       "folder": "vae",
-      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors",
-      "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_int8_convrot.safetensors",
+      "source": "the Hugging Face repo Comfy-Org/MiniMax-H3, vae/ (listed 2026-11-10; Comfy-Org's own layout for H3 names this one)"
     },
     "minimax_h3_latent_upscaler_3d_fp16.safetensors": {
       "folder": "latent_upscale_models",

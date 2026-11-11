@@ -360,10 +360,10 @@ class AlignHowTest(unittest.TestCase):
 
 class ResolveTest(unittest.TestCase):
     def test_files_by_name_only_and_classes_to_their_pack(self):
-        items, skipped = FT.resolve(files=["minimax_h3_video_vae_fp16.safetensors", "made_up.bin"],
+        items, skipped = FT.resolve(files=["minimax_h3_video_vae_int8_convrot.safetensors", "made_up.bin"],
                                     classes=["H3SLAAttention", "NoSuchNode"], features=FT.catalog())
         names = [i.name for i in items]
-        self.assertIn("minimax_h3_video_vae_fp16.safetensors", names)
+        self.assertIn("minimax_h3_video_vae_int8_convrot.safetensors", names)
         # a node pack is never installed by seriesmith: it comes back with how
         self.assertNotIn("ComfyUI-PlagueKind-Nodes", names)
         self.assertEqual(len(skipped), 3)
