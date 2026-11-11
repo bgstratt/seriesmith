@@ -10,10 +10,11 @@ from .shot import NODE_CLASS_MAPPINGS as _SHOT, NODE_DISPLAY_NAME_MAPPINGS as _S
 from .upscale import NODE_CLASS_MAPPINGS as _UP, NODE_DISPLAY_NAME_MAPPINGS as _UP_NAMES
 from .audio import NODE_CLASS_MAPPINGS as _AUD, NODE_DISPLAY_NAME_MAPPINGS as _AUD_NAMES
 from .mrt2 import NODE_CLASS_MAPPINGS as _MRT2, NODE_DISPLAY_NAME_MAPPINGS as _MRT2_NAMES
+from .mmaudio import NODE_CLASS_MAPPINGS as _MMA, NODE_DISPLAY_NAME_MAPPINGS as _MMA_NAMES
 
-NODE_CLASS_MAPPINGS = {**_SHOT, **_CHAIN, **_UP, **_FIN, **_AUD, **_MRT2}
+NODE_CLASS_MAPPINGS = {**_SHOT, **_CHAIN, **_UP, **_FIN, **_AUD, **_MRT2, **_MMA}
 NODE_DISPLAY_NAME_MAPPINGS = {**_SHOT_NAMES, **_CHAIN_NAMES, **_UP_NAMES, **_FIN_NAMES, **_AUD_NAMES,
-                              **_MRT2_NAMES}
+                              **_MRT2_NAMES, **_MMA_NAMES}
 
 # the parts of ComfyUI's own Python these nodes call, looked up once: a ComfyUI that
 # renamed or dropped one says so now, naming what it breaks (_compat.py)

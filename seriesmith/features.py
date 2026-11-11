@@ -568,6 +568,10 @@ def catalog() -> list[Feature]:
                 "Effects from Tencent's HunyuanVideo-Foley XL: phazei's node pack and three files "
                 "(Tencent's community licence: it doesn't apply in some territories).",
                 [_pack("ComfyUI-HunyuanVideo-Foley")] + _target_items("hunyuan_xl_foley"), restart=True),
+        Feature("sound.effects_mmaudio", "sound", "Effects (MMAudio)",
+                "Effects from MMAudio (MIT), its frames taken at their moments by seriesmith's own "
+                "sampler node: kijai's ComfyUI-MMAudio and the four files the ambience beds use.",
+                [_pack("ComfyUI-MMAudio")] + _target_items("mmaudio_foley"), restart=True),
         Feature("sound.align", "sound", "Recorded dialogue",
                 "faster-whisper, for align and the Recording window, in the Python align runs on "
                 "(the server's you start it from: seriesmith's own, or ComfyUI's in the editor "

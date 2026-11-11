@@ -102,8 +102,8 @@ on, those are gone too, so make effects for the shots where you miss them.
   ("…looks up, about to sing" gets a voice).
 - **Make them**: a clip's **Sound ▸ Make effects** (several clips selected: one take each), or
   **+ Effects** on the Effects head (the cut's shots by sequence, ticked where there are none),
-  on MiniMax H3 (the default, about 10 s a shot) or, under **Make effects on…**, LTX-2.3 Foley
-  or HunyuanVideo-Foley XL (a minute or two). Each new take is picked into the mix as it lands.
+  on MiniMax H3 (the default, about 10 s a shot) or, under **Make effects on…**, LTX-2.3 Foley,
+  HunyuanVideo-Foley XL (a minute or two) or MMAudio. Each new take is picked into the mix as it lands.
 - **On the lane** a shot's effects sit at its clip. Drag an edge to trim them (a voice creeping
   in at the end), drag the corner squares for fades, double-click the line for a volume point;
   right-click for its level, its other takes (▶ to hear one, **Pick**) and **Make again**.

@@ -323,6 +323,13 @@ key), MMAudio (hit the marks, the sounds not as good), and last the LTX-2.3 LoRA
 default is LTX-2.3 Foley (its files are needed: about 36 GB), Hunyuan XL the second choice,
 and the 2.5 variant is dropped.
 
+**MMAudio's frames** (found 2026-11-10): kijai's sampler takes the first 8 x seconds frames as
+MMAudio's 8 fps CLIP frames and the first 25 x seconds as its 25 fps sync frames, so from a 24 fps
+take the model saw only the first third of the shot, stretched over its length, and its sync ran 4%
+slow and stopped short. `mmaudio_foley` samples through seriesmith's SeriesmithMMAudioSampler
+(comfy_nodes/mmaudio.py), each frame taken at its moment; `frames: "as the pack takes them"` runs
+the pack's way for comparing.
+
 **H3 as video-to-audio** (tried after): H3 FL2VA with the take's frames anchored from frame 0
 (`MiniMaxH3AddGuide`, an image batch), a small size, the prompt "The exact video given, with
 its sound effects only: <sound:>. No dialogue, no voices, no singing, no music.", 20 steps

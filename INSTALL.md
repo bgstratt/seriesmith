@@ -865,25 +865,25 @@ Every file any target names. `seriesmith targets` tells you which of these your 
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `mmaudio_large_44k_v2_fp16.safetensors` | `models/mmaudio/` | required | `mmaudio_ambience` | [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_large_44k_v2_fp16.safetensors) |
+| `mmaudio_large_44k_v2_fp16.safetensors` | `models/mmaudio/` | required | `mmaudio_ambience`, `mmaudio_foley` | [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_large_44k_v2_fp16.safetensors) |
 
 **mmaudio-vae** (`mmaudio-vae`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `mmaudio_vae_44k_fp16.safetensors` | `models/mmaudio/` | required | `mmaudio_ambience` | [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_vae_44k_fp16.safetensors) |
+| `mmaudio_vae_44k_fp16.safetensors` | `models/mmaudio/` | required | `mmaudio_ambience`, `mmaudio_foley` | [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_vae_44k_fp16.safetensors) |
 
 **mmaudio-synchformer** (`mmaudio-synchformer`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `mmaudio_synchformer_fp16.safetensors` | `models/mmaudio/` | required | `mmaudio_ambience` | [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_synchformer_fp16.safetensors) |
+| `mmaudio_synchformer_fp16.safetensors` | `models/mmaudio/` | required | `mmaudio_ambience`, `mmaudio_foley` | [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_synchformer_fp16.safetensors) |
 
 **dfn5b-clip** (`dfn5b-clip`)
 
 | File | ComfyUI folder | Tier | Targets | Download |
 |---|---|---|---|---|
-| `apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors` | `models/mmaudio/` | required | `mmaudio_ambience` | [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors) |
+| `apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors` | `models/mmaudio/` | required | `mmaudio_ambience`, `mmaudio_foley` | [Kijai/MMAudio_safetensors](https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors) |
 
 **stable-audio-3-sfx** (`stable-audio-3-sfx`)
 

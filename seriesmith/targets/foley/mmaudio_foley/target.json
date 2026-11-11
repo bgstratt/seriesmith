@@ -1,0 +1,169 @@
+{
+  "id": "mmaudio_foley",
+  "kind": "foley",
+  "label": "MMAudio (effects from the picture)",
+  "short": "MMAudio Foley",
+  "default_rank": 4,
+  "code": "prompt.py",
+  "capabilities": {
+    "_note": "Video to sound: MMAudio (large 44k v2) through kijai's ComfyUI-MMAudio, its frames taken by time by seriesmith's SeriesmithMMAudioSampler (comfy_nodes/mmaudio.py): the pack's own sampler takes the first 8 x seconds frames as its 8 fps CLIP frames and the first 25 x seconds as its 25 fps sync frames, so from a 24 fps take the model saw its first third, stretched, and its sync 4% slow and cut short. Heard 2026-11-01 the pack's way: it hit the marks, the sounds not as good (docs/SOUND.md 'Models', Foley); `frames` in the preset says which way. MIT weights.",
+    "mode": "v2a"
+  },
+  "binding": {
+    "_note": "The take goes up as a file (LoadVideo, its frames by GetVideoComponents), 512 wide at its own frame rate (fx.stage). MMAudioModelLoader (large 44k v2, fp16), MMAudioFeatureUtilsLoader (its VAE, synchformer and CLIP, 44k; BigVGAN v2 from models/mmaudio/nvidia: `fetches`), SeriesmithMMAudioSampler at 25 steps, cfg 4.5, the take's frame rate and seconds, SaveAudio.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_mmaudio_foley.json",
+    "env": "SERIESMITH_MMAUDIO_FOLEY_WORKFLOW",
+    "saver": {
+      "class_type": "SaveAudio",
+      "replace": {
+        "class_type": "SaveAudio"
+      }
+    },
+    "prune": true,
+    "params": {
+      "video": {
+        "class_type": "LoadVideo",
+        "field": "file"
+      },
+      "model": {
+        "class_type": "MMAudioModelLoader",
+        "field": "mmaudio_model"
+      },
+      "vae": {
+        "class_type": "MMAudioFeatureUtilsLoader",
+        "field": "vae_model"
+      },
+      "synchformer": {
+        "class_type": "MMAudioFeatureUtilsLoader",
+        "field": "synchformer_model"
+      },
+      "clip": {
+        "class_type": "MMAudioFeatureUtilsLoader",
+        "field": "clip_model"
+      },
+      "prompt": {
+        "class_type": "SeriesmithMMAudioSampler",
+        "field": "prompt"
+      },
+      "negative": {
+        "class_type": "SeriesmithMMAudioSampler",
+        "field": "negative_prompt"
+      },
+      "seconds": {
+        "class_type": "SeriesmithMMAudioSampler",
+        "field": "duration"
+      },
+      "fps": {
+        "class_type": "SeriesmithMMAudioSampler",
+        "field": "fps"
+      },
+      "steps": {
+        "class_type": "SeriesmithMMAudioSampler",
+        "field": "steps"
+      },
+      "cfg": {
+        "class_type": "SeriesmithMMAudioSampler",
+        "field": "cfg"
+      },
+      "seed": {
+        "class_type": "SeriesmithMMAudioSampler",
+        "field": "seed"
+      },
+      "frames": {
+        "class_type": "SeriesmithMMAudioSampler",
+        "field": "frames"
+      }
+    }
+  },
+  "models": {
+    "model": {
+      "family": "mmaudio",
+      "patterns": [
+        "*mmaudio*large*44k*"
+      ],
+      "tier": "required",
+      "folder": "mmaudio"
+    },
+    "vae": {
+      "family": "mmaudio-vae",
+      "patterns": [
+        "*mmaudio*vae*44k*"
+      ],
+      "tier": "required",
+      "folder": "mmaudio"
+    },
+    "synchformer": {
+      "family": "mmaudio-synchformer",
+      "patterns": [
+        "*synchformer*"
+      ],
+      "tier": "required",
+      "folder": "mmaudio"
+    },
+    "clip": {
+      "family": "dfn5b-clip",
+      "patterns": [
+        "*DFN5B*CLIP*"
+      ],
+      "tier": "required",
+      "folder": "mmaudio"
+    }
+  },
+  "nodes": {
+    "LoadVideo": {
+      "tier": "required"
+    },
+    "GetVideoComponents": {
+      "tier": "required"
+    }
+  },
+  "presets": {
+    "_note": "MMAudio's own settings (25 steps, cfg 4.5), as the beds use; the picture 512 wide at its own frame rate; its frames by time.",
+    "final": {
+      "model": "mmaudio_large_44k_v2_fp16.safetensors",
+      "vae": "mmaudio_vae_44k_fp16.safetensors",
+      "synchformer": "mmaudio_synchformer_fp16.safetensors",
+      "clip": "apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors",
+      "steps": 25,
+      "cfg": 4.5,
+      "width": 512,
+      "height": 0,
+      "frames": "by time",
+      "negative": "music, speech, talking, voices, singing, noisy, harsh"
+    }
+  },
+  "fetches": {
+    "_note": "ComfyUI-MMAudio's MMAudioFeatureUtilsLoader (44k mode) fetches NVIDIA's BigVGAN v2 vocoder by itself into models/mmaudio/nvidia/bigvgan_v2_44khz_128band_512x when that folder isn't there (snapshot_download, the whole repo: 4 GB with the training checkpoints it never reads). The Features window downloads the two files it reads instead, and the target isn't ready without them (seriesmith/hubcache.py).",
+    "nvidia/bigvgan_v2_44khz_128band_512x": {
+      "into": "mmaudio",
+      "files": [
+        "config.json",
+        "bigvgan_generator.pt"
+      ]
+    }
+  },
+  "downloads": {
+    "_note": "The files ComfyUI-MMAudio's README points to (huggingface.co/Kijai/MMAudio_safetensors, listed 2026-11-01). Its node pack is https://github.com/kijai/ComfyUI-MMAudio (features.PACKS).",
+    "mmaudio_large_44k_v2_fp16.safetensors": {
+      "folder": "mmaudio",
+      "url": "https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_large_44k_v2_fp16.safetensors",
+      "source": "the Hugging Face repo Kijai/MMAudio_safetensors (ComfyUI-MMAudio's README)"
+    },
+    "mmaudio_vae_44k_fp16.safetensors": {
+      "folder": "mmaudio",
+      "url": "https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_vae_44k_fp16.safetensors",
+      "source": "the Hugging Face repo Kijai/MMAudio_safetensors (ComfyUI-MMAudio's README)"
+    },
+    "mmaudio_synchformer_fp16.safetensors": {
+      "folder": "mmaudio",
+      "url": "https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/mmaudio_synchformer_fp16.safetensors",
+      "source": "the Hugging Face repo Kijai/MMAudio_safetensors (ComfyUI-MMAudio's README)"
+    },
+    "apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors": {
+      "folder": "mmaudio",
+      "url": "https://huggingface.co/Kijai/MMAudio_safetensors/resolve/main/apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors",
+      "source": "the Hugging Face repo Kijai/MMAudio_safetensors (ComfyUI-MMAudio's README)"
+    }
+  }
+}
