@@ -398,9 +398,15 @@ A render can try again by itself when a take fails its checks. In the **Render**
   and why ("retry 1 after t03: a cut at 0.58 s").
 - **then from its first frame (FL2VA)**: when the seeds are spent (or with none asked for),
   the shot renders once more on the model's first-and-last-frame version: H3 Ref2VA on H3
-  FL2VA, FastH3 Omni on FastH3 FL2VA, H3 Singularity and Pika H3 Flex on theirs. The failed
-  take's first frame becomes the shot's first keyframe, so the new take starts from a frame
-  where the characters and the place already look right.
+  FL2VA, FastH3 Omni on FastH3 FL2VA, H3 Singularity and Pika H3 Flex on theirs. It starts
+  from a first frame, the first of these there is:
+  - the shot's own first keyframe, if it has one (one you gave, continuity, a frame you
+    picked), kept as it is;
+  - the failed take's first frame, if nothing its checks found is at its opening (no cut in
+    its first half second). Its characters and place already look right;
+  - a first frame made on the keyframe model, as **Generate first frame** does. The fallback
+    renders once it's made. If it can't be made, or the keyframe model is a paid one, the
+    retries end there.
 
 It stops as soon as a take passes. It also stops once you pick a take for the shot in the
 cut, since that choice is made. Retries run on local renders only, because each one on a

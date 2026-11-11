@@ -59,6 +59,20 @@ class DecideTest(unittest.TestCase):
         self.assertEqual(RT.decide(t, RT.Plan(tries=0, fallback=False), picked=False,
                                    fallback_of=fallback_of).do, "stop")
 
+    def test_the_fallbacks_first_frame(self):
+        late = {"cuts": [{"frame": 30, "t": 1.25, "score": 20}], "words": None}
+        early = {"cuts": [{"frame": 5, "t": 0.21, "score": 20}], "words": None}
+        words = {"cuts": [], "words": {"want": "Cut it.", "heard": "Cut.", "match": 0.5}}
+        plan = RT.Plan(tries=0, fallback=True)
+        for checks, has_first, frame in ((late, True, "live"), (early, True, "live"), (late, False, "take"),
+                                         (words, False, "take"), (early, False, "make")):
+            with self.subTest(checks=checks, has_first=has_first):
+                nxt = RT.decide(_take(self.tmp, checks), plan, False, fallback_of=fallback_of, has_first=has_first)
+                self.assertEqual((nxt.do, nxt.frame), ("fallback", frame))
+        # a registered check may be about the frame itself: its first frame isn't trusted
+        look = {"cuts": [], "words": None, "more": {"look": {"flag": True, "why": "two of Mara"}}}
+        self.assertEqual(RT.decide(_take(self.tmp, look), plan, False, fallback_of=fallback_of).frame, "make")
+
     def test_a_fallback_take_that_fails_stops(self):
         t = _take(self.tmp, CUT, target="minimax_h3_fl2va")
         nxt = RT.decide(t, RT.Plan(tries=0, fallback=True), picked=False, fallback_of=fallback_of)
@@ -133,7 +147,7 @@ class StepTest(unittest.TestCase):
         subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=128x72:d=1",
                         "-pix_fmt", "yuv420p", t.paths.mp4], check=True)
         T.update_sidecar(t.paths.sidecar, status="ok", checks={
-            "v": TC.VERSION, "size": os.path.getsize(t.paths.mp4), "cuts": [{"frame": 5, "t": 0.21, "score": 30}],
+            "v": TC.VERSION, "size": os.path.getsize(t.paths.mp4), "cuts": [{"frame": 18, "t": 0.75, "score": 30}],
             "words": None})
         alive.clear()
         self.assertFalse(step.wait())
@@ -141,7 +155,7 @@ class StepTest(unittest.TestCase):
         self.assertEqual(step.work(lambda **kw: lines.append(kw)), "succeeded")
         self.assertEqual(asked[-1], {"ep": self.root, "pass": "final", "shots": ["sh020"], "redo": True,
                                      "seed_mode": "new", "target": "minimax_h3_ref2va",
-                                     "note": f"retry 1 after t{t.take:02d}: a cut at 0.21 s",
+                                     "note": f"retry 1 after t{t.take:02d}: a cut at 0.75 s",
                                      "retry": {"tries": 0, "fallback": True, "paid": False}, "retry_attempt": 2})
         # its tries spent: the fallback, from the take's first frame
         A._retry_step(ctx, {**p, "retry": {"tries": 0, "fallback": True, "paid": False}, "attempt": 2})
@@ -149,12 +163,43 @@ class StepTest(unittest.TestCase):
         self.assertEqual((asked[-1]["target"], asked[-1]["retry"]), ("minimax_h3_fl2va", {"tries": 0, "fallback": False, "paid": False}))
         kf = R.find_ref(R.load_series(self.root), "shot:sh020:first")
         self.assertTrue(os.path.isfile(kf.file))
+        self.assertIn(f"from t{t.take:02d}'s first frame", asked[-1]["note"])
+        made = len(R.list_takes(kf, None))
+        # now it has a first keyframe of its own: the fallback keeps it
+        A._retry_step(ctx, {**p, "retry": {"tries": 0, "fallback": True, "paid": False}, "attempt": 2})
+        self.assertEqual(steps[2].work(lambda **kw: lines.append(kw)), "succeeded")
+        self.assertIn("the shot's own first keyframe", asked[-1]["note"])
+        self.assertEqual(len(R.list_takes(kf, None)), made)
+        # no first keyframe, and a cut at the take's opening: one is made on the keyframe model
+        R.clear_pick(R.load_series(self.root), kf, None)
+        T.update_sidecar(t.paths.sidecar, checks={**T.read_sidecar(t.paths.sidecar)["checks"],
+                                                  "cuts": [{"frame": 5, "t": 0.21, "score": 30}]})
+        gen = []
+        n_asked = len(asked)
+        with mock.patch.object(A, "_generate", lambda c, body: (gen.append(body) or (200, {"queued": [{"prompt_id": "g1", "take": 99}]}))):
+            A._retry_step(ctx, {**p, "retry": {"tries": 0, "fallback": True, "paid": False}, "attempt": 2})
+            self.assertEqual(steps[3].work(lambda **kw: lines.append(kw)), "succeeded")
+        self.assertEqual(gen, [{"ep": self.root, "ref": "shot:sh020:first", "count": 1}])
+        self.assertEqual(len(asked), n_asked)                # the render waits for the picture
+        frame_step = steps[4]
+        self.assertEqual(frame_step.spec["step"], "retry_frame")
+        self.assertIs(A.STEPS["retry_frame"], A._retry_frame_step)
+        self.assertEqual(frame_step.work(lambda **kw: lines.append(kw)), "succeeded")
+        self.assertIn("didn't come out", str(lines[-1]))    # none made: it ends there
+        self.assertEqual(len(asked), n_asked)
+        # one made (here: a candidate already there, as the picture would be): it goes live, then the render
+        have = R.list_takes(kf, None)[-1]
+        A._retry_frame_step(ctx, {**frame_step.spec["params"], "take": have.take})
+        self.assertEqual(steps[-1].work(lambda **kw: lines.append(kw)), "succeeded")
+        self.assertTrue(os.path.isfile(kf.file))
+        self.assertEqual(len(asked), n_asked + 1)
+        self.assertEqual(asked[-1]["target"], "minimax_h3_fl2va")
         # a take picked in the cut: nothing more
         from seriesmith import edit as E
         E.pick_take(self.root, "final", "sh020", t.take)
         n = len(asked)
         A._retry_step(ctx, p)
-        steps[2].work(lambda **kw: lines.append(kw))
+        steps[-1].work(lambda **kw: lines.append(kw))
         self.assertEqual(len(asked), n)
         self.assertIn("picked", str(lines[-1]))
 

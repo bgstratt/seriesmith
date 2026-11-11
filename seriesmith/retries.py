@@ -6,9 +6,13 @@ A render may ask, per shot, for `tries` more takes when a take fails its checks 
 cut it wasn't asked for, its words, or a check registered there, a vision-language model's
 look among them). Each one is a new seed on the same model. When they're spent and `fallback`
 is on, the shot renders once more on its target's `retry.fallback` (H3 Ref2VA -> H3 FL2VA,
-FastH3 Omni -> FastH3 FL2VA, ...), from the last failed take's first frame as its first
-keyframe: the same model, led by a frame the pictures already gave, which often settles what a
-new seed didn't.
+FastH3 Omni -> FastH3 FL2VA, ...), led by a first keyframe (`Next.frame`), the first of:
+- "live": the shot's own first keyframe, when it has one (given, continuity, a frame picked):
+  kept as it is;
+- "take": the last failed take's first frame, when nothing its checks found is at its opening
+  (a cut in its first OPENING seconds, or a registered check's flag, which may be anywhere);
+- "make": one made on the keyframe image model, as Generate first frame does; when that can't
+  be queued, the ladder stops there.
 
 It stops, and says why, when:
 - the take passed its checks, or has none (they're off, or couldn't read it);
@@ -26,6 +30,7 @@ from seriesmith import takecheck as TC
 from seriesmith import takes as T
 
 MAX_TRIES = 5
+OPENING = 0.5               # seconds: a cut this early spoils the take's first frame as a keyframe
 
 
 @dataclass
@@ -68,13 +73,26 @@ class Next:
     target: str | None = None
     plan: Plan | None = None
     note: str = ""
+    frame: str | None = None    # a fallback's first keyframe: "live", "take" or "make"
+
+
+def opening_clean(checks: dict | None) -> bool:
+    """Whether a failed take's first frame can lead a fallback: no cut in its first OPENING
+    seconds and no registered check's flag (it may be about the frame itself). Its words
+    don't touch the picture."""
+    if not checks:
+        return False
+    if any((c.get("t") if c.get("t") is not None else 0) < OPENING for c in checks.get("cuts") or []):
+        return False
+    return not any(isinstance(v, dict) and v.get("flag") for v in (checks.get("more") or {}).values())
 
 
 def decide(take: T.Take | None, plan: Plan, picked: bool, attempt: int = 1,
-           fallback_of=None) -> Next:
+           fallback_of=None, has_first: bool = False) -> Next:
     """The next rung after `take` (its checks recorded). `picked`: the shot's cut entry picks a
     take. `attempt`: which try this take was (1: the render's own). `fallback_of(target_id)`:
-    that target's retry.fallback (targets.Target.retry_fallback), None for none."""
+    that target's retry.fallback (targets.Target.retry_fallback), None for none. `has_first`:
+    the shot has a live first keyframe of its own (the fallback's `frame` is "live" then)."""
     sc = (take.sidecar or {}) if take else {}
     if take is None or sc.get("status") != "ok":
         return Next("stop", f"the take is {sc.get('status') or 'gone'}")
@@ -97,6 +115,10 @@ def decide(take: T.Take | None, plan: Plan, picked: bool, attempt: int = 1,
                     note=f"retry {attempt} after {tag}")
     fb = fallback_of(target) if (plan.fallback and fallback_of) else None
     if fb and fb != target:
-        return Next("fallback", f"on {fb} from its first frame ({tag})", fb,
-                    Plan(0, False, plan.paid), note=f"fallback to {fb} from {tag}")
+        frame = "live" if has_first else "take" if opening_clean(checks) else "make"
+        led = {"live": "the shot's own first keyframe", "take": f"t{take.take:02d}'s first frame",
+               "make": "a first frame made on the keyframe model"}[frame]
+        return Next("fallback", f"on {fb} from {led} ({tag})", fb,
+                    Plan(0, False, plan.paid), note=f"fallback to {fb} from {led}, after {tag}",
+                    frame=frame)
     return Next("stop", f"out of retries ({tag})")

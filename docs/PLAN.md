@@ -2665,7 +2665,9 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
 - [x] 5. A retry ladder (opt-in, `retries.py`, api's retry step; EDITOR.md "Retries"): the Render
       dialogs' **If a take fails its checks**: 1-5 new seeds, then once on the target's
       `retry.fallback` (H3 Ref2VA -> H3 FL2VA, FastH3 Omni -> FastH3 FL2VA, Singularity and Pika
-      to theirs) from the failed take's first frame as the shot's first keyframe. Stops on a
+      to theirs), led by the shot's own first keyframe, else the failed take's first frame when
+      nothing was found at its opening, else one made on the keyframe model (the user's order,
+      2026-11-10); none: the retries end. Stops on a
       pass, a pick in the cut, or a paid backend (unless `paid`). The context menu's **Use this
       frame as this shot's first frame**: any frame of its own take, by hand.
       - takecheck.register: more checks join the cut and the words, flag like them and drive

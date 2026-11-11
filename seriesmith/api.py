@@ -921,31 +921,83 @@ def _retry_step(ctx: Context, p: dict) -> str:
         e = next((x for x in E.cut_entries(ep, pass_) if x.shot == shot), None)
         nxt = RT.decide(t, RT.Plan.from_json(p.get("retry")), picked=bool(e and e.take is not None),
                         attempt=int(p.get("attempt") or 1),
-                        fallback_of=lambda tid: TG.load_target(tid, "video", root=ep).retry_fallback)
+                        fallback_of=lambda tid: TG.load_target(tid, "video", root=ep).retry_fallback,
+                        has_first=not _sketch_open(ep, shot))
         report(line=f"{shot} t{n:02d}: {nxt.do if nxt.do != 'stop' else 'done'}, {nxt.why}")
         if nxt.do == "stop":
             return "succeeded"
-        if nxt.do == "fallback":
-            s = R.load_series(ep)
-            R.keyframe_from_take(s, shot, "first", source_shot=shot, source_take=n, frame="first",
-                                 pass_=pass_, pick=True, note=nxt.note)
-            report(line=f"{shot}'s first keyframe: t{n:02d}'s first frame")
-            ref_event(ctx, ep, f"shot:{shot}:first", None, None, "ok")
         body = {"ep": ep, "pass": pass_, "shots": [shot], "redo": True, "seed_mode": "new",
                 "target": nxt.target, "note": nxt.note, "retry": nxt.plan.to_json(),
                 "retry_attempt": int(p.get("attempt") or 1) + 1,
                 **({"backend": p["backend"]} if p.get("backend") else {})}
-        status, data = post_render(ctx, body) if ctx.runner.ask is None             else ctx.runner.ask("/seriesmith/render", body)
-        if status >= 400 or data.get("errors"):
-            err = data.get("error") or (data.get("errors") or [{}])[0].get("error")
-            raise RuntimeError(str(err or "the render wasn't queued")[:400])
-        q = (data.get("queued") or [{}])[0]
-        report(line=f"{shot} t{int(q.get('take') or 0):02d} queued on {nxt.target}")
-        return "succeeded"
+        if nxt.frame == "take":
+            R.keyframe_from_take(R.load_series(ep), shot, "first", source_shot=shot, source_take=n,
+                                 frame="first", pass_=pass_, pick=True, note=nxt.note)
+            report(line=f"{shot}'s first keyframe: t{n:02d}'s first frame")
+            ref_event(ctx, ep, f"shot:{shot}:first", None, None, "ok")
+        elif nxt.frame == "make":
+            # its first frame made on the keyframe model; the render waits for it (_retry_frame_step).
+            # A hosted keyframe model costs: only when the render said retries may
+            rid = f"shot:{shot}:first"
+            try:
+                s_ = R.load_series(ep)
+                kt = R.image_target_for(s_, R.find_ref(s_, rid))
+                if TG.is_hosted(kt.spec) and not RT.Plan.from_json(p.get("retry")).paid:
+                    report(line=f"{shot}: its keyframe model ({kt.id}) is hosted and costs: the retries "
+                                "end here (make a first frame, then render it on FL2VA)")
+                    return "succeeded"
+                status, data = _generate(ctx, {"ep": ep, "ref": rid, "count": 1})
+            except (ApiError, R.RefError, TG.TargetError, ValueError) as e:
+                status, data = 400, {"error": str(e)}
+            if status >= 400 or not data.get("queued"):
+                report(line=f"{shot}: no first frame could be made ({data.get('error') or 'nothing queued'}): "
+                            "the retries end here")
+                return "succeeded"
+            report(line=f"{shot}: a first frame asked of the keyframe model")
+            _retry_frame_step(ctx, {"ep": ep, "shot": shot, "take": data["queued"][0].get("take"),
+                                    "render": body})
+            return "succeeded"
+        return _retry_render(ctx, shot, nxt.target, body, report)
     return ctx.runner.enqueue_step(
         f"{os.path.basename(os.path.normpath(ep))} {shot} t{n:02d}: retry if its checks fail",
         then, info={"ep": ep, "shot": shot, "pass": pass_}, wait=wait,
         spec={"step": "retry", "params": p})
+
+
+def _retry_render(ctx: Context, shot: str, target: str, body: dict, report) -> str:
+    """A retry's render asked for (post_render, or the host's own route)."""
+    status, data = post_render(ctx, body) if ctx.runner.ask is None         else ctx.runner.ask("/seriesmith/render", body)
+    if status >= 400 or data.get("errors"):
+        err = data.get("error") or (data.get("errors") or [{}])[0].get("error")
+        raise RuntimeError(str(err or "the render wasn't queued")[:400])
+    q = (data.get("queued") or [{}])[0]
+    report(line=f"{shot} t{int(q.get('take') or 0):02d} queued on {target}")
+    return "succeeded"
+
+
+def _retry_frame_step(ctx: Context, p: dict) -> str:
+    """A retry's fallback waiting on the first frame the keyframe model is making for it: once
+    made, it goes live (unless one was given meanwhile) and the fallback renders from it. One
+    that didn't come out ends the retries."""
+    ep, shot = p["ep"], p["shot"]
+    rid = f"shot:{shot}:first"
+
+    def then(report) -> str:
+        if _sketch_open(ep, shot):
+            s_ = R.load_series(ep)
+            ref = R.find_ref(s_, rid)
+            made = next((x for x in R.list_takes(ref, None) if x.take == p.get("take")), None)
+            if made is None or made.status != "ok":
+                report(line=f"{shot}: its first frame didn't come out: the retries end here")
+                return "succeeded"
+            R.pick_take(s_, ref, None, made.take)
+            ref_event(ctx, ep, rid, None, None, "ok")
+            report(line=f"{shot}'s first keyframe: t{made.take:02d}, just made")
+        return _retry_render(ctx, shot, p["render"]["target"], p["render"], report)
+    return ctx.runner.enqueue_step(
+        f"{os.path.basename(os.path.normpath(ep))} {shot}: fallback render once its first frame is made",
+        then, info={"ep": ep, "shot": shot, "pass": p["render"]["pass"]},
+        wait=_refs_waiting(ctx, ep, [rid]), spec={"step": "retry_frame", "params": p})
 
 
 def _sketch_open(ep: str, shot: str) -> bool:
@@ -979,7 +1031,7 @@ def _sketch_step(ctx: Context, p: dict) -> str:
 
 
 STEPS = {"clip": _clip_step, "frame": _frame_step, "views": _views_step, "dub": _dub_step,
-         "sketch": _sketch_step, "retry": _retry_step}
+         "sketch": _sketch_step, "retry": _retry_step, "retry_frame": _retry_frame_step}
 
 
 def rebuild_step(ctx: Context, resume: dict) -> str | None:

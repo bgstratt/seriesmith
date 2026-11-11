@@ -722,8 +722,13 @@ The hook a vision-language model's look at a take's frames comes in by.
 waits for it to finish and be checked (up to 300 s after it finishes), then
 `retries.decide`: with a flag and `tries` left, the shot again with `seed_mode: new` on the
 take's own target, `retry.tries` one less; with none left and `fallback`, its target's
-`retry.fallback` (target.json) after the take's first frame is made the shot's live first
-keyframe (`refs.keyframe_from_take`, picked), its own `retry` `{tries: 0, fallback: false}`.
+`retry.fallback` (target.json), its own `retry` `{tries: 0, fallback: false}`, led by a first
+keyframe (`retries.decide`'s `frame`): the shot's live one when it has one (`live`); else the
+take's first frame made live (`take`, `refs.keyframe_from_take`) when its checks found
+nothing in its first 0.5 s and no registered check flagged it; else one made on the keyframe
+image model (`make`, POST /refs/generate, count 1; not on a hosted one without `paid`), a
+second step (`{"step": "retry_frame"}`) waiting for that take, picking it and rendering. One
+that doesn't come out ends the retries.
 It stops when the take passed, wasn't checked, the shot's cut entry picks a take, or the take
 rendered on a backend other than `local` without `paid`. Each new take's `note` says why
 (`retry 1 after t03: a cut at 0.58 s`); `retry_attempt` counts them.
