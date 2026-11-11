@@ -96,6 +96,26 @@ class QueueTest(unittest.TestCase):
         r.go.set()
         wait_for(lambda: b.status == "succeeded" and render.status == "succeeded")
 
+    def test_a_job_waiting_on_a_test_runs_once_it_passes_with_nothing_else_happening(self):
+        """A retry step waits for its take's checks, which land after the take's job has ended:
+        no job starts or ends then, so the queue looks again by itself (and when nudged)."""
+        from unittest import mock
+        from seriesmith import queue as QM
+        ready = threading.Event()
+        with mock.patch.object(QM, "WAIT_POLL", 0.05):
+            j = self.job(lambda job, report: "succeeded", lane="steps", wait=lambda: not ready.is_set())
+            time.sleep(0.2)
+            self.assertEqual(j.status, "queued")
+            ready.set()
+            wait_for(lambda: j.status == "succeeded")
+        ready2 = threading.Event()
+        k = self.job(lambda job, report: "succeeded", lane="steps", wait=lambda: not ready2.is_set())
+        time.sleep(0.1)
+        self.assertEqual(k.status, "queued")
+        ready2.set()
+        self.q.nudge()                                      # at once, not at the next look
+        wait_for(lambda: k.status == "succeeded", 1.0)
+
     def test_a_cloud_lane_runs_several(self):
         g = Gate()
         jobs = [self.job(g.work(), lane="router") for _ in range(3)]

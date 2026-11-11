@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { RetryRow } from "./RetryRow";
 import { closeRedo, closeSidecar, copyText, loadDetail, loadPresets, runRedo, takePrompt, type RedoSeed } from "../actions";
 import { errText, parseSeed } from "../api";
 import { api } from "../host";
@@ -360,6 +361,7 @@ function RedoBody({ d, shot, openPass, parent }: { d: ShotDetail; shot: string; 
               </label>
             </div>
           </div>
+          <RetryRow />
 
           <div className="h3-card">
             <span className="h3-card-title">Model</span>

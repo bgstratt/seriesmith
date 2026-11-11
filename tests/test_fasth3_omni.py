@@ -208,7 +208,7 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual((shift["inputs"]["shift_video"], shift["inputs"]["shift_audio"]), (12, 3))
         vsa = next(v for v in self.g.values() if v["class_type"] == "BlockSparseAttention")
         self.assertEqual((vsa["inputs"]["selection"], vsa["inputs"]["selection.keep_percent"]),
-                         ("vsa", 10))
+                         ("vsa", 20))      # A/B 2026-11-10: faces truest at 20
 
     def test_the_loader_declares_the_extra_outputs_last(self):
         from importlib import util

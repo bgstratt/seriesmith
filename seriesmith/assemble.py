@@ -370,6 +370,48 @@ def clip_track(src: str | None, dst: str, spec: dict, seconds: float,
                            f"{r.stderr.decode('utf-8', 'replace')[-300:]}")
 
 
+def rejoin_sound(out: str, clips: list[tuple[str, int]], fps: float, tmp: str) -> str | None:
+    """The joined cut's sound made again from its clips, each decoded alone and cut or padded
+    to exactly its frames, then laid under the cut's picture (copied). The concat demuxer
+    copies each clip's AAC with its encoder priming, which nothing then skips: every join
+    put the sound a few dozen milliseconds later, a second over 20 clips (DeanStories ep16,
+    2026-11-10: sh186's line over sh183). None when done, else why it wasn't (the cut keeps
+    its joined sound)."""
+    if not clips or audio_format(out) is None:
+        return None
+    rate, ch = audio_format(out)
+    parts = []
+    for k, (path, frames) in enumerate(clips):
+        wav = os.path.join(tmp, f"rejoin_{k:04d}.wav")
+        secs = frames / fps
+        if audio_format(path) is None:
+            silence_wav(wav, secs, rate, ch)
+        else:
+            r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", path, "-vn", "-map", "0:a:0",
+                     "-af", f"atrim=end={secs:.6f},apad", "-t", f"{secs:.6f}",
+                     "-ar", str(rate), "-ac", str(ch), "-c:a", "pcm_s16le", wav])
+            if r.returncode != 0:
+                return f"{os.path.basename(path)}'s sound: {r.stderr.decode('utf-8', 'replace')[-200:]}"
+        parts.append(wav)
+    joined = os.path.join(tmp, "rejoin.wav")
+    listing = os.path.join(tmp, "rejoin.txt")
+    with open(listing, "w", encoding="utf-8") as fh:
+        fh.writelines(f"file '{p.replace(os.sep, '/')}'\n" for p in parts)
+    r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", listing,
+             "-c:a", "pcm_s16le", joined])
+    if r.returncode != 0:
+        return "joining the clips' sound: " + r.stderr.decode("utf-8", "replace")[-200:]
+    total = sum(f for _, f in clips) / fps
+    tmp_out = os.path.join(tmp, "rejoined.mp4")
+    r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", out, "-i", joined,
+             "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+             "-t", f"{total:.6f}", tmp_out], timeout=1800)
+    if r.returncode != 0:
+        return "laying it under the picture: " + r.stderr.decode("utf-8", "replace")[-200:]
+    shutil.move(tmp_out, out)
+    return None
+
+
 def normalise(src: str, dst: str, audio_wav: str | None, fps: float,
               frames: int = 0, layout: tuple[int, int] | None = None) -> None:
     """Give every clip an audio track so the concat demuxer can copy streams.
@@ -822,6 +864,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="write the cut as an FCP7 XML timeline (<cut>.xml, for Premiere, Resolve "
                          "and the like) instead of an mp4: each clip its take's own file, in and "
                          "out where the cut uses it; nothing encoded, missing shots skipped")
+    ap.add_argument("--no-subtitles", action="store_true",
+                    help="don't write the lines as subtitles (<cut>.srt, <cut>.vtt) beside the cut")
     ap.add_argument("--no-mix", action="store_true",
                     help="leave the episode's mix (mix.json: effects, ambience, music, levels) "
                          "out: each clip's own sound, as it always was")
@@ -1427,6 +1471,12 @@ def main(argv: list[str] | None = None) -> int:
             n = len(needs) if selective is not None else len(plan)
             print(f"  re-encoded {n} clip(s)"
                   + (f", copied {len(plan) - n}" if selective is not None else ""))
+        if r.returncode == 0 and args.audio not in ("none", "master", "recording"):
+            # each clip's sound at its own frames: the concat's copy lets them slip (rejoin_sound)
+            say(args.progress, "sound", text="laying the sound at each clip's frames")
+            why = rejoin_sound(out_path, clips, fps, tmp)
+            if why:
+                print(f"  ! the sound kept as joined ({why}): it may run late by the end")
         if r.returncode == 0 and args.audio in ("master", "recording"):
             # under `recording` the mix below then takes this as its dialogue track
             track = doc.get("defaults", {}).get("master_track", "")
@@ -1460,6 +1510,18 @@ def main(argv: list[str] | None = None) -> int:
             except RuntimeError as e:
                 print(f"\n  the mix failed: {e}\n", file=sys.stderr)
                 return 1
+        if r.returncode == 0 and not args.no_subtitles:
+            # the lines as subtitles, timed by the words heard in each clip's sound (subtitles.py)
+            from seriesmith import subtitles as SUB
+            try:
+                cs = SUB.cues(root, plan, MX.shot_origins(plan), fps)
+                made = SUB.write(os.path.splitext(out_path)[0], cs)
+                if made:
+                    timed = sum(1 for c in cs if c["timed"])
+                    print(f"  subtitles: {len(cs)} lines, {timed} timed by their words "
+                          f"({', '.join(os.path.basename(m) for m in made)})")
+            except Exception as e:                       # noqa: BLE001  the cut stands without them
+                print(f"  ! subtitles: {str(e)[:200]}; none written")
         if r.returncode == 0 and args.intermediate == "prores":
             mov = os.path.splitext(out_path)[0] + ".mov"
             say(args.progress, "prores", text=os.path.basename(mov))

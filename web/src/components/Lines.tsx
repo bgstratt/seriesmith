@@ -3,7 +3,7 @@
 // the episode's recording, which the panel below aligns as it would an actor's.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LineRow, LinesPlan } from "../api";
+import type { LineRow, LinesPlan, LineTake } from "../api";
 import { api } from "../host";
 import { refreshEpisode, runAlign, setSound } from "../actions";
 import { HearSpeaker } from "./ProviderVoices";
@@ -15,6 +15,8 @@ export function LinesSection({ ep }: { ep: string }) {
   const [busy, setBusy] = useState(false);
   const [laid, setLaid] = useState<string | null>(null);
   const [dubbed, setDubbed] = useState<string | null>(null);
+  // a line whose take fails its checks made again this many times, the best kept (local models only)
+  const [tries, setTries] = useState(0);
   const live = useRef(true);
   useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
 
@@ -46,7 +48,8 @@ export function LinesSection({ ep }: { ep: string }) {
     setBusy(true);
     setErr(null);
     try {
-      const got = await api().generateLines({ ep, confirm_chars: chars, ...(ids ? { lines: ids } : {}) });
+      const got = await api().generateLines({ ep, confirm_chars: chars, ...(ids ? { lines: ids } : {}),
+                                              ...(tries > 0 && !plan?.paid ? { retry: { tries } } : {}) });
       if (got.errors.length) setErr(got.errors.map((e) => `${e.line}: ${e.error}`).join("\n"));
       await read();
     } catch (e) {
@@ -145,6 +148,17 @@ export function LinesSection({ ep }: { ep: string }) {
                   ? `Generate ${plan.to_make.lines} ${plan.to_make.lines === 1 ? "line" : "lines"}${plan.paid ? ` (paid: ${plan.to_make.chars.toLocaleString()} characters)` : ""}`
                   : "Every line has a take"}
               </button>}
+              {plan.available && !plan.paid && (
+                <label className="h3-row h3-small" style={{ gap: 4 }}
+                  title={"Each take is checked as it's made: its words (Whisper), and a stall (much longer than the line, "
+                    + "or a long silence inside it). One that fails is made again with a new seed, this many times, and the best kept."}>
+                  If a line fails its checks
+                  <select className="h3-in" value={tries} onChange={(e) => setTries(Number(e.target.value))}>
+                    <option value={0}>keep it</option>
+                    {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n} more {n === 1 ? "take" : "takes"}, keep the best</option>)}
+                  </select>
+                </label>
+              )}
               <button className="h3-btn" disabled={busy || !plan.can_lay || out} title="Costs nothing: joins the takes picked into the episode's recording, with the script's pauses, then aligns the shots to it" onClick={() => void lay()}>
                 <i className="pi pi-align-justify" /> Lay and align
               </button>
@@ -195,6 +209,7 @@ export function LinesSection({ ep }: { ep: string }) {
                     )}
                     {take?.file && <audio controls preload="none" src={api().refFileUrl(ep, take.file, String(take.take))} style={{ height: 26, width: 150 }} />}
                     {take?.source === "file" && <span className="h3-muted" title={take.voice_name}>file</span>}
+                    {take?.checks && <LineCheckBadge c={take.checks} />}
                     {plan.available && <button className="h3-btn" disabled={busy || running || !l.speaker}
                       title={`${take ? "Redo" : "Make"} this line${plan.paid ? ` (paid: ${l.chars} characters)` : ""}`}
                       onClick={() => void make([l.id], l.chars)}>{take ? "Redo" : "Make"}</button>}
@@ -207,4 +222,14 @@ export function LinesSection({ ep }: { ep: string }) {
       </div>
     </details>
   );
+}
+
+/** A line's take's checks (seriesmith/linecheck.py): what to listen for, or that it passed. */
+function LineCheckBadge({ c }: { c: NonNullable<LineTake["checks"]> }) {
+  const heard = c.words?.heard != null ? `Heard (${Math.round((c.words.match ?? 0) * 100)}%): ${c.words.heard}` : (c.words?.why ?? "");
+  const what = c.flags.map((f) => (f === "words" ? `words ${Math.round((c.words?.match ?? 0) * 100)}%`
+    : f === "long" ? `${c.seconds} s, about ${c.expected} s expected` : f === "gap" ? `a ${c.gap} s silence` : f));
+  return c.flags.length
+    ? <span className="h3-badge h3-b-check" title={`Listen to it: ${what.join("; ")}.\n${heard}`}>{what.join(", ")}</span>
+    : <span className="h3-badge h3-b-checked" title={`Checked: its words and its length.\n${heard}`}>✓ checked</span>;
 }

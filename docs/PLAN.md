@@ -2625,6 +2625,97 @@ match made to say what it does.
 - [x] **Live** (2026-11-10, the user): a latent chain re-rendered after a trim; `continuous: first`
       and an FL2VA last frame cut anew at the trims.
 
+## Enhancements, and earlier decisions revisited with new data (branch `enhancements-revisited`, 2026-11-10)
+
+Each fits a 32 GB card and 64 GB of RAM. In order:
+
+- [x] 1. A take's audio past full scale is scaled down, never clipped (`comfy_nodes/shot.py`
+      `save_audio`; 13 of 207 takes measured touched full scale).
+- [x] 2. Check warns about wording: a negation names what it forbids (shot fields and the series
+      config's descriptions), a character named in the action but not in `who:`, quoted speech
+      in the action (`core/wording.py`). The Ref2VA prompt writer's own negations reworded
+      (A/B on two seeds: no visible change). AUTHORING.md, "Say what is there".
+- [x] 3a. H3's video VAE: every H3 target `prefer`s fp16, int8_convrot when it's the only one
+      installed. int8 measured 58-61 dB from fp16 and 3-13 s faster per decode, but its
+      gradients band on skin zoomed in (the user, 2026-11-10); fp16 stays the download.
+- [x] 3b. FastH3's sparse attention at 864x480 x 124 frames, two shots x two seeds: keep 10%
+      (trained), 20% and dense look alike in framing and motion; 10% and 20% ~25 s, dense ~32 s.
+      Faces held truest at 20%, then 10%, dense worst (the user, 2026-11-10): FastH3 keeps 20%.
+      Ref2VA's SLA at 1344x768 (8-step turbo LoRA), the same shots and seeds: keep 10 / 15 / 20 %
+      / dense, 61-79 / 66-76 / 72-82 / 130-142 s a take; PSNR against 15%: 10% and 20% 17-25 dB,
+      dense 14-22 (each a different take in its detail, the running shot in its path too). Ref2VA
+      stays at 15% (sparsity 0.85), what its turbo LoRA is trained with.
+- [x] 4. Take checks (`takecheck.py`), recorded in the take's sidecar on a thread of their own
+      once it finishes, badges in the bin and the gallery, `seriesmith takes --check` for older
+      takes (EDITOR.md "Take checks"). Measured on 213 takes on this machine:
+      - a cut it wasn't asked for: `scdet` at 256 wide, ~0.2 s a take; real cuts scored 12.6-54,
+        a flash, fast running and a whip pan 10.6 at most: the line is 12. A multishot group's
+        own cuts don't count. Live, LAST LIGHT sh090's lightning scored 13.3 and was retried:
+        a jump whose picture comes back a few frames later (under 0.25 of the jump) is a flash,
+        let go (cuts measured 0.32-1.9, the lightning 0.13);
+      - its words: Whisper small.en on the CPU, ~1.7 s a take, against the shot's lines, when the
+        model voiced them. LAST LIGHT's speaking takes all matched; Dean's sh010 t06 heard
+        "window owl" for "little owl" (0.80, flagged below 0.85);
+      - a held keyframe: dropped, none found (every FL2VA take moved from its first frame; a
+        still start or end only flagged takes that settle on purpose);
+      - not caught: a place that drifts into another during one camera move (FastH3 sh020, seed
+        1002: street to rooftop with no cut), or a morph (LAST LIGHT sh220 t03, 0.35-0.78 s: no
+        frame scores past 1.2, yet frames 6 and 20 are 79.5 apart, 9.9 later in the take). A
+        longer gap can't tell it from a camera move: a check that knows the picture (a VLM's,
+        takecheck.register) or the take against its plate.
+      - [ ] Live: a render's checks arriving in the editor; the cut's trims (a cut before the
+        in point is already trimmed off: LAST LIGHT's sh210 and sh220 in the cut).
+- [x] 5. A retry ladder (opt-in, `retries.py`, api's retry step; EDITOR.md "Retries"): the Render
+      dialogs' **If a take fails its checks**: 1-5 new seeds, then once on the target's
+      `retry.fallback` (H3 Ref2VA -> H3 FL2VA, FastH3 Omni -> FastH3 FL2VA, Singularity and Pika
+      to theirs), led by the shot's own first keyframe, else the failed take's first frame when
+      nothing was found at its opening, else one made on the keyframe model (the user's order,
+      2026-11-10); none: the retries end. Stops on a
+      pass, a pick in the cut, or a paid backend (unless `paid`). The context menu's **Use this
+      frame as this shot's first frame**: any frame of its own take, by hand.
+      - takecheck.register: more checks join the cut and the words, flag like them and drive
+        the retries; the hook a vision-language model comes in by.
+      - Live (2026-11-10): the retry step sat until something else woke the queue (its take's
+        checks land seconds after the take's job ends, and the queue only looked again when a
+        job started or ended): the checks nudge it now, and a queue with a job waiting on a test
+        looks again every 5 s.
+      - [x] Live: a failed take fallen through to FL2VA (LAST LIGHT sh270, 2026-11-10).
+      - Later: language models in seriesmith beyond MCP (a VLM's look at a take among them), to
+        talk over once this list is through (the user, 2026-11-10).
+- [x] 6. Line checks and retries (`linecheck.py`, runner._check_line; RECORDED_DIALOGUE.md "Line
+      checks"): each take of a line checked as it's made, its words (Whisper on the CPU), too long
+      (over 2 x its spoken length + 2 s) or a stall inside it (2 s+ under -20 dB: Drama 3's pauses
+      sit 20-33 dB down, the longest 1.35 s); the Lines window's **If a
+      line fails its checks**: 1-5 more takes, new seeds, the best kept; local models only (a
+      provider's with `paid`). Any voice model, Drama 3 the first in mind.
+      - Live (2026-11-10): Drama 3 on a copy of LAST LIGHT, four lines, every word heard on the
+        first take, ~10-20 s each; its pauses set QUIET_DB and GAP.
+      - Deferred on purpose: a retry of a line seen live (nothing failed to retry; the runner's
+        path is covered by tests/test_linecheck.py).
+- [x] 7. MMAudio Foley re-tested, and passed on (2026-11-10). kijai's ComfyUI-MMAudio sampler takes
+      the first 8 x seconds frames as MMAudio's 8 fps CLIP frames and the first 25 x seconds as its
+      25 fps sync frames (from 24 fps: a third of the shot, its sync 4% slow). A sampler taking each
+      at its moment was built and heard against the pack's way on LAST LIGHT's door, splash and
+      explosion (same seed and prompt, ~11-28 s a shot): still last of the effects models (it gave
+      Mara a bark; only the footsteps on wet ground held up). Reverted; the beds stay on MMAudio.
+- [x] 8. Dialogue levelled per take in the mix (`mix.level_dialogue`, the Dialogue lane's **Level the
+      lines**, mix.json `level.limit_db`: off by default, on at 9): each speaking clip's speech level
+      (50 ms windows within 30 dB of its loudest) to the middle of them, ramped 20 ms at the joins.
+      Live on a copy of LAST LIGHT: -18.7 dBFS, sh190 +3.2, the rest within 1 dB.
+      SRT and VTT subtitles (`subtitles.py`; FINISHING.md "Subtitles"): assemble writes the lines
+      beside the cut, timed by the words heard in each clip's sound (the take checks' and align's
+      `.words.json`), publish carries them shifted by the intro. Live: 4 of 4 timed.
+      - Found with it (DeanStories ep16, the user's ear): the export's sound slid later at every
+        join, ~45 ms a clip, a second by the 20th (sh186's line over sh183): the concat copied
+        each clip's AAC with its encoder priming. assemble.rejoin_sound lays each clip's sound at
+        its own frames after the join; tests/test_assemble.py holds it.
+- [ ] 9. Set aside for now (the user, 2026-11-11): a LoRAs tab in Features: Hugging Face and
+      Civitai search, paste a link for others (civitai.red), the preview fetched on open,
+      safetensors only, a sidecar with the trigger words, which a shot's prompt then carries.
+
+Dropped: ComfyUI `/free` calls (ComfyUI frees memory itself), coverage, memory tables. Later:
+painting a plate.
+
 ## Later
 
 - The gallery's zips (2026-10-27): kept an hour from when they're made, swept only as the next

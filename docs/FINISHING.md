@@ -368,6 +368,21 @@ the Dialogue track's **Voices only** (each clip's voices without its model's mus
 tone, [EDITOR.md](EDITOR.md) Sound): with the takes' beds gone, the lines are what the loudness
 is measured on, and the mix brings them up to the target (Ballroom ep02: +4.7 dB).
 
+## Subtitles
+
+Every export writes the script's lines as subtitles beside the cut: `<cut>.srt` and `<cut>.vtt`
+(WebVTT, for the web). Each line is timed by its words as Whisper heard them in the sound the clip
+plays. That's its take's own sound, which the take checks hear as it's made, or the recording it's
+dubbed to, which align hears. A line that hasn't been heard shares its clip with the shot's other
+lines by their length; the log says how many were timed by their words ("4 lines, 4 timed by their
+words"). For takes made before the checks, `seriesmith takes <episode> --check` hears them. A
+subtitle stays inside its shot, is at least 0.8 s, and a long line wraps onto two at about 42
+characters. `--no-subtitles` leaves them out.
+
+Publish carries them: the published file gets its own `.srt` and `.vtt`, every line after the
+intro moved by the intro's length (with a cold open, the lines before the intro stay where they
+are).
+
 ## The export's checks
 
 Beside the loudness, every exported mp4's picture is checked as it's written, and reported; the

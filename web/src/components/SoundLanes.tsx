@@ -52,7 +52,7 @@ import { cutBeats, type Beat } from "../lib/beats";
 import {
   addMixHit, addMixPoint, addMixTrack, clearMixPoints, currentMix, deleteMixHit, deleteMixItem, deleteMixPoint, deleteMixTrack, dropOnLane, moveItemToTrack, moveMixHit, moveMixItem, moveMixTrack, renameMixTrack,
   makeBed, makeEffects, moveMixPoint, resetMixFx, trimMixFx, openBedRef, openSoundAdd, pickMixFx, pickSoundFile, setMixBed, setMixFx, setMixHit, setMixItem, setTrackMix, trimMixItem,
-  loadMix, makeVoiceStems, setShotVoicesMix, setVoicesOnlyMix,
+  loadMix, makeVoiceStems, setLevelLinesMix, setShotVoicesMix, setVoicesOnlyMix,
   setMixItemMute,
   addMixRegion, deleteMixRegion, moveMixRegionEdge, setMixRegion,
 } from "../mixActions";
@@ -925,6 +925,13 @@ export function VoicesSection({ mix, voices, onClose }: { mix: Mix; voices?: Mix
           + "A shot whose stem isn't made (or is stale) plays its whole sound; a shot the script gives no lines is silent here. A shot's own way: right-click it, Sound."}>
         <input type="checkbox" checked={on} onChange={(e) => { onClose(); void setVoicesOnlyMix(e.target.checked); }} />
         <span>Voices only</span>
+      </label>
+      <label className="h3-snd-field" data-voices="level"
+        title={"Each speaking shot's lines brought to the same level as the others (the middle of them, at most 9 dB up or down), "
+          + "so a quiet take and a loud one sit together. Shots with no lines are left as they are. The export says what moved."}>
+        <input type="checkbox" checked={(mix.level?.limit_db ?? 0) > 0}
+          onChange={(e) => { onClose(); void setLevelLinesMix(e.target.checked); }} />
+        <span>Level the lines</span>
       </label>
       <div className="h3-row" style={{ gap: 6, padding: "2px 8px", alignItems: "center" }}>
         <button className="h3-btn" style={{ width: "auto" }} data-voices="make" disabled={!voices.of}

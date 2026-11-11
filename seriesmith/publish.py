@@ -720,6 +720,24 @@ def cold_open_split(root: str, src: str, fps: float, intro: str | None,
     return at
 
 
+def carry_subtitles(src: str, out: str, intro: str | None, cut: dict, split: int | None) -> list[str]:
+    """The cut's subtitles (assemble's <cut>.srt, subtitles.py) beside the published file, each
+    cue after the intro moved by its length: all of them, or with a cold open (`split`, a frame
+    of the cut) those from the split on. [] when the cut has none."""
+    from seriesmith import subtitles as SUB
+    have = os.path.splitext(src)[0] + ".srt"
+    if not os.path.isfile(have):
+        return []
+    cs = SUB.read_srt(have)
+    if intro:
+        i = probe(intro)
+        fps = cut["fps"] or 24.0
+        length = (i["frames"] / fps) if i.get("frames") else i["duration"]
+        at = (split / fps) if split is not None else 0.0
+        cs = [c if c["start"] < at else SUB.shifted([c], length)[0] for c in cs]
+    return SUB.write(os.path.splitext(out)[0], cs)
+
+
 def titles(root: str) -> tuple[str | None, str | None]:
     """The episode's (intro, outro) clips, either None when there isn't one:
     the series config's publish block, else the _titles files."""
@@ -799,6 +817,9 @@ def publish(root: str, src: str | None = None, pass_: str = "final", out: str | 
             publish_reencode(src, cut, intro, outro, sub, out, tmp, quality, levels, split)
     got = probe(out)
     print(f"    {got['duration']:.1f}s, {got['frames']} frames")
+    carried = carry_subtitles(src, out, intro, cut, split)
+    if carried:
+        print(f"    subtitles: {', '.join(os.path.basename(c) for c in carried)}")
     print(f"  -> {out}")
     say("done", picture="re-encoded" if why else "copied", why=why or "")
     return out

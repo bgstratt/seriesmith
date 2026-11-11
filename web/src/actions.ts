@@ -1244,7 +1244,10 @@ export async function queueRender(req: RenderRequest): Promise<RenderResult | un
     try {
       // seriesmith: the session's backend, when one was chosen (the render dialog)
       const backend = req.backend ?? (get().renderBackend || null);
-      const r = await api().render(backend ? { ...req, backend } : req);
+      // the session's retries (the render dialogs' Retry row), on what isn't a dub track
+      const rt = get().renderRetry;
+      const retry = req.retry ?? (!req.dub_track && (rt.tries > 0 || rt.fallback) ? rt : undefined);
+      const r = await api().render({ ...req, ...(backend ? { backend } : {}), ...(retry ? { retry } : {}) });
       const learned: Record<string, TakeRef> = {};
       for (const q of r.queued) learned[q.prompt_id] = { ep: req.ep, pass: req.pass, shot: q.shot, take: q.take };
       set((s) => ({ prompts: { ...s.prompts, ...learned } }));
@@ -3100,6 +3103,28 @@ ${warn.body}`)) return false;
  * (POST /seriesmith/refs/keyframe). With no source: the neighbouring shot in the
  * cut (previous for first, next for last) and the take its cut entry uses.
  */
+/** A take's shot rendered on its model's fallback (H3 Ref2VA: H3 FL2VA) from a first frame: the
+ * shot's own first keyframe, else the take's first frame, else one made on the keyframe model
+ * (POST /seriesmith/render/fallback; the retries' last rung, asked for by hand). */
+export async function renderFallback(shot: string, take: number, pass?: Pass): Promise<boolean> {
+  const ep = get().ep;
+  if (!ep) return false;
+  const p = pass ?? get().pass;
+  return withBusy(`fallback|${shot}`, async () => {
+    try {
+      const backend = get().renderBackend || null;
+      const r = await api().renderFallback({ ep, pass: p, shot, take, ...(backend ? { backend } : {}) });
+      host().toast("success", `${shot}: rendering ${r.did}`, r.lines.join("\n") || undefined);
+      scheduleRefsRefresh(0);
+      scheduleRefresh(0);
+      return true;
+    } catch (e) {
+      report(`Couldn't render ${shot} from a first frame`, e);
+      return false;
+    }
+  });
+}
+
 export async function keyframeFromTake(opts: {
   shot: string;
   which?: KeyframeEnd;
@@ -3107,6 +3132,8 @@ export async function keyframeFromTake(opts: {
   sourceTake?: number | null;
   frame?: number | "first" | "last" | null;
   pass?: Pass;
+  /** true: it goes live even over a keyframe the shot has (its own take's frame, asked for) */
+  pick?: boolean;
 }): Promise<Ref | null> {
   const ep = get().ep;
   if (!ep) return null;
@@ -3117,6 +3144,7 @@ export async function keyframeFromTake(opts: {
       const r = await api().refsKeyframe({
         ep, pass, shot: opts.shot, which,
         source_shot: opts.sourceShot ?? null, source_take: opts.sourceTake ?? null, frame: opts.frame ?? null,
+        ...(opts.pick ? { pick: true } : {}),
       });
       upsertRef(ep, r);
       const t = r.takes[r.takes.length - 1];
@@ -3778,6 +3806,11 @@ export async function voiceFromTake(req: Omit<VoiceFromTakeRequest, "ep">): Prom
 /** Where this session's renders go ("" : each shot's own backend). */
 export function setRenderBackend(name: string) {
   set({ renderBackend: name });
+}
+
+/** What a render asks of a take that fails its checks, for the rest of the session. */
+export function setRenderRetry(retry: { tries: number; fallback: boolean }) {
+  set({ renderRetry: retry });
 }
 
 /** The backends this host offers (the standalone page reads them; null inside ComfyUI). */

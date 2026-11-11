@@ -11,6 +11,7 @@ import { useApp } from "../store";
 import { Dialog } from "./Dialogs";
 import { useDetail, useStatus } from "./hooks";
 import { MissingRefsNote } from "./MissingRefs";
+import { RetryRow } from "./RetryRow";
 import { TargetReadinessNote } from "./Readiness";
 import { ModelsButton, TargetSelect, useTargets } from "./Targets";
 
@@ -112,6 +113,7 @@ function RenderBody() {
         </div>
       )}
       <BackendRow />
+      <RetryRow />
       {readyNow.length > 0 && (
         <div className="h3-small">
           <span className="h3-muted">Will queue: </span>

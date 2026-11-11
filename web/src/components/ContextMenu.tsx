@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
-  cancelTake, clearRef, closeMenu, copyText, discardTake, generateKeyframe, keyframeFromTake, loadRefs,
+  cancelTake, clearRef, closeMenu, copyText, discardTake, generateKeyframe, keyframeFromTake, loadRefs, renderFallback,
   openIssue,
   keepUpscale, openInspector, openRangeRedo, openRedo, openSidecar, openViewer, pickTake, playAll, removeUpscale, requestRender, openShotForm, showInScript, showMissingRefs,
   upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu, makeFinalsFromDrafts, renderSelected,
@@ -17,7 +17,7 @@ import { audioOf, audioWhy } from "../lib/audioSource";
 import { absPath, tn } from "../lib/format";
 import { cutNeighbour, keyframeNote, keyframeRefId } from "../lib/keyframes";
 import { missingOf } from "../lib/missingRefs";
-import { shotTarget } from "../lib/targets";
+import { findTarget, shotTarget } from "../lib/targets";
 import { dubBlock, dubTrackBlock } from "../lib/readiness";
 import { statusKey, useApp } from "../store";
 import { useTargets } from "./Targets";
@@ -102,6 +102,9 @@ export function ContextMenu() {
   const several = multi.length > 1 && multi.includes(menu.shot) && menu.pass === curPass;
   const shot = st?.shots.find((x) => x.shot === menu.shot);
   const take = menu.take != null ? shot?.takes.find((t) => t.take === menu.take) : undefined;
+  // where this take's model goes on from a first frame (the retries' last rung): H3 Ref2VA -> H3 FL2VA
+  const fallback = take ? findTarget(targets, take.target || shotTarget(shot, seriesDefault))?.capabilities?.retry_fallback ?? null : null;
+  const fallbackLabel = fallback ? findTarget(targets, fallback)?.short ?? fallback : "";
   const cutShot = cutSt?.shots.find((x) => x.shot === menu.shot);
   const isCut = !!take && !!cutShot && cutShot.cut.take === take.take && cutShot.cut.pass === menu.pass;
   const videos = (shot?.takes ?? []).filter((t) => t.mp4);
@@ -161,6 +164,35 @@ export function ContextMenu() {
         >
           <i className="pi pi-arrow-right" /> Use this frame as the next shot's first frame
           <span className="h3-muted"> ({frameLabel === "its last frame" ? "last frame" : frameLabel})</span>
+        </button>
+      )}
+      {take && (
+        <button
+          disabled={!usable}
+          title={(usable
+            ? `${menu.shot}'s own first keyframe = ${menu.frame == null || menu.frame === "last" ? "the first frame" : `frame ${menu.frame}`} of ${tn(take.take)}: `
+              + "a model that starts from a frame (H3 FL2VA, FastH3 FL2VA) renders on from it, keeping what this take got right"
+            : "Only a finished take with video has frames") + kfNote(shot)}
+          onClick={run(() => void keyframeFromTake({
+            shot: menu.shot, which: "first", sourceShot: menu.shot, sourceTake: take.take,
+            frame: menu.frame == null || menu.frame === "last" ? "first" : menu.frame, pass: menu.pass, pick: true,
+          }))}
+        >
+          <i className="pi pi-replay" /> Use this frame as this shot's first frame
+          <span className="h3-muted"> ({menu.frame == null || menu.frame === "last" ? "first frame" : `frame ${menu.frame}`})</span>
+        </button>
+      )}
+      {take && fallback && (
+        <button
+          disabled={!usable}
+          title={usable
+            ? `${menu.shot} rendered on ${fallbackLabel} from a first frame: its own first keyframe if it has one, `
+              + `else ${tn(take.take)}'s first frame (unless its checks found something at its opening), `
+              + "else one made on the keyframe model. What a take's retries do last, by hand."
+            : "Only a finished take with video has frames"}
+          onClick={run(() => void renderFallback(menu.shot, take.take, menu.pass))}
+        >
+          <i className="pi pi-forward" /> Render on {fallbackLabel} from its first frame
         </button>
       )}
       {take && (

@@ -2,6 +2,7 @@
   "id": "minimax_h3_ref2va",
   "kind": "video",
   "label": "MiniMax H3 Ref2VA",
+  "retry": {"_note": "A render that asked for retries and whose takes kept failing their checks (takecheck) renders once more on `fallback`, from the failed take's first frame as its first keyframe (api's retry step): the same model family, led by a frame instead of the pictures.", "fallback": "minimax_h3_fl2va"},
   "default_rank": 10,
   "short": "H3",
   "code": "compile.py",
@@ -99,7 +100,7 @@
               "class_type": "LoraLoaderModelOnly", "field": "lora_name", "folder": "loras"},
     "text_encoder": {"family": "qwen3vl-32b", "patterns": ["*qwen3*vl*32b*"], "tier": "required",
                      "default": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"},
-    "video_vae": {"family": "minimax-h3-video-vae", "patterns": ["*h3*video*vae*"], "tier": "required",
+    "video_vae": {"family": "minimax-h3-video-vae", "prefer": ["*h3*video*vae*fp16*", "*h3*video*vae*"], "patterns": ["*h3*video*vae*"], "tier": "required",
                   "default": "minimax_h3_video_vae_fp16.safetensors"},
     "audio_vae": {"family": "minimax-h3-audio-vae", "patterns": ["*h3*audio*vae*"], "tier": "required",
                   "default": "minimax_h3_audio_vae_fp32.safetensors"}

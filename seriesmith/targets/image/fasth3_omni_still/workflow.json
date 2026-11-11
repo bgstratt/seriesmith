@@ -249,14 +249,14 @@
           ]
         }
       ],
-      "title": "Sparse attention (VSA 10%, what FastH3 is trained with)",
+      "title": "Sparse attention (VSA 20%; FastH3 is trained at 10)",
       "properties": {
         "cnr_id": "comfy-core",
         "Node name for S&R": "BlockSparseAttention"
       },
       "widgets_values": [
         "vsa",
-        10,
+        20,
         0.2,
         1,
         "",
@@ -267,7 +267,7 @@
       ],
       "widgets_values_named": {
         "selection": "vsa",
-        "selection.keep_percent": 10,
+        "selection.keep_percent": 20,
         "start_percent": 0.2,
         "end_percent": 1,
         "dense_blocks": "",

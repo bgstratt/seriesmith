@@ -2,6 +2,7 @@
   "id": "fasth3_omni",
   "kind": "video",
   "label": "FastH3 Omni (8-step H3, up to 8 subjects)",
+  "retry": {"_note": "A render that asked for retries and whose takes kept failing their checks (takecheck) renders once more on `fallback`, from the failed take's first frame as its first keyframe (api's retry step): the same model family, led by a frame instead of the pictures.", "fallback": "fasth3_fl2va"},
   "default_rank": 15,
   "short": "Omni",
   "code": "compile.py",
@@ -189,7 +190,7 @@
     "bypass_if_missing": {
       "BlockSparseAttention": "model"
     },
-    "_note": "Ref2VA's workflow with FastH3's model chain: the Omni checkpoint, no turbo LoRA (LoRAs a shot names go in after UNETLoader), MiniMaxH3SigmaShift 12 / 3 (FastVideo's video and audio shifts: the conversion notes say not to reuse V2's 10), and ComfyUI's own BlockSparseAttention in `vsa` mode at 10% (the checkpoint carries VSA's to_gate_compress layers, trained at 10) in place of the SLA node Ref2VA's turbo LoRAs want. The Shot Loader's ref_4..ref_8 (its last outputs) feed ref_image_3..7 and ref_bg ref_image_8. Guider CFG 1 (BasicGuider), as FastVideo's guidance_scale 1.0."
+    "_note": "Ref2VA's workflow with FastH3's model chain: the Omni checkpoint, no turbo LoRA (LoRAs a shot names go in after UNETLoader), MiniMaxH3SigmaShift 12 / 3 (FastVideo's video and audio shifts: the conversion notes say not to reuse V2's 10), and ComfyUI's own BlockSparseAttention in `vsa` mode keeping 20% (the checkpoint carries VSA's to_gate_compress layers, trained at 10% (A/B 2026-11-10 at 864x480, two shots x two seeds: 20% kept faces truest, 10% next, dense worst; 10% and 20% the same speed, dense ~30% slower)) in place of the SLA node Ref2VA's turbo LoRAs want. The Shot Loader's ref_4..ref_8 (its last outputs) feed ref_image_3..7 and ref_bg ref_image_8. Guider CFG 1 (BasicGuider), as FastVideo's guidance_scale 1.0."
   },
   "models": {
     "_note": "The family each model param must be (targets/modelid.py). FastH3 Omni is told from the other H3 checkpoints by its VSA gate tensors, so a Ref2VA or FL2VA file is refused here (and this one there). No turbo LoRA: the model is distilled to 8 steps itself. text_encoder / video_vae / audio_vae are H3's own, shared with Ref2VA (`default`).",
@@ -211,6 +212,7 @@
     },
     "video_vae": {
       "family": "minimax-h3-video-vae",
+      "prefer": ["*h3*video*vae*fp16*", "*h3*video*vae*"],
       "patterns": [
         "*h3*video*vae*"
       ],

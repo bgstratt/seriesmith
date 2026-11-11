@@ -38,6 +38,8 @@ os.environ["SERIESMITH_SETTINGS"] = os.path.join(ROOT, "tests", "_no_settings.js
 os.environ["SERIESMITH_LOCAL_URL"] = _NOWHERE
 os.environ["SERIESMITH_COMFYUI_URL"] = _NOWHERE
 os.environ["SERIESMITH_CLOUD_URL"] = _NOWHERE
+# a finished take isn't checked on a thread of its own (runner.CHECK_TAKES): tests check one by name
+os.environ["SERIESMITH_TAKE_CHECKS"] = "0"
 os.environ.pop("COMFY_API_KEY", None)
 # the caches kept between runs (seriesmith/diskcache.py) go to a scratch folder,
 # never beside the settings file above (tests/)
@@ -51,7 +53,8 @@ os.environ["TORCH_HOME"] = os.path.join(_HUB, "torch")
 
 _PINNED = {k: os.environ[k] for k in ("SERIESMITH_SETTINGS", "SERIESMITH_LOCAL_URL",
                                       "SERIESMITH_COMFYUI_URL", "SERIESMITH_CLOUD_URL",
-                                      "SERIESMITH_CACHE_DIR", "HF_HUB_CACHE", "TORCH_HOME")}
+                                      "SERIESMITH_CACHE_DIR", "HF_HUB_CACHE", "TORCH_HOME",
+                                      "SERIESMITH_TAKE_CHECKS")}
 
 try:
     import pytest

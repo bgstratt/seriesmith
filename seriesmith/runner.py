@@ -21,10 +21,16 @@ import threading
 
 from seriesmith import color as COL
 from seriesmith import jobs as J
+from seriesmith import takecheck as TC
 from seriesmith import takes as T
 from seriesmith.queue import Job as QJob
 from seriesmith.queue import Queue
 from seriesmith.core import fileio as F
+
+# a finished take is checked (takecheck) after it's recorded; SERIESMITH_TAKE_CHECKS=0 turns
+# that off (tests/conftest.py does)
+CHECK_TAKES = os.environ.get("SERIESMITH_TAKE_CHECKS", "1") != "0"
+_CHECKING = threading.Lock()
 
 # The API request being handled on this thread ({"path", "body"}; views.py
 # sets it): each job it queues keeps it, so a job still waiting in the queue
@@ -218,6 +224,7 @@ class Runner:
                                      on_status=self._remote(qjob, take.paths.sidecar, report))
                 if status == "ok":
                     COL.record_look(take)                # the timeline's colour check reads it
+                    self._check_take(ep, take)
             except Exception as e:                       # noqa: BLE001  the take fails
                 J.mark_failed(take, str(e)[:800])
                 qjob.error = str(e)[:800]
@@ -291,6 +298,7 @@ class Runner:
                         report(line=res["note"])
                 status = H.render(job, take, report, H.dub_audio(job))
                 COL.record_look(take)
+                self._check_take(ep, take)
                 if job.notes:
                     had = (T.read_sidecar(take.paths.sidecar) or {}).get("notes") or []
                     T.update_sidecar(take.paths.sidecar, notes=list(had) + list(job.notes))
@@ -570,11 +578,14 @@ class Runner:
         self._submit(qjob)
         return n, qjob.id
 
-    def enqueue_line(self, ep: str, line: dict, target, backend_name: str, local: dict | None = None) -> tuple[int, str]:
+    def enqueue_line(self, ep: str, line: dict, target, backend_name: str, local: dict | None = None,
+                     retry=None, tried: list | None = None) -> tuple[int, str]:
         """One take of a line of dialogue (lines.py) queued: on a provider, its words alone, in its
         character's speaker; on a local model (`local`: {"base": its workflow, "listing", "resolve", "cache"}),
         from the description, its graph made as it starts, so a line after the character's first can
-        continue it. Returns (the take's number, the queue's job id)."""
+        continue it. Once made it's checked (linecheck); with `retry` (retries.Plan) one that fails
+        gets another take, `retry.tries` times, and the best of them (`tried`, this one) is picked.
+        Returns (the take's number, the queue's job id)."""
         from seriesmith import lines as LN
         from seriesmith import targets as TG
 
@@ -619,6 +630,7 @@ class Runner:
                 if status != "succeeded":
                     raise RuntimeError(run.error or f"the job ended {status}")
                 LN.finish(ep, lid, n, run, savers)
+                self._check_line(ep, line, n, target, backend_name, local, retry, list(tried or []) + [n])
                 result = "succeeded"
             except Exception as e:                       # noqa: BLE001  the take fails
                 qjob.error = str(e)[:800]
@@ -1040,6 +1052,7 @@ class Runner:
             got = RD.collect_run(take, run, status, res)
             if got == "ok":
                 COL.record_look(take)
+                self._check_take(ep, take)
             return got
         if kind == "ref":
             s = R.load_series(ep)
@@ -1085,6 +1098,53 @@ class Runner:
         self._attach(qjob.title, qjob.record, qjob.resume or {}, backend, run_id,
                      "it had finished after all")
         return True
+
+    def _check_take(self, ep: str, take: T.Take) -> None:
+        """A finished take's checks (takecheck: a cut it wasn't asked for, its words) on a thread
+        of their own, one take at a time: Whisper takes a few seconds, which the queue's next job
+        doesn't wait for. The editor hears of the take again once they're recorded."""
+        if not CHECK_TAKES:
+            return
+
+        def run() -> None:
+            with _CHECKING:
+                if TC.record(ep, take) is not None:
+                    self._take_event(ep, take)
+            # a retry step waits for these checks: it can go now
+            self.queue.nudge()
+        threading.Thread(target=run, name=f"takecheck {take.shot} t{take.take:02d}").start()
+
+    def _check_line(self, ep: str, line: dict, n: int, target, backend_name: str, local, retry,
+                    tried: list) -> None:
+        """A line's take checked (linecheck) on a thread of its own, as a video take's are; a run
+        that asked for retries goes on: another take of a line that failed, while it has tries and
+        costs nothing (or may), else the best of its takes picked."""
+        if not CHECK_TAKES:
+            return
+        from seriesmith import linecheck as LC
+        from seriesmith import lines as LN
+        from seriesmith import targets as TG
+        lid = line["id"]
+
+        def run() -> None:
+            with _CHECKING:
+                c = LC.record(ep, lid, n, line["text"])
+            self._emit("seriesmith.lines", {"ep": ep, "line": lid, "take": n, "status": "ok"})
+            if retry is None or not (retry.tries > 0 or tried[:-1]):
+                return
+            paid = TG.is_hosted(target.spec) or TG.runs_partner(target)
+            if c and c.get("flags") and retry.tries > 0 and (not paid or retry.paid):
+                from seriesmith import retries as RT
+                try:
+                    self.enqueue_line(ep, line, target, backend_name, local,
+                                      RT.Plan(retry.tries - 1, False, retry.paid), tried)
+                    return
+                except Exception:                    # noqa: BLE001  can't queue: keep the best so far
+                    pass
+            best = LN.pick_best(ep, lid, tried, LC.score)
+            if best is not None:
+                self._emit("seriesmith.lines", {"ep": ep, "line": lid, "take": best, "status": "ok"})
+        threading.Thread(target=run, name=f"linecheck {lid} t{n:02d}").start()
 
     def _take_event(self, ep: str, take: T.Take) -> None:
         t = T.get_take(take_root(take), take.pass_, take.shot, take.take) or take

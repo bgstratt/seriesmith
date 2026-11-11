@@ -73,7 +73,7 @@
               "tier": "accelerator", "keep": ["(\\d+)[_-]?steps?"], "exclude": ["*sla*"],
               "class_type": "LoraLoaderModelOnly", "field": "lora_name", "folder": "loras"},
     "text_encoder": {"family": "qwen3vl-32b", "patterns": ["*qwen3*vl*32b*"], "tier": "required"},
-    "video_vae": {"family": "minimax-h3-video-vae", "patterns": ["*h3*video*vae*"], "tier": "required"},
+    "video_vae": {"family": "minimax-h3-video-vae", "prefer": ["*h3*video*vae*fp16*", "*h3*video*vae*"], "patterns": ["*h3*video*vae*"], "tier": "required"},
     "audio_vae": {"family": "minimax-h3-audio-vae", "patterns": ["*h3*audio*vae*"], "tier": "required"},
     "_voice_note": "clone shots only (`policies`): the lines are made by LTX-2.5 audio-only (ltx2_voice's files and families) before H3 dubs them. Optional: a ComfyUI without them renders every other shot; a clone shot is refused and says what to download.",
     "voice_model": {"family": "ltx2.5", "patterns": ["ltx-2.5*", "*ltx*2.5*", "*ltx*2_5*"], "tier": "optional",

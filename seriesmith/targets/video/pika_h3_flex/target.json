@@ -2,6 +2,7 @@
   "id": "pika_h3_flex",
   "kind": "video",
   "label": "Pika H3 Flex (Ref2VA)",
+  "retry": {"_note": "A render that asked for retries and whose takes kept failing their checks (takecheck) renders once more on `fallback`, from the failed take's first frame as its first keyframe (api's retry step): the same model family, led by a frame instead of the pictures.", "fallback": "pika_h3_flex_fl2va"},
   "short": "Pika Flex",
   "_note": "Pika's post-training of MiniMax H3 REF2VA into a six-step generator (Pika H3 Flex, 2026-10-29): minimax_h3_ref2va's graph, files and compile with the Flex LoRA (pika_h3_flex_ref2va_v1_bf16.safetensors, strength 1.0, no turbo LoRA stacked) and the sampling of ComfyUI's video_pika_h3_flex_ref2va template: LCM on its six manual sigmas, no MiniMaxH3SigmaShift. The LoRA is the MiniMax H3 Community License's, as H3 is.",
   "code": "compile.py",
@@ -222,6 +223,7 @@
     },
     "video_vae": {
       "family": "minimax-h3-video-vae",
+      "prefer": ["*h3*video*vae*fp16*", "*h3*video*vae*"],
       "patterns": [
         "*h3*video*vae*"
       ],

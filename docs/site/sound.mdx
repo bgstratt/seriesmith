@@ -209,6 +209,10 @@ move it. A cue's tempo is fitted so its hits fall on bar lines.
 
 - **Levels**: each lane's fader (dB), **M** mute and **S** solo. Music starts at -12 dB, so the
   score sits under the lines. The series config's `sound.tracks` sets a show's defaults.
+- **Level the lines** (the Dialogue lane's menu, beside Voices only): each speaking shot's lines
+  brought to the same level as the others, the middle of them, at most 9 dB up or down, so a
+  quiet take and a loud one sit together. Shots with no lines keep their level. The export's log
+  says what moved ("sh190 +3.2"). Off until you tick it.
 - **Ducking**: music and ambience dip under speech (music -9 dB, ambience -6 dB), worked out
   from the dialogue track, the same in Play all and the export.
 - **Duck regions**: right-click a lane ▸ **Duck region here** for a stretch where the music
@@ -224,7 +228,8 @@ move it. A cue's tempo is fitted so its hits fall on bar lines.
 **Export ▾ ▸ Export** (or `seriesmith assemble`) renders the mix into the episode: every track at its level and ducking, brought to
 the loudness target (the series config's `sound.loudness`, else -16 LUFS and -1 dBTP), with the
 **stems** beside it (`<cut>_stems/`: one per track, `me` for music and effects without the
-dialogue, and `mix`) and a loudness report. **Export ▾ ▸ Premiere / Resolve XML** lays the same
+dialogue, and `mix`), a loudness report, and the lines as subtitles (`<cut>.srt` and `<cut>.vtt`,
+see [FINISHING.md](/finishing), "Subtitles"). **Export ▾ ▸ Premiere / Resolve XML** lays the same
 on separate tracks for an editor to finish. See [COMMANDS.md](/commands), "assemble", and
 [FINISHING.md](/finishing) for the loudness.
 

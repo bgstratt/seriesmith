@@ -121,6 +121,9 @@ export interface LineTake {
   file?: string;
   seconds?: number;
   error?: string;
+  /** what its checks found (seriesmith/linecheck.py): "words", "long", "gap"; absent: not checked */
+  checks?: { flags: string[]; seconds: number; expected: number; gap: number;
+             words?: { heard?: string; match?: number; why?: string } };
 }
 
 export interface LineRow {
@@ -543,6 +546,8 @@ export interface Api {
   /** A shot's first / last keyframe from a frame of a video take (continuity);
    * returns the keyframe ref as `refs` lists it. */
   refsKeyframe(req: RefKeyframeRequest): Promise<Ref>;
+  /** POST /seriesmith/render/fallback: the take's shot on its target's fallback (FL2VA) from a first frame. */
+  renderFallback(req: { ep: string; pass: Pass; shot: string; take: number; backend?: string | null }): Promise<{ did: string; frame: string | null; target: string | null; lines: string[] }>;
   /** DELETE /seriesmith/refs/pick: unpick a ref (its live file is removed; its takes
    * stay). For a keyframe this is Clear: the shot renders without one. */
   refsUnpick(ep: string, ref: string, view?: string | null): Promise<Ref>;
@@ -617,7 +622,7 @@ export interface Api {
   /** What an episode's lines are, and what generating them would make: costs nothing. */
   lines(ep: string, target?: string | null): Promise<LinesPlan>;
   /** Paid: `confirm_chars` is the total the person was shown. */
-  generateLines(req: { ep: string; confirm_chars: number; lines?: string[]; who?: string; target?: string }): Promise<{ queued: { line: string; take: number; job: string }[]; errors: { line: string; error: string }[] }>;
+  generateLines(req: { ep: string; confirm_chars: number; lines?: string[]; who?: string; target?: string; retry?: { tries: number; paid?: boolean } }): Promise<{ queued: { line: string; take: number; job: string }[]; errors: { line: string; error: string }[] }>;
   /** A character's whole file, cut into a take per line: costs nothing but Whisper. */
   characterLines(ep: string, who: string, file: File): Promise<{ job: unknown }>;
   pickLine(ep: string, line: string, take: number): Promise<{ ok: boolean }>;
@@ -1146,6 +1151,7 @@ export function createHttpApi(t: Transport): Api {
     refsMatch: (ep, names) => call("POST", "/seriesmith/refs/match", { ep, names }),
     refsDiscard: ({ ep, ref, view, take }) => call("POST", "/seriesmith/refs/discard", view ? { ep, ref, view, take } : { ep, ref, take }),
     refsKeyframe: (req) => call("POST", "/seriesmith/refs/keyframe", req),
+    renderFallback: (req) => call("POST", "/seriesmith/render/fallback", req),
     refsUnpick: (ep, ref, view) => call("DELETE", `/seriesmith/refs/pick?${qs({ ep, ref, view: view || undefined })}`),
     putRefDefaults: (ep, fields) => call("PUT", "/seriesmith/refs/defaults", { ep, ...fields }),
 

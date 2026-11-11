@@ -67,7 +67,7 @@ class HeadcountTest(unittest.TestCase):
         self.assertEqual(
             headcount(["ada", "bo"]),
             "Exactly two characters appear in this shot: <Subject 1> and <Subject 2>. "
-            "They are different characters, and never duplicates of one another.")
+            "They are different characters, each with their own face and clothes.")
 
     def test_three_characters(self):
         self.assertIn("Exactly three characters appear in this shot: <Subject 1>, "
@@ -92,13 +92,13 @@ class HeadcountTest(unittest.TestCase):
         self.assertTrue(line.startswith("<Subject 1> and <Subject 2> each appear exactly "
                                         "once in this shot."), line)
         self.assertIn("two customers at the counter", line)
-        self.assertIn("never duplicates of them", line)
+        self.assertIn("strangers each with their own face, build and clothes", line)
         self.assertNotIn("Exactly two characters", line)
 
     def test_extras_with_one_character_reads_singular(self):
         line = headcount(["ada"], extras="a crowd on the pavement")
         self.assertTrue(line.startswith("<Subject 1> appears exactly once in this shot."), line)
-        self.assertIn("nothing like that character", line)
+        self.assertIn("strangers each with their own face, build and clothes", line)
 
     def test_extras_with_no_one_named_still_reach_the_prompt(self):
         """A shot of a prop with villagers behind it: no headcount to rewrite, so the
@@ -112,8 +112,8 @@ class HeadcountTest(unittest.TestCase):
         """--render-anyway: an unreferenced character is in frame, in words."""
         line = headcount(["ada"], _unreferenced=["bo"])
         self.assertEqual(line, "Exactly two characters appear in this shot: <Subject 1> "
-                               "and Bo. They are different characters, and never "
-                               "duplicates of one another.")
+                               "and Bo. They are different characters, each with their own "
+                               "face and clothes.")
 
     def test_the_per_subject_clause_only_describes_its_picture(self):
         lines = defs_of(["ada", "bo"])
@@ -170,7 +170,7 @@ class GroupTest(unittest.TestCase):
         self.assertEqual(
             headcount(["ada", "ladies"]),
             "Exactly five characters appear in this shot: <Subject 1> and the four members "
-            "of <Subject 2>. Each appears exactly once, and none is a duplicate of another.")
+            "of <Subject 2>. Each appears exactly once, each with their own face and clothes.")
 
     def test_extras_drop_the_count_with_a_group_too(self):
         line = headcount(["ada", "ladies"], extras="dancers on the floor")

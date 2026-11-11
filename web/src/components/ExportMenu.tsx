@@ -2,10 +2,14 @@
 // review mp4, with the series titles, or as an XML timeline for an editor, each
 // from the takes or their upscales (2x); and Master.
 
+import { useEffect, useState } from "react";
 import { checkThenExport, masterCut } from "../actions";
+import { api } from "../host";
 import type { ExportRun } from "../lib/exportCheck";
 import { store, useApp } from "../store";
 import { OverlayMenu } from "./CutMenu";
+import { Dialog } from "./Dialogs";
+import { useStatus } from "./hooks";
 
 const close = () => store.set({ exportMenu: null });
 
@@ -47,10 +51,44 @@ export function ExportMenu() {
         <i className="pi pi-file-export" /> Premiere / Resolve XML 2x
       </button>
       <div className="h3-menu-sep" />
+      <button onClick={() => { close(); store.set({ exportReport: true }); }}
+        title="The last export's whole log: what was laid, the mix (levels, the lines levelled), the loudness, the subtitles, the picture's checks. Kept beside the takes as last_export.txt">
+        <i className="pi pi-list" /> Last export's report…
+      </button>
       <button onClick={() => { close(); masterCut(); }}
         title={`The series recipe (upscale.master) on every shot of the ${pass} cut, then the master assembled into the episode's master folder, with the intro and outro when the show's _titles has them`}>
         <i className="pi pi-video" /> Master…
       </button>
     </OverlayMenu>
+  );
+}
+
+/** The last export's whole log: this session's, else the one kept beside the pass's takes
+ * (<renders folder>/last_export.txt, edit.assemble_episode). */
+export function ExportReport() {
+  const open = useApp((s) => s.exportReport);
+  const ep = useApp((s) => s.ep);
+  const pass = useApp((s) => s.pass);
+  const session = useApp((s) => s.assemble.report);
+  const st = useStatus(pass);
+  const [kept, setKept] = useState<string | null>(null);
+  const folder = st?.folder;
+  useEffect(() => {
+    if (!open || !ep || !folder) return;
+    let live = true;
+    fetch(api().fileUrl(ep, `${folder}/last_export.txt`), { credentials: "same-origin" })
+      .then((r) => (r.ok ? r.text() : null)).then((t) => { if (live) setKept(t); })
+      .catch(() => { if (live) setKept(null); });
+    return () => { live = false; };
+  }, [open, ep, folder]);
+  if (!open) return null;
+  const text = kept ?? session;
+  return (
+    <Dialog title={<>Last export's report <span className="h3-muted h3-small">{pass}</span></>} wide
+      onClose={() => store.set({ exportReport: false })}>
+      {text
+        ? <pre className="h3-mono h3-small" style={{ whiteSpace: "pre-wrap", maxHeight: "70vh", overflow: "auto", margin: 0 }}>{text}</pre>
+        : <div className="h3-muted">No export of the {pass} cut yet (or it was made before reports were kept).</div>}
+    </Dialog>
   );
 }

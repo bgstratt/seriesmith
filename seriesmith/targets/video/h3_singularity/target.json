@@ -2,6 +2,7 @@
   "id": "h3_singularity",
   "kind": "video",
   "label": "H3 Singularity (a community fine-tune of H3 Ref2VA)",
+  "retry": {"_note": "A render that asked for retries and whose takes kept failing their checks (takecheck) renders once more on `fallback`, from the failed take's first frame as its first keyframe (api's retry step): the same model family, led by a frame instead of the pictures.", "fallback": "h3_singularity_fl2va"},
   "short": "Singularity",
   "_note": "AIGC-Singularity's fusion fine-tune of MiniMax H3 Ref2VA (huggingface.co/WarmBloodAban/Minimax-h3_Singularity, Apache-2.0 over H3's community licence): merged H3 checkpoints, fine-tuned and pruned for HDR clarity, distant faces and motion. It is H3 Ref2VA's architecture in its slot, so everything but the weights is Ref2VA's: the node, the prompt and compile (compile.py), the text encoder, VAEs and turbo LoRAs (its card recommends the 4-step Ref2V turbo). It ships Ref2VA weights only (no FL2VA). No default_rank: picked by name. The v2 pruned INT8 (21 GB) fits a 32 GB card beside the text encoder; the v2 bf16 (66.3 GB) and full INT8 (34 GB) don't.",
   "code": "compile.py",
@@ -224,6 +225,7 @@
     },
     "video_vae": {
       "family": "minimax-h3-video-vae",
+      "prefer": ["*h3*video*vae*fp16*", "*h3*video*vae*"],
       "patterns": [
         "*h3*video*vae*"
       ],

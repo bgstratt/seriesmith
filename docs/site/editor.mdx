@@ -367,6 +367,57 @@ under the shot.
   the shot's row: a clip from anywhere (your phone, another tool) as the shot's next take,
   in the cut. See [Takes from outside](#takes-from-outside).
 
+### Take checks
+
+Once a take finishes, seriesmith looks it over for two things a video model sometimes does
+that the script didn't ask for. It marks what it finds and changes nothing:
+
+- **cut at 0.58 s**: the picture cuts to another shot partway through, a shot asked for as
+  one continuous shot. Trim the take past it, or render another. A `continuous: multishot`
+  group's own cuts don't count.
+- **words 80%**: what was said doesn't match the shot's lines. Whisper listens to the take,
+  on the computer's processor so the graphics card stays free for rendering, and the badge
+  says how much of the script it heard. Hover it for both: the script, and what Whisper heard.
+  Whisper can mishear a name, so listen before you throw a take away. A dropped, cut short or
+  garbled line shows up here. This only runs when the model voiced the lines (Generate or
+  Clone, not a dub) and a Whisper model is downloaded (Features, Sound: **Whisper small.en** is
+  the quickest, and the Recorded dialogue line's medium.en does too).
+
+The badges are on the take in the bin and on its tile in the gallery. A check comes in a few
+seconds after the take does. It doesn't hold up the next render. A place that slowly turns
+into another during one camera move isn't a cut, so it isn't caught. Takes made before
+checks existed are checked with `seriesmith takes <episode> --check`.
+
+### Retries
+
+A render can try again by itself when a take fails its checks. In the **Render** dialog, or
+**New take like this one…**, **If a take fails its checks** sets it for the rest of the session:
+
+- **1 to 5 new seeds**: each failed take is followed by another on the same model with a new
+  seed, until one passes or the seeds are spent. Each retry's note says which take it follows
+  and why ("retry 1 after t03: a cut at 0.58 s").
+- **then from its first frame (FL2VA)**: when the seeds are spent (or with none asked for),
+  the shot renders once more on the model's first-and-last-frame version: H3 Ref2VA on H3
+  FL2VA, FastH3 Omni on FastH3 FL2VA, H3 Singularity and Pika H3 Flex on theirs. It starts
+  from a first frame, the first of these there is:
+  - the shot's own first keyframe, if it has one (one you gave, continuity, a frame you
+    picked), kept as it is;
+  - the failed take's first frame, if nothing its checks found is at its opening (no cut in
+    its first half second). Its characters and place already look right;
+  - a first frame made on the keyframe model, as **Generate first frame** does. The fallback
+    renders once it's made. If it can't be made, or the keyframe model is a paid one, the
+    retries end there.
+
+It stops as soon as a take passes. It also stops once you pick a take for the shot in the
+cut, since that choice is made. Retries run on local renders only, because each one on a
+paid backend costs. Jobs shows each retry as a step that waits for its take's checks.
+
+**Render on H3 FL2VA from its first frame** (a take's context menu, under Frames; named for
+the take's model's fallback) is the last retry asked for by hand, whatever the take's checks
+found: the same first frame, in the same order, then the render. **Use this frame as this
+shot's first frame** only sets the keyframe: the frame on screen in the viewer, else the
+take's first frame, becomes the shot's live first keyframe, for a render on FL2VA after.
+
 ### The context menu
 
 Everything you do to a shot lives here. What you do to the take comes first; the rest is in
@@ -1363,7 +1414,10 @@ The cut as an editable track, along the bottom of the page.
   says what's running (Assembling…, Adding titles…, Writing the XML…).
   **Export** assembles the pass's review cut into one mp4 (missing shots are skipped); the
   toast when it's done says its loudness against the target (see FINISHING.md, "The export's
-  loudness"), as a warning when it's off.
+  loudness"), as a warning when it's off. **Last export's report…** shows the whole log after the
+  toast has gone: what was laid, the mix and the lines levelled ("sh190 +3.2"), the loudness, the
+  subtitles and the picture's checks. It's kept as `last_export.txt` in the pass's renders folder,
+  so it's there after a reload too.
   Before anything runs it says what's wrong with the cut: shots with nothing to play (no
   take, a failed one, trims that leave nothing; and whether one is rendering now), takes
   shorter than their dialogue on the recording, and the other pass's takes standing in.

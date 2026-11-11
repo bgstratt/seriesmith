@@ -110,7 +110,7 @@ def subject_defs(book: dict, subjects: list[str], subj: dict, pic: dict, unref: 
                  "close-up)" if panels == 4 else
                  "two views (three-quarter body and a facial close-up)")
         ref_clause = (f"a character model sheet showing the SAME single character in "
-                      f"{views}. It is one character, not several.")
+                      f"{views}.")
 
     # ---- subject_definitions ------------------------------------------------
     defs: list[str] = []
@@ -173,24 +173,23 @@ def subject_defs(book: dict, subjects: list[str], subj: dict, pic: dict, unref: 
         total += sum(1 for s in unref if book[s].get("kind", "character") == "character")
         if extras:
             defs.append(f"{_and(parts)} each appear exactly once in this {scope}. The other "
-                        f"people in frame are {extras}: unnamed background figures who must "
-                        f"look nothing like them and are never duplicates of them.")
+                        f"people in frame are {extras}: unnamed background figures, strangers "
+                        f"each with their own face, build and clothes.")
         else:
             defs.append(f"Exactly {_count(total)} characters appear in this {scope}: "
-                        f"{_and(parts)}. Each appears exactly once, and none is a duplicate "
-                        f"of another.")
+                        f"{_and(parts)}. Each appears exactly once, each with their own face "
+                        f"and clothes.")
     elif people and extras:
         defs.append(f"{_and(people)} {'appears' if len(people) == 1 else 'each appear'} "
                     f"exactly once in this {scope}. The other people in frame are {extras}: "
-                    f"unnamed background figures who must look nothing like "
-                    f"{'them' if len(people) > 1 else 'that character'} and are never "
-                    f"duplicates of {'them' if len(people) > 1 else 'that character'}.")
+                    f"unnamed background figures, strangers each with their own face, build "
+                    f"and clothes.")
     elif len(people) == 1:
         defs.append(f"Exactly one character appears in this {scope}: {people[0]}.")
     elif people:
         defs.append(f"Exactly {_count(len(people))} characters appear in this {scope}: "
-                    f"{_and(people)}. They are different characters, and never duplicates "
-                    f"of one another.")
+                    f"{_and(people)}. They are different characters, each with their own "
+                    f"face and clothes.")
     elif extras:
         # no one named, only props or vehicles: the extras are the only people,
         # and with no count to replace they were left out altogether
@@ -220,7 +219,7 @@ def framing_sentence(shot: dict, subjects: list[str], subj: dict, unref: list[st
         else:
             soft = f"a magnified, softly focused part of {place}, recognizably the same place"
         where = (f"{frame} frames {who}{held}{fill}. Behind them, the frame "
-                 f"is filled by {soft}, never a plain studio backdrop; the rest of the space lies "
+                 f"is filled by {soft}; the rest of the space lies "
                  f"outside the frame." if who else
                  f"{frame} holds on a detail of {place}; the rest of the space lies outside "
                  f"the frame.")
@@ -302,8 +301,7 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
         defs.append(
             f"{bg_subj} is the background, defined by <{plate_slot}> — a tightly cropped, "
             f"magnified portion of the background behind the subject, thrown completely out of "
-            f"focus. It gives only the colours and light behind the subject; no objects, "
-            f"furniture or architecture are drawn.")
+            f"focus. It gives only soft color and light behind the subject.")
     elif not no_plate:
         defs.append(
             f"{bg_subj} is the location, defined by <{plate_slot}> — a background plate of {env}. "
@@ -388,15 +386,13 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
             f"{bg_subj} (appears in [Shot 1]): partially_preserved - the background is a "
             f"tightly cropped, zoomed-in part of the location directly behind the subject: its "
             f"color palette and lighting direction are retained at close range, completely "
-            f"blurred into soft bokeh, while the rest of the space falls outside the frame. The "
-            f"plain backdrop of a reference image is never used as the background.")
+            f"blurred into soft bokeh, while the rest of the space falls outside the frame.")
     elif close:
         ret.append(
             f"{bg_subj} (appears in [Shot 1]): partially_preserved - the background is a "
             f"zoomed-in crop of the location: the surfaces, objects, color palette and "
             f"lighting direction directly behind the subject are retained at close range, "
-            f"while the rest of the space falls outside the frame. The plain backdrop of a "
-            f"reference image is never used as the background.")
+            f"while the rest of the space falls outside the frame.")
     else:
         ret.append(
             f"{bg_subj} (appears in [Shot 1]): partially_preserved - the layout, color palette "

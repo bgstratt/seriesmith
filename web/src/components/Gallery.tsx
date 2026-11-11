@@ -17,7 +17,7 @@ import {
   GALLERY_GROUPS, gallerySections, isShared, itemAspect, searchRefSections, searchShotSections, sequencesOf, shotSections, takeAspect,
   type GalleryItem, type SharedTakes, type ShotItem,
 } from "../lib/gallery";
-import { fmtWhen, shortName, tn } from "../lib/format";
+import { checkBadges, fmtWhen, shortName, tn } from "../lib/format";
 import { isKeyframeRef, keyframeSource } from "../lib/keyframes";
 import { regenerateRequest } from "../lib/refSettings";
 import { useZoom } from "../lib/zoom";
@@ -222,8 +222,11 @@ function GalleryWindow({ ep, g }: { ep: string | null; g: GalleryState }) {
         items: s.items.map((it) => ({
           key: it.key, thumb: it.take.thumb!, aspect: takeAspect(it.take, epAspect), label: tn(it.take.take),
           // what happens in it, as the script says; the rest is in the panel when it's open
-          title: [`${it.shot.shot} ${tn(it.take.take)}${it.cut ? " · in the cut" : ""}`, it.shot.action ?? ""].filter(Boolean).join("\n"),
-          badges: [...(it.cut ? ["cut"] : []), ...(freshUp(it.take) ? ["2x"] : [])], strip: it.take.strip,
+          title: [`${it.shot.shot} ${tn(it.take.take)}${it.cut ? " · in the cut" : ""}`, it.shot.action ?? "",
+                  ...checkBadges(it.take.checks).map((c) => c.title)].filter(Boolean).join("\n"),
+          badges: [...(it.cut ? ["cut"] : []), ...(freshUp(it.take) ? ["2x"] : []),
+                   ...(it.take.checks?.flags ?? []).map((f) => (f === "cut" ? "cuts away" : f === "words" ? "words?" : `${f}?`))],
+          strip: it.take.strip,
           // the video the viewer would play: the upscale under the 2x switch
           file: (hi && freshUp(it.take)) || it.take.mp4!,
           ...(ep ? {
@@ -569,7 +572,7 @@ Drag it onto the timeline: onto a clip, it becomes that shot's take; between two
       {name && <span className="h3-gal-name">{name}</span>}
       {it.badges.length > 0 && (
         <span className="h3-gal-badges">
-          {it.badges.map((b) => <span key={b} className={isInUse(b) ? "h3-gal-in" : "h3-gal-up"}>{b}</span>)}
+          {it.badges.map((b) => <span key={b} className={isInUse(b) ? "h3-gal-in" : isCheck(b) ? "h3-gal-check" : "h3-gal-up"}>{b}</span>)}
         </span>
       )}
       <span className="h3-thumb-label">{it.label}</span>
@@ -610,6 +613,8 @@ export async function downloadAll(ep: string | null, files: string[]): Promise<v
 }
 
 const isInUse = (badge: string) => badge === "live" || badge === "cut";
+/** a take's check (takecheck) as a tile's badge: the Shots tab's take row says what and where */
+const isCheck = (badge: string) => badge === "cuts away" || badge.endsWith("?");
 
 /** A take's upscale made from it as it is now: what the 2x switch plays. */
 function freshUp(t: TakeSummary): string | null {

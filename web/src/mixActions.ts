@@ -592,3 +592,10 @@ export function deleteMixRegion(i: number): Promise<boolean> {
   const r = currentMix()?.mix.regions?.[i];
   return editMix(`Delete a duck region${r ? ` (${regionShort(r).toLowerCase()})` : ""}`, (m) => removeRegion(m, i));
 }
+
+/** The dialogue's lines levelled (mix.py level_dialogue): each speaking clip to the middle of
+ * them, within 9 dB; off leaves each take's own level. Set either way, it's kept in mix.json. */
+export function setLevelLinesMix(on: boolean): Promise<boolean> {
+  return editMix(on ? "Dialogue: lines levelled" : "Dialogue: each take's own level",
+                 (m) => ({ ...m, level: { limit_db: on ? 9 : 0 } }));
+}

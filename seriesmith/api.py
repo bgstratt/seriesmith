@@ -33,6 +33,7 @@ from seriesmith import mix as MX  # noqa: E402
 from seriesmith import peaks as PK  # noqa: E402
 from seriesmith import promote as P  # noqa: E402
 from seriesmith import refs as R  # noqa: E402
+from seriesmith import retries as RT  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
 from seriesmith import upscale as U  # noqa: E402
 from seriesmith import track as K  # noqa: E402
@@ -892,6 +893,121 @@ def _dub_step(ctx: Context, p: dict) -> str:
         spec={"step": "dub", "params": p})
 
 
+RETRY_WAIT = 300          # seconds a finished take's retry step waits for its checks
+
+
+def _retry_step(ctx: Context, p: dict) -> str:
+    """A take's retry step (POST /render's `retry`): once the take has finished and been
+    checked, the retry ladder's next rung (retries.decide): a new seed, the target's fallback
+    from the take's first frame, or nothing; each new take asks for the rest of the plan."""
+    from seriesmith import runner as RN
+    from seriesmith import takecheck as TC
+    ep, pass_, shot, n = p["ep"], p["pass"], p["shot"], int(p["take"])
+    queue = ctx.runner.queue
+
+    def wait() -> bool:
+        t = T.get_take(ep, pass_, shot, n)
+        sc = (t.sidecar or {}) if t else {}
+        if sc.get("status") == "queued":
+            return sc.get("comfy_prompt_id") in queue.alive()
+        if sc.get("status") == "ok" and TC.checks_of(sc) is None and RN.CHECK_TAKES:
+            # its checks come a few seconds after it (runner._check_take)
+            done = T._parse_time(sc.get("finished"))
+            return done is not None and (T._parse_time(T.now()) - done).total_seconds() < RETRY_WAIT
+        return False
+
+    def then(report) -> str:
+        t = T.get_take(ep, pass_, shot, n)
+        e = next((x for x in E.cut_entries(ep, pass_) if x.shot == shot), None)
+        nxt = RT.decide(t, RT.Plan.from_json(p.get("retry")), picked=bool(e and e.take is not None),
+                        attempt=int(p.get("attempt") or 1),
+                        fallback_of=lambda tid: TG.load_target(tid, "video", root=ep).retry_fallback,
+                        has_first=not _sketch_open(ep, shot))
+        report(line=f"{shot} t{n:02d}: {nxt.do if nxt.do != 'stop' else 'done'}, {nxt.why}")
+        if nxt.do == "stop":
+            return "succeeded"
+        body = {"ep": ep, "pass": pass_, "shots": [shot], "redo": True, "seed_mode": "new",
+                "target": nxt.target, "note": nxt.note, "retry": nxt.plan.to_json(),
+                "retry_attempt": int(p.get("attempt") or 1) + 1,
+                **({"backend": p["backend"]} if p.get("backend") else {})}
+        return _fallback_render(ctx, ep, pass_, shot, n, nxt, body, p, report)
+    return ctx.runner.enqueue_step(
+        f"{os.path.basename(os.path.normpath(ep))} {shot} t{n:02d}: retry if its checks fail",
+        then, info={"ep": ep, "shot": shot, "pass": pass_}, wait=wait,
+        spec={"step": "retry", "params": p})
+
+
+def _fallback_render(ctx: Context, ep: str, pass_: str, shot: str, n: int, nxt, body: dict,
+                     p: dict, report) -> str:
+    """A rung's render asked for (`body`): a fallback's after its first keyframe (`nxt.frame`):
+    "take" cuts take n's first frame live, "make" asks the keyframe model for one and leaves the
+    render to the step waiting for it (_retry_frame_step), "live" or none renders now."""
+    if nxt.frame == "take":
+        R.keyframe_from_take(R.load_series(ep), shot, "first", source_shot=shot, source_take=n,
+                             frame="first", pass_=pass_, pick=True, note=nxt.note)
+        report(line=f"{shot}'s first keyframe: t{n:02d}'s first frame")
+        ref_event(ctx, ep, f"shot:{shot}:first", None, None, "ok")
+    elif nxt.frame == "make":
+        # its first frame made on the keyframe model; the render waits for it (_retry_frame_step).
+        # A hosted keyframe model costs: only when the render said retries may
+        rid = f"shot:{shot}:first"
+        try:
+            s_ = R.load_series(ep)
+            kt = R.image_target_for(s_, R.find_ref(s_, rid))
+            if TG.is_hosted(kt.spec) and not RT.Plan.from_json(p.get("retry")).paid:
+                report(line=f"{shot}: its keyframe model ({kt.id}) is hosted and costs: the retries "
+                            "end here (make a first frame, then render it on FL2VA)")
+                return "succeeded"
+            status, data = _generate(ctx, {"ep": ep, "ref": rid, "count": 1})
+        except (ApiError, R.RefError, TG.TargetError, ValueError) as e:
+            status, data = 400, {"error": str(e)}
+        if status >= 400 or not data.get("queued"):
+            report(line=f"{shot}: no first frame could be made ({data.get('error') or 'nothing queued'}): "
+                        "the retries end here")
+            return "succeeded"
+        report(line=f"{shot}: a first frame asked of the keyframe model")
+        _retry_frame_step(ctx, {"ep": ep, "shot": shot, "take": data["queued"][0].get("take"),
+                                "render": body})
+        return "succeeded"
+    return _retry_render(ctx, shot, nxt.target, body, report)
+
+
+def _retry_render(ctx: Context, shot: str, target: str, body: dict, report) -> str:
+    """A retry's render asked for (post_render, or the host's own route)."""
+    status, data = post_render(ctx, body) if ctx.runner.ask is None         else ctx.runner.ask("/seriesmith/render", body)
+    if status >= 400 or data.get("errors"):
+        err = data.get("error") or (data.get("errors") or [{}])[0].get("error")
+        raise RuntimeError(str(err or "the render wasn't queued")[:400])
+    q = (data.get("queued") or [{}])[0]
+    report(line=f"{shot} t{int(q.get('take') or 0):02d} queued on {target}")
+    return "succeeded"
+
+
+def _retry_frame_step(ctx: Context, p: dict) -> str:
+    """A retry's fallback waiting on the first frame the keyframe model is making for it: once
+    made, it goes live (unless one was given meanwhile) and the fallback renders from it. One
+    that didn't come out ends the retries."""
+    ep, shot = p["ep"], p["shot"]
+    rid = f"shot:{shot}:first"
+
+    def then(report) -> str:
+        if _sketch_open(ep, shot):
+            s_ = R.load_series(ep)
+            ref = R.find_ref(s_, rid)
+            made = next((x for x in R.list_takes(ref, None) if x.take == p.get("take")), None)
+            if made is None or made.status != "ok":
+                report(line=f"{shot}: its first frame didn't come out: the retries end here")
+                return "succeeded"
+            R.pick_take(s_, ref, None, made.take)
+            ref_event(ctx, ep, rid, None, None, "ok")
+            report(line=f"{shot}'s first keyframe: t{made.take:02d}, just made")
+        return _retry_render(ctx, shot, p["render"]["target"], p["render"], report)
+    return ctx.runner.enqueue_step(
+        f"{os.path.basename(os.path.normpath(ep))} {shot}: fallback render once its first frame is made",
+        then, info={"ep": ep, "shot": shot, "pass": p["render"]["pass"]},
+        wait=_refs_waiting(ctx, ep, [rid]), spec={"step": "retry_frame", "params": p})
+
+
 def _sketch_open(ep: str, shot: str) -> bool:
     """Whether a shot's first frame is free for a sketch: nothing there, or the gray card."""
     from seriesmith.core import board as BD
@@ -923,7 +1039,7 @@ def _sketch_step(ctx: Context, p: dict) -> str:
 
 
 STEPS = {"clip": _clip_step, "frame": _frame_step, "views": _views_step, "dub": _dub_step,
-         "sketch": _sketch_step}
+         "sketch": _sketch_step, "retry": _retry_step, "retry_frame": _retry_frame_step}
 
 
 def rebuild_step(ctx: Context, resume: dict) -> str | None:
@@ -1534,6 +1650,17 @@ def post_render(ctx: Context, body):
             if via != "frames":
                 raise ApiError(400, 'redo_range\'s via can only be "frames"')
             redo_range["via"] = via
+    # a take that fails its checks (takecheck) rendered again: new seeds, then the target's
+    # fallback from its first frame (retries.py; a step per take, _retry_step)
+    try:
+        retry = RT.Plan.from_json(body.get("retry"))
+    except ValueError as e:
+        raise ApiError(400, str(e)) from None
+    if retry.asks and body.get("retry") is not None and ctx.runner is None:
+        raise ApiError(400, "retry needs seriesmith's queue (this host has none)")
+    attempt = body.get("retry_attempt", 1)
+    if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt < 1:
+        raise ApiError(400, "retry_attempt must be a whole number from 1")
     template = J.RenderRequest(
         shot_id="", redo=redo, seed=seed_in(body.get("seed")), seed_mode=seed_mode,
         model=_opt_str(body, "model") or None, loras=_opt_loras(body.get("loras")),
@@ -1598,6 +1725,12 @@ def post_render(ctx: Context, body):
         result["steps"] = [_dub_step(ctx, {"ep": ep, "pass": pass_, "shot": q["shot"], "take": q["take"],
                                            **({"backend": body["backend"]} if body.get("backend") else {})})
                            for q in result["queued"]]
+    if body.get("retry") is not None and retry.asks and not dub_track:
+        result["steps"] = result.get("steps", []) + [
+            _retry_step(ctx, {"ep": ep, "pass": pass_, "shot": q["shot"], "take": q["take"],
+                              "retry": retry.to_json(), "attempt": attempt,
+                              **({"backend": body["backend"]} if body.get("backend") else {})})
+            for q in result["queued"]]
     result["continuity"] = cont["cut"]
     result["continuity_at_start"] = [{"shot": w["shot"], "after": wait_reason(w)}
                                      for w in cont["wait"]]
@@ -1612,6 +1745,37 @@ def post_render(ctx: Context, body):
     if result["queued"] or any(e.get("take") for e in result["errors"]):
         episode_event(ctx, ep)
     return 200, seeds_out(result)
+
+
+@handler
+def post_render_fallback(ctx: Context, body):
+    """POST /seriesmith/render/fallback {ep, pass, shot, take, backend?}: the take's shot rendered
+    on its target's fallback (H3 Ref2VA -> H3 FL2VA, ...) from a first frame, as the retries'
+    last rung does (retries.fallback_now): the shot's own first keyframe, else the take's first
+    frame, else one made on the keyframe model (the render then waits for it, a step).
+    {"did": what was done, "lines": [what it said], "queued": [...]} """
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shot = check_shot(body.get("shot"))
+    n = check_take(body.get("take"))
+    if ctx.runner is None:
+        raise ApiError(400, "the fallback needs seriesmith's queue (this host has none)")
+    backend = _opt_backend(ctx, body)
+    t = T.get_take(ep, pass_, shot, n)
+    if t is None:
+        raise ApiError(404, f"{shot} has no {pass_} take {n}")
+    nxt = RT.fallback_now(t, lambda tid: TG.load_target(tid, "video", root=ep).retry_fallback,
+                          has_first=not _sketch_open(ep, shot))
+    if nxt.do == "stop":
+        raise ApiError(409, f"{shot} t{n:02d}: {nxt.why}")
+    lines: list[str] = []
+    render = {"ep": ep, "pass": pass_, "shots": [shot], "redo": True, "seed_mode": "new",
+              "target": nxt.target, "note": nxt.note, **({"backend": backend} if backend else {})}
+    _fallback_render(ctx, ep, pass_, shot, n, nxt, render, {"retry": nxt.plan.to_json()},
+                     lambda line=None, **_: lines.append(line) if line else None)
+    episode_event(ctx, ep)
+    return 200, {"did": nxt.why, "frame": nxt.frame, "target": nxt.target, "lines": lines}
 
 
 def wait_reason(w: dict) -> str:
@@ -4818,7 +4982,9 @@ def get_lines(ctx: Context, query):
 @handler
 def post_lines_generate(ctx: Context, body):
     """Queue a take of each line asked (`lines`: ids), else each with none that matches the script, of
-    one character with `who`. Paid on a provider. Body {ep, confirm_chars, target?, lines?, who?, backend?}:
+    one character with `who`. Paid on a provider. Body {ep, confirm_chars, target?, lines?, who?, backend?,
+    retry?}: `retry` {tries, paid?} makes another take of a line whose checks fail (linecheck), and
+    keeps the best (on a provider only with `paid`, as each costs):
     `confirm_chars` is the total the person was shown, and a different total is **409**, so what's sent
     is what was agreed. **400** naming the characters with no speaker, and nothing is sent. Returns
     {queued: [{line, take, job}], errors}."""
@@ -4847,6 +5013,11 @@ def post_lines_generate(ctx: Context, body):
     silent = sorted({r["name"] for r in rows if not r["speaker"]})
     if silent:
         raise ApiError(400, f"pick a speaker first for {', '.join(silent)}: nothing was sent")
+    # a take that fails its checks (linecheck) made again, `tries` times, the best kept
+    try:
+        retry = RT.Plan.from_json(body.get("retry")) if body.get("retry") is not None else None
+    except ValueError as e:
+        raise ApiError(400, str(e)) from None
     chars = sum(r["chars"] for r in rows)
     if body.get("confirm_chars") != chars:
         raise ApiError(409, f"that's {chars} characters now, not {body.get('confirm_chars')}: look again, nothing was sent", chars=chars)
@@ -4858,7 +5029,7 @@ def post_lines_generate(ctx: Context, body):
     for r in rows:
         try:
             name = J.backend_choice({}, r["id"], t, _opt_str(body, "backend"), ep)[0]
-            n, qid = ctx.runner.enqueue_line(ep, r, t, name, local)
+            n, qid = ctx.runner.enqueue_line(ep, r, t, name, local, retry)
             out["queued"].append({"line": r["id"], "take": n, "job": qid})
         except Exception as e:                            # noqa: BLE001  said, and the rest still go
             out["errors"].append({"line": r["id"], "error": str(e)[:400]})
@@ -7092,6 +7263,7 @@ ROUTES = [
     ("POST", "/seriesmith/refs/discard", post_refs_discard, "body"),
     ("POST", "/seriesmith/refs/generate-missing", post_refs_generate_missing, "body"),
     ("POST", "/seriesmith/refs/keyframe", post_refs_keyframe, "body"),
+    ("POST", "/seriesmith/render/fallback", post_render_fallback, "body"),
     ("POST", "/seriesmith/refs/voice-from-take", post_refs_voice_from_take, "body"),
     ("PUT", "/seriesmith/refs/override", put_refs_override, "body"),
     ("DELETE", "/seriesmith/refs/override", delete_refs_override, "query"),

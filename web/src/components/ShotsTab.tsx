@@ -5,7 +5,7 @@ import {
 } from "../actions";
 import { api, host } from "../host";
 import {
-  ESTIMATE_TITLE, cutTake, fmtSeconds, fmtWhen, groupBySequence, lengthEstimated, realStale, shotBadges, staleTitle, tn,
+  ESTIMATE_TITLE, checkBadges, cutTake, fmtSeconds, fmtWhen, groupBySequence, lengthEstimated, realStale, shotBadges, staleTitle, tn,
   upscaleBadge,
 } from "../lib/format";
 import { missingShots, passProgress, progressLine, progressTitle, staleReasons, staleShots } from "../lib/progress";
@@ -287,6 +287,7 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
   const ub = upscaleBadge(t);
   const isCut = !s.cut.placeholder && s.cut.take === t.take;
   const stale = realStale(t);
+  const checks = checkBadges(t.checks);
   const usable = t.status === "ok" && t.has_video;
   const pickBusy = useApp((st) => !!st.busy[`pick|${s.shot}`]);
   const onMenu = (e: MouseEvent) => {
@@ -328,8 +329,9 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
           </span>
           {t.seed_source && <span className="h3-muted">{t.seed_source}</span>}
         </div>
-        {(stale.length > 0 || t.overrides.length > 0) && (
+        {(stale.length > 0 || t.overrides.length > 0 || checks.length > 0) && (
           <div className="h3-badges">
+            {checks.map((c) => <span key={c.label} className={`h3-badge ${c.ok ? "h3-b-checked" : "h3-b-check"}`} title={c.title}>{c.ok ? "✓ " : ""}{c.label}</span>)}
             {stale.map((r) => <span key={r} className="h3-badge h3-b-stale" title={staleTitle([r])}>stale: {r}</span>)}
             {t.overrides.length > 0 && <span className="h3-badge h3-b-override" title={`Rendered with an override of: ${t.overrides.join(", ")}`}>ovr: {t.overrides.join(",")}</span>}
           </div>

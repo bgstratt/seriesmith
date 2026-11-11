@@ -44,6 +44,22 @@ export type TakeStatus = "queued" | "ok" | "failed";
 /** script | ref | preset, or unknown for a take from before sidecars */
 export type StaleReason = string;
 
+/** A take's checks (seriesmith/takecheck.py summary): a cut it wasn't asked for, its words. */
+export interface TakeChecks {
+  /** "cut", "words": what to look at */
+  flags: string[];
+  /** the unasked cuts, seconds into the take */
+  cuts: (number | null)[];
+  /** what Whisper heard against the script's lines, 0-1 (null: not heard) */
+  match: number | null;
+  heard: string | null;
+  want: string | null;
+  /** why the words weren't heard (no Whisper here, no sound) */
+  why: string | null;
+  /** registered checks that flagged it (takecheck.register): {name: why} */
+  more?: Record<string, string>;
+}
+
 export interface TakeSummary {
   take: number;
   status: TakeStatus;
@@ -83,6 +99,8 @@ export interface TakeSummary {
   upscale?: TakeUpscale | null;
   /** its post (post: the upscale finished; null: never post-processed; absent from older servers) */
   post?: TakePost | null;
+  /** what its checks ask to look at (takecheck; null: not checked yet, or its mp4 changed since) */
+  checks?: TakeChecks | null;
   /** Phase 13: the take's size, from its sidecar (the Upscale dialog's arithmetic) */
   width?: number | null;
   height?: number | null;
@@ -886,6 +904,10 @@ export interface RenderRequest {
   then_render?: boolean;
   /** seriesmith: render on this backend (absent: each shot's own). Only sent when set. */
   backend?: string | null;
+  /** a take that fails its checks rendered again (seriesmith/retries.py): `tries` new seeds,
+   * then once on the target's fallback from its first frame; local renders only unless `paid`.
+   * Only sent when asked for. */
+  retry?: { tries: number; fallback: boolean; paid?: boolean };
   /** frames of a take made again, the rest and its sound held; `prompt` when they
    * should ask something else than the take did. Only sent when set. */
   redo_range?: { take: number; first: number; last: number; prompt?: string };
@@ -2119,6 +2141,8 @@ export interface Target {
   /** Phase 8: what the target can use; `keyframes` lists the ends it reads ([] for none) */
   capabilities?: {
     keyframes?: string[];
+    /** where a take that keeps failing its checks goes on from a first frame (H3 Ref2VA: H3 FL2VA); null: none */
+    retry_fallback?: string | null;
     policies?: string[];
     voice_reference?: boolean;
     /** it can dub a track of its own: a take's sound, a dub track */
@@ -2736,6 +2760,9 @@ export interface Mix {
   regions?: MixRegion[];
   duck?: { threshold_db?: number; attack_ms?: number; release_ms?: number };
   loudness?: { target_lufs?: number; true_peak_db?: number };
+  /** each speaking clip's dialogue levelled to the middle of them, within limit_db (0: off);
+   * on at 9 in any mix that renders, and set it renders one for itself */
+  level?: { limit_db?: number };
   /** what you changed of a place's ambience bed (docs/SOUND.md phase 3): its level, mute */
   beds?: Record<string, MixBedSettings>;
   /** a shot's picked effects take (docs/SOUND.md phase 4), its level, mute, kept though stale */
