@@ -2692,7 +2692,12 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
         first take, ~10-20 s each; its pauses set QUIET_DB and GAP.
       - Deferred on purpose: a retry of a line seen live (nothing failed to retry; the runner's
         path is covered by tests/test_linecheck.py).
-- [ ] 7. MMAudio Foley re-tested on our own sampler (frames timed by time, 8 and 25 fps).
+- [x] 7. MMAudio Foley re-tested, and passed on (2026-11-10). kijai's ComfyUI-MMAudio sampler takes
+      the first 8 x seconds frames as MMAudio's 8 fps CLIP frames and the first 25 x seconds as its
+      25 fps sync frames (from 24 fps: a third of the shot, its sync 4% slow). A sampler taking each
+      at its moment was built and heard against the pack's way on LAST LIGHT's door, splash and
+      explosion (same seed and prompt, ~11-28 s a shot): still last of the effects models (it gave
+      Mara a bark; only the footsteps on wet ground held up). Reverted; the beds stay on MMAudio.
 - [ ] 8. Dialogue levelled per take in the mix; SRT and VTT subtitles at assemble and publish.
 - [ ] 9. A LoRAs tab in Features: Hugging Face and Civitai search, paste a link for others
       (civitai.red), the preview fetched on open, safetensors only, a sidecar with the trigger
