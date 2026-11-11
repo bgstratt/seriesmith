@@ -1,4 +1,4 @@
-import type { ShotStatus, TakeSummary } from "../types";
+import type { ShotStatus, TakeChecks, TakeSummary } from "../types";
 import { continuityBadge } from "./continuity";
 import { missingOf, missingRefsTitle } from "./missingRefs";
 
@@ -253,4 +253,26 @@ export function shortName(name: unknown, max = 36): string {
 /** A prompt as the loader joins it (a list of sections, or one string). */
 export function promptText(p: string | string[] | null | undefined): string {
   return Array.isArray(p) ? p.join("\n\n") : p ?? "";
+}
+
+/** A take's checks as badges (takecheck): a cut it wasn't asked for, words that don't match its lines. */
+export function checkBadges(c: TakeChecks | null | undefined): { label: string; title: string }[] {
+  if (!c) return [];
+  const out: { label: string; title: string }[] = [];
+  if (c.flags.includes("cut")) {
+    const at = c.cuts.filter((x): x is number => x != null).map((x) => `${x.toFixed(2)} s`);
+    out.push({ label: `cut at ${at.join(", ")}`,
+               title: `The picture cuts to another shot at ${at.join(", ")}, which the shot didn't ask for. `
+                 + "Trim the take past it, or render another." });
+  }
+  if (c.flags.includes("words") && c.match != null) {
+    out.push({ label: `words ${Math.round(c.match * 100)}%`,
+               title: `What Whisper heard doesn't match the script's lines (${Math.round(c.match * 100)}%).
+`
+                 + `Script: ${c.want ?? ""}
+Heard: ${c.heard ?? ""}
+`
+                 + "Listen to it: Whisper can mishear a name, but a line dropped or garbled shows here." });
+  }
+  return out;
 }

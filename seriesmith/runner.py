@@ -21,10 +21,16 @@ import threading
 
 from seriesmith import color as COL
 from seriesmith import jobs as J
+from seriesmith import takecheck as TC
 from seriesmith import takes as T
 from seriesmith.queue import Job as QJob
 from seriesmith.queue import Queue
 from seriesmith.core import fileio as F
+
+# a finished take is checked (takecheck) after it's recorded; SERIESMITH_TAKE_CHECKS=0 turns
+# that off (tests/conftest.py does)
+CHECK_TAKES = os.environ.get("SERIESMITH_TAKE_CHECKS", "1") != "0"
+_CHECKING = threading.Lock()
 
 # The API request being handled on this thread ({"path", "body"}; views.py
 # sets it): each job it queues keeps it, so a job still waiting in the queue
@@ -218,6 +224,7 @@ class Runner:
                                      on_status=self._remote(qjob, take.paths.sidecar, report))
                 if status == "ok":
                     COL.record_look(take)                # the timeline's colour check reads it
+                    self._check_take(ep, take)
             except Exception as e:                       # noqa: BLE001  the take fails
                 J.mark_failed(take, str(e)[:800])
                 qjob.error = str(e)[:800]
@@ -291,6 +298,7 @@ class Runner:
                         report(line=res["note"])
                 status = H.render(job, take, report, H.dub_audio(job))
                 COL.record_look(take)
+                self._check_take(ep, take)
                 if job.notes:
                     had = (T.read_sidecar(take.paths.sidecar) or {}).get("notes") or []
                     T.update_sidecar(take.paths.sidecar, notes=list(had) + list(job.notes))
@@ -1040,6 +1048,7 @@ class Runner:
             got = RD.collect_run(take, run, status, res)
             if got == "ok":
                 COL.record_look(take)
+                self._check_take(ep, take)
             return got
         if kind == "ref":
             s = R.load_series(ep)
@@ -1085,6 +1094,19 @@ class Runner:
         self._attach(qjob.title, qjob.record, qjob.resume or {}, backend, run_id,
                      "it had finished after all")
         return True
+
+    def _check_take(self, ep: str, take: T.Take) -> None:
+        """A finished take's checks (takecheck: a cut it wasn't asked for, its words) on a thread
+        of their own, one take at a time: Whisper takes a few seconds, which the queue's next job
+        doesn't wait for. The editor hears of the take again once they're recorded."""
+        if not CHECK_TAKES:
+            return
+
+        def run() -> None:
+            with _CHECKING:
+                if TC.record(ep, take) is not None:
+                    self._take_event(ep, take)
+        threading.Thread(target=run, name=f"takecheck {take.shot} t{take.take:02d}").start()
 
     def _take_event(self, ep: str, take: T.Take) -> None:
         t = T.get_take(take_root(take), take.pass_, take.shot, take.take) or take

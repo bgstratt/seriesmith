@@ -44,6 +44,20 @@ export type TakeStatus = "queued" | "ok" | "failed";
 /** script | ref | preset, or unknown for a take from before sidecars */
 export type StaleReason = string;
 
+/** A take's checks (seriesmith/takecheck.py summary): a cut it wasn't asked for, its words. */
+export interface TakeChecks {
+  /** "cut", "words": what to look at */
+  flags: ("cut" | "words")[];
+  /** the unasked cuts, seconds into the take */
+  cuts: (number | null)[];
+  /** what Whisper heard against the script's lines, 0-1 (null: not heard) */
+  match: number | null;
+  heard: string | null;
+  want: string | null;
+  /** why the words weren't heard (no Whisper here, no sound) */
+  why: string | null;
+}
+
 export interface TakeSummary {
   take: number;
   status: TakeStatus;
@@ -83,6 +97,8 @@ export interface TakeSummary {
   upscale?: TakeUpscale | null;
   /** its post (post: the upscale finished; null: never post-processed; absent from older servers) */
   post?: TakePost | null;
+  /** what its checks ask to look at (takecheck; null: not checked yet, or its mp4 changed since) */
+  checks?: TakeChecks | null;
   /** Phase 13: the take's size, from its sidecar (the Upscale dialog's arithmetic) */
   width?: number | null;
   height?: number | null;

@@ -458,7 +458,8 @@ seriesmith voices Shows\ep05 --list                # each shot's stem: ok, missi
 ### Takes, picks and overrides
 
 ```
-seriesmith takes    Shows\ep05 --proxy          # every take: status, seed, why stale, which is in the cut
+seriesmith takes    Shows\ep05 --proxy          # every take: status, seed, why stale, which is in the cut, its checks
+seriesmith takes    Shows\ep05 --check          # check the takes made before checks were (a cut, their words)
 seriesmith pick     Shows\ep05 sh020 1          # the cut uses take 1 of sh020 (writes cut.json)
 seriesmith pick     Shows\ep05 sh020 latest     # back to the newest usable take
 seriesmith override Shows\ep05 sh020 --dump-prompt > sh020.txt     # the prompt it would use

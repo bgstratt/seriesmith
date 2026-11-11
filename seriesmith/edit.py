@@ -82,6 +82,7 @@ from seriesmith import color as COL
 from seriesmith import hold as HO
 from seriesmith import jobs as J
 from seriesmith import peaks as PK
+from seriesmith import takecheck as TC
 from seriesmith import takefiles as TF
 from seriesmith import takes as T
 from seriesmith import upscale as U
@@ -711,6 +712,8 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                 "upscale": upscale_summary(root, t, cache),
                 # its post (post; null: never post-processed)
                 "post": post_summary(root, t),
+                # what its checks ask to look at (takecheck; null: not checked)
+                "checks": TC.summary(t.sidecar, t.paths.mp4, _listed_size(t, t.paths.mp4)),
             } for t in takes],
         })
         if not e.orphan and not e.out:
@@ -1558,6 +1561,46 @@ def reorder_cut(root: str, pass_: str, shots: list[str]) -> dict:
     head = [entries[_find(entries, s, pass_)] for s in shots]
     rest = [e for e in entries if e.shot not in set(shots)]
     return write_cut(root, pass_, _entries_json(head + rest, pass_))
+
+
+def check_takes(root: str, pass_: str, only: set[str] | None = None, redo: bool = False,
+                say=None) -> dict:
+    """Check (takecheck.record) every finished take of the pass that has no checks yet, or
+    every one with `redo`: takes made before checks were. {"checked", "had"}."""
+    checked = had = 0
+    for sid in J.script_order(root):
+        if only and sid not in only:
+            continue
+        for t in T.list_takes(root, pass_, sid):
+            if t.status != "ok":
+                continue
+            if not redo and TC.checks_of(t.sidecar, t.paths.mp4) is not None:
+                had += 1
+                continue
+            c = TC.record(root, t)
+            if c is not None:
+                checked += 1
+                if say:
+                    say(f"  {sid} t{t.take:02d}  {check_line(TC.summary(t.sidecar)) or 'ok'}")
+    return {"checked": checked, "had": had}
+
+
+def check_line(summary: dict | None) -> str:
+    """A take's checks as `seriesmith takes` prints them: what to look at, or ""."""
+    if not summary or not summary.get("flags"):
+        return ""
+    out = []
+    if "cut" in summary["flags"]:
+        out.append("CUT at " + ", ".join(f"{x:.2f}s" for x in summary["cuts"] if x is not None))
+    if "words" in summary["flags"]:
+        out.append(f"WORDS {summary['match']:.2f}: heard \"{summary.get('heard') or ''}\"")
+    return "check: " + "; ".join(out)
+
+
+def _listed_size(t: T.Take, path: str) -> int | None:
+    """A take's file's size from its folder's listing, when it was listed from one (no stat)."""
+    got = (t.files or {}).get(os.path.basename(path)) if t.files is not None else None
+    return got[0] if got else None
 
 
 def measure_looks(root: str, pass_: str) -> dict:
@@ -2853,8 +2896,15 @@ def cmd_takes(root: str, argv: list[str]) -> int:
     ap.add_argument("--no-sweep", action="store_true",
                     help="don't ask ComfyUI which queued takes are still running")
     ap.add_argument("--comfy", default="http://127.0.0.1:8188")
+    ap.add_argument("--check", action="store_true",
+                    help="check the takes that haven't been (a cut, their words): takes made before checks were")
+    ap.add_argument("--recheck", action="store_true", help="check every take again")
     args = ap.parse_args(argv)
     pass_ = _pass(args)
+    if args.check or args.recheck:
+        only = {s.strip() for s in args.only.split(",")} if args.only else None
+        got = check_takes(root, pass_, only, redo=args.recheck, say=print)
+        print(f"  checked {got['checked']} take(s), {got['had']} had been")
     if not args.no_sweep:
         n = sweep(root, pass_, args.comfy)
         if n > 0:
@@ -2888,7 +2938,7 @@ def cmd_takes(root: str, argv: list[str]) -> int:
                     if t["seed"] is not None else "no sidecar")
             bits = [f"t{t['take']:02d}", f"{t['status']:<7}", f"{seed:<30}",
                     ("stale: " + ",".join(stale)) if stale else "", mark,
-                    t["note"]]
+                    check_line(t.get("checks")), t["note"]]
             print("      " + "  ".join(b for b in bits if b))
         if c["placeholder"]:
             print(f"      <- cut uses {c['pass']} t{c['take']:02d} as a placeholder"

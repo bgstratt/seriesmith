@@ -363,6 +363,27 @@ under the shot.
   the shot's row: a clip from anywhere (your phone, another tool) as the shot's next take,
   in the cut. See [Takes from outside](#takes-from-outside).
 
+### Take checks
+
+Once a take finishes, seriesmith looks it over for two things a video model sometimes does
+that the script didn't ask for. It marks what it finds and changes nothing:
+
+- **cut at 0.58 s**: the picture cuts to another shot partway through, a shot asked for as
+  one continuous shot. Trim the take past it, or render another. A `continuous: multishot`
+  group's own cuts don't count.
+- **words 80%**: what was said doesn't match the shot's lines. Whisper listens to the take,
+  on the computer's processor so the graphics card stays free for rendering, and the badge
+  says how much of the script it heard. Hover it for both: the script, and what Whisper heard.
+  Whisper can mishear a name, so listen before you throw a take away. A dropped, cut short or
+  garbled line shows up here. This only runs when the model voiced the lines (Generate or
+  Clone, not a dub) and a Whisper model is downloaded (Features, Sound: **Whisper small.en** is
+  the quickest, and the Recorded dialogue line's medium.en does too).
+
+The badges are on the take in the bin and on its tile in the gallery. A check comes in a few
+seconds after the take does. It doesn't hold up the next render. A place that slowly turns
+into another during one camera move isn't a cut, so it isn't caught. Takes made before
+checks existed are checked with `seriesmith takes <episode> --check`.
+
 ### The context menu
 
 Everything you do to a shot lives here. What you do to the take comes first; the rest is in

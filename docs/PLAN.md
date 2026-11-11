@@ -2640,12 +2640,21 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
       gradients band on skin zoomed in (the user, 2026-11-10); fp16 stays the download.
 - [x] 3b. FastH3's sparse attention at 864x480 x 124 frames, two shots x two seeds: keep 10%
       (trained), 20% and dense look near-identical; 10% and 20% ~25 s, dense ~32 s. Keep 10%.
-- [ ] 4. Take checks, after a take renders (CPU, no model in VRAM), shown as badges first and
-      the thresholds tuned on real takes before anything acts on them:
-      - a cut the shot didn't ask for (a scene change mid-take: frame-difference spikes);
-      - a keyframe held (FL2VA's first or last frame frozen for many frames);
-      - the longest uncut stretch;
-      - the words: Whisper (small, CPU) on a take that speaks lines, against the script's words.
+- [x] 4. Take checks (`takecheck.py`), recorded in the take's sidecar on a thread of their own
+      once it finishes, badges in the bin and the gallery, `seriesmith takes --check` for older
+      takes (EDITOR.md "Take checks"). Measured on 213 takes on this machine:
+      - a cut it wasn't asked for: `scdet` at 256 wide, ~0.2 s a take; real cuts scored 12.6-54,
+        a flash, fast running and a whip pan 10.6 at most: the line is 12. A multishot group's
+        own cuts don't count;
+      - its words: Whisper small.en on the CPU, ~1.7 s a take, against the shot's lines, when the
+        model voiced them. LAST LIGHT's speaking takes all matched; Dean's sh010 t06 heard
+        "window owl" for "little owl" (0.80, flagged below 0.85);
+      - a held keyframe: dropped, none found (every FL2VA take moved from its first frame; a
+        still start or end only flagged takes that settle on purpose);
+      - not caught: a place that drifts into another during one camera move (FastH3 sh020, seed
+        1002: street to rooftop with no cut). Would need the take compared with its plate.
+      - [ ] Live: a render's checks arriving in the editor; the cut's trims (a cut before the
+        in point is already trimmed off: LAST LIGHT's sh210 and sh220 in the cut).
 - [ ] 5. A retry ladder (opt-in): a failed check renders the next seed, up to N; then a Ref2VA
       shot falls through to FL2VA with the failed take's first frame as its first keyframe
       (`refs.keyframe_from_take`). Never over a circled take; hosted retries ask first. Also an
