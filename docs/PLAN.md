@@ -2688,7 +2688,10 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
       sit 20-33 dB down, the longest 1.35 s); the Lines window's **If a
       line fails its checks**: 1-5 more takes, new seeds, the best kept; local models only (a
       provider's with `paid`). Any voice model, Drama 3 the first in mind.
-      - [ ] Live: Drama 3 lines on LAST LIGHT's copy; the thresholds against its real stalls.
+      - Live (2026-11-10): Drama 3 on a copy of LAST LIGHT, four lines, every word heard on the
+        first take, ~10-20 s each; its pauses set QUIET_DB and GAP.
+      - Deferred on purpose: a retry of a line seen live (nothing failed to retry; the runner's
+        path is covered by tests/test_linecheck.py).
 - [ ] 7. MMAudio Foley re-tested on our own sampler (frames timed by time, 8 and 25 fps).
 - [ ] 8. Dialogue levelled per take in the mix; SRT and VTT subtitles at assemble and publish.
 - [ ] 9. A LoRAs tab in Features: Hugging Face and Civitai search, paste a link for others
