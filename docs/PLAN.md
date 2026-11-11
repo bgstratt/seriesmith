@@ -2698,7 +2698,13 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
       at its moment was built and heard against the pack's way on LAST LIGHT's door, splash and
       explosion (same seed and prompt, ~11-28 s a shot): still last of the effects models (it gave
       Mara a bark; only the footsteps on wet ground held up). Reverted; the beds stay on MMAudio.
-- [ ] 8. Dialogue levelled per take in the mix; SRT and VTT subtitles at assemble and publish.
+- [x] 8. Dialogue levelled per take in the mix (`mix.level_dialogue`, the Dialogue lane's **Level the
+      lines**, mix.json `level.limit_db`: off by default, on at 9): each speaking clip's speech level
+      (50 ms windows within 30 dB of its loudest) to the middle of them, ramped 20 ms at the joins.
+      Live on a copy of LAST LIGHT: -18.7 dBFS, sh190 +3.2, the rest within 1 dB.
+      SRT and VTT subtitles (`subtitles.py`; FINISHING.md "Subtitles"): assemble writes the lines
+      beside the cut, timed by the words heard in each clip's sound (the take checks' and align's
+      `.words.json`), publish carries them shifted by the intro. Live: 4 of 4 timed.
 - [ ] 9. A LoRAs tab in Features: Hugging Face and Civitai search, paste a link for others
       (civitai.red), the preview fetched on open, safetensors only, a sidecar with the trigger
       words, which a shot's prompt then carries.

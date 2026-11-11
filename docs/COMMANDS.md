@@ -22,7 +22,7 @@ failed exits 1.
 | `seriesmith promote <episode>` | Overrides moved into the script or the series config |
 | `seriesmith issues <episode>` | The pass's notepad (`--add <shot> <note>`, `--export`, `--clear`, `--resolve <id>`) |
 | `seriesmith align <episode> <recording>` | The script timed against a dialogue recording (`--vocals`: from its vocal stem, made on local ComfyUI first) |
-| `seriesmith assemble <episode>` | The review cut |
+| `seriesmith assemble <episode>` | The review cut, its mix and the lines as subtitles (`<cut>.srt`, `.vtt`; `--no-subtitles`) |
 | `seriesmith fx <episode> --shots sh010,…` | A shot's effects (sync sound) made from the frames of the take the cut plays, on the Effects track (`--proxy`, `--target`, `--takes`, `--pick`, `--list`) |
 | `seriesmith score-draft <episode>` | A first-pass score from the script's `// structure:` and `// beat:` lines: draft cues with their sections, themes and hits, shown; written with `--write` (`--proxy`, `--replace`, `--keep-sound`) |
 | `seriesmith voices <episode>` | The cut's takes split into their voice stems (the model's music and room tone taken off), for the mix's voices only (`--proxy`, `--shots`, `--redo`, `--list`) |

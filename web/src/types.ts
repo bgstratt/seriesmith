@@ -2760,6 +2760,9 @@ export interface Mix {
   regions?: MixRegion[];
   duck?: { threshold_db?: number; attack_ms?: number; release_ms?: number };
   loudness?: { target_lufs?: number; true_peak_db?: number };
+  /** each speaking clip's dialogue levelled to the middle of them, within limit_db (0: off);
+   * on at 9 in any mix that renders, and set it renders one for itself */
+  level?: { limit_db?: number };
   /** what you changed of a place's ambience bed (docs/SOUND.md phase 3): its level, mute */
   beds?: Record<string, MixBedSettings>;
   /** a shot's picked effects take (docs/SOUND.md phase 4), its level, mute, kept though stale */

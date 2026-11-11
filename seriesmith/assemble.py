@@ -822,6 +822,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="write the cut as an FCP7 XML timeline (<cut>.xml, for Premiere, Resolve "
                          "and the like) instead of an mp4: each clip its take's own file, in and "
                          "out where the cut uses it; nothing encoded, missing shots skipped")
+    ap.add_argument("--no-subtitles", action="store_true",
+                    help="don't write the lines as subtitles (<cut>.srt, <cut>.vtt) beside the cut")
     ap.add_argument("--no-mix", action="store_true",
                     help="leave the episode's mix (mix.json: effects, ambience, music, levels) "
                          "out: each clip's own sound, as it always was")
@@ -1460,6 +1462,18 @@ def main(argv: list[str] | None = None) -> int:
             except RuntimeError as e:
                 print(f"\n  the mix failed: {e}\n", file=sys.stderr)
                 return 1
+        if r.returncode == 0 and not args.no_subtitles:
+            # the lines as subtitles, timed by the words heard in each clip's sound (subtitles.py)
+            from seriesmith import subtitles as SUB
+            try:
+                cs = SUB.cues(root, plan, MX.shot_origins(plan), fps)
+                made = SUB.write(os.path.splitext(out_path)[0], cs)
+                if made:
+                    timed = sum(1 for c in cs if c["timed"])
+                    print(f"  subtitles: {len(cs)} lines, {timed} timed by their words "
+                          f"({', '.join(os.path.basename(m) for m in made)})")
+            except Exception as e:                       # noqa: BLE001  the cut stands without them
+                print(f"  ! subtitles: {str(e)[:200]}; none written")
         if r.returncode == 0 and args.intermediate == "prores":
             mov = os.path.splitext(out_path)[0] + ".mov"
             say(args.progress, "prores", text=os.path.basename(mov))

@@ -125,6 +125,16 @@ DUCK_DEFAULT = {"effects": 0.0, "ambience": -6.0, "music": -9.0}
 GAIN_DEFAULT = {"dialogue": 0.0, "effects": 0.0, "ambience": 0.0, "music": -12.0}
 DUCK = {"threshold_db": -45.0, "attack_ms": 60.0, "release_ms": 450.0}
 LOUDNESS = {"target_lufs": -16.0, "true_peak_db": -1.0}
+# each speaking clip's dialogue brought to the speaking clips' middle level, within limit_db
+# (0: off, the default), before the faders and the ducking (level_dialogue). The Dialogue
+# lane's Level the lines sets LEVEL_ON; set, it renders a mix for itself (active)
+LEVEL = {"limit_db": 0.0}
+LEVEL_ON = 9.0
+LEVEL_WINDOW = 0.05          # seconds per level reading
+LEVEL_GATE = 30.0            # dB under a clip's loudest window: quieter isn't speech
+LEVEL_FLOOR = -60.0          # dBFS: nothing quieter is speech
+LEVEL_MIN = 0.5              # seconds of speech a clip needs to be measured
+LEVEL_RAMP = 0.02            # seconds a level change takes at a join
 # room under the ceiling for the AAC the mix is muxed as: CupsMV ep01's mix, limited to -1.5 at
 # 48 kHz, measured -0.5 dBTP in the export (docs/SOUND.md phase 5)
 LOSSY_MARGIN_DB = 1.0
@@ -144,8 +154,8 @@ HIT_FIELDS = ("id", "name", "at", "kind", "must")
 # the frame, the peak arriving there, the music cutting out or thinning, a change of key
 # or mood; accent is the default
 HIT_KINDS = ("accent", "arrive", "drop", "turn")
-MIX_FIELDS = ("tracks", "items", "hits", "regions", "duck", "loudness", "beds", "fx", "track_list",
-              "voices")
+MIX_FIELDS = ("tracks", "items", "hits", "regions", "duck", "loudness", "level", "beds", "fx",
+              "track_list", "voices")
 TRACK_LIST_FIELDS = ("id", "kind", "label")
 BED_FIELDS = ("gain_db", "mute")
 FX_FIELDS = ("take", "gain_db", "mute", "keep_stale", "trim_in", "trim_out", "fade_in", "fade_out",
@@ -488,7 +498,8 @@ def check(raw) -> dict:
     for key, defaults, bounds in (
             ("duck", DUCK, {"threshold_db": (-80.0, 0.0), "attack_ms": (1.0, 2000.0),
                             "release_ms": (1.0, 5000.0)}),
-            ("loudness", LOUDNESS, {"target_lufs": (-40.0, -5.0), "true_peak_db": (-9.0, 0.0)})):
+            ("loudness", LOUDNESS, {"target_lufs": (-40.0, -5.0), "true_peak_db": (-9.0, 0.0)}),
+            ("level", LEVEL, {"limit_db": (0.0, 18.0)})):
         given = raw.get(key)
         if given is None:
             continue
@@ -498,7 +509,9 @@ def check(raw) -> dict:
         for k, (lo, hi) in bounds.items():
             if given.get(k) is not None:
                 v = _num(given[k], f"{key}'s {k}", lo, hi)
-                if v != defaults[k]:
+                # a level set is kept as set: setting it (at the default too) is what turns
+                # the levelling on for an episode with no other mix (active)
+                if v != defaults[k] or key == "level":
                     o[k] = v
         if o:
             out[key] = o
@@ -566,7 +579,8 @@ def active(mix: dict) -> bool:
     mute, or voices only (on the track, or for a shot)."""
     return bool(any(not i.get("mute") for i in mix.get("items") or []) or any(
         t.get("gain_db") or t.get("mute") or t.get("solo")
-        for t in (mix.get("tracks") or {}).values()) or voices_any(mix))
+        for t in (mix.get("tracks") or {}).values()) or voices_any(mix)
+        or (mix.get("level") or {}).get("limit_db"))
 
 
 def voices_only(mix: dict | None, shot: str | None = None) -> bool:
@@ -811,6 +825,81 @@ def render_item(item: dict, origins: dict, total: int, fps: float, root: str):
     return s0, buf
 
 
+def speech_level(buf, rate: int = RATE) -> float | None:
+    """A stretch of dialogue's speech level, dB (full scale): the mean power of its LEVEL_WINDOW
+    readings within LEVEL_GATE dB of its loudest and above LEVEL_FLOOR; None with less than
+    LEVEL_MIN seconds of them (no speech to level)."""
+    np = _np()
+    w = max(1, int(rate * LEVEL_WINDOW))
+    k = len(buf) // w
+    if k == 0:
+        return None
+    mono = buf[:k * w].astype(np.float64)
+    mono = mono.mean(1) if mono.ndim == 2 else mono
+    power = (mono.reshape(k, w) ** 2).mean(1)
+    db = 10 * np.log10(np.maximum(power, 1e-12))
+    keep = db[(db >= db.max() - LEVEL_GATE) & (db >= LEVEL_FLOOR)]
+    if len(keep) * LEVEL_WINDOW < LEVEL_MIN:
+        return None
+    return float(10 * np.log10((10 ** (keep / 10)).mean()))
+
+
+def level_dialogue(buf, spans: list[tuple[str, int, int]], limit_db: float, rate: int = RATE,
+                   log=print) -> dict[str, float]:
+    """Each speaking clip's dialogue (`spans`: (shot, first sample, end)) brought to the middle
+    of their speech levels (speech_level), at most `limit_db` up or down, in place, the change
+    ramped over LEVEL_RAMP at each join; a clip with no speech in it is left. {shot: dB}."""
+    np = _np()
+    if limit_db <= 0 or not spans:
+        return {}
+    levels = {}
+    for shot, a, b in spans:
+        lv = speech_level(buf[a:b], rate)
+        if lv is not None:
+            levels[shot] = lv
+    if len(levels) < 2:
+        return {}
+    middle = float(np.median(list(levels.values())))
+    gains = {shot: max(-limit_db, min(limit_db, middle - lv)) for shot, lv in levels.items()}
+    g = np.zeros(len(buf), dtype=np.float32)
+    for shot, a, b in spans:
+        if shot in gains:
+            g[a:b] = gains[shot]
+    ramp = max(1, int(rate * LEVEL_RAMP))
+    if ramp > 1:
+        g = np.convolve(np.pad(g, (ramp // 2, ramp - 1 - ramp // 2), mode="edge"),
+                        np.ones(ramp, dtype=np.float32) / ramp, mode="valid")[:len(buf)]
+    buf *= _db(g)[:, None]
+    moved = {s: round(v, 1) for s, v in gains.items() if abs(v) >= 0.5}
+    if moved:
+        log(f"  sound: dialogue levelled to {middle:.1f} dBFS speech: "
+            + ", ".join(f"{s} {v:+.1f}" for s, v in moved.items()))
+    return {s: round(v, 2) for s, v in gains.items()}
+
+
+def speech_spans(origins: dict, fps: float, n: int, speaking: set[str] | None,
+                 rate: int = RATE) -> list[tuple[str, int, int]]:
+    """Each clip of the cut whose shot speaks (`speaking`; None: every one) as samples."""
+    out = []
+    for shot, o in origins.items():
+        if speaking is not None and shot not in speaking:
+            continue
+        a = max(0, round((o["origin"] + o["first"]) / fps * rate))
+        b = min(n, round((o["origin"] + o["first"] + o["used"]) / fps * rate))
+        if b > a:
+            out.append((shot, a, b))
+    return out
+
+
+def speaking_shots(root: str) -> set[str] | None:
+    """The script's shots with lines (lines.script_shots); None when it can't be read."""
+    try:
+        from seriesmith import lines as LN
+        return {s["id"] for s in LN.script_shots(root) if s["lines"]}
+    except Exception:                                    # noqa: BLE001  every clip, then
+        return None
+
+
 def speech_curve(dialogue, duck: dict, rate: int = RATE):
     """How much someone is speaking in each WINDOW_S window, 0..1: the dialogue's level
     against the threshold, eased in over the attack and out over the release. `dialogue`
@@ -957,6 +1046,9 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
     own = decode(dialogue_src)
     bufs["dialogue"][: min(n, len(own))] = own[:n]
     del own
+    level = {**LEVEL, **(mix.get("level") or {})}
+    level_dialogue(bufs["dialogue"], speech_spans(origins, fps, n, speaking_shots(root)),
+                   level["limit_db"], log=log)
     bt, ft = bed_track(mix), fx_track(mix)
     if beds:
         if bt:
