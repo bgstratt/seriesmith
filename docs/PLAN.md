@@ -2641,6 +2641,10 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
 - [x] 3b. FastH3's sparse attention at 864x480 x 124 frames, two shots x two seeds: keep 10%
       (trained), 20% and dense look alike in framing and motion; 10% and 20% ~25 s, dense ~32 s.
       Faces held truest at 20%, then 10%, dense worst (the user, 2026-11-10): FastH3 keeps 20%.
+      Ref2VA's SLA at 1344x768 (8-step turbo LoRA), the same shots and seeds: keep 10 / 15 / 20 %
+      / dense, 61-79 / 66-76 / 72-82 / 130-142 s a take; PSNR against 15%: 10% and 20% 17-25 dB,
+      dense 14-22 (each a different take in its detail, the running shot in its path too). Ref2VA
+      stays at 15% (sparsity 0.85), what its turbo LoRA is trained with.
 - [x] 4. Take checks (`takecheck.py`), recorded in the take's sidecar on a thread of their own
       once it finishes, badges in the bin and the gallery, `seriesmith takes --check` for older
       takes (EDITOR.md "Take checks"). Measured on 213 takes on this machine:
