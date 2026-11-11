@@ -2705,6 +2705,10 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
       SRT and VTT subtitles (`subtitles.py`; FINISHING.md "Subtitles"): assemble writes the lines
       beside the cut, timed by the words heard in each clip's sound (the take checks' and align's
       `.words.json`), publish carries them shifted by the intro. Live: 4 of 4 timed.
+      - Found with it (DeanStories ep16, the user's ear): the export's sound slid later at every
+        join, ~45 ms a clip, a second by the 20th (sh186's line over sh183): the concat copied
+        each clip's AAC with its encoder priming. assemble.rejoin_sound lays each clip's sound at
+        its own frames after the join; tests/test_assemble.py holds it.
 - [ ] 9. A LoRAs tab in Features: Hugging Face and Civitai search, paste a link for others
       (civitai.red), the preview fetched on open, safetensors only, a sidecar with the trigger
       words, which a shot's prompt then carries.

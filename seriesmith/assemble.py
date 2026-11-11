@@ -370,6 +370,48 @@ def clip_track(src: str | None, dst: str, spec: dict, seconds: float,
                            f"{r.stderr.decode('utf-8', 'replace')[-300:]}")
 
 
+def rejoin_sound(out: str, clips: list[tuple[str, int]], fps: float, tmp: str) -> str | None:
+    """The joined cut's sound made again from its clips, each decoded alone and cut or padded
+    to exactly its frames, then laid under the cut's picture (copied). The concat demuxer
+    copies each clip's AAC with its encoder priming, which nothing then skips: every join
+    put the sound a few dozen milliseconds later, a second over 20 clips (DeanStories ep16,
+    2026-11-10: sh186's line over sh183). None when done, else why it wasn't (the cut keeps
+    its joined sound)."""
+    if not clips or audio_format(out) is None:
+        return None
+    rate, ch = audio_format(out)
+    parts = []
+    for k, (path, frames) in enumerate(clips):
+        wav = os.path.join(tmp, f"rejoin_{k:04d}.wav")
+        secs = frames / fps
+        if audio_format(path) is None:
+            silence_wav(wav, secs, rate, ch)
+        else:
+            r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", path, "-vn", "-map", "0:a:0",
+                     "-af", f"atrim=end={secs:.6f},apad", "-t", f"{secs:.6f}",
+                     "-ar", str(rate), "-ac", str(ch), "-c:a", "pcm_s16le", wav])
+            if r.returncode != 0:
+                return f"{os.path.basename(path)}'s sound: {r.stderr.decode('utf-8', 'replace')[-200:]}"
+        parts.append(wav)
+    joined = os.path.join(tmp, "rejoin.wav")
+    listing = os.path.join(tmp, "rejoin.txt")
+    with open(listing, "w", encoding="utf-8") as fh:
+        fh.writelines(f"file '{p.replace(os.sep, '/')}'\n" for p in parts)
+    r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", listing,
+             "-c:a", "pcm_s16le", joined])
+    if r.returncode != 0:
+        return "joining the clips' sound: " + r.stderr.decode("utf-8", "replace")[-200:]
+    total = sum(f for _, f in clips) / fps
+    tmp_out = os.path.join(tmp, "rejoined.mp4")
+    r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", out, "-i", joined,
+             "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+             "-t", f"{total:.6f}", tmp_out], timeout=1800)
+    if r.returncode != 0:
+        return "laying it under the picture: " + r.stderr.decode("utf-8", "replace")[-200:]
+    shutil.move(tmp_out, out)
+    return None
+
+
 def normalise(src: str, dst: str, audio_wav: str | None, fps: float,
               frames: int = 0, layout: tuple[int, int] | None = None) -> None:
     """Give every clip an audio track so the concat demuxer can copy streams.
@@ -1429,6 +1471,12 @@ def main(argv: list[str] | None = None) -> int:
             n = len(needs) if selective is not None else len(plan)
             print(f"  re-encoded {n} clip(s)"
                   + (f", copied {len(plan) - n}" if selective is not None else ""))
+        if r.returncode == 0 and args.audio not in ("none", "master", "recording"):
+            # each clip's sound at its own frames: the concat's copy lets them slip (rejoin_sound)
+            say(args.progress, "sound", text="laying the sound at each clip's frames")
+            why = rejoin_sound(out_path, clips, fps, tmp)
+            if why:
+                print(f"  ! the sound kept as joined ({why}): it may run late by the end")
         if r.returncode == 0 and args.audio in ("master", "recording"):
             # under `recording` the mix below then takes this as its dialogue track
             track = doc.get("defaults", {}).get("master_track", "")

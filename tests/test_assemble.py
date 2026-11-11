@@ -136,6 +136,31 @@ class AssembleTest(unittest.TestCase):
         self.assertEqual(self.order(), [("sh010", 2), ("sh020", 1)])
         self.assertEqual(probe_frames(self.out()), 61)
 
+    def test_the_sound_stays_on_its_clips_over_many_joins(self):
+        """Clips with sound and mute ones in turn: the mute ones get silence made for them, and
+        the join copied each clip's AAC with its encoder priming, so the sound slid later at
+        every join (a second over 20 clips, DeanStories ep16). rejoin_sound lays each clip's
+        sound at its own frames: the last mute clip is silent from its first frame."""
+        import numpy as np
+        mute = os.path.join(self.root, "_mute.mp4")
+        self.assertEqual(ff(*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", self.clips[("64x64", 22)],
+                            "-an", "-c:v", "copy", mute).returncode, 0)
+        shots = [(f"sh{(i + 1) * 10:03d}", 22) for i in range(10)]
+        self.shotlist(shots)
+        for i, (sid, n) in enumerate(shots):
+            t = T.reserve_take(self.root, "final", sid, {"status": "queued"})
+            shutil.copy(mute if i % 2 else self.clips[("64x64", 22)], t.paths.mp4)
+            T.update_sidecar(t.paths.sidecar, status="ok", frames=n)
+        self.assemble("--no-mix", "--no-subtitles", "--no-checks")
+        r = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-i", self.out(), "-vn", "-ac", "1",
+                            "-ar", "44100", "-f", "f32le", "-"], capture_output=True, timeout=120)
+        a = np.abs(np.frombuffer(r.stdout, np.float32))
+        start = round(9 * 22 / 24 * 44100)                 # the last clip, a mute one
+        late = a[start + 441:start + round(0.25 * 44100)]   # its first quarter second, less 10 ms
+        self.assertLess(float(late.max()), 1e-3, "the clip before's sound runs into it")
+        before = a[start - round(0.25 * 44100):start - 441]
+        self.assertGreater(float(before.mean()), 0.05, "the clip before plays its sound to its end")
+
     def test_progress_lines(self):
         # --progress, read as master reads it (edit.run_tool): every step in
         # order, none of it in the log
@@ -157,7 +182,8 @@ class AssembleTest(unittest.TestCase):
                                      ("clips", 2, 2, "sh020")])
         # (the loudness check on the mp4, docs/SOUND.md phase 5, and the picture's checks,
         # docs/FINISHING.md "The export's checks", between)
-        self.assertEqual([s[0] for s in steps[6:]], ["join", "loudness", "checks", "verify"])
+        # (the sound laid again at each clip's frames after the join: assemble.rejoin_sound)
+        self.assertEqual([s[0] for s in steps[6:]], ["join", "sound", "loudness", "checks", "verify"])
         self.assertIn("checks: ", out)
         ck = T.read_json(os.path.splitext(self.out())[0] + "_checks.json")
         self.assertEqual(set(ck), {"black", "frozen", "flashes", "explained", "rules", "ok", "verdict"})
