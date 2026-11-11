@@ -178,7 +178,7 @@
     },
     "video_vae": {
       "family": "minimax-h3-video-vae",
-      "prefer": ["*h3*video*vae*int8*", "*h3*video*vae*"],
+      "prefer": ["*h3*video*vae*fp16*", "*h3*video*vae*"],
       "patterns": [
         "*h3*video*vae*"
       ],
