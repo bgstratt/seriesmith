@@ -2679,7 +2679,7 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
         checks land seconds after the take's job ends, and the queue only looked again when a
         job started or ended): the checks nudge it now, and a queue with a job waiting on a test
         looks again every 5 s.
-      - [ ] Live: a failed take retried and fallen through to FL2VA.
+      - [x] Live: a failed take fallen through to FL2VA (LAST LIGHT sh270, 2026-11-10).
       - Later: language models in seriesmith beyond MCP (a VLM's look at a take among them), to
         talk over once this list is through (the user, 2026-11-10).
 - [x] 6. Line checks and retries (`linecheck.py`, runner._check_line; RECORDED_DIALOGUE.md "Line
@@ -2709,9 +2709,9 @@ Each fits a 32 GB card and 64 GB of RAM. In order:
         join, ~45 ms a clip, a second by the 20th (sh186's line over sh183): the concat copied
         each clip's AAC with its encoder priming. assemble.rejoin_sound lays each clip's sound at
         its own frames after the join; tests/test_assemble.py holds it.
-- [ ] 9. A LoRAs tab in Features: Hugging Face and Civitai search, paste a link for others
-      (civitai.red), the preview fetched on open, safetensors only, a sidecar with the trigger
-      words, which a shot's prompt then carries.
+- [ ] 9. Set aside for now (the user, 2026-11-11): a LoRAs tab in Features: Hugging Face and
+      Civitai search, paste a link for others (civitai.red), the preview fetched on open,
+      safetensors only, a sidecar with the trigger words, which a shot's prompt then carries.
 
 Dropped: ComfyUI `/free` calls (ComfyUI frees memory itself), coverage, memory tables. Later:
 painting a plate.
