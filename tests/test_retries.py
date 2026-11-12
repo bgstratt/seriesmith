@@ -107,10 +107,11 @@ class DecideTest(unittest.TestCase):
         self.assertFalse(RT.Plan.from_json(None).asks)
 
     def test_each_ref2va_family_target_falls_back_to_its_fl2va(self):
-        self.assertEqual({t: fallback_of(t) for t in ("minimax_h3_ref2va", "fasth3_omni", "h3_singularity",
+        self.assertEqual({t: fallback_of(t) for t in ("minimax_h3_ref2va", "fasth3_omni", "h3_singularity", "h3_hybrid",
                                                       "pika_h3_flex", "minimax_h3_fl2va")},
                          {"minimax_h3_ref2va": "minimax_h3_fl2va", "fasth3_omni": "fasth3_fl2va",
-                          "h3_singularity": "h3_singularity_fl2va", "pika_h3_flex": "pika_h3_flex_fl2va",
+                          "h3_singularity": "h3_singularity_fl2va", "h3_hybrid": "minimax_h3_fl2va",
+                          "pika_h3_flex": "pika_h3_flex_fl2va",
                           "minimax_h3_fl2va": None})
         for t in ("minimax_h3_fl2va", "fasth3_fl2va", "h3_singularity_fl2va", "pika_h3_flex_fl2va"):
             TG.load_target(t, "video")                      # each one is there

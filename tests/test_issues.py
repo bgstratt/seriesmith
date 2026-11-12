@@ -300,6 +300,105 @@ class TestResolveAndClear(IssuesCase):
         self.assertEqual(len(I.list_issues(self.ep, "proxy")), 1)
 
 
+class TestCategories(IssuesCase):
+    def test_a_note_is_filed_and_made_by_a_person(self):
+        item = I.add(self.ep, "proxy", self.first_shot(), "lines over the scrubs",
+                     category="artifact")
+        self.assertEqual((item["category"], item["source"]), ("artifact", "human"))
+        self.assertEqual(self.file()["items"][0]["category"], "artifact")
+
+    def test_left_unfiled(self):
+        item = I.add(self.ep, "proxy", self.first_shot(), "x")
+        self.assertIsNone(item["category"])
+        self.assertIsNone(I.add(self.ep, "proxy", self.first_shot(), "x", category="")["category"])
+
+    def test_a_category_not_on_the_list(self):
+        with self.assertRaises(I.IssueError) as cm:
+            I.add(self.ep, "proxy", self.first_shot(), "x", category="vibes")
+        self.assertEqual(cm.exception.status, 400)
+        self.assertIn("other", str(cm.exception))
+        self.assertIsNone(self.file())
+
+    def test_a_source_not_on_the_list(self):
+        with self.assertRaises(I.IssueError):
+            I.add(self.ep, "proxy", self.first_shot(), "x", source="oracle")
+        self.assertEqual(I.add(self.ep, "proxy", self.first_shot(), "x",
+                               source="dailies")["source"], "dailies")
+
+    def test_the_list_has_an_out(self):
+        self.assertEqual(I.CATEGORY_IDS[-1], "other")
+        self.assertEqual(len(set(I.CATEGORY_IDS)), len(I.CATEGORY_IDS))
+
+    def test_the_category_is_in_the_export(self):
+        I.add(self.ep, "proxy", self.first_shot(), "x", category="light")
+        self.assertIn(" · light", I.export_markdown(self.ep, "proxy"))
+
+
+class TestHistory(IssuesCase):
+    def test_nothing_until_a_note_leaves(self):
+        I.add(self.ep, "proxy", self.first_shot(), "x")
+        self.assertEqual(I.history(self.ep), [])
+        self.assertFalse(os.path.exists(I.history_path(self.ep)))
+
+    def test_it_lives_beside_the_series_config(self):
+        self.assertEqual(I.history_path(self.ep), os.path.join(self.ep, "_history.jsonl"))
+        show = os.path.join(self._tmp.name, "show")
+        ep = os.path.join(show, "ks01")
+        shutil.move(self.ep, ep)
+        shutil.move(os.path.join(ep, "series.json"), os.path.join(show, "series.json"))
+        self.assertEqual(I.history_path(ep), os.path.join(show, "_history.jsonl"))
+
+    def test_resolved_with_nothing_changed_is_dismissed(self):
+        item = I.add(self.ep, "proxy", self.first_shot(), "too dark", category="light")
+        I.resolve(self.ep, [item["id"]])
+        (h,) = I.history(self.ep)
+        self.assertEqual((h["id"], h["category"], h["ended"]), (item["id"], "light", "dismissed"))
+        self.assertEqual(h["episode"], "ks01")
+        self.assertEqual(h["script"], item["script"])        # the snapshot goes with it
+        self.assertIn("ended_when", h)
+        self.assertNotIn("addressed", h)
+
+    def test_a_newer_take_is_rerendered(self):
+        shot = self.first_shot()
+        I.add(self.ep, "proxy", shot, "x", take=1)
+        T.reserve_take(self.ep, "proxy", shot, {"status": "ok", "ep": self.ep})
+        T.reserve_take(self.ep, "proxy", shot, {"status": "ok", "ep": self.ep})
+        self.assertEqual(I.clear(self.ep, addressed_only=True), 1)
+        self.assertEqual(I.history(self.ep)[0]["ended"], "rerendered")
+
+    def test_a_rebuilt_shot_is_rebuilt(self):
+        shot = self.first_shot()
+        I.add(self.ep, "proxy", shot, "x")
+        text = self.script_text()
+        start = text.index(f"## {shot}")
+        end = text.index("## ", start + 3)
+        self.write_script(text[:start] + text[end:])
+        self.assertTrue(E.build_episode(self.ep)["ok"])
+        I.clear(self.ep)
+        self.assertEqual(I.history(self.ep)[0]["ended"], "rebuilt")
+
+    def test_it_is_only_added_to(self):
+        a = I.add(self.ep, "proxy", self.first_shot(), "a", category="morph")
+        b = I.add(self.ep, "proxy", self.first_shot(), "b", category="light")
+        I.resolve(self.ep, [a["id"]])
+        I.clear(self.ep)
+        self.assertEqual([x["id"] for x in I.history(self.ep)], [a["id"], b["id"]])
+        self.assertEqual([x["id"] for x in I.history(self.ep, category="light")], [b["id"]])
+        with io.open(I.history_path(self.ep), "rb") as fh:
+            self.assertNotIn(b"\r\n", fh.read())
+
+    def test_a_bad_line_is_skipped(self):
+        I.resolve(self.ep, [I.add(self.ep, "proxy", self.first_shot(), "a")["id"]])
+        with io.open(I.history_path(self.ep), "a", encoding="utf-8") as fh:
+            fh.write("{half a line\n")
+        I.resolve(self.ep, [I.add(self.ep, "proxy", self.first_shot(), "b")["id"]])
+        self.assertEqual([x["note"] for x in I.history(self.ep)], ["a", "b"])
+
+    def test_resolving_nothing_writes_nothing(self):
+        self.assertEqual(I.resolve(self.ep, ["nope"]), 0)
+        self.assertFalse(os.path.exists(I.history_path(self.ep)))
+
+
 class TestExport(IssuesCase):
     def test_markdown_carries_the_note_and_what_produced_it(self):
         shot = self.first_shot()
@@ -404,6 +503,19 @@ class TestCli(IssuesCase):
         out = self.run_cli("--resolve", item["id"])
         self.assertIn("1 resolved", out.stdout)
         self.assertEqual(I.list_issues(self.ep), [])
+
+    def test_category_and_history(self):
+        shot = self.first_shot()
+        out = self.run_cli("--proxy", "--add", shot, "a lattice", "--category", "artifact")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("[artifact]", out.stdout)
+        out = self.run_cli("--proxy", "--add", shot, "x", "--category", "vibes")
+        self.assertEqual(out.returncode, 1)
+        self.run_cli("--clear")
+        out = self.run_cli("--history")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn("a lattice", out.stdout)
+        self.assertRegex(out.stdout, r"artifact\s+0\s+0\s+1")
 
     def test_an_empty_notepad_says_so(self):
         out = self.run_cli("--proxy")

@@ -15,7 +15,7 @@ import type {
   ColorMatch,
   MatchBy,
   AlignJob, AlignReady, AlignRequest, AlignResult, AssembleOptions, AssembleResult, BrowseFiles, BrowseResult, BuildResult, CancelResult, ComfyQueue, Config, CutEntry,
-  CutFile, CutWhat, DiscardResult, EpisodeStatus, EpisodeSummary, ClipQueueResult, EpisodeTargetResult, EpisodeTemplate, Issue, IssueAddRequest, ModelList, NewEpisodeRequest,
+  CutFile, CutWhat, DiscardResult, EpisodeStatus, EpisodeSummary, ClipQueueResult, EpisodeTargetResult, EpisodeTemplate, Issue, IssueAddRequest, IssueCategory, ModelList, NewEpisodeRequest,
   ImportSeriesRequest, ImportSeriesResult, XmlImportRequest, XmlImportSummary, XmlImportUpload, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
   PeaksResult, PickRequest, Ref, RefDefaults, RefDiscardRequest, RefGenerateMissingRequest, RefGenerateMissingResult, RefGenerateRequest,
   RefGenerateResult, RefImportRequest, RefKeyframeRequest, RefList, RefMatchResult, RefOverrideInfo, RefOverrideRequest, RefPickRequest, RefPickResult,
@@ -537,6 +537,8 @@ export interface Api {
   clearIssues(ep: string, pass?: Pass | null, addressedOnly?: boolean): Promise<Issue[]>;
   /** GET /seriesmith/issues/export: the markdown to hand to an assistant. */
   exportIssues(ep: string, pass?: Pass | null): Promise<string>;
+  /** GET /seriesmith/issues/categories: what a note can be filed as, in order. */
+  issueCategories(): Promise<IssueCategory[]>;
   /** P8: POST /seriesmith/refs/match -- which slot each file name means. Read-only,
    * names only (no file bodies), so the table can be shown before anything is sent. */
   refsMatch(ep: string, names: string[]): Promise<RefMatchResult>;
@@ -1148,6 +1150,8 @@ export function createHttpApi(t: Transport): Api {
     ).then((r) => r.issues),
     exportIssues: (ep, pass) => get<{ text: string }>(`/seriesmith/issues/export?${qs({ ep, pass: pass || undefined })}`)
       .then((r) => r.text),
+    issueCategories: () => get<{ categories: IssueCategory[] }>("/seriesmith/issues/categories")
+      .then((r) => r.categories),
     refsMatch: (ep, names) => call("POST", "/seriesmith/refs/match", { ep, names }),
     refsDiscard: ({ ep, ref, view, take }) => call("POST", "/seriesmith/refs/discard", view ? { ep, ref, view, take } : { ep, ref, take }),
     refsKeyframe: (req) => call("POST", "/seriesmith/refs/keyframe", req),

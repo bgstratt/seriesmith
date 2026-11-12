@@ -9,7 +9,10 @@ series config, render again. The notes are **spent** at that point.
     add(ep, pass_, shot, note)      -> the issue, snapshotted
     list_issues(ep, pass_)          -> the issues, newest last, each with `addressed`
     export(ep, pass_)               -> markdown to paste into an assistant
-    resolve(ep, ids) / clear(ep)    -> they are gone; the file is removed when empty
+    resolve(ep, ids) / clear(ep)    -> they are gone from the notepad (the file is
+                                       removed when empty), kept in the show's history
+    history(ep)                     -> every note resolved or cleared, with how it ended
+    CATEGORIES / SOURCES            -> what a note can be filed as, and who made it
 
 Everything lives in `<ep>/_issues.json`, which does not exist until the first
 note and is meant to be emptied. It is the only store: the markdown is generated
@@ -26,6 +29,13 @@ An issue whose shot has since been rebuilt or re-rendered reads `addressed`.
 That is computed on every read, never written, and nothing is deleted behind
 your back: `clear(addressed_only=True)` is how the list empties.
 
+**Nothing is lost when the notepad empties.** A note resolved or cleared is appended
+to the show's history, `_history.jsonl` beside `series.json` (only ever added to, one
+note a line), stamped with how it ended: `rebuilt` (its shot's script or the series
+config changed), `rerendered` (a newer take), or `dismissed` (dropped with nothing
+changed). Counted by `category`, that is what shows which problems keep coming back,
+and whether a script edit or only a new take fixed them (docs/DAILIES.md).
+
 Stdlib only.
 """
 from __future__ import annotations
@@ -39,11 +49,38 @@ from seriesmith import edit as E  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import source as H  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
+from seriesmith.core import fileio as F  # noqa: E402
+from seriesmith.core import paths as P  # noqa: E402
 
 ISSUES_FILE = "_issues.json"
+HISTORY_FILE = "_history.jsonl"     # beside series.json: the show's, every episode's
 DEFAULT_PASS = "proxy"          # the pass a review starts from
 VERSION = 1
 MAX_NOTE = 4000
+
+# What a note is filed as: one list, which the editor's note box offers, so notes count
+# together whoever made them. A note may have none (left empty, not guessed); `other`
+# is for what fits none of the rest.
+CATEGORIES = (
+    ("identity", "the wrong face or person"),
+    ("wardrobe", "clothes or props unlike their reference"),
+    ("place", "a setting unlike the plate, or something appearing from nowhere"),
+    ("light", "light or look unlike the prompt or the plate"),
+    ("morph", "a shape changing, or a body malformed"),
+    ("artifact", "the render itself breaking: a lattice, lines, smears, an overlay"),
+    ("action", "the action not as written"),
+    ("camera", "the move or framing not as written"),
+    ("count", "too many or too few people or things"),
+    ("cut", "a cut inside the take"),
+    ("lipsync", "the mouth against the speech"),
+    ("text", "lettering in the picture"),
+    ("performance", "the acting: delivery, reactions, how people play off each other"),
+    ("other", "anything else"),
+)
+CATEGORY_IDS = tuple(c for c, _ in CATEGORIES)
+# who made a note: a person, a review by a vision-language model, a take check
+SOURCES = ("human", "dailies", "check")
+ENDINGS = ("rebuilt", "rerendered", "dismissed")
 
 
 class IssueError(Exception):
@@ -58,6 +95,12 @@ class IssueError(Exception):
 
 def issues_path(ep: str) -> str:
     return os.path.join(ep, ISSUES_FILE)
+
+
+def history_path(ep: str) -> str:
+    """The show's history: beside series.json (the episode folder, else its parent),
+    else in the episode folder."""
+    return os.path.join(P.series_home(ep) or ep, HISTORY_FILE)
 
 
 def load(ep: str) -> dict:
@@ -164,12 +207,33 @@ def check_note(note) -> str:
     return note.strip()
 
 
-def add(ep: str, pass_: str, shot: str, note: str, take: int | None = None) -> dict:
-    """Note what is wrong with a shot as it was rendered. Raises IssueError 404
-    for a shot that isn't in the pass, 400 for an empty note."""
+def check_category(category) -> str | None:
+    """One of CATEGORIES, or None for a note left unfiled."""
+    if category in (None, ""):
+        return None
+    if category not in CATEGORY_IDS:
+        raise IssueError(400, f"no category {category!r}: one of {', '.join(CATEGORY_IDS)}")
+    return category
+
+
+def check_source(source) -> str:
+    if source in (None, ""):
+        return "human"
+    if source not in SOURCES:
+        raise IssueError(400, f"no source {source!r}: one of {', '.join(SOURCES)}")
+    return source
+
+
+def add(ep: str, pass_: str, shot: str, note: str, take: int | None = None,
+        category: str | None = None, source: str | None = None) -> dict:
+    """Note what is wrong with a shot as it was rendered, filed under `category` (one of
+    CATEGORIES, or None). Raises IssueError 404 for a shot that isn't in the pass, 400
+    for an empty note or a category or source not on the lists."""
     note = check_note(note)
+    category = check_category(category)
+    source = check_source(source)
     item = dict(snapshot(ep, pass_, shot, take), id=uuid.uuid4().hex[:8],
-                note=note, when=T.now())
+                note=note, category=category, source=source, when=T.now())
     data = load(ep)
     data["items"].append(item)
     save(ep, data)
@@ -179,6 +243,12 @@ def add(ep: str, pass_: str, shot: str, note: str, take: int | None = None) -> d
 def addressed(ep: str, item: dict, docs: dict | None = None) -> bool:
     """Whether the shot has moved on since the note: it was rebuilt (its story
     hash changed) or rendered again (a newer take exists). Computed on read."""
+    return how_addressed(ep, item, docs) is not None
+
+
+def how_addressed(ep: str, item: dict, docs: dict | None = None) -> str | None:
+    """`rebuilt` (the shot's story hash changed, or it left the pass), `rerendered` (a
+    newer usable take), or None when the shot hasn't moved on."""
     pass_ = item.get("pass") or DEFAULT_PASS
     shot = item.get("shot") or ""
     try:
@@ -190,14 +260,14 @@ def addressed(ep: str, item: dict, docs: dict | None = None) -> bool:
                 docs[key] = _shot_entry(ep, pass_, shot)
             entry = docs[key]
     except IssueError:
-        return True                     # the shot is gone from the pass
+        return "rebuilt"                # the shot is gone from the pass
     if item.get("shot_hash") and J.story_hash(entry) != item["shot_hash"]:
-        return True
+        return "rebuilt"
     if item.get("take"):
         newer = [t for t in T.list_takes(ep, pass_, shot)
                  if t.take > int(item["take"]) and t.status == "ok"]
-        return bool(newer)
-    return False
+        return "rerendered" if newer else None
+    return None
 
 
 def list_issues(ep: str, pass_: str | None = None) -> list[dict]:
@@ -211,16 +281,31 @@ def list_issues(ep: str, pass_: str | None = None) -> list[dict]:
     return out
 
 
+def _archive(ep: str, gone: list[dict], docs: dict) -> None:
+    """Append the notes leaving the notepad to the show's history, each stamped with
+    how it ended. Written before the notepad is, so a note is never in neither."""
+    if not gone:
+        return
+    name = os.path.basename(os.path.normpath(os.path.abspath(ep)))
+    when = T.now()
+    lines = "".join(
+        json.dumps(dict(x, episode=name, ended=how_addressed(ep, x, docs) or "dismissed",
+                        ended_when=when), ensure_ascii=False) + "\n"
+        for x in gone)
+    F.append_text(history_path(ep), lines)
+
+
 def resolve(ep: str, ids: list[str]) -> int:
-    """Drop the named issues. Returns how many went."""
+    """Drop the named issues (into the history). Returns how many went."""
     data = load(ep)
     want = {str(i) for i in ids}
     keep = [x for x in data["items"] if x.get("id") not in want]
-    gone = len(data["items"]) - len(keep)
+    gone = [x for x in data["items"] if x.get("id") in want]
     if gone:
+        _archive(ep, gone, {})
         data["items"] = keep
         save(ep, data)
-    return gone
+    return len(gone)
 
 
 def clear(ep: str, pass_: str | None = None, addressed_only: bool = False) -> int:
@@ -234,11 +319,36 @@ def clear(ep: str, pass_: str | None = None, addressed_only: bool = False) -> in
         return addressed(ep, item, docs) if addressed_only else True
 
     keep = [x for x in data["items"] if not drop(x)]
-    gone = len(data["items"]) - len(keep)
+    gone = [x for x in data["items"] if drop(x)]
     if gone:
+        _archive(ep, gone, docs)
         data["items"] = keep
         save(ep, data)
-    return gone
+    return len(gone)
+
+
+def history(ep: str, episode: str | None = None, category: str | None = None) -> list[dict]:
+    """The show's history, oldest first: every note resolved or cleared, with `episode`,
+    `ended` and `ended_when`. `episode` (a folder name) and `category` narrow it. A line
+    that doesn't parse is skipped, never fatal: the file is only ever appended to."""
+    p = history_path(ep)
+    if not os.path.isfile(p):
+        return []
+    out = []
+    with open(p, encoding="utf-8") as fh:
+        for line in fh:
+            try:
+                x = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(x, dict):
+                continue
+            if episode and x.get("episode") != episode:
+                continue
+            if category and x.get("category") != category:
+                continue
+            out.append(x)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +386,8 @@ def export_markdown(ep: str, pass_: str | None = None, include_addressed: bool =
 
 def _issue_markdown(x: dict) -> list[str]:
     out = [f"## {x['shot']}" + (f" · take {x['take']}" if x.get("take") else "")
-           + (f" · {x['target']}" if x.get("target") else ""),
+           + (f" · {x['target']}" if x.get("target") else "")
+           + (f" · {x['category']}" if x.get("category") else ""),
            "",
            x["note"], ""]
     if x.get("addressed"):
@@ -311,10 +422,13 @@ def export_json(ep: str, pass_: str | None = None, include_addressed: bool = Fal
 USAGE = """  !! usage: seriesmith issues <episode> [--proxy | --final]
        --add <shot> "what is wrong"   note a shot (--take N for a particular one)
        --add-from <file>              one per line: "sh0140: the truck is on the wrong side"
+       --category <name>              file what --add / --add-from note under it
        (nothing)                      list them, addressed ones marked
        --export [--json] [-o FILE]    one document to paste into an assistant
-       --resolve <id> [<id> ...]      drop those issues
-       --clear [--addressed]          empty the notepad (or only what was addressed)"""
+       --resolve <id> [<id> ...]      drop those issues (into the show's history)
+       --clear [--addressed]          empty the notepad (or only what was addressed)
+       --history [--category <name>]  the show's resolved and cleared notes, counted
+       categories: """ + ", ".join(CATEGORY_IDS)
 
 
 def _lines_from(path: str) -> list[tuple[str, str]]:
@@ -337,9 +451,32 @@ def _lines_from(path: str) -> list[tuple[str, str]]:
     return out
 
 
+def _print_history(root: str, category: str | None) -> int:
+    items = history(root, category=category)
+    if not items:
+        print("  -- nothing in the history yet" + (f" filed as {category}" if category else ""))
+        return 0
+    for x in items:
+        print(f"  {x.get('episode', '?')} {x.get('shot', '?')}"
+              + (f" t{x['take']:02d}" if x.get("take") else "")
+              + f"  [{x.get('category') or '-'}] {x.get('ended', '?')}"
+              + f"  {x.get('note', '')}")
+    print(f"\n  -- {len(items)} in the history ({history_path(root)})")
+    by: dict = {}
+    for x in items:
+        row = by.setdefault(x.get("category") or "(none)", dict.fromkeys(ENDINGS, 0))
+        row[x.get("ended") if x.get("ended") in ENDINGS else "dismissed"] += 1
+    w = max(len(k) for k in by)
+    print(f"  {'':{w}}  " + "  ".join(f"{e:>10}" for e in ENDINGS))
+    for k in sorted(by, key=lambda k: -sum(by[k].values())):
+        print(f"  {k:{w}}  " + "  ".join(f"{by[k][e]:>10}" for e in ENDINGS))
+    return 0
+
+
 def cmd_issues(root: str, argv: list[str]) -> int:
     pass_ = DEFAULT_PASS
-    add_shot = add_note = add_from = out_file = None
+    add_shot = add_note = add_from = out_file = category = None
+    show_history = False
     take = None
     want, as_json, do_clear, only_addressed, resolve_ids = None, False, False, False, []
     i = 0
@@ -356,6 +493,11 @@ def cmd_issues(root: str, argv: list[str]) -> int:
         elif a == "--take" and i + 1 < len(argv):
             take = int(argv[i + 1]) if argv[i + 1].isdigit() else None
             i += 1
+        elif a == "--category" and i + 1 < len(argv):
+            category = argv[i + 1]
+            i += 1
+        elif a == "--history":
+            show_history = True
         elif a == "--export":
             want = "export"
         elif a == "--json":
@@ -378,16 +520,17 @@ def cmd_issues(root: str, argv: list[str]) -> int:
 
     try:
         if add_shot:
-            item = add(root, pass_, add_shot, add_note, take)
+            item = add(root, pass_, add_shot, add_note, take, category)
             print(f"  -- {item['shot']}"
                   + (f" take {item['take']}" if item.get("take") else "")
+                  + (f" [{item['category']}]" if item.get("category") else "")
                   + f": {item['note']}")
             print(f"     ({item['id']}, {len(item['script'].splitlines())} script lines kept)")
             return 0
         if add_from:
             n = 0
             for shot, note in _lines_from(add_from):
-                item = add(root, pass_, shot, note, None)
+                item = add(root, pass_, shot, note, None, category)
                 print(f"  -- {item['shot']}: {item['note']}")
                 n += 1
             print(f"\n  -- {n} noted from {add_from}")
@@ -399,6 +542,8 @@ def cmd_issues(root: str, argv: list[str]) -> int:
             gone = clear(root, pass_ if only_addressed else None, only_addressed)
             print(f"  -- {gone} cleared" + (" (addressed only)" if only_addressed else ""))
             return 0
+        if show_history:
+            return _print_history(root, check_category(category))
         if want == "export":
             text = (json.dumps(export_json(root, pass_), indent=2, ensure_ascii=False)
                     if as_json else export_markdown(root, pass_))
@@ -416,6 +561,7 @@ def cmd_issues(root: str, argv: list[str]) -> int:
             mark = " (addressed)" if x["addressed"] else ""
             print(f"  {x['id']}  {x['shot']}"
                   + (f" t{x['take']:02d}" if x.get("take") else "     ")
+                  + (f"  [{x['category']}]" if x.get("category") else "")
                   + f"  {x['note']}{mark}")
         n_addr = sum(1 for x in items if x["addressed"])
         print(f"\n  -- {len(items)} issue{'' if len(items) == 1 else 's'}"

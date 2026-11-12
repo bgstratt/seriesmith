@@ -2924,14 +2924,30 @@ export function openIssue(shot: string, pass = get().pass, take?: number | null,
     issueDraft: {
       shot, pass,
       take: take ?? sh?.cut.take ?? null,
-      text, error: null,
+      text, category: null, error: null,
     },
   });
+  void loadIssueCategories();
+}
+
+/** The categories a note can be filed as, read once from the server. */
+export async function loadIssueCategories(): Promise<void> {
+  if (get().issueCategories) return;
+  try {
+    set({ issueCategories: await api().issueCategories() });
+  } catch {
+    // a server without the route (an older node pack): the box has no category
+  }
 }
 
 export function setIssueText(text: string) {
   const d = get().issueDraft;
   if (d) set({ issueDraft: { ...d, text, error: null } });
+}
+
+export function setIssueCategory(category: string | null) {
+  const d = get().issueDraft;
+  if (d) set({ issueDraft: { ...d, category, error: null } });
 }
 
 export function closeIssue() {
@@ -2949,7 +2965,10 @@ export async function saveIssue(): Promise<boolean> {
   }
   set({ issueDraft: { ...d, busy: true, error: null } });
   try {
-    await api().addIssue({ ep, pass: d.pass, shot: d.shot, note: d.text.trim(), take: d.take });
+    await api().addIssue({
+      ep, pass: d.pass, shot: d.shot, note: d.text.trim(), take: d.take,
+      ...(d.category ? { category: d.category } : {}),
+    });
     set({ issueDraft: null });
     await loadIssues(ep, d.pass);
     host().toast("success", `Noted for ${d.shot}`, "It is in this pass's issues.");
@@ -2988,7 +3007,10 @@ export function openSeriesForm(open = true) {
 
 export function openIssues(open = true) {
   set({ issuesOpen: open });
-  if (open) void loadIssues();
+  if (open) {
+    void loadIssues();
+    void loadIssueCategories();
+  }
 }
 
 export async function resolveIssue(id: string): Promise<void> {

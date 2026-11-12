@@ -417,7 +417,7 @@ _TABLE = [
             "the cut: order, trims, locks, sound", _edit("cut")),
     Command("promote", "<episode> [<shot>] [--all | --item ID ...] [--dry-run]",
             "overrides moved into the script or the series config", episode_first(_promote)),
-    Command("issues", "<episode> [--proxy] [--add <shot> <note> | --export | --clear | --resolve <id>]",
+    Command("issues", "<episode> [--proxy] [--add <shot> <note> [--category <c>] | --export | --clear | --resolve <id> | --history]",
             "the pass's notepad", episode_first(_issues)),
     Command("align", "<episode> [recording.wav] [flags]",
             "the script timed against a dialogue recording", _align, own_help=True),

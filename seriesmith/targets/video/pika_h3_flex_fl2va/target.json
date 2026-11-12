@@ -163,7 +163,10 @@
         "*h3*fl2v*",
         "*fl2va*"
       ],
-      "tier": "required"
+      "tier": "required",
+      "exclude": [
+        "*hybrid*"
+      ]
     },
     "loras": {
       "family": "pika-h3-flex-fl2va-lora",

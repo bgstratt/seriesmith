@@ -200,7 +200,8 @@
       ],
       "tier": "required",
       "exclude": [
-        "*singularity*"
+        "*singularity*",
+        "*hybrid*"
       ]
     },
     "loras": {

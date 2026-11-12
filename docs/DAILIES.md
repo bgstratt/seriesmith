@@ -1,8 +1,29 @@
 # Dailies: takes reviewed by a vision-language model
 
-Status (2026-11-11): **designing**, nothing built. This file is the design record and the
-checklist; the contracts go in the docstrings, `docs/API.md` and `docs/EDITOR.md` as they are
-built.
+Status (2026-11-12): **the notes and their history are built** (checklist 1); **the VLM review
+is set aside** (see "Set aside" below); the count check is next. This file is the design record
+and the checklist; the contracts go in the docstrings, `docs/API.md` and `docs/EDITOR.md` as
+they are built.
+
+## Set aside: the VLM review (2026-11-12)
+
+The bake-off and the tests after it (below) show where a local VLM (Qwen3.5-27B, 4-bit) helps
+and where it doesn't:
+
+- **reliable** on problems that appear at a moment: a cut, a change of place, a morph, an overlay;
+- **mostly noise** on action, camera and lip sync (hence the strict rule);
+- **blind** to a malformed body present from the first frame, unless given stills, and then
+  with false flags;
+- **never tested** on the lattice, the worst problem seen so far, whose cause turned out to be
+  the Ref2V turbo LoRA meeting thin lines in a reference (fixed by a model, `h3_hybrid`, not by
+  a review).
+
+What a person watches for, acting and how people play off each other, is where it is weakest.
+So the review (checklist 3-8) waits for a stronger model. What goes ahead without it: a
+person's notes filed by category, with their history (checklist 1, done), and the **count
+check** (people and faces against the script), which caught every extra-person take it was given
+with no false flags, on CPU (checklist 9). The design below stands for when the review comes
+back.
 
 ## Why
 
@@ -63,7 +84,7 @@ the take's sidecar under `dailies`:
   "video": {"fps": 8, "width": 848, "height": 480},
   "verdict": "ok | flag | reject",
   "findings": [
-    {"criterion": "adherence | artifact | reference",
+    {"criterion": "adherence | continuity | reference",
      "category": "morph",
      "verdict": "flag", "confidence": 0.8,
      "at": [0.35, 0.78],
@@ -76,13 +97,40 @@ the take's sidecar under `dailies`:
 
 - **adherence**: one finding per prompt part (did the action happen, is the camera move the
   one asked for, is it the place asked for);
-- **artifact**: anything that changes in a way nothing in the picture explains, with its span
+- **continuity**: anything that changes in a way nothing in the picture explains, with its span
   (`at`);
 - **reference**: one finding per reference picture (wardrobe, props, place).
 
-**Categories**, one fixed list, so notes can be counted: `identity`, `wardrobe`, `place`,
-`morph`, `action`, `camera`, `count` (too many or too few people or things), `cut`, `lipsync`,
-`text` (lettering in the picture), `other`.
+**Categories**, one fixed list, so notes can be counted:
+
+- `identity`: the wrong face or person;
+- `wardrobe`: clothes or props unlike their reference;
+- `place`: a setting unlike the plate, or something appearing from nowhere;
+- `light`: light or look unlike the prompt or the plate (a relit plate's snow against a neon
+  prompt; a light with no source);
+- `morph`: a shape changing, or a body malformed (an arm from the chest, a hand becoming a cup);
+- `artifact`: the render itself breaking (lattice, lines growing from an edge or a reference's
+  shape, blur or smears over part of the frame, an overlay): a model or settings problem, not
+  the script's;
+- `action`: the action not as written;
+- `camera`: the move or framing not as written;
+- `count`: too many or too few people or things;
+- `cut`: a cut inside the take;
+- `lipsync`: the mouth against the speech;
+- `text`: lettering in the picture;
+- `performance`: the acting (delivery, reactions, how people play off each other): a person's
+  category, since what a person reviews for is mostly this;
+- `other`: whatever fits none of the rest.
+
+The list is `issues.CATEGORIES`, served at `GET /seriesmith/issues/categories`. A note may also
+be left without a category.
+
+`performance` was added when the review was set aside (2026-11-12). `light` and `artifact` were
+added after the bake-off (2026-11-12): its overlay (sh1130) went to
+`other`, a relit plate's look against its prompt (sh130, sh140) to `place`, and Porchlights'
+lattice-and-blur takes (sh1460, sh1470, sh1495, sh1590, sh1610) had nowhere to go. The
+criterion once called `artifact` is `continuity`, so the two words don't clash. Labeled cases of
+`identity` and `text` are still wanted (the user has some to dig up).
 
 **Stale**, as an effects take is (`fx.py`): when the take's mp4 has changed since it was
 reviewed (its size or mtime), the review reads stale and is ignored.
@@ -117,6 +165,14 @@ notepad behaves. What changes:
   your own notes, only the VLM's, or both.
 
 Both pieces are useful before the VLM exists: your own notes start building the history now.
+
+Built (2026-11-12): `issues.CATEGORIES` and `SOURCES`; `add(..., category, source)`;
+`how_addressed` (`rebuilt`, `rerendered` or None) stamps each note `resolve` and `clear` drop,
+appended to `_history.jsonl` (`history_path`: beside `series.json`) before the notepad is saved,
+so a note is never in neither; `history(ep, episode, category)`; the note box's **Category**,
+the list's **Show** filter (category, and source once there's more than one); `seriesmith
+issues --category` and `--history` (the history, counted per category and ending). Not built
+yet: the export's view of the history for an assistant (the MCP `history` tool, item 7).
 
 ## Patterns, and the script-writing skill
 
@@ -202,7 +258,7 @@ labeled clean, and the review flagged both. Their plate had been relit as snow, 
 asked for neon, and the background may swing between the two. It may also be lightning against a
 dark plate: unconfirmed, and to be checked against the plate. With both counted as misses, there
 are six misses against ten clean takes. "Strict" means the take's verdict
-comes only from its artifact and reference findings, at confidence 0.8 or more; its adherence
+comes only from its continuity and reference findings, at confidence 0.8 or more; its adherence
 findings are kept as notes.
 
 | Model | Plain: caught | Plain: clean flagged | Strict: caught | Strict: clean flagged |
@@ -232,14 +288,14 @@ What the results show:
 - The two clean takes still flagged are wardrobe and prop readings: sh020's case "on the shoulder,
   not strapped across her back", and sh070's case "silver, not dark".
 
-**Pick: Qwen3.5-27B at 8 fps, strict**: the take's verdict from artifact and reference findings
+**Pick: Qwen3.5-27B at 8 fps, strict**: the take's verdict from continuity and reference findings
 at confidence 0.8 or more, adherence as notes. On the 5090 that makes about 2 minutes a take,
 about 3.5 hours for a 100-shot episode overnight, with a peak of 24.8 GB.
 
 Two Porchlights ep02 takes, unlabeled, at 8 fps:
 
 - **sh1130 t02** was rejected: "blue digital dots and lines overlay the entire scene" from 2.2 s
-  (morph/artifact, confidence 1.0). Everything else passed.
+  (filed as `morph`, confidence 1.0; `artifact` on today's list). Everything else passed.
 - **sh1210 t02** was flagged on adherence only: no push-in (camera), no lip movement for the
   whispered line (filed as `action`, not `lipsync`). The lip-sync flag is false (the lips do
   move).
@@ -303,6 +359,81 @@ resolution fixed it at 27B 4-bit. Where it's heading:
   full precision (a machine with more memory) before anything else;
 - letting reference findings count from 0.7.
 
+**The lattice takes, looked at (2026-11-12).** sh1460, sh1470, sh1495, sh1590 and sh1610 were
+made with the same settings as the other 520 or so H3 Ref2VA takes of ep02 (int8, the 8-step
+turbo LoRA, 1344×768, a character sheet and a plate), and their references are clean. What they
+share:
+
+- **Thin lines across the chest**: Denise's stethoscope and a phone's cord, Crane's lanyard and
+  earpiece wire. In the takes, those lines are multiplied into a mesh or a diamond lattice over
+  the clothes (sh1460, sh1470), or into gold loops on the jacket (sh1590, sh1610). sh1610 also
+  has a checkerboard over the walls, likely the ceiling's tile grid spreading.
+- **Close framing**: four of the five are CU or ECU (about a quarter of the episode is). sh1495,
+  an ECU of a hand past the stethoscope, is a smear rather than a lattice.
+- **The same seed twice**: each shot's second take kept its first take's seed (`same`) after a
+  script change, with the same references, and came back with the same lattice. So the script
+  edit didn't fix it. Whether a new seed would is untested.
+
+**Tried on sh1460 (2026-11-12, local, a scratch copy of ep02):**
+
+| Take | Lattice |
+|---|---|
+| the original seed, turbo LoRA, 8 steps | yes, as before |
+| two new seeds | yes, both |
+| the sheet's face panel only (`--panel-mode face`) | yes |
+| Denise's sheet without the stethoscope | mostly gone (a patch on the sleeve by the phone cord, a smeared wrist) |
+| **no turbo LoRA, 20 steps (res_multistep)** | **clean** throughout, the stethoscope drawn right (116 s against ~60 s) |
+
+So the lattice is the Ref2V 8-step turbo LoRA turning a thin line in the reference (tubing, a
+cord, a lanyard) into a texture; a new seed doesn't help. The fix for an `artifact` finding on
+a Ref2VA turbo take is that take again without turbo. FL2VA doesn't show it (other weights,
+the FL2V LoRA).
+
+Singularity (`Minimax-h3_Singularity_ref2va_v2`) is a modified Ref2VA, not an FL2VA hybrid: of
+932 tensors, 268 are Ref2VA's, 201 are the same in both, and 463 match neither. 
+
+**An FL2VA hybrid** (`minimax_h3_hybrid_fl2va_ref2va_b25-49-int8`, a community merge on Hugging
+Face; sha256 a629cfea…): FL2VA's weights, with `adaln_proj` in blocks 25-49 taken from Ref2VA.
+Checked tensor by tensor against our two files, it is exactly that: 681 FL2VA's, 50 Ref2VA's,
+201 the same in both. On sh1460, with the same seed and Denise's usual sheet:
+
+| Model | Lattice | Time |
+|---|---|---|
+| hybrid + Ref2V turbo LoRA, 8 steps | **clean** (Denise, the stethoscope, the plate's station) | 67 s |
+| hybrid, no turbo, 20 steps | clean | 125 s |
+
+Then hybrid + turbo on the other four lattice shots and four others, each at its Porchlights
+take's seed, against that take:
+
+| Shot | Ref2VA + turbo (Porchlights) | Hybrid + turbo |
+|---|---|---|
+| sh1470 CU Denise | lattice on the scrubs | **a diamond mesh over the whole frame**; her locs gone |
+| sh1495 ECU hand | smeared | clean: hand, cup, the stethoscope on the counter |
+| sh1590 cowboy Crane | gold loops on the jacket | clean; badge and lanyard right |
+| sh1610 CU Crane | loops, a checkerboard on the walls | clean |
+| sh290 CU Denise | **stethoscope loops on the chest** (not on the list of five) | clean |
+| sh140 MS Crane | fine | fine |
+| sh170 MCU Samir | fine | fine (the phone held lower) |
+| sh1620 CU doctor | fine | fine, the background softer |
+
+sh1470 without turbo (20 steps, the same seed): on Ref2VA, no lattice and her locs kept, but the
+stethoscope comes out as a pair of glasses and a stray chest piece at her shoulder; on the hybrid,
+no lattice, the locs gone again.
+
+So:
+
+- **Without turbo, Ref2VA** has cleared the lattice on both shots tried (sh1460, sh1470) and
+  kept identity; it costs about twice the time.
+- **The hybrid with turbo** cleared four of five, at turbo's speed, and held identity on the
+  clean shots; on sh1470 it moved the lattice to the whole frame and, with or without turbo,
+  dropped Denise's locs. It holds references a little less well, as its README says.
+- The lattice is likelier than the list of five suggested: sh290 had it too.
+- A retry ladder for an `artifact` finding on a Ref2VA turbo take: the hybrid with turbo first
+  (cheap), then Ref2VA without turbo.
+- The hybrid is the video target `h3_hybrid` (2026-11-12; the Features window's **H3 Hybrid**),
+  every other H3 target's model pattern excluding `*hybrid*`. Porchlights ep02's sh290, sh1460,
+  sh1495, sh1590 and sh1610 were rendered on it in the episode itself.
+
 Still open:
 
 - the instructions: a speaking mouth is `lipsync`, never `action`;
@@ -312,6 +443,8 @@ Still open:
 
 ## Not doing (yet)
 
+- **The VLM review** (checklist 3-8): set aside, above.
+
 - **Retries driven by a review.** The batch review runs after the retries. Feeding a `reject`
   back into the ladder comes later, once its false flags are known.
 - **Picking takes.** Choosing a take into the cut stays a person's job.
@@ -319,10 +452,12 @@ Still open:
 
 ## Checklist
 
-- [ ] 1. The history: issues archived to `_history.jsonl` on resolve and clear, with how each
+- [x] 1. The history: issues archived to `_history.jsonl` on resolve and clear, with how each
       ended; `source` and `category` on notes; the categories as one list in the code, the
-      Add issue box's dropdown and `--category`; the notepad's filter.
+      Add issue box's dropdown and `--category`; the notepad's filter (2026-11-12).
 - [x] 2. The bake-off; its numbers in this file (2026-11-11: Qwen3.5-27B, 8 fps, strict).
+Set aside with the review (3-8):
+
 - [ ] 3. The `vision` target kind and the first target; the node (ours, or an existing pack's);
       the Features entry for the weights.
 - [ ] 4. `dailies.py`: one take reviewed (what it sees, the job, the sidecar record, stale);
@@ -332,3 +467,10 @@ Still open:
 - [ ] 6. A review's findings as issues; the export.
 - [ ] 7. MCP: `dailies_review`, `dailies_of`, `history`.
 - [ ] 8. Live: an overnight batch of one episode, reviewed; read against a person's own pass.
+
+Next:
+
+- [ ] 9. The count check: people and faces per frame (YOLO, ComfyUI's own weights, on CPU)
+      against the shot's `who:`, `with:` and `extras:`; flagged when more show for 0.25 s or
+      more, never on the median; a take check (`takecheck.register`) with its badge, its
+      weights in the Features window.

@@ -5,22 +5,28 @@
 // (Shift+Enter for a second line), Esc closes. The **Issues window** is the list,
 // with the export to paste into an assistant.
 //
+// A note may be filed under a category (one list, the server's: GET
+// /seriesmith/issues/categories), or left unfiled; resolved and cleared notes go into
+// the show's history, counted by category (docs/DAILIES.md).
+//
 // A note snapshots what produced the take, server side — so nothing here has to
 // carry the script or the prompt around, and an edit to the script afterwards
 // never rewrites what you wrote.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   clearIssues, closeIssue, copyIssueExport, issuesOf, loadIssues, openIssues, openViewer,
-  requestRender, resolveIssue, saveIssue, select, setIssueText,
+  requestRender, resolveIssue, saveIssue, select, setIssueCategory, setIssueText,
 } from "../actions";
 import { fmtWhen, tn } from "../lib/format";
+import type { Issue } from "../types";
 import { useApp } from "../store";
 import { Dialog } from "./Dialogs";
 
 /** The note box: shot, take, one textarea, Save. */
 export function IssueDialog() {
   const d = useApp((s) => s.issueDraft);
+  const cats = useApp((s) => s.issueCategories);
   const box = useRef<HTMLTextAreaElement>(null);
   // what had focus when the box opened (the Play all window, the timeline):
   // it gets it back when the box closes, so space and J/K/L carry on there
@@ -79,6 +85,24 @@ export function IssueDialog() {
           e.stopPropagation();
         }}
       />
+      {!!cats?.length && (
+        <label className="h3-row h3-small" style={{ gap: 6 }}>
+          <span className="h3-muted">Category</span>
+          <select
+            className="h3-in"
+            value={d.category ?? ""}
+            title={cats.find((c) => c.id === d.category)?.about ?? "Leave it unfiled, or pick what it is"}
+            onChange={(e) => setIssueCategory(e.target.value || null)}
+            // the timeline's keys must not fire while choosing
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <option value="">(none)</option>
+            {cats.map((c) => (
+              <option key={c.id} value={c.id} title={c.about}>{c.id}: {c.about}</option>
+            ))}
+          </select>
+        </label>
+      )}
       {d.error && <div className="h3-note h3-note-err">{d.error}</div>}
       <div className="h3-muted h3-small">
         It keeps the shot's script lines and the prompt that produced this take, so the export
@@ -93,15 +117,23 @@ export function IssuesWindow() {
   const open = useApp((s) => s.issuesOpen);
   const ep = useApp((s) => s.ep);
   const pass = useApp((s) => s.pass);
-  const items = useApp((s) => (s.ep ? s.issues[`${s.ep}|${s.pass}`] : undefined)) ?? [];
+  const all = useApp((s) => (s.ep ? s.issues[`${s.ep}|${s.pass}`] : undefined)) ?? [];
+  // the filter: a category ("" every note, "-" the unfiled), and who made it
+  const [cat, setCat] = useState("");
+  const [src, setSrc] = useState("");
   useEffect(() => {
     if (open && ep) void loadIssues(ep, pass);
   }, [open, ep, pass]);
   if (!open) return null;
-  const live = items.filter((x) => !x.addressed);
-  const done = items.filter((x) => x.addressed);
-  // the shots with open notes, once each, in the order they were noted
-  const noted = [...new Set(live.map((x) => x.shot))];
+  const sourceOf = (x: Issue) => x.source ?? "human";
+  const cats = [...new Set(all.map((x) => x.category ?? "-"))];
+  const srcs = [...new Set(all.map(sourceOf))];
+  const items = all.filter((x) => (!cat || (x.category ?? "-") === cat)
+    && (!src || sourceOf(x) === src));
+  const live = all.filter((x) => !x.addressed);
+  const done = all.filter((x) => x.addressed);
+  // the shots with open notes shown, once each, in the order they were noted
+  const noted = [...new Set(items.filter((x) => !x.addressed).map((x) => x.shot))];
   return (
     <Dialog
       title={<>Issues <span className="h3-muted h3-small">{pass} pass</span></>}
@@ -110,7 +142,7 @@ export function IssuesWindow() {
       footer={
         <>
           <span className="h3-muted h3-small h3-grow">
-            {items.length
+            {all.length
               ? `${live.length} open${done.length ? ` · ${done.length} addressed` : ""}`
               : "Nothing noted"}
           </span>
@@ -147,7 +179,27 @@ export function IssuesWindow() {
         </>
       }
     >
-      {!items.length && (
+      {(cats.length > 1 || srcs.length > 1 || !!cat || !!src) && (
+        <div className="h3-row h3-small" style={{ gap: 6 }}>
+          <span className="h3-muted">Show</span>
+          <select className="h3-in" value={cat} onChange={(e) => setCat(e.target.value)}>
+            <option value="">every category</option>
+            {cats.sort().map((c) => (
+              <option key={c} value={c}>{c === "-" ? "unfiled" : c}
+                {` (${all.filter((x) => (x.category ?? "-") === c).length})`}</option>
+            ))}
+          </select>
+          {(srcs.length > 1 || !!src) && (
+            <select className="h3-in" value={src} onChange={(e) => setSrc(e.target.value)}>
+              <option value="">from anyone</option>
+              {srcs.map((x) => (
+                <option key={x} value={x}>{x === "human" ? "mine" : x === "dailies" ? "the dailies review" : "the take checks"}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+      {!all.length && (
         <div className="h3-empty-state">
           Nothing noted for the {pass} pass. Select a clip and press <b>n</b>, or use a clip's
           menu, while you watch.
@@ -166,6 +218,12 @@ export function IssuesWindow() {
             >
               <b>{x.shot}</b>{x.take ? ` ${tn(x.take)}` : ""}
             </button>
+            {x.category && <span className="h3-badge" title={`Filed as ${x.category}`}>{x.category}</span>}
+            {x.source && x.source !== "human" && (
+              <span className="h3-badge" title={`Noted by ${x.source === "dailies" ? "the dailies review" : "a take check"}`}>
+                {x.source}
+              </span>
+            )}
             {x.addressed && (
               <span className="h3-badge h3-b-ok" title="Its shot has been rebuilt or re-rendered since">
                 addressed
@@ -173,7 +231,7 @@ export function IssuesWindow() {
             )}
             <span className="h3-grow" />
             <span className="h3-muted h3-small">{fmtWhen(x.when)}</span>
-            <button className="h3-btn h3-icon" title="Resolve: drop this note" onClick={() => void resolveIssue(x.id)}>
+            <button className="h3-btn h3-icon" title="Resolve: drop this note (it's kept in the show's history)" onClick={() => void resolveIssue(x.id)}>
               <i className="pi pi-times" />
             </button>
           </div>

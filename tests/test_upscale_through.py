@@ -155,7 +155,7 @@ class ThroughTest(P13.UpscaleTest):
 
     def test_the_choices_are_the_ref_models(self):
         ids = {c["id"] for c in U.through_choices(None)}
-        self.assertEqual(ids, {"minimax_h3_ref2va", "fasth3_omni", "h3_singularity", "pika_h3_flex"})
+        self.assertEqual(ids, {"minimax_h3_ref2va", "fasth3_omni", "h3_singularity", "h3_hybrid", "pika_h3_flex"})
 
 
 if __name__ == "__main__":

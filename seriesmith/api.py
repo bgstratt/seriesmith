@@ -7071,22 +7071,34 @@ def get_issues(ctx: Context, query: dict):
 @handler
 def post_issues(ctx: Context, body):
     """Note what is wrong with a shot as it was rendered. Body
-    `{ep, pass, shot, note, take?}`; the answer is the issue, snapshotted. 404
-    for a shot that isn't in the pass, 400 for a note that says nothing."""
+    `{ep, pass, shot, note, take?, category?, source?}` (category one of
+    GET /seriesmith/issues/categories, or none; source `human` unless given); the answer
+    is the issue, snapshotted. 404 for a shot that isn't in the pass, 400 for a note that
+    says nothing or a category or source not on the lists."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     item = IS.add(ep, check_pass(body.get("pass")), check_shot(body.get("shot")),
-                  body.get("note"), check_take(body.get("take"), nullable=True))
+                  body.get("note"), check_take(body.get("take"), nullable=True),
+                  body.get("category"), body.get("source"))
     ctx.emit("seriesmith.issues", {"ep": ep, "pass": item["pass"], "shot": item["shot"],
                                "id": item["id"]})
     return 200, item
 
 
 @handler
+def get_issue_categories(ctx: Context, query: dict):
+    """What a note can be filed as (issues.CATEGORIES: `{id, about}` each, in order) and
+    who can make one (`sources`)."""
+    return 200, {"categories": [{"id": c, "about": about} for c, about in IS.CATEGORIES],
+                 "sources": list(IS.SOURCES)}
+
+
+@handler
 def delete_issues(ctx: Context, query: dict):
     """Drop issues: `id` (one, repeatable as a comma-separated list), or
     `clear=1` for a whole pass, or `clear=1&addressed=1` for only the ones whose
-    shot has moved on. Answers what is left."""
+    shot has moved on. Each goes into the show's history (`_history.jsonl` beside
+    series.json) with how it ended. Answers what is left."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query["pass"]) if query.get("pass") else None
     ids = [x for x in str(query.get("id") or "").split(",") if x]
@@ -7149,6 +7161,7 @@ ROUTES = [
     ("POST", "/seriesmith/issues", post_issues, "body"),
     ("DELETE", "/seriesmith/issues", delete_issues, "query"),
     ("GET", "/seriesmith/issues/export", get_issues_export, "query"),
+    ("GET", "/seriesmith/issues/categories", get_issue_categories, "query"),
     ("GET", "/seriesmith/file", get_file, "query"),
     ("GET", "/seriesmith/thumb", get_thumb, "query"),
     ("GET", "/seriesmith/presets", get_presets, "query"),

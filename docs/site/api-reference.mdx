@@ -37,7 +37,7 @@ section and search for the path for its later additions.
 | `POST /seriesmith/server/stop` | Config (standalone only) |
 | `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `GET /seriesmith/take`, `POST` / `GET /seriesmith/download`, `POST /seriesmith/build` | Episodes |
 | `GET` / `POST /seriesmith/episode/new`, `POST /seriesmith/import`, `POST /seriesmith/import/xml` | Episodes |
-| `GET` / `POST` / `DELETE /seriesmith/issues`, `GET /seriesmith/issues/export` | Issues |
+| `GET` / `POST` / `DELETE /seriesmith/issues`, `GET /seriesmith/issues/export`, `GET /seriesmith/issues/categories` | Issues |
 | `GET /seriesmith/file`, `GET /seriesmith/thumb` | Files |
 | `POST /seriesmith/render`, `POST /seriesmith/cancel` | Rendering |
 | `PUT /seriesmith/pick`, `PUT /seriesmith/cut`, `PUT` / `DELETE /seriesmith/override` | Cut and overrides |
@@ -410,19 +410,35 @@ destroy what the note is about. Editing the script never rewrites an issue.
 has moved (a rebuild) or a newer usable take exists (a re-render). It is per shot, not per
 episode, so a rebuild on its own addresses nothing. Nothing is deleted for the user.
 
+**The history** (2026-11-12): a note resolved or cleared leaves the notepad but is appended to
+the show's `_history.jsonl`, beside `series.json` (only ever added to, one JSON line a note): the
+issue as it was, plus `episode` (the folder's name), `ended` (`rebuilt`, `rerendered` or
+`dismissed`: how it left, from `addressed` at that moment) and `ended_when`. Counted by
+`category`, it shows which problems keep coming back and what fixed them (docs/DAILIES.md).
+
 ### `GET /seriesmith/issues?ep=&pass=`
-`{"issues": [{id, shot, pass, take, note, when, shot_hash, target, script, prompt, seed, refs, take_file, addressed}]}`, in the order noted. No `pass` lists both.
+`{"issues": [{id, shot, pass, take, note, category, source, when, shot_hash, target, script, prompt, seed, refs, take_file, addressed}]}`, in the order noted. No `pass` lists both. Notes
+from before categories have neither `category` nor `source` (read them as none and `human`).
 
 ### `POST /seriesmith/issues`
-`{ep, pass, shot, note, take?}` → the issue, snapshotted. `take` defaults to the one the cut
-plays, else the newest usable, and may be null (a note before anything has rendered is worth
-keeping). 404 for a shot that isn't in the pass, 400 for a note that says nothing or is over
-4000 characters. Emits `seriesmith.issues`.
+`{ep, pass, shot, note, take?, category?, source?}` → the issue, snapshotted. `take` defaults to
+the one the cut plays, else the newest usable, and may be null (a note before anything has
+rendered is worth keeping). `category` is one of the categories below, or null (left unfiled);
+`source` is `human` (the default), `dailies` or `check`. 404 for a shot that isn't in the pass,
+400 for a note that says nothing or is over 4000 characters, or a category or source not on the
+lists. Emits `seriesmith.issues`.
+
+### `GET /seriesmith/issues/categories`
+`{"categories": [{id, about}], "sources": [...]}`: what a note can be filed as, in the order the
+note box offers them (`issues.CATEGORIES`, the one list): `identity`, `wardrobe`, `place`,
+`light`, `morph`, `artifact`, `action`, `camera`, `count`, `cut`, `lipsync`, `text`,
+`performance`, `other`.
 
 ### `DELETE /seriesmith/issues?ep=&id=` / `?ep=&pass=&clear=1[&addressed=1]`
 `id` resolves one (comma-separated for several); `clear=1` empties the pass, and `addressed=1`
 with it takes only the ones whose shot has moved on. Answers `{removed, issues}`. 400 when
-neither is given — there is no "delete everything by accident" shape.
+neither is given — there is no "delete everything by accident" shape. What goes is appended to
+the history first.
 
 ### `GET /seriesmith/issues/export?ep=&pass=&format=md|json`
 One document to hand to an assistant: `{"format": "md", "text"}` by default, or the JSON bundle.
@@ -433,8 +449,9 @@ back**. Addressed issues are left out unless `addressed=1`.
 
 ### CLI
 `seriesmith issues <episode> [--proxy|--final]` with `--add <shot> <note>`,
-`--add-from <file>` (one `sh0140: what is wrong` per line), `--export [--json] [-o FILE]`,
-`--resolve <id>` and `--clear [--addressed]`.
+`--add-from <file>` (one `sh0140: what is wrong` per line), `--category <name>` (with either
+add), `--export [--json] [-o FILE]`, `--resolve <id>`, `--clear [--addressed]` and
+`--history [--category <name>]` (the show's history, with a count per category and ending).
 
 ## Files
 
@@ -1262,7 +1279,7 @@ kept no latent by default, so its re-sample goes through the VAE. A take with a 
 upscale is skipped unless `redo`.
 `vae` forces the VAE route; `start_step` is an exact step of the take's schedule.
 `through` (a target id with `upscale.any_take`: `minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`,
-`pika_h3_flex`) re-samples a take its family didn't make through that model: always the VAE route, the prompt
+`h3_hybrid`, `pika_h3_flex`) re-samples a take its family didn't make through that model: always the VAE route, the prompt
 and references compiled for that model from the script, the frames fitted to its grid (`.up.shotlist.json`
 beside the upscale, `.up.json`'s `through` and `from_target`). Takes of its family ignore it. A recipe's
 section or a shot's recipe takes `through` too.

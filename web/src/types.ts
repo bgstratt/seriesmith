@@ -2546,6 +2546,10 @@ export interface Issue {
   refs?: { role?: string | null; id?: string | null; path?: string | null }[];
   /** the rendered file, relative to the episode */
   take_file?: string | null;
+  /** what it is filed as (GET /seriesmith/issues/categories); none: left unfiled */
+  category?: string | null;
+  /** who made it: a person, a review by a vision-language model, a take check (none: a person) */
+  source?: "human" | "dailies" | "check";
   /**
    * The shot has been rebuilt or rendered again since: computed on every read,
    * never stored. The list fades these and **Clear addressed** empties them —
@@ -2560,6 +2564,13 @@ export interface IssueAddRequest {
   shot: string;
   note: string;
   take?: number | null;
+  category?: string | null;
+}
+
+/** One of the categories a note can be filed as (the server's one list). */
+export interface IssueCategory {
+  id: string;
+  about: string;
 }
 
 export interface SourceCheck {

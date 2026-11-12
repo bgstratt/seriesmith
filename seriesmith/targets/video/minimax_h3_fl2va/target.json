@@ -68,7 +68,8 @@
 
   "models": {
     "_note": "The family each model param must be (targets/modelid.py): names first, then the file's header. FL2VA and Ref2VA share every tensor, so a file named neither is accepted as H3 with a note, and one named Ref2VA is refused. Tiers (docs/API.md): the turbo LoRA is an accelerator (without it the pass renders its `base`), the rest are required. A substitute LoRA keeps the wanted one's step count and is never the SLA LoRA (it needs the block-sparse attention node).",
-    "model": {"family": "minimax-h3-fl2va", "patterns": ["*h3*fl2v*", "*fl2va*"], "tier": "required"},
+    "model": {"family": "minimax-h3-fl2va", "patterns": ["*h3*fl2v*", "*fl2va*"], "tier": "required",
+              "exclude": ["*hybrid*"]},
     "loras": {"family": "minimax-h3-fl2v-turbo-lora", "patterns": ["*h3*fl2v*turbo*", "*h3*fl2v*lightx2v*"],
               "tier": "accelerator", "keep": ["(\\d+)[_-]?steps?"], "exclude": ["*sla*"],
               "class_type": "LoraLoaderModelOnly", "field": "lora_name", "folder": "loras"},

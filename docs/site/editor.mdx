@@ -398,7 +398,8 @@ A render can try again by itself when a take fails its checks. In the **Render**
   and why ("retry 1 after t03: a cut at 0.58 s").
 - **then from its first frame (FL2VA)**: when the seeds are spent (or with none asked for),
   the shot renders once more on the model's first-and-last-frame version: H3 Ref2VA on H3
-  FL2VA, FastH3 Omni on FastH3 FL2VA, H3 Singularity and Pika H3 Flex on theirs. It starts
+  FL2VA, FastH3 Omni on FastH3 FL2VA, H3 Singularity and Pika H3 Flex on theirs, H3 Hybrid on
+  H3 FL2VA. It starts
   from a first frame, the first of these there is:
   - the shot's own first keyframe, if it has one (one you gave, continuity, a frame you
     picked), kept as it is;
@@ -563,23 +564,29 @@ problems are fixed.
 **While you watch:** press **n** (in Play all it notes the clip on screen and pauses; otherwise
 the selected clip), or right-click a clip and choose **Add issue…**.
 A small box opens with the shot and the take it is about; type a sentence and press **Enter**
-(Shift+Enter for a second line). `i` and `o` are still trim-in and trim-out at the playhead, as
+(Shift+Enter for a second line). Its **Category** can file the note as what kind of problem it
+is: identity, wardrobe, place, light, morph, artifact (the render itself breaking: a lattice,
+lines, smears), action, camera, count, cut, lipsync, text, performance (the acting: delivery,
+reactions, how people play off each other) or other. Leaving it at **(none)** is fine. `i` and `o` are still trim-in and trim-out at the playhead, as
 in any NLE, which is why the note key is `n`.
 
 **The note button** (a speech bubble) in the Shots toolbar shows how many are open and opens
 the list, where
 **Copy export** puts the whole document on the clipboard for an assistant, **✕** resolves one,
-and **Clear addressed** empties the ones whose shots you have already fixed. A clip with open
+and **Clear addressed** empties the ones whose shots you have already fixed. Once the notes
+are in more than one category, **Show** narrows the list to one (and **Re-render noted** to
+its shots). A clip with open
 notes shows the same speech bubble in the timeline.
 
 The same thing from the command line:
 
 ```
-seriesmith issues Shows\ep05 --proxy --add sh0140 "Kell enters from the wrong side"
+seriesmith issues Shows\ep05 --proxy --add sh0140 "Kell enters from the wrong side" --category action
 seriesmith issues Shows\ep05 --proxy --add-from notes.txt    # one "sh0140: …" per line
 seriesmith issues Shows\ep05 --proxy                         # the list
 seriesmith issues Shows\ep05 --proxy --export                # one document to paste
 seriesmith issues Shows\ep05 --clear --addressed             # empty what is done
+seriesmith issues Shows\ep05 --history                       # every note that has gone, counted
 ```
 
 Each note **snapshots what produced the take**: the script's lines for that shot, the prompt the
@@ -591,6 +598,13 @@ have started editing. Editing the script later never rewrites a note.
 A shot that has since been rebuilt or re-rendered reads **(addressed)**. Nothing is deleted for
 you: `--clear --addressed` empties those when you are satisfied, and an episode with no issues
 has no issue file at all.
+
+**Nothing is lost when a note goes.** A note you resolve or clear moves to the show's history,
+`_history.jsonl` beside `series.json`, marked with how it ended: **rebuilt** (you changed the
+script or the series config), **rerendered** (a newer take), or **dismissed** (dropped with
+nothing changed). `seriesmith issues <episode> --history` lists it with a count per category and
+ending. Over a few episodes, that shows which problems keep coming back, and whether a script
+edit fixes them or only a new take does.
 
 ### Flagging clips to come back to
 
@@ -704,7 +718,7 @@ Every run takes a new seed, and the result is a new take: the one you started fr
   of the range change slightly. The new take has the original's frame count and sound.
 - **Dialogue:** the sound is the original's, so a mouth that changes can drift from the words. Check the lip sync.
 - **A flaw outside the range stays.** Held frames also steer the new ones, so a flaw all through the clip needs a full new take.
-- **Which models:** H3 Ref2VA, Singularity, Pika H3 Flex, FastH3 and LTX-2, on local ComfyUI. A take from any other model can be brought in: it's encoded from its video into the model you pick, at its own size as near as that model allows. A take at another frame rate than the model's is refused. A take kept without a latent (usually a proxy) is encoded the same way.
+- **Which models:** H3 Ref2VA, Singularity, H3 Hybrid, Pika H3 Flex, FastH3 and LTX-2, on local ComfyUI. A take from any other model can be brought in: it's encoded from its video into the model you pick, at its own size as near as that model allows. A take at another frame rate than the model's is refused. A take kept without a latent (usually a proxy) is encoded the same way.
 - **What encoding costs:** the kept frames are softer, and on LTX-2 the outer edge of the frame goes slightly darker. A take that kept its latent on the model you pick avoids both, so use that model when you can. An H3 encode adds about 40 seconds.
 - **On LTX-2:** it works in steps of 8 frames, so the change can reach further past the range: in three tests, up to 5 frames before it and up to 10 after. A take encoded and rounded up to LTX-2's frame grid is trimmed back to its own length, and keeps no latent of its own.
 

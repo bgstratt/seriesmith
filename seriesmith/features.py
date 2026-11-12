@@ -427,6 +427,10 @@ def catalog() -> list[Feature]:
                 "its shots that carry on from the one before. H3's text encoder, VAEs and turbo "
                 "LoRAs. Apache 2.0 over H3's community licence.",
                 _merge(_target_items("h3_singularity"), _target_items("h3_singularity_fl2va"))),
+        target_feature("video.h3_hybrid", "video", "h3_hybrid", "H3 Hybrid",
+                       "A merge of H3's two checkpoints: FL2VA's cleaner picture, Ref2VA's reference "
+                       "pictures. For shots where Ref2VA's turbo draws a lattice over thin things "
+                       "(cords, tubing, lanyards). H3's text encoder, VAEs and turbo LoRAs."),
         target_feature("video.ltx2", "video", "ltx2", "LTX-2.5",
                        "Quick, and makes its own sound. Gated: accept the licence on Hugging Face."),
         Feature("video.ltx2_duration", "video", "LTX-2.5 duration head",
