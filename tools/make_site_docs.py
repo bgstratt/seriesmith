@@ -1,6 +1,6 @@
 """Write the docs site's pages (docs/site/*.mdx, published by Mintlify at
 docs.seriesmith.com) from the user docs: INSTALL.md and docs/*.md, the
-internal ones (DESIGN, PLAN) left out. Run after changing any of them;
+internal ones (DESIGN, PLAN, RELEASES, the design records) left out. Run after changing any of them;
 tests/test_docs.py fails while a page is out of date.
 
 Each page is its document as MDX: the title (its first heading) and a

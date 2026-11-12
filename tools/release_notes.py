@@ -1,4 +1,4 @@
-"""A release's notes for the Comfy Registry's Updates section, from its entry in docs/PLAN.md.
+"""A release's notes for the Comfy Registry's Updates section, from its entry in docs/RELEASES.md.
 
 The Registry shows a version's changelog as plain text in one paragraph (no Markdown, line
 breaks folded, the version list showing its first two lines), so the entry is flattened: its
@@ -7,7 +7,7 @@ lines joined, backticks dropped, PR numbers and the closing "Published by ..." s
     python tools/release_notes.py 0.1.23           # prints the notes
     python tools/release_notes.py 0.1.23 -o FILE   # writes them (the publish workflow)
 
-Exits 1 when PLAN has no entry for the version: a release always has one.
+Exits 1 when RELEASES.md has no entry for the version: a release always has one.
 """
 import argparse
 import os
@@ -15,11 +15,11 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PLAN = os.path.join(ROOT, "docs", "PLAN.md")
+RELEASES = os.path.join(ROOT, "docs", "RELEASES.md")
 
 
 def entry(text: str, version: str) -> str | None:
-    """The PLAN entry for a version (`- [x] **0.1.22** (date, branch): ...` and its
+    """The RELEASES.md entry for a version (`- [x] **0.1.22** (date, branch): ...` and its
     continuation lines), as written; None when there is none."""
     head = re.compile(r"^- \[[ x]\] \*\*" + re.escape(version) + r"\*\*")
     lines = text.splitlines()
@@ -52,10 +52,10 @@ def main(argv=None) -> int:
     ap.add_argument("version")
     ap.add_argument("-o", "--out", help="write the notes to this file")
     a = ap.parse_args(argv)
-    with open(PLAN, encoding="utf-8") as f:
+    with open(RELEASES, encoding="utf-8") as f:
         raw = entry(f.read(), a.version)
     if raw is None:
-        print(f"docs/PLAN.md has no entry for {a.version}", file=sys.stderr)
+        print(f"docs/RELEASES.md has no entry for {a.version}", file=sys.stderr)
         return 1
     text = notes(raw)
     if a.out:

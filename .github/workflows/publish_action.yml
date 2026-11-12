@@ -7,7 +7,7 @@
 # Every action is pinned to a commit and comfy-cli to a version, since this job holds
 # that key: a moved tag or a new comfy-cli never runs with it unseen. The key reaches
 # comfy-cli through the environment, never pasted into the command. The version's
-# notes (the Registry's Updates) are its entry in docs/PLAN.md (tools/release_notes.py).
+# notes (the Registry's Updates) are its entry in docs/RELEASES.md (tools/release_notes.py).
 name: Publish to the Comfy Registry
 
 on:
