@@ -263,7 +263,7 @@ runs its own queue. **[docs/COMMANDS.md](docs/COMMANDS.md)** covers every comman
 
     pip install -e .[test]
     python -m pytest                  # six workers in parallel; -n 0 for one process
-    cd web && npx vitest run
+    cd web && npm test                # not a bare npx vitest: see web/scripts/vitest.mjs
 
 The golden tests rebuild every fixture and compare the results byte for byte with
 `tests/golden/`; no test reaches a real backend.
