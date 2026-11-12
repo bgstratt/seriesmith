@@ -386,10 +386,13 @@ def wording_warnings(story: ir.Episode, series_cfg: dict, person) -> list[str]:
                 found = wording.negations(getattr(sh, f, None) or "")
                 if found:
                     out.append(f"{sh.id} {f}: {quoted(found)} {say}")
-            absent = wording.named_absent(sh.action or "", people, {person(c) for c in sh.cast})
+            # `with:` is cast too (filed among the props): a group, a character beside the
+            # principals
+            here = {person(c) for c in list(sh.cast) + list(sh.props)}
+            absent = wording.named_absent(sh.action or "", people, here)
             if absent:
                 names = " and ".join(absent)
-                out.append(f"{sh.id}: the action names {names}, not in its `who:`, so they "
+                out.append(f"{sh.id}: the action names {names}, not in its `who:` or `with:`, so they "
                            f"are drawn from the words alone, without their picture. Add "
                            f"{'them' if len(absent) > 1 else 'the name'} to `who:` if "
                            f"{'they are' if len(absent) > 1 else 'that person is'} in the "
