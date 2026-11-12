@@ -17,7 +17,7 @@ import {
   needLabel,
 } from "../lib/keyframes";
 import { errText } from "../api";
-import { api } from "../host";
+import { api, host } from "../host";
 import { shortName, tn } from "../lib/format";
 import {
   defaultOf, editRefsFor, editRefsText, imageModeText, imageTargets, isEditTarget, refDefaultSourceLabel,
@@ -72,6 +72,18 @@ const NO_FILE = "series.json names no file for this (e.g. a voice-only character
  * the series config's (or the built-in) default. An episode choice offers the
  * series.json snippet that makes it permanent.
  */
+
+/** A crop's picture upscaled: queued (plates.py); the row updates as the job ends. */
+async function upscaleCrop(ep: string, id: string): Promise<void> {
+  try {
+    const res = await api().refsUpscaleCrop({ ep, crops: [id] });
+    if (res.queued.length) host().toast("success", `${id}: upscale queued`, "Its picture is replaced when the job ends.");
+    else host().toast("warn", `${id} wasn't upscaled`, res.skipped.map((x) => x.why).join("; "));
+  } catch (e) {
+    host().toast("error", `${id} wasn't upscaled`, errText(e));
+  }
+}
+
 export function ImageModelBar({ open0 = false }: { open0?: boolean }) {
   const { list } = useTargets();
   const defaults = useRefDefaults();
@@ -1240,9 +1252,18 @@ function RefRow({ ep, r }: { ep: string; r: Ref }) {
                   ? `An angle of ${r.of}: the same place from another camera, with its own plate. An edit model generates it from ${r.of}'s plate.`
                   : `A wardrobe variant of ${r.of}: same character, own sheet. Its views are generated from ${r.of}'s, and it shares ${r.of}'s voice.`}
               >
-                {r.kind === "location" && r.crop ? `↳ ${r.crop} of ${r.of}, ${r.zoom ?? 1.6}×`
+                {r.kind === "location" && r.crop ? `↳ ${r.crop} of ${r.of}, ${r.zoom ?? 1.6}×${r.upscaled ? " · upscaled" : ""}`
                   : r.kind === "location" ? `↳ angle of ${r.of}` : `variant of ${r.of}`}
               </span>
+            )}
+            {r.kind === "location" && r.crop && (
+              <button className="h3-btn h3-small"
+                title={r.upscaled
+                  ? `Upscaled with ${r.upscaled}. Upscale again: queue its part of ${r.of}'s plate through the upscale model once more.`
+                  : `Stretched from ${r.of}'s plate. Upscale: queue its part of that plate through an upscale model (4x-UltraSharp, else RealESRGAN) on this machine's ComfyUI, for the detail a stretch can't give. ${r.of} itself isn't touched.`}
+                onClick={(e) => { e.stopPropagation(); void upscaleCrop(ep, r.id.replace(/^location:/, "")); }}>
+                {r.upscaled ? "Upscale again" : "Upscale"}
+              </button>
             )}
             <span className="h3-muted h3-small h3-ell">{r.id}</span>
             {cardOf(r) && (

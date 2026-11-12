@@ -4610,6 +4610,15 @@ def shared_takes(ep: str, ref: Ref, episodes: list[str]) -> list[dict]:
     return out
 
 
+def _crop_upscaled(path: str | None) -> str | None:
+    """The upscale model a crop's picture was made with (plates.upscaled), None when it's
+    stretched, not there, or a picture of yours."""
+    if not path:
+        return None
+    from seriesmith import plates as PL
+    return PL.upscaled(path)
+
+
 def ref_json(s: Series, ref: Ref, usage: dict | None = None,
              ov_data: dict | None = None, picks: dict | None = None,
              view_size=VIEW_SIZE, needs: dict | None = None, ready=None,
@@ -4634,7 +4643,8 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
         "of": ref.entry.get("of") or None,
         "relight": ref.entry.get("relight") or None,
         # a crop of its place's plate (docs/PLATE_VARIANTS.md): which part, how much closer
-        **({"crop": ref.entry["crop"], "zoom": float(ref.entry.get("zoom") or SC.ZOOM)}
+        **({"crop": ref.entry["crop"], "zoom": float(ref.entry.get("zoom") or SC.ZOOM),
+            "upscaled": _crop_upscaled(live)}
            if ref.kind == "location" and ref.entry.get("crop") else {}),
         "path": ep_rel(s.ep, live),
         "exists": exists, "sha1": T.file_sha1(live) if exists else None,

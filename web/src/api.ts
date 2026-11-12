@@ -498,6 +498,8 @@ export interface Api {
   refsCopyTake(req: { ep: string; ref: string; view?: string | null; take: number; to: string }): Promise<RefTake>;
   /** POST /seriesmith/refs/relight: a sequence relight (relit locations, their edits queued) */
   refsRelight(req: RelightRequest): Promise<RelightResult>;
+  /** crops' pictures upscaled: queued on the local backend (plates.py) */
+  refsUpscaleCrop(req: { ep: string; crops?: string[]; all?: boolean; redo?: boolean; model?: string }): Promise<{ queued: { id: string; job: string }[]; skipped: { id: string; why: string }[] }>;
   /** P5: POST /seriesmith/refs/tour-frame, any moment of a finished tour as a hold */
   refsTourFrame(req: { ep: string; ref: string; tour: number; seconds: number }): Promise<RefTake>;
   /** POST /seriesmith/refs/generate-missing: one candidate for every missing series
@@ -1063,6 +1065,7 @@ export function createHttpApi(t: Transport): Api {
     refsTour: (req) => call("POST", "/seriesmith/refs/tour", req),
     refsCopyTake: (req) => call("POST", "/seriesmith/refs/copy-take", req),
     refsRelight: (req) => call("POST", "/seriesmith/refs/relight", req),
+    refsUpscaleCrop: (req) => call("POST", "/seriesmith/refs/upscale-crop", req),
     refsTourFrame: (req) => call("POST", "/seriesmith/refs/tour-frame", req),
     refsGenerateMissing: (req) => {
       // only what's set: the server's defaults apply to the rest

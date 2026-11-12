@@ -6931,6 +6931,54 @@ def post_vocals(ctx: Context, body):
     return 200, {"job": job, "stem": None}
 
 
+def post_refs_upscale_crop(ctx: Context, body):
+    """Crops' pictures upscaled (plates.py): `{ep, crops?: [location ids] | all?: true, redo?,
+    model?, backend?}`. Each is queued on the backend (local by default): its part of the
+    master's plate through an upscale model, scaled to the plate's size. `all` is every crop
+    of the episode's series config not upscaled yet (`redo`: every one). Returns
+    {queued: [{id, job}], skipped: [{id, why}]}."""
+    from seriesmith import plates as PL
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    crops, every = body.get("crops"), body.get("all", False)
+    redo, model = body.get("redo", False), body.get("model")
+    if not isinstance(every, bool) or not isinstance(redo, bool):
+        raise ApiError(400, "all and redo must be true or false")
+    if (crops is None) == (not every):
+        raise ApiError(400, "give crops (a list of location ids) or all: true")
+    if crops is not None and (not isinstance(crops, list) or not crops
+                              or not all(isinstance(x, str) and x for x in crops)):
+        raise ApiError(400, "crops must be a list of location ids")
+    if model is not None and (not isinstance(model, str) or not model):
+        raise ApiError(400, "model must be an upscale model's file name")
+    if ctx.runner is None:
+        raise ApiError(409, "upscaling crops needs seriesmith's queue (seriesmith serve)")
+    made = {c["id"]: c for c in PL.make_crops(ep, crops)}
+    if crops is not None:
+        missing = [x for x in crops if x not in made]
+        if missing:
+            raise ApiError(404, f"not crops of this episode's series config: {', '.join(missing)}")
+    backend = _opt_backend(ctx, body) or "local"
+    out = {"queued": [], "skipped": []}
+    for cid, c in made.items():
+        if c["status"] == "yours":
+            out["skipped"].append({"id": cid, "why": "its picture is one of yours"})
+            continue
+        if c["status"] == "waiting":
+            out["skipped"].append({"id": cid, "why": c.get("why") or "its master has no plate"})
+            continue
+        if every and not redo and c.get("upscaled"):
+            out["skipped"].append({"id": cid, "why": f"already upscaled ({c['upscaled']})"})
+            continue
+        try:
+            job = ctx.runner.enqueue_crop_upscale(ep, cid, backend, model)
+        except ValueError as e:
+            out["skipped"].append({"id": cid, "why": str(e)})
+            continue
+        out["queued"].append({"id": cid, "job": job})
+    return 200, out
+
+
 def _local_backend():
     from seriesmith.backends import available
     b = available().get("local")
@@ -7269,6 +7317,7 @@ ROUTES = [
     ("POST", "/seriesmith/refs/tour", post_refs_tour, "body"),
     ("POST", "/seriesmith/refs/copy-take", post_refs_copy_take, "body"),
     ("POST", "/seriesmith/refs/relight", post_refs_relight, "body"),
+    ("POST", "/seriesmith/refs/upscale-crop", post_refs_upscale_crop, "body"),
     ("POST", "/seriesmith/refs/tour-frame", post_refs_tour_frame, "body"),
     ("PUT", "/seriesmith/refs/pick", put_refs_pick, "body"),
     ("DELETE", "/seriesmith/refs/pick", delete_refs_pick, "query"),

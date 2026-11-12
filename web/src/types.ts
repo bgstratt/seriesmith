@@ -1696,6 +1696,8 @@ export interface Ref {
   /** a crop of its place's plate (`of`): which part, and how much closer (docs/PLATE_VARIANTS.md) */
   crop?: string;
   zoom?: number;
+  /** a crop's picture: the upscale model it was made with, null when it's stretched */
+  upscaled?: string | null;
   /** false when this ref can't be generated; `why_not` says why */
   can_generate?: boolean;
   why_not?: string | null;

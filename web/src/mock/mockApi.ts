@@ -2242,6 +2242,11 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         queued: [], errors: req.dry_run ? [] : [{ error: "the mock doesn't relight" }], repointed: [],
       };
     },
+    async refsUpscaleCrop(req) {
+      await wait();
+      need(req.ep);
+      return { queued: [], skipped: (req.crops ?? []).map((id) => ({ id, why: "the mock doesn't upscale" })) };
+    },
     async refsPick(req) {
       await wait();
       need(req.ep);

@@ -45,7 +45,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/info`, `GET /seriesmith/jobs`, `POST /seriesmith/jobs/{action}`, `GET /seriesmith/backends`, `GET` / `PUT /seriesmith/settings` | The queue |
 | `GET /seriesmith/browse` | Round 2 additions |
 | `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
-| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes`, `GET /seriesmith/refs/shared-takes` | References (Phase 5) |
+| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/upscale-crop`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes`, `GET /seriesmith/refs/shared-takes` | References (Phase 5) |
 | `GET /seriesmith/ambience`, `GET /seriesmith/refs/one` | Ambience beds |
 | `GET /seriesmith/fx`, `GET /seriesmith/fx/shots`, `POST /seriesmith/fx/render`, `POST /seriesmith/fx/pick` | Effects |
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
@@ -1936,8 +1936,9 @@ you supply. Refs are the same thing whatever model consumes them. Each has a `sc
   of the base's same view on any target that reads reference images, and on a text-to-image
   target from the base's seed and the variant's words.
 - A **crop** (a location with `of`, `crop` and `zoom`: docs/PLATE_VARIANTS.md) carries
-  `"crop"` (which part) and `"zoom"` (how much closer, 1.6 when the series config leaves it
-  out) beside its `"of"`; any other ref has neither.
+  `"crop"` (which part), `"zoom"` (how much closer, 1.6 when the series config leaves it
+  out) and `"upscaled"` (the upscale model its picture was made with, null when stretched)
+  beside its `"of"`; any other ref has none of them.
 - **Picking** a take copies it to the path the series config names, which is the file renders
   read. The pick is recorded in `refs/_picks.json`, so the UI knows which take is
   live. Re-picking changes the file's sha1, so video takes that used the old file
@@ -2108,6 +2109,17 @@ ones and rebuilds. Returns `{"locations": [{"source", "id", "exists", "entry"}],
 "errors", "repointed": [sequence and shot ids]}`; `dry_run` writes and queues nothing. 400
 for a source with no plate yet, an unknown sequence or location, a suffix other than
 letters, digits and `_`, or an id already taken by another location.
+
+### `POST /seriesmith/refs/upscale-crop`
+Body `{"ep", "crops"? | "all"?, "redo"?, "model"?, "backend"?}`: crops' pictures upscaled
+(`seriesmith/plates.py`, docs/PLATE_VARIANTS.md). Give `crops` (location ids of crops in the
+episode's series config) or `all: true` (every crop not upscaled yet; `redo` every one). Each is
+queued on the backend (`local` by default) as a `ref` job: its part of the master's plate
+through an upscale model (`model`, else 4x-UltraSharp, RealESRGAN x4 or x2, else the first the
+ComfyUI lists), scaled to the plate's size, written as the crop's picture with its record.
+`seriesmith.ref` (`view` and `take` null) is sent as each is queued and ends. Returns
+`{"queued": [{"id", "job"}], "skipped": [{"id", "why"}]}` (a picture of yours, a master with no
+plate yet, already upscaled). 404 for an id that isn't a crop; 409 without the queue.
 
 ### `POST /seriesmith/refs/from-frame` (step 13)
 Body `{"ep", "pass", "shot", "take", "frame", "ref", "view"?, "instruction"?, "target"?,

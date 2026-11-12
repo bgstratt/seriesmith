@@ -850,6 +850,58 @@ class Runner:
         self._submit(qjob)
         return qjob.id
 
+    def enqueue_crop_upscale(self, ep: str, cid: str, backend_name: str = "local",
+                             model: str | None = None) -> str:
+        """Crop `cid`'s picture upscaled (plates.py): its part of the master's plate through an
+        upscale model on the backend's ComfyUI, scaled to the plate's size, written as the
+        crop's picture with its record. `seriesmith.ref` is sent as it's queued and as it
+        ends. Returns the queue's job id; ValueError when `cid` isn't a crop or its master has
+        no plate."""
+        import os
+
+        from seriesmith import plates as PL
+
+        PL.make_crops(ep, [cid])
+        c = PL.crop_of(ep, cid)
+        backend = self.backend_for(backend_name)
+        self.reserve(backend, os.path.dirname(os.path.abspath(c["path"])), "ref")
+        rid = f"location:{cid}"
+
+        def event(status: str, error: str = "") -> None:
+            self._emit("seriesmith.ref", {"ep": ep, "ref": rid, "view": None, "take": None,
+                                          "status": status, "error": error})
+
+        def work(qjob: QJob, report) -> str:
+            part = None
+            try:
+                now = PL.crop_of(ep, cid)
+                m = PL.pick_model(PL.backend_models(backend), model)
+                part = PL.stage_part(now)
+                run = backend.submit(PL.upscale_graph(part, m, *now["size"]))
+                self.started(qjob, run, backend, report)
+                status = run.watch(on_progress=progress_to(report))
+                PL.collect_upscale(ep, now, m, run, status)
+                report(line=f"{cid} upscaled with {m}")
+                result = "succeeded"
+            except Exception as e:                       # noqa: BLE001  the upscale fails
+                qjob.error = str(e)[:800]
+                result = "canceled" if qjob.cancel_asked else "failed"
+            finally:
+                if part and os.path.exists(part):
+                    try:
+                        os.remove(part)
+                    except OSError:
+                        pass
+            event("ok" if result == "succeeded" else "failed", qjob.error or "")
+            return result
+
+        qjob = QJob(kind="ref", lane=backend.name, title=f"{_ep_name(ep)} {cid} upscale",
+                    work=work, info={"ep": ep, "ref": rid, "backend": backend.name},
+                    limit=LIMITS["ref"])
+        self._submit(qjob)
+        event("queued")
+        return qjob.id
+
     def enqueue_voice(self, root: str, pass_: str, shot: str, take, backend_name: str = "local") -> str:
         """A take's voice stem (voices.py) queued: its sound split on the backend's ComfyUI by
         seriesmith's SeriesmithVocals node (the job vocals.py's is), written beside the take

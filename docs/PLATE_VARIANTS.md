@@ -57,6 +57,16 @@ shots plays in one part of a wide plate, that part becomes a crop, and those sho
 - **Or yours**: a picture that isn't the one seriesmith made (its sha1 isn't the record's) is
   kept and never replaced. Made by hand, or as an edit of the master in the Refs tab (an angle's
   generate, told which part).
+- **Upscaled**, queued from the crop as any variant's picture is (its **Upscale** in the Refs
+  tab, `POST /seriesmith/refs/upscale-crop`): the crop's part of the master's plate, cut and not
+  enlarged, through an upscale model on this machine's ComfyUI (4x-UltraSharp, else RealESRGAN
+  x4 or x2, else the first it lists), scaled to the plate's size. The record says which model
+  (`upscaled`). The master is never touched. When the master's plate changes the crop is
+  stretched again at once (a render never uses a crop of the old picture), and can be upscaled
+  again; a result that comes back after the crop changed, or after its picture became yours,
+  isn't kept. Live (2026-11-12, ep02 `vending_alcove_drinks`, 4x-UltraSharp): 2.7 s, the bottle
+  labels, shelf edges and poster text sharp where the stretch smeared them; a touch brighter
+  and cooler than the stretch.
 - A crop of a crop isn't one: `of` names a location with a plate of its own that isn't a crop.
 
 ## Checklist
@@ -78,3 +88,7 @@ shots plays in one part of a wide plate, that part becomes a crop, and those sho
       knees up, bending to the tray, seen from the side with a corridor door behind; clean.
       The cut between them is no longer a jump.
 - [ ] Live: a Ballroom close-up on a crop of an angle.
+- [x] Upscale a crop, queued from it (`plates.py`: `crop_of`, `stage_part`, `upscale_graph`,
+      `collect_upscale`; `Runner.enqueue_crop_upscale`; the Refs tab's **Upscale**).
+- [ ] Live: a render on an upscaled crop beside one on the stretched crop.
+- [ ] A close crop made soft on purpose (`soft: true`), if close-up renders ask for it.

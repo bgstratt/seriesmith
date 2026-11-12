@@ -1035,6 +1035,12 @@ script call for is listed here.
   side, rather than four views drawn apart.
 - **Make 360** (a place's row, under its plate) outpaints the plate into a 360 panorama.
   Open it to look around and save a view as a new angle of the place.
+- **A crop** (a place that is one part of another's plate, closer: its row says "↳ left of
+  vending_alcove_night, 1.6×") gets its picture by itself, the part cut and stretched. **Upscale**
+  on its row queues that part through an upscale model (4x-UltraSharp, else RealESRGAN) on this
+  machine's ComfyUI for the detail a stretch can't give; the row then says "upscaled", and the
+  button **Upscale again**. When the plate it's cut from changes, it's stretched again at once,
+  ready to upscale again. **Generate** instead asks the edit model to draw that part anew.
 - A character's sheet is stitched automatically once all four views are picked — or you
   supply a finished one, below.
 - **A view's settings vs the character's.** Seed, model, LoRAs and steps set on a character's
