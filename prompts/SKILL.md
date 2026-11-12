@@ -752,20 +752,43 @@ a **crop**, a location that is one part of another's plate, closer.
 ```
 
 - `crop` says which part: `center`, `left`, `right`, `top`, `bottom`, `top-left`, `top-right`,
-  `bottom-left` or `bottom-right`. Pick the part the shot plays in: where the person stands
-  in the wide plate.
-- `zoom` says how much closer, 1.2 to 3 (1.6 when left out: about the middle 60% of the plate).
-  Around 1.5 for a medium shot, 2 to 2.5 for a medium close-up.
+  `bottom-left` or `bottom-right`. `zoom` says how much closer, 1.2 to 3 (1.6 when left out):
+  the crop keeps 1/zoom of the plate's width and height, centred on that part.
 - `description` says what that part shows; left out, it's the master's. Its picture is made
-  from the master's plate, cut and enlarged, when you build or render; `plate` names it if you
-  want it somewhere else. A picture you put there yourself (or make in the Refs tab with an
-  edit model) is kept.
-- **You decide** when a shot gets one, and seriesmith never crops by itself. A run of medium
-  and close shots in one part of a wide place gets a crop, and each names it with `plate:`;
-  the wide shots keep the master. Two people facing each other each get a crop of their own
-  angle (**Two people talking need an angle each**), not of the same plate.
+  from the master's plate, cut and enlarged, when you build or render (**Upscale** on its row in
+  the Refs tab gives it the detail a stretch can't); `plate` names it if you want it somewhere
+  else. A picture you put there yourself (or make in the Refs tab with an edit model) is kept.
 - A crop's master may be an angle or a relit plate, not another crop: crop the master with a
   larger `zoom` instead.
+
+seriesmith never crops by itself: the script decides. Go through every medium and close shot:
+
+1. **Every `ms`, `mws`, `cowboy`, `mcu` and `cu` gets a crop**, unless its plate is already that
+   close: a plate that shows only what is directly behind a person at that size (a door filling
+   the frame, a counter seen from a stool, the wall behind a desk chair). **An angle is not close
+   because it is an angle**: an `_on_` plate that still shows a whole wall, a room's corner, a car
+   seat with the dash and windows, or a row of pews is wide for a medium shot. Ask what the plate
+   shows, not what it's called.
+2. **The zoom follows the size**: `mws` and `cowboy` about 1.4 to 1.5, `ms` 1.5, `mcu` and `cu`
+   2.2 (2.0 when 2.2 would cut away the thing the person is at: the door, the desk, the pump).
+   A plate with both medium and close shots in one part gets two crops of that part, one for
+   each (`<master>_<part>` at 1.5 and `<master>_<part>_close` at 2.2): a close-up on the 1.5
+   crop comes out medium.
+3. **The part is what is behind the person**: where they stand or sit in the plate, so the crop
+   keeps the thing the action puts them at (the door they wait by, the desk they lean on).
+   Shots in different parts of one plate get different crops.
+4. **Two people facing each other** never share a crop: each gets a crop of their own angle
+   (**Two people talking need an angle each**), or of another part.
+5. **Keep the full plate** for wide shots (`ws`, `fs`, `ews`); `ecu` inserts of hands, papers and
+   screens, where the object fills the frame; a shot the action composes against the whole
+   view ("small on the left third, the pickup on the right", "walks toward camera down the
+   corridor"); and a plate that is what the person looks at rather than what is behind them.
+6. **Ids are the show's, not the episode's**: crop pictures live beside their master in the
+   show's `refs/`, so an id another episode already uses for a different crop (another part or
+   zoom, or a master with another plate) needs a different id.
+7. **Look at each crop once it's cut** (build cuts them): one that shows only wall, floor or sky,
+   or misses the thing the person is at, has the wrong part or too much zoom. Move the part or
+   lower the zoom.
 
 ### What a place sounds like: `ambience`
 
