@@ -739,6 +739,34 @@ preset's id (`dusk`, `night`, `rain`, `neon`, …) or the instruction in your ow
 - The editor can also make these from the plates (Relight on a sequence; a 360 panorama or a
   camera tour of a master for its angles' pictures): in a config you only name them.
 
+### Medium and close shots get a crop of the plate
+
+A video model takes a plate as what the place *is*, not what the camera sees. In front of a
+wide establishing plate, a medium shot comes out as wide as the plate, or, told less about
+the room, the model invents what fills the closer view. Give it the closer view as a picture:
+a **crop**, a location that is one part of another's plate, closer.
+
+```json
+"vending_alcove_drinks": {"of": "vending_alcove_night", "crop": "left",
+                          "description": "the drinks machine and the water fountain of a small hospital vending alcove at night"}
+```
+
+- `crop` says which part: `center`, `left`, `right`, `top`, `bottom`, `top-left`, `top-right`,
+  `bottom-left` or `bottom-right`. Pick the part the shot plays in: where the person stands
+  in the wide plate.
+- `zoom` says how much closer, 1.2 to 3 (1.6 when left out: about the middle 60% of the plate).
+  Around 1.5 for a medium shot, 2 to 2.5 for a medium close-up.
+- `description` says what that part shows; left out, it's the master's. Its picture is made
+  from the master's plate, cut and enlarged, when you build or render; `plate` names it if you
+  want it somewhere else. A picture you put there yourself (or make in the Refs tab with an
+  edit model) is kept.
+- **You decide** when a shot gets one, and seriesmith never crops by itself. A run of medium
+  and close shots in one part of a wide place gets a crop, and each names it with `plate:`;
+  the wide shots keep the master. Two people facing each other each get a crop of their own
+  angle (**Two people talking need an angle each**), not of the same plate.
+- A crop's master may be an angle or a relit plate, not another crop: crop the master with a
+  larger `zoom` instead.
+
 ### What a place sounds like: `ambience`
 
 A location may say what is **heard** there, its room tone or air, in `ambience`. An

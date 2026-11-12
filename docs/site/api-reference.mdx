@@ -303,8 +303,13 @@ Body `{"ep"}`. Runs `build` for the final pass, then the proxy pass, on the
 episode's series config and script (`edit.episode_series_config` / `episode_script`).
 ```json
 {"ok": true, "passes": {"final": {"ok": true, "report": "…stdout…", "error": ""},
-                        "proxy": {"ok": true, "report": "…", "error": ""}}}
+                        "proxy": {"ok": true, "report": "…", "error": ""}},
+ "crops": [{"id": "alcove_drinks", "status": "made", "path": "…"}]}
 ```
+`crops`: each crop location's plate (docs/PLATE_VARIANTS.md), made from its master's after the
+build: `made`, `current`, `yours` (a picture seriesmith didn't make, kept) or `waiting` (the
+master has no plate yet, with `why`). A render (`POST /seriesmith/render`) and a ref generation
+make them too.
 A script error returns `ok: false` with the message (it names the line) in `error`.
 The status is still 200: a script that doesn't compile is a result, not a server error.
 

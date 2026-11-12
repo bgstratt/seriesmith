@@ -899,6 +899,16 @@ def built_prompt(s: Series, ref: Ref, view: str | None = None,
                 from seriesmith.relight import instruction
                 from seriesmith.targets.image.common import edit_prompt
                 return edit_prompt(instruction(e["relight"]), refs[:1], word)
+            if e.get("crop") is not None:
+                # a crop (docs/PLATE_VARIANTS.md): the master's plate, closer on one part
+                from seriesmith.core.series_config import ZOOM
+                from seriesmith.targets.image.common import edit_prompt
+                part = "middle" if e["crop"] == "center" else e["crop"].replace("-", " ")
+                return edit_prompt(
+                    f"Show the {part} part of this place {float(e.get('zoom') or ZOOM):g} times "
+                    f"closer, filling the whole frame at the same size: the same place, light and "
+                    f"colours, the camera nearer, everything in it sharp and whole, empty of people",
+                    refs[:1], word)
             return angle_prompt(s.look, e["description"], e["of"].replace("_", " "),
                                 master.get("description", ""), word)
         return plate_prompt(s.look, e["description"])
@@ -3912,6 +3922,8 @@ def queue_generate(s: Series, req: GenRequest, comfy, base=None,
     target}], "errors": [{ref, view, take?, error}]}; a take that fails to
     queue is marked failed and the others still go. Raises RefError /
     UnknownRef for a request that can't be planned at all."""
+    from seriesmith import plates as PL
+    PL.ensure(s.ep)                         # the crops' plates, before a keyframe needs one
     if runner is None:
         raise ValueError("queue_generate needs seriesmith's queue (runner.Runner)")
     jobs = plan_generate(s, req, rng=rng, ready=target_ready(listing))

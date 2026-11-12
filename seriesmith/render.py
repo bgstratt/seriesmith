@@ -175,8 +175,10 @@ def main(argv: list[str] | None = None) -> int:
     ap, args = parse_args(argv)
     pass_ = "proxy" if args.proxy else "final"
     roots = [os.path.abspath(p) for p in args.episodes]
+    from seriesmith import plates as PL
     for r in roots:
         TG.add_thread_root(r)
+        PL.ensure(r)                        # the crops' plates, before a shot needs one
     if args.target:
         try:
             J.check_video_target(args.target)

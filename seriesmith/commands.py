@@ -108,6 +108,16 @@ def _assemble(args):
     return assemble.main(args)
 
 
+def say_crops(ep: str) -> None:
+    """The crops' plates (plates.py), made or brought up to date, as a build prints them."""
+    from seriesmith import plates as PL
+    for c in PL.ensure(ep):
+        if c["status"] == "made":
+            print(f"  -> crop {c['id']}: {c['path']}")
+        elif c["status"] in ("yours", "waiting"):
+            print(f"  -- crop {c['id']}: {'your picture, kept' if c['status'] == 'yours' else c.get('why')}")
+
+
 def stage(name: str, ep: str, extra: list[str], skip_build: bool = False) -> int:
     proxy = "--proxy" in extra
     if name in ("build", "check"):
@@ -121,8 +131,11 @@ def stage(name: str, ep: str, extra: list[str], skip_build: bool = False) -> int
                 print(f"    ! {w}")
             return rc
         rest = [a for a in extra if a != "--proxy"]
-        return (call("build", _build, base + ["-o", ep] + rest)
-                or call("build", _build, base + ["-o", ep, "--proxy"] + rest))
+        rc = (call("build", _build, base + ["-o", ep] + rest)
+              or call("build", _build, base + ["-o", ep, "--proxy"] + rest))
+        if not rc:
+            say_crops(ep)
+        return rc
     if name == "align":
         return run([sys.executable, "-m", "seriesmith.align", ep] + extra)
     if name == "refs":

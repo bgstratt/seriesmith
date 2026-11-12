@@ -1587,6 +1587,8 @@ def get_drafts(ctx: Context, query: dict):
 def post_render(ctx: Context, body):
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
+    from seriesmith import plates as PL
+    PL.ensure(ep)                           # the crops' plates, before a shot needs one
     pass_ = check_pass(body.get("pass"))
     shots = body.get("shots")
     if shots is not None and (not isinstance(shots, list)
