@@ -177,6 +177,14 @@ def flux3_video(p: dict) -> None:
                   "live (docs/PLAN.md, 'FLUX 3 video').")
 
 
+def minimax_h3_pictures(p: dict) -> None:
+    """MiniMax H3 takes nine pictures, which its Router schema doesn't say (its content list
+    has no maxItems, so the inspector's default of 4 stood): eight subjects and the plate, as
+    the local H3 (minimax_h3_ref2va: Pictures 1-3 and 5-9, the plate Picture 4)."""
+    p["capabilities"]["max_subjects"] = 8
+    p["router"]["inputs"]["references"]["max_total"] = 9
+
+
 def runway_note(p: dict) -> None:
     p["_note"] = ("Image to video: every shot starts from its first keyframe (promptImage); no "
                   "reference pictures, no sound (the silent prose: Runway failed every prompt "
@@ -186,7 +194,7 @@ def runway_note(p: dict) -> None:
 # (Router model, id, label, short, limits, draft, extra) -- live ones were rendered
 # on Porchlights ep03 (2026-10-12); drafts match a live sibling's schema
 MODELS = [
-    ("minimax/minimax-h3", "minimax_h3", "MiniMax H3", "MiniMax", None, False, None),
+    ("minimax/minimax-h3", "minimax_h3", "MiniMax H3", "MiniMax", None, False, minimax_h3_pictures),
     ("byteplus/dreamina-seedance-2-0-260128", "seedance_2_0", "Seedance 2.0", "Seedance", SEEDANCE_2_0, False, seedance_ratio),
     ("byteplus/dreamina-seedance-2-0-fast-260128", "seedance_2_0_fast", "Seedance 2.0 Fast", "Seedance", SEEDANCE_2_0, True, seedance_ratio),
     ("byteplus/dreamina-seedance-2-0-mini", "seedance_2_0_mini", "Seedance 2.0 Mini", "Seedance", SEEDANCE_2_0, True, seedance_ratio),

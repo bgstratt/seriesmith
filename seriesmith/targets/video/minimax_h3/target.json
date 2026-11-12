@@ -9,7 +9,7 @@
       "router"
     ],
     "seed": "provider",
-    "max_subjects": 4
+    "max_subjects": 8
   },
   "template": {
     "fps": 24,
@@ -88,7 +88,8 @@
             "url": "$url"
           },
           "role": "reference_image"
-        }
+        },
+        "max_total": 9
       },
       "first": {
         "list": "content",

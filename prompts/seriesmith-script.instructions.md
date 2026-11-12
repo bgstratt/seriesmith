@@ -1369,7 +1369,7 @@ What each video model takes (generated from the models by `python tools/make_ref
 | `flux_3_video` | FLUX 3 | Comfy Router | none | first and last | — |
 | `kling_v3_omni` | Kling | Comfy Router | up to 7: the subjects, then the plate; as links | first and last | names each: `<<<image_N>>>` is … |
 | `kling_video_o1` | Kling O1 | Comfy Router | up to 4: the subjects, then the plate; as links | first and last | names each: `<<<image_N>>>` is … |
-| `minimax_h3` | MiniMax | Comfy Router | up to 4: the subjects, then the plate; as links | first and last | by their order |
+| `minimax_h3` | MiniMax | Comfy Router | up to 9: the subjects, then the plate; as links | first and last | by their order |
 | `runway_gen4_turbo` | Runway | Comfy Router | none | first | — |
 | `seedance_2_0` | Seedance | Comfy Router | up to 9: the subjects, then the plate; through the Seedance library (`asset://`) | first and last | defines each first: *Define … in @Image N as …* |
 | `seedance_2_0_fast` | Seedance | Comfy Router | up to 9: the subjects, then the plate; through the Seedance library (`asset://`) | first and last | defines each first: *Define … in @Image N as …* |
@@ -1818,8 +1818,9 @@ group subject, and leave only far-off, blurred people in `extras:`.
 ```
 
 Cast it like anyone else (`who:` or `with:`), in every shot they're in, and drop them from those
-shots' `extras:`. It takes one slot however many people it holds, which is how a shot gets more than three people who stay the same: two named
-characters and a group of four is three subjects. The prompt defines it as a picture of N
+shots' `extras:`. It takes one slot however many people it holds (H3 has eight besides the
+plate): two named characters and a group of four is three subjects, six people who stay the
+same. The prompt defines it as a picture of N
 different people and counts its members in the shot's headcount ("Exactly six characters
 appear in this shot: <Subject 1>, <Subject 2> and the four members of <Subject 3>"), which
 is what keeps H3 from drawing the same woman twice. Put where they are in the action text
