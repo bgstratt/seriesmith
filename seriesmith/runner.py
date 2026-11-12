@@ -71,6 +71,18 @@ def room(folder: str, kind: str) -> None:
 LOCAL_LANE = "cpu"                   # long work of seriesmith's own (local_job)
 
 
+def picture(qjob: QJob, ep: str, path: str | None) -> None:
+    """What a job made, as a picture the Jobs window shows and opens: `picture` in its info,
+    the file's path from the episode (GET /seriesmith/thumb's), when the file is there."""
+    import os
+
+    from seriesmith import refs as R
+    if path and os.path.isfile(path):
+        rel = R.ep_rel(ep, path)
+        if rel:
+            qjob.info["picture"] = rel
+
+
 def progress_to(report):
     """A backend's Progress handed to the queue's report()."""
     return lambda p: report(p.value, p.step, p.steps)
@@ -225,6 +237,7 @@ class Runner:
                 if status == "ok":
                     COL.record_look(take)                # the timeline's colour check reads it
                     self._check_take(ep, take)
+                    picture(qjob, ep, take.paths.thumb)
             except Exception as e:                       # noqa: BLE001  the take fails
                 J.mark_failed(take, str(e)[:800])
                 qjob.error = str(e)[:800]
@@ -428,6 +441,8 @@ class Runner:
                 remote = self._remote(qjob, take.paths.sidecar, report)
                 status = run.watch(on_progress=progress, on_status=lambda st: remote(run, st))
                 result = collect_ref(take, run, status, res, backend.name)
+                if result == "ok" and not job.is_audio:
+                    picture(qjob, ep, take.paths.image)
             except Exception as e:                       # noqa: BLE001  the take fails
                 R.mark_failed(take, stopped(qjob) if qjob.cancel_asked else str(e)[:800])
                 qjob.error = str(e)[:800]
@@ -880,7 +895,7 @@ class Runner:
                 run = backend.submit(PL.upscale_graph(part, m, *now["size"]))
                 self.started(qjob, run, backend, report)
                 status = run.watch(on_progress=progress_to(report))
-                PL.collect_upscale(ep, now, m, run, status)
+                picture(qjob, ep, PL.collect_upscale(ep, now, m, run, status))
                 report(line=f"{cid} upscaled with {m}")
                 result = "succeeded"
             except Exception as e:                       # noqa: BLE001  the upscale fails

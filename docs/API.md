@@ -1785,8 +1785,9 @@ it can't take. A field the environment sets wins over the file.
 newest first; `paid` counts the runs sent to a paid backend this session against
 `paid_limit`. A job is
 `{"id", "kind" (render | ref | upscale | post | tour), "lane" (its backend), "title",
-"after" (the job it waits for, or null), "info" ({ep, pass, shot, take, target, backend,
-...}), "status" (queued | running | succeeded | failed | canceled), "progress" (0-1),
+"after" (the job it waits for, or null), "info" ({ep, pass, shot, take, ref, view, target,
+backend, ...; `picture`, once it has succeeded, what it made as a path from the episode for
+`GET /seriesmith/thumb`: a take's thumbnail, a ref's picture, an upscaled crop}), "status" (queued | running | succeeded | failed | canceled), "progress" (0-1),
 "step", "steps", "created", "started", "finished", "error", "log" (the last 20 lines),
 "can_retry"}`.
 

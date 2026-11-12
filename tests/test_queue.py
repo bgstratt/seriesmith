@@ -288,3 +288,27 @@ class EditorRenderTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class JobPictureTest(unittest.TestCase):
+    """What a job made, recorded for the Jobs window (runner.picture): the file's path from
+    the episode, only when it's there."""
+
+    def test_recorded_from_the_episode(self):
+        from seriesmith import runner as RN
+        tmp = tempfile.mkdtemp(prefix="jobpic-")
+        try:
+            ep = os.path.join(tmp, "show", "ep01")
+            os.makedirs(ep)
+            pic = os.path.join(tmp, "show", "refs", "_bg", "alcove_left.png")
+            os.makedirs(os.path.dirname(pic))
+            with open(pic, "wb") as fh:
+                fh.write(b"png")
+            j = Job(kind="ref", lane="local", title="t", work=lambda job, report: "succeeded",
+                    info={"ep": ep})
+            RN.picture(j, ep, os.path.join(tmp, "show", "refs", "_bg", "missing.png"))
+            self.assertNotIn("picture", j.info)
+            RN.picture(j, ep, pic)
+            self.assertEqual(j.info["picture"], "../refs/_bg/alcove_left.png")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)

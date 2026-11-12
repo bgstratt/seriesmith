@@ -1224,7 +1224,10 @@ queue:
 
 - One lane per backend. Your own ComfyUI runs one job at a time; a cloud backend several.
 - Each job shows what it is (`ep02 sh140 t03`, a ref view, an upscale, a tour), its
-  progress, and its log (where it ran, what it held or started from, how it ended).
+  progress, and its log (where it ran, what it held or started from, how it ended). A job
+  that succeeded shows what it made: the take's frame, the ref's picture, the upscaled crop.
+  Its picture and its name open what it was for, in its episode: the shot in Shots, on the
+  take it made, or the ref in Refs.
 - **Cancel** stops a running job or takes a waiting one off the queue (its take is marked
   failed, `canceled`). **Cancel all**, at the top, does that to every job once you confirm: the
   waiting ones leave first, so none of them starts as the running ones stop. **Earlier** / **Later** reorder a waiting job; a lane can be
