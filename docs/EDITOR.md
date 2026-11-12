@@ -365,7 +365,7 @@ under the shot.
 
 ### Take checks
 
-Once a take finishes, seriesmith looks it over for two things a video model sometimes does
+Once a take finishes, seriesmith looks it over for things a video model sometimes does
 that the script didn't ask for. It marks what it finds and changes nothing:
 
 - **cut at 0.58 s**: the picture cuts to another shot partway through, a shot asked for as
@@ -378,9 +378,18 @@ that the script didn't ask for. It marks what it finds and changes nothing:
   garbled line shows up here. This only runs when the model voiced the lines (Generate or
   Clone, not a dub) and a Whisper model is downloaded (Features, Sound: **Whisper small.en** is
   the quickest, and the Recorded dialogue line's medium.en does too).
+- **3 people for 1**: more people or faces in the take than the shot has, for a quarter second
+  or more: a duplicate of a character, a stranger walking in, one person with two heads. The
+  shot has its `who:` and `with:` characters and its `extras:`, counted from their words ("a
+  night nurse" is one, "two paramedics" two). Extras whose number isn't said ("nurses passing",
+  "a few") leave the take unchecked. Fewer is never flagged: a turned head or a person out of
+  frame is fine. Someone in the background the script doesn't name counts, so look before you
+  re-render: name them in `extras:` if they belong. This runs on the processor too, about 20 s
+  a take, when ComfyUI has ultralytics and the two detectors are downloaded (Features, Tools:
+  **Count check**).
 
 The badges are on the take in the bin and on its tile in the gallery. A check comes in a few
-seconds after the take does. It doesn't hold up the next render. A place that slowly turns
+seconds after the take does (the count check in about 20). It doesn't hold up the next render. A place that slowly turns
 into another during one camera move isn't a cut, so it isn't caught. Takes made before
 checks existed are checked with `seriesmith takes <episode> --check`.
 

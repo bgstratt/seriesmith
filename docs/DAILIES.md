@@ -1,7 +1,7 @@
 # Dailies: takes reviewed by a vision-language model
 
-Status (2026-11-12): **the notes and their history are built** (checklist 1); **the VLM review
-is set aside** (see "Set aside" below); the count check is next. This file is the design record
+Status (2026-11-12): **the notes and their history are built** (checklist 1), and **the count
+check** (checklist 9); **the VLM review is set aside** (see "Set aside" below). This file is the design record
 and the checklist; the contracts go in the docstrings, `docs/API.md` and `docs/EDITOR.md` as
 they are built.
 
@@ -470,7 +470,17 @@ Set aside with the review (3-8):
 
 Next:
 
-- [ ] 9. The count check: people and faces per frame (YOLO, ComfyUI's own weights, on CPU)
+- [x] 9. The count check: people and faces per frame (YOLO, ComfyUI's own weights, on CPU)
       against the shot's `who:`, `with:` and `extras:`; flagged when more show for 0.25 s or
       more, never on the median; a take check (`takecheck.register`) with its badge, its
-      weights in the Features window.
+      weights in the Features window (2026-11-12: `countcheck.py`, `helpers/counts.py`).
+
+**The count check, live (2026-11-12, Porchlights ep02, 8 fps, CPU, about 20 s a take).** It
+caught all four takes the experiment did: sh1190 t02 (2 people for 1), sh1420 t02 (4 for 2),
+sh1510 t01 (3 for 1), sh1570 t02 (5 for 4 at 1.25-1.5 s, the median 4). It passed sh140 t03,
+sh290 t03, sh1590 t02 and sh1210 t02 (sh1210's arm from the chest isn't a count problem). It
+flagged sh1460 t03, the H3 Hybrid take: 2 people for 1, and rightly so. A soft-focus man stands
+behind Denise the whole take, and the script has no `extras:` for him. Whether a background
+stranger matters is the person's call; the badge says to look, and to name them in `extras:` if
+they belong. The extras are counted from their words; of ep02's 47 shots with extras, those
+whose number isn't said ("day-shift nurses", "a few") aren't checked.

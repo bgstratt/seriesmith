@@ -219,8 +219,13 @@ class StepTest(unittest.TestCase):
 class MoreChecksTest(unittest.TestCase):
     """The hook a vision-language model's look joins by."""
 
+    def setUp(self):
+        self._had = dict(TC.CHECKERS)
+        TC.CHECKERS.clear()
+
     def tearDown(self):
         TC.CHECKERS.clear()
+        TC.CHECKERS.update(self._had)
 
     def test_a_registered_check_flags_and_retries_like_a_cut(self):
         TC.register("look", lambda root, take, shot: {"flag": True, "why": "two of Mara"})

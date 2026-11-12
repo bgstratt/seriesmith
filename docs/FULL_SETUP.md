@@ -93,6 +93,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Relights, and Turn without its LoRA | | any edit picture model (FLUX.2 Klein edit by default) | |
 | Hosted models (Comfy Router), Comfy Cloud, deployments | | | a Comfy API key; comfy-sdk |
 | Local renders through comfy-api-proxy (optional) | | | `pip install comfy-api-proxy` |
+| The count check: more people in a take than its shot has (optional) | ComfyUI-Impact-Subpack (or `pip install ultralytics` for ComfyUI's Python) | 2 YOLOv8 detectors (Features: Count check) | |
 
 ## Rendering video
 
@@ -534,6 +535,7 @@ config so the pipeline knows which one it is:
 | `pip install faster-whisper numpy`, in the Python of the server align runs from | recorded dialogue: `align` and the Recording window (seriesmith's own server: seriesmith's Python; the editor inside ComfyUI: ComfyUI's) |
 | `pip install nvidia-cublas-cu12`, in that same Python | Whisper on an NVIDIA card instead of the CPU (faster-whisper brings no CUDA 12 cuBLAS) |
 | `pip install demucs`, for ComfyUI's `python` | the `dub_keep_foley` audio policy |
+| `pip install ultralytics`, for ComfyUI's `python` (the Impact Subpack brings it) | the count check |
 | `pip install comfy-api-proxy`, in seriesmith's Python | local renders through comfy-api-proxy (optional; [SETUP.md](SETUP.md)) |
 | Node.js 20.19+ and `npm install` in `web/` | only to rebuild the editor after changing `web/` |
 | `pip install pytest` | the test suite |

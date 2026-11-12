@@ -57,6 +57,11 @@ don't open a public issue for it.
   without your API keys in their environment.
 - **A show's own models** (`<show>/targets/`): only seriesmith's built-in code, chosen by
   name. A show can't bring Python of its own.
+- **The count check's detectors** (`seriesmith/countcheck.py`, `helpers/counts.py`): two YOLOv8
+  weight files, which are PyTorch pickles and so can run code as they load. The helper loads
+  one only when its sha256 is the one written in `countcheck.WEIGHTS`, checked just before
+  loading; any other file of that name is refused, never loaded. It runs in ComfyUI's Python
+  (ultralytics comes with the Impact Subpack) as one of seriesmith's own modules.
 
 ## Keys and the network
 

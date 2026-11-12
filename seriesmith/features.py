@@ -385,6 +385,7 @@ def _pack(folder: str) -> Item:
 
 def catalog() -> list[Feature]:
     """Every feature, in the window's order."""
+    from seriesmith import countcheck as CC
     from seriesmith import post as P
     from seriesmith import refs as R
     from seriesmith import sdk as SDK
@@ -671,6 +672,15 @@ def catalog() -> list[Feature]:
                 "kept latents, upscales and posts. Installed with ComfyUI-Manager, or linked "
                 "from this repo into ComfyUI's custom_nodes. Without it, shots render through "
                 "ComfyUI's own nodes.", [OWN_PACK], restart=True),
+        Feature("tools.count_check", "tools", CC.FEATURE,
+                "A take check: more people or faces in a take than its shot's cast and extras "
+                "(a duplicate, a stranger), for a quarter second or more. Two YOLOv8 detectors "
+                "(a person, a face), run on the processor in ComfyUI's Python, which needs "
+                "ultralytics: the Impact Subpack brings it. The weights are loaded only when "
+                "they're the exact files seriesmith knows.",
+                [Item("pip", "ultralytics", where="comfyui", module="ultralytics")]
+                + [Item("model", w["name"], folder=CC.FOLDER, url=w["url"])
+                   for w in CC.WEIGHTS.values()]),
         Feature("tools.ffmpeg", "tools", "ffmpeg and ffprobe",
                 "A full ffmpeg build in seriesmith's own folder, used before the built-in fallbacks "
                 "(or set your own folder in Settings): assemble, master, publish, the XML "

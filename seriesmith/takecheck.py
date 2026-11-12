@@ -24,6 +24,10 @@ rendered compares against the new ones (its staleness says so). Measured 2026-11
 on the CPU; LAST LIGHT's and the A/B's speaking takes all heard word for word. Skipped (`words`
 null, `why` said) when faster-whisper or the model isn't there.
 
+**Too many people** (`count`, countcheck.py): more people or faces than the shot's cast and
+extras, for a quarter second or more (YOLO on the CPU, in ComfyUI's Python); skipped, `why`
+said, when the weights or ultralytics aren't there or the extras don't say how many.
+
 **More checks** (a vision-language model's look at the frames, say) join through `register(name,
 fn)`: fn(root, take, frozen_shot) -> {"flag": bool, "why": str, ...} or None (nothing to say),
 kept under `checks["more"][name]`; a flagged one is one of `flags`, so the badges and the retry
@@ -316,3 +320,12 @@ def record(root: str, take, words: bool = True) -> dict | None:
         return c
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
         return None
+
+
+def _builtin() -> None:
+    """The checks that come with seriesmith, beyond the cut and the words."""
+    from seriesmith import countcheck as CC
+    register("count", CC.check)
+
+
+_builtin()
