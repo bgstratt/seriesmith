@@ -533,9 +533,12 @@ class KeyframePromptTest(Episode):
         first = IC.keyframe_prompt(sh, sq, self.s.series_cfg, "first")
         last = IC.keyframe_prompt(sh, sq, self.s.series_cfg, "last")
         look = self.s.series_cfg["style"]["look"]
+        env = self.s.series_cfg["locations"]["kitchen"]["description"]
         for p in (first, last):
             self.assertIn(look, p)
-            self.assertIn(self.s.series_cfg["locations"]["kitchen"]["description"], p)
+            # a close-up names the place by its first clause, never its inventory (a wide's)
+            self.assertIn(env.split(",")[0], p)
+            self.assertNotIn(env, p)
             self.assertIn(self.s.series_cfg["subjects"]["bo"]["design"], p)
             self.assertIn("close-up", p)
             self.assertNotIn("Left! Left!", p)               # no dialogue text in a still
@@ -545,6 +548,20 @@ class KeyframePromptTest(Episode):
         self.assertIn("last frame", last)
         self.assertIn("after the action is over", last)
         self.assertIn("completed", last)
+
+    def test_the_place_by_size(self):
+        """A wide lists the place; a medium or close names it by its plate's picture when that's
+        sent, else by its first clause (docs/KEYFRAME_FRAMING.md)."""
+        import copy
+        sh, sq = self.ir("sh040")
+        env = self.s.series_cfg["locations"]["kitchen"]["description"]
+        plate = [{"role": "plate", "location": "kitchen", "name": "the kitchen", "kind": "plate"}]
+        close = IC.keyframe_prompt(sh, sq, self.s.series_cfg, "first", refs=plate)
+        self.assertIn("frame of a close-up, one still picture", close)
+        self.assertNotIn(env.split(",")[0], close)
+        wide = copy.copy(sh)
+        wide.size = "ws"
+        self.assertIn(env, IC.keyframe_prompt(wide, sq, self.s.series_cfg, "first", refs=plate))
 
     def test_opening_and_closing_sentences(self):
         text = "Ada opens the door. She steps in. She sits down by the fire."
