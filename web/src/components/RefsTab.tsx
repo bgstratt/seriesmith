@@ -1234,11 +1234,14 @@ function RefRow({ ep, r }: { ep: string; r: Ref }) {
             {r.of && (
               <span
                 className="h3-muted h3-small h3-ell"
-                title={r.kind === "location"
+                title={r.kind === "location" && r.crop
+                  ? `The ${r.crop} part of ${r.of}'s plate, ${r.zoom ?? 1.6}× closer: cut from it when the series config is saved, and again when that plate changes. A picture of yours put here instead is kept. Generate asks the edit model for the same part, if the cut looks soft.`
+                  : r.kind === "location"
                   ? `An angle of ${r.of}: the same place from another camera, with its own plate. An edit model generates it from ${r.of}'s plate.`
                   : `A wardrobe variant of ${r.of}: same character, own sheet. Its views are generated from ${r.of}'s, and it shares ${r.of}'s voice.`}
               >
-                {r.kind === "location" ? `↳ angle of ${r.of}` : `variant of ${r.of}`}
+                {r.kind === "location" && r.crop ? `↳ ${r.crop} of ${r.of}, ${r.zoom ?? 1.6}×`
+                  : r.kind === "location" ? `↳ angle of ${r.of}` : `variant of ${r.of}`}
               </span>
             )}
             <span className="h3-muted h3-small h3-ell">{r.id}</span>

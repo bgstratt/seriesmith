@@ -4633,6 +4633,9 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
         # variant it is rather than inventing a second name for them
         "of": ref.entry.get("of") or None,
         "relight": ref.entry.get("relight") or None,
+        # a crop of its place's plate (docs/PLATE_VARIANTS.md): which part, how much closer
+        **({"crop": ref.entry["crop"], "zoom": float(ref.entry.get("zoom") or SC.ZOOM)}
+           if ref.kind == "location" and ref.entry.get("crop") else {}),
         "path": ep_rel(s.ep, live),
         "exists": exists, "sha1": T.file_sha1(live) if exists else None,
         # the live picture's [width, height] from its header (the gallery's tile

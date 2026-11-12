@@ -1693,6 +1693,9 @@ export interface Ref {
   of?: string | null;
   /** a relit location (sequence relight): the relight preset id or instruction; `of` its source */
   relight?: string | null;
+  /** a crop of its place's plate (`of`): which part, and how much closer (docs/PLATE_VARIANTS.md) */
+  crop?: string;
+  zoom?: number;
   /** false when this ref can't be generated; `why_not` says why */
   can_generate?: boolean;
   why_not?: string | null;

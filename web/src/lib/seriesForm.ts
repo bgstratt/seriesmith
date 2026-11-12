@@ -128,7 +128,7 @@ export interface Field {
   min?: number;
   max?: number;
   step?: number;
-  /** shown only when this is true of the config */
+  /** shown only when this is true of the config (of the entry as edited, for a card's field) */
   when?: (raw: Raw) => boolean;
   /** shown under "More" */
   more?: boolean;
@@ -438,6 +438,9 @@ export function droppedEntries(raw: Raw, kind: CardKind, onePicture: boolean[], 
   });
 }
 
+/** The parts of a plate a crop can be (core/series_config.CROPS). */
+export const CROPS = ["center", "left", "right", "top", "bottom", "top-left", "top-right", "bottom-left", "bottom-right"];
+
 /** A variant's card: what its dialogue is written under in the script, and what its shots name. */
 export function variantSpeaking(id: string, of: string): string {
   return `In the script, its lines are written under ${of.toUpperCase()}: and its shots say who: ${id || "this id"}.`;
@@ -489,7 +492,14 @@ export function cardFields(kind: CardKind, raw: Raw, id: string): Field[] {
         help: "One angle of one place, with its light: time of day, direction, and the things the light comes from (the pendant lamp, the TV's glow). The plate is drawn from it, as a still: say what the camera sees from where it stands, not a move. A walk or a turn through the place is a Tour (chosen under Then when you add it, or under its pictures); the place seen from another side is another location, an angle of this one." },
       { path: ["of"], label: "Angle of", kind: "select",
         choices: [{ value: "", label: "- (a place of its own)" }, ...others("locations", (e) => !e.of)],
-        help: "Another camera on the same place: its plate is drawn from that one's (on an edit model), so the walls and light match across a cut. Anchor the description to the same fixed things." },
+        help: "Another camera on the same place: its plate is drawn from that one's (on an edit model), so the walls and light match across a cut. Anchor the description to the same fixed things. Or a part of it, closer (Crop)." },
+      { path: ["crop"], label: "Crop", kind: "select", when: (e) => !isEmpty(e.of),
+        choices: [{ value: "", label: "- (another camera: an angle)" },
+          ...CROPS.map((c) => ({ value: c, label: `the ${c} part, closer` }))],
+        help: "For medium and close shots in one part of a wide plate: this place is that part of its plate, cut out and enlarged (no model), so the shot's plate already is the closer view. Made when the card is saved, and again when the plate it's cut from changes; a picture of yours put there instead is kept. Its description is the place's unless you say what that part shows." },
+      { path: ["zoom"], label: "Zoom", kind: "number", min: 1.2, max: 3, step: 0.1, placeholder: "1.6",
+        when: (e) => !isEmpty(e.of) && !isEmpty(e.crop),
+        help: "How much closer: 1.6 (the default) keeps about the middle 60% of the plate's width; 1.3 a looser medium wide, 2 to 3 for close shots." },
       { path: ["ambience"], label: "Ambience", kind: "long",
         placeholder: "Room tone of a small roadside diner at night: a refrigerator hum, the buzz of a neon sign, an occasional car passing outside",
         help: "What's heard there: the room tone or the air, never music or a voice. Its ambience bed is made from it (the Refs tab's Ambience) and looped under every shot set here; an angle or relit version of this place plays this one's bed unless it says its own. Empty: no bed." },
@@ -508,11 +518,14 @@ export function entryFor(kind: CardKind, before: Raw | undefined, form: Raw, id:
   if (!before && kind !== "location") e.kind = kind === "group" || kind === "voice" ? "character" : kind;
   for (const [k, v] of Object.entries(form)) {
     if (isEmpty(v)) delete e[k];
-    else e[k] = k === "sheet_panels" || k === "members" ? Number(v) : v;
+    else e[k] = k === "sheet_panels" || k === "members" || k === "zoom" ? Number(v) : v;
   }
   const pic = kind === "location" ? "plate" : "sheet";
-  const variant = kind !== "location" && !isEmpty(e.of);
-  // a variant's sheet is derived from its base's; anything else gets one by the show's layout
+  if (kind === "location" && (isEmpty(e.of) || isEmpty(e.crop))) { delete e.crop; delete e.zoom; }
+  else if (isEmpty(e.crop)) delete e.zoom;
+  // a variant's sheet is derived from its base's, and a crop's plate goes beside its place's
+  // (the series config fills it in); anything else gets one by the show's layout
+  const variant = kind === "location" ? !isEmpty(e.crop) : !isEmpty(e.of);
   if (kind !== "voice" && !variant && isEmpty(e[pic])) {
     const p = picturePath(kind, id, prefix);
     if (p) e[pic] = p;

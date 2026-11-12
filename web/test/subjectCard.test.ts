@@ -72,12 +72,25 @@ describe("cast cards", () => {
       .toEqual({ description: "the porch from the lawn", of: "porch", plate: "../refs/_bg/porch_lawn.png" });
   });
 
+  it("a crop: its part and zoom, its plate left to the series config", () => {
+    const shown = (e: Raw) => cardFields("location", show, "new").filter((f) => !f.when || f.when(e)).map((f) => f.path[0]);
+    expect(shown({})).not.toContain("crop");
+    expect(shown({ of: "porch" })).toContain("crop");
+    expect(shown({ of: "porch" })).not.toContain("zoom");
+    expect(shown({ of: "porch", crop: "left" })).toContain("zoom");
+    expect(entryFor("location", undefined, { of: "porch", crop: "left", zoom: "1.3" }, "porch_left", "../refs/"))
+      .toEqual({ of: "porch", crop: "left", zoom: 1.3 });
+    // no longer of a place: no crop either
+    expect(entryFor("location", { of: "porch", crop: "left", zoom: 2 }, { of: "", description: "a porch" }, "p", "../refs/"))
+      .toEqual({ description: "a porch", plate: "../refs/_bg/p.png" });
+  });
+
   it("each kind's fields, and the choices for variant and angle", () => {
     const ids = (k: Parameters<typeof cardFields>[0]) => cardFields(k, show, "new").map((f) => f.path[0]);
     expect(ids("character")).toEqual(["name", "design", "voice", "of", "sheet", "sheet_panels", "voice_sample"]);
     expect(ids("group")).toContain("members");
     expect(ids("voice")).toEqual(["name", "voice", "voice_sample"]);
-    expect(ids("location")).toEqual(["description", "of", "ambience", "plate", "ambience_bed"]);
+    expect(ids("location")).toEqual(["description", "of", "crop", "zoom", "ambience", "plate", "ambience_bed"]);
     const variantOf = cardFields("character", show, "new").find((f) => f.path[0] === "of")!.choices!.map((c) => c.value);
     expect(variantOf).toContain("ada");
     expect(variantOf).not.toContain("ada_wet");          // a variant isn't a base

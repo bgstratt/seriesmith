@@ -1935,6 +1935,9 @@ you supply. Refs are the same thing whatever model consumes them. Each has a `sc
   the listing's `of` is what tells them apart on screen. Its views are generated as an edit
   of the base's same view on any target that reads reference images, and on a text-to-image
   target from the base's seed and the variant's words.
+- A **crop** (a location with `of`, `crop` and `zoom`: docs/PLATE_VARIANTS.md) carries
+  `"crop"` (which part) and `"zoom"` (how much closer, 1.6 when the series config leaves it
+  out) beside its `"of"`; any other ref has neither.
 - **Picking** a take copies it to the path the series config names, which is the file renders
   read. The pick is recorded in `refs/_picks.json`, so the UI knows which take is
   live. Re-picking changes the file's sha1, so video takes that used the old file

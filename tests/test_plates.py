@@ -139,6 +139,14 @@ class MakeTest(unittest.TestCase):
         got = R.built_prompt(s, ref, refs=[{"role": "plate", "path": self.master}])
         self.assertIn("left part of this place 1.6 times closer", got)
 
+    def test_listed_as_a_crop(self):
+        from seriesmith import refs as R
+        s = R.load_series(self.ep)
+        by = {r.id: r for r in R.series_refs(s)}
+        got = R.ref_json(s, by["location:alcove_left"])
+        self.assertEqual((got["of"], got["crop"], got["zoom"]), ("alcove", "left", 1.6))
+        self.assertNotIn("crop", R.ref_json(s, by["location:alcove"]))
+
 
 if __name__ == "__main__":
     unittest.main()
