@@ -1106,6 +1106,7 @@ The target picker sets which image model generates. They are not interchangeable
 | `qwen_image_21` | Up to 16 | The default for keyframes when installed. Text to image *or* an edit, decided by whether there is anything to edit from. The only one with a usable denoise; cfg, scheduler and negative prompt are ordinary settings |
 | `flux3_klein` | Up to 10 | FLUX.3 Image Klein: text to image *or* an edit, as `qwen_image_21`. cfg, scheduler and negative prompt are ordinary settings |
 | `flux3_klein_turbo` | Up to 10 | The step-distilled FLUX.3 Klein: the same in 16 steps at cfg 1, so no negative prompt |
+| `minimax_h3_image` | Up to 16 | MiniMax-H3-Image: text to image *or* an edit, as `qwen_image_21`, in 6 steps at cfg 1 (no negative prompt). Draws at about 4 MP; uses H3's own text encoder |
 | `fasth3_omni_still` | Up to 9 | FastH3 Omni rendering 5 frames and keeping the first, as `minimax_h3_still` |
 | `fibo2_dev` | Up to 4 | Fibo 2.0: text to image *or* an edit (relights too), 50 steps at cfg 5. Non-commercial licence |
 | `fibo2_edit_turbo` | Up to 4 | Fibo 2.0's 4-step edit model: edits only, so not for a character's first views |
@@ -1120,7 +1121,7 @@ A subject with `of:` in the series config is the same character in different clo
 its own sheet ([AUTHORING.md](AUTHORING.md), "A wardrobe change is a new subject"). How its
 views are made depends on the model:
 
-- **On an edit model** (`qwen_image_21`, `flux3_klein`, `flux3_klein_turbo`, `flux2_klein_edit`, `flux_kontext`,
+- **On an edit model** (`qwen_image_21`, `flux3_klein`, `flux3_klein_turbo`, `minimax_h3_image`, `flux2_klein_edit`, `flux_kontext`,
   `minimax_h3_still`, `fasth3_omni_still`, `fibo2_dev`, `fibo2_edit_turbo`) each view is generated **from the character's own matching view** —
   the towel's back panel is an edit of their back panel.
 - **On a text-to-image model** there is nothing to edit from, so it draws the variant from

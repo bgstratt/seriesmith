@@ -57,6 +57,7 @@ class LoadingTest(unittest.TestCase):
                                ("image", "z_image_turbo"), ("image", "flux2_klein"),
                                ("image", "flux2_klein_edit"), ("image", "flux_kontext"),
                                ("image", "flux3_klein"), ("image", "flux3_klein_turbo"),
+                               ("image", "minimax_h3_image"),
                                ("image", "minimax_h3_still"), ("image", "qwen_image_21"),
                                ("image", "qwen_rapid_aio"), ("image", "klein_erp_360"),
                                ("image", "moss_image_sft"), ("image", "moss_image_base"),
@@ -437,7 +438,7 @@ class TargetsRouteTest(ApiTest):
                                    "stable_audio3", "ace_step15", "yue2", "minimax_music3", "minimax_music3_cloud", "mrt2", "pika_music", "suno_chirp_v6", "elevenlabs_music", "mmaudio_ambience", "sa3_sfx_ambience",
                                    "h3_foley", "ltx23_foley", "hunyuan_xl_foley",
                                    "flux2_klein", "flux2_klein_edit", "flux_kontext",
-                                   "flux3_klein", "flux3_klein_turbo",
+                                   "flux3_klein", "flux3_klein_turbo", "minimax_h3_image",
                                    "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio",
                                    "moss_image_sft", "moss_image_base",
                                    "klein_erp_360", "ltx2_voice", "drama3", "qwen3_tts", "fishaudio_drama3", "seedance_2_5", "krea_2_router",
@@ -506,7 +507,7 @@ class TargetsRouteTest(ApiTest):
                          ["fasth3_omni_still", "fibo2_dev", "fibo2_edit_turbo",
                           "flux2_klein", "flux2_klein_edit", "flux3_klein", "flux3_klein_turbo",
                           "flux_kontext", "klein_erp_360", "krea2", "krea_2_router",
-                          "minimax_h3_still", "moss_image_base", "moss_image_sft", "qwen_image_21",
+                          "minimax_h3_image", "minimax_h3_still", "moss_image_base", "moss_image_sft", "qwen_image_21",
                           "qwen_rapid_aio", "z_image_turbo"])
         # seriesmith's fields (where a job runs, whether it repeats) are the same
         # for every workflow target (test_capabilities); h3pipe's are compared here

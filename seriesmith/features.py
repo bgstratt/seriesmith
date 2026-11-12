@@ -121,6 +121,7 @@ CORE_CLASSES = frozenset({
     "MiniMaxH3ContextWindows", "MiniMaxH3LatentUpscaleWithModel",
     "LoadVideo", "LoraLoader", "LoraLoaderModelOnly", "ManualSigmas", "MiniMaxH3AddGuide",
     "MiniMaxH3ImageToVideo", "MiniMaxH3ReferenceToVideo", "MiniMaxH3SigmaShift",
+    "MiniMaxH3ImageConditioning",
     "MiniMaxMusic3TextEncode", "EmptyMiniMaxMusic3LatentAudio",
     "ComfyCloudMiniMaxMusic3TextToAudioNode",
     "FishAudioTextToSpeech", "FishAudioInstantVoiceClone",
@@ -464,6 +465,9 @@ def catalog() -> list[Feature]:
         Feature("pictures.flux3_klein", "pictures", "FLUX.3 Klein",
                 "Text to image and edits, with a step-distilled turbo. Gated.",
                 _merge(_target_items("flux3_klein"), _target_items("flux3_klein_turbo"))),
+        target_feature("pictures.minimax_h3_image", "pictures", "minimax_h3_image", "MiniMax-H3-Image",
+                       "MiniMax's image model: text to image and edits from up to 16 pictures, "
+                       "in 6 steps at about 4 MP. Uses H3's text encoder."),
         Feature("pictures.fibo2", "pictures", "Fibo 2.0",
                 "Bria's Fibo 2.0: text to image and edits (relights too), with a 4-step edit turbo. "
                 "Non-commercial licence (CC BY-NC 4.0).",
