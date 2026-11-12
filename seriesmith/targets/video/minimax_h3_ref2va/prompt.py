@@ -227,7 +227,11 @@ def framing_sentence(shot: dict, subjects: list[str], subj: dict, unref: list[st
         where = (f"{frame} takes in {place}, with {who} in it{held}." if who else
                  f"{frame} takes in {place}.")
     else:
-        where = (f"{frame} frames {who}{held} in {place}, showing the part of the space directly "
+        # A medium names the place by its plate alone: its definition already describes it, and
+        # the description's inventory said again here ("two machines, a water fountain and a
+        # trash can") is drawn, which takes a wide (docs/KEYFRAME_FRAMING.md, 2026-11-12).
+        here = env if no_plate else bg_subj
+        where = (f"{frame} frames {who}{held} in {here}, showing the part of the space directly "
                  f"behind them." if who else f"{frame} frames {place}.")
     return who, where
 
