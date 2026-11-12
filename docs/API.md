@@ -1788,7 +1788,9 @@ newest first; `paid` counts the runs sent to a paid backend this session against
 ### `POST /seriesmith/jobs/{action}`
 `cancel` `{"id"}` (a waiting job leaves the queue; a running one is asked to stop),
 `move` `{"id", "index"}` (a waiting job to that place in its lane; 0 is next), `retry`
-`{"id"}` (a finished job again; a render: a new take with the same settings), `pause`
+`{"id"}` (a finished job again; a render: a new take with the same settings), `cancel-all`
+`{"lane"?}` (every waiting and running job, or one lane's: the waiting ones first, so none
+starts as the running ones stop; the answer adds `canceled`, how many), `pause`
 `{"lane", "paused"}` (a lane stops starting jobs, or resumes), `paid-reset` `{}` (the paid
 run count back to 0). Answers with
 `GET /seriesmith/jobs`' body; 404 for an unknown job, 409 for one that can't (moving a

@@ -38,6 +38,11 @@ class ExtrasTest(unittest.TestCase):
             ("a skinny young man behind the register; two customers in line", 3),
             ("a couple at the far table", 2),
             ("3 guards at the gate", 3),
+            ("two middle-aged security guards in grey blazers, a man and a woman", 2),
+            ("two agents in navy windbreakers, a thin young man and a grey-haired woman, "
+             "and a middle-aged woman in a housekeeping uniform", 3),
+            ("two guards, a man and a woman, small and soft far down the corridor", 2),
+            ("a day-shift nurse in teal scrubs, only her hand and sleeve in frame", 1),
         ]:
             self.assertEqual(CC.extras_count(text), n, text)
 
@@ -85,7 +90,8 @@ SERIES = """{"series": {"id": "t", "title": "T", "fps": 24, "width": 1344, "heig
   "ada": {"kind": "character", "name": "Ada", "design": "a girl"},
   "ada_coat": {"of": "ada", "design": "in a coat"},
   "ben": {"kind": "character", "name": "Ben", "design": "a boy"},
-  "box": {"kind": "prop", "name": "the box", "design": "a box"}},
+  "box": {"kind": "prop", "name": "the box", "design": "a box"},
+  "guards": {"kind": "character", "name": "the guards", "members": 2, "design": "two guards"}},
  "locations": {"yard": {"description": "a yard"}}}
 """
 SCRIPT = """= t01  T
@@ -112,6 +118,13 @@ size: wide
 dur: 3
 extras: neighbours at the fence
 Ada waves again.
+
+## sh040
+who: ada
+with: guards
+size: wide
+dur: 3
+Ada walks past the guards.
 """
 
 
@@ -130,6 +143,9 @@ class ExpectedTest(unittest.TestCase):
 
     def test_cast_once_each_props_not(self):
         self.assertEqual(CC.expected(self.ep, "sh010"), (2, ""))
+
+    def test_a_group_is_its_members(self):
+        self.assertEqual(CC.expected(self.ep, "sh040"), (3, ""))
 
     def test_extras_said(self):
         self.assertEqual(CC.expected(self.ep, "sh020"), (3, ""))

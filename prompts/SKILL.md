@@ -1660,7 +1660,10 @@ gone unless this shot says it again.
   Cora in `who:` gets an invented stranger.
 - **Repeat `extras:` on every shot of a populated room**, closes included ("diners at the far
   tables, blurred behind him"). It does not carry over from the previous shot, and without it
-  the room is empty on the cut.
+  the room is empty on the cut. That's for far-off, blurred people. **Anyone who comes back
+  and is seen** (the clerk behind the register, the nurse at the desk, two paramedics, the
+  workers at the next table) is a character, or a group subject for several, never the same
+  `extras:` line in two shots: see **A group: the same extras every shot**.
 - **Say the posture.** A plate of a kitchen table is an empty table, and the sheet shows the
   character standing. Open on the posture plus the movement: "Seated at the kitchen table,
   Harold turns his head slowly…", not "Harold turns his head slowly…".
@@ -1768,9 +1771,15 @@ camera: arcs around Eleanor with small amplitude at slow speed
 ### A group: the same extras every shot
 
 `extras:` people are invented fresh every shot, so they change sex, size and colour from
-cut to cut. When the same few people recur — the ladies watching from the edge of the
-ballroom, a family at the next table — make them one **group** subject: a character with
-`members`, whose picture holds all of them.
+cut to cut. When the same people recur in two shots or more — the clerk behind the register,
+the ladies watching from the edge of the ballroom, a family at the next table — take them out of
+`extras:` and give them a picture. One person is an ordinary character with a sheet (`name` can
+be "the night clerk"). Several are one **group** subject: a character with `members`, whose
+picture holds all of them. `seriesmith check` warns when two shots' `extras:` name the same
+people (however alike the words: the same words twice mean the same people, and the model
+still draws new ones), and says which to make. That goes for a crowd too: the lunch table's
+three workers, the day-shift nurses round the station. Make the ones the camera sees clearly a
+group subject, and leave only far-off, blurred people in `extras:`.
 
 ```json
 "ladies": {
@@ -1782,8 +1791,8 @@ ballroom, a family at the next table — make them one **group** subject: a char
 }
 ```
 
-Cast it like anyone else (`who:` or `with:`). It takes one slot however many people it
-holds, which is how a shot gets more than three people who stay the same: two named
+Cast it like anyone else (`who:` or `with:`), in every shot they're in, and drop them from those
+shots' `extras:`. It takes one slot however many people it holds, which is how a shot gets more than three people who stay the same: two named
 characters and a group of four is three subjects. The prompt defines it as a picture of N
 different people and counts its members in the shot's headcount ("Exactly six characters
 appear in this shot: <Subject 1>, <Subject 2> and the four members of <Subject 3>"), which

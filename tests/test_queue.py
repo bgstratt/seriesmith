@@ -134,6 +134,21 @@ class QueueTest(unittest.TestCase):
         self.q.cancel(a.id)
         wait_for(lambda: a.status == "canceled")
 
+    def test_cancel_all(self):
+        g = Gate()
+        a = self.job(g.work())
+        rest = [self.job(g.work()) for _ in range(3)]
+        other = self.job(g.work(), lane="router")
+        g.started.wait(5)
+        wait_for(lambda: other.status == "running")
+        self.assertEqual(self.q.cancel_all("gpu" if a.lane == "gpu" else a.lane), 4)
+        wait_for(lambda: a.status == "canceled")
+        self.assertTrue(all(j.status == "canceled" for j in rest))
+        self.assertEqual(other.status, "running")       # another lane's
+        self.assertEqual(self.q.cancel_all(), 1)
+        wait_for(lambda: other.status == "canceled")
+        self.assertEqual(self.q.cancel_all(), 0)
+
     def test_a_cancel_asked_while_staging_stops_the_run_once_it_starts(self):
         """Cancel before the work has a run to stop (it's uploading, staging):
         the run is stopped as soon as it starts, not left to render to the end.

@@ -3,7 +3,8 @@ countcheck.py — a take check (takecheck.register, as `count`): more people or 
 take than its shot has (docs/DAILIES.md, checklist 9).
 
 **What the shot has:** its cast (the script's `who:` and `with:`, each character once, a
-variant as the character it's a variant of) and its `extras:`, counted from their words: "a
+variant as the character it's a variant of, a group subject as its `members`) and its
+`extras:`, counted from their words (core/extras.py): "a
 night nurse" is one, "two paramedics" two, "a nurse and a porter" two. Extras whose number the
 words don't say ("day-shift nurses", "a few", "a dozen") leave the number open, and the take
 isn't checked (`why` says so). A `continuous: multishot` group's take isn't either (its shots
@@ -31,7 +32,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 
@@ -50,45 +50,15 @@ WEIGHTS = {
 }
 FEATURE = "Count check (people and faces)"
 
-_NUMBERS = {"a": 1, "an": 1, "one": 1, "another": 1, "single": 1, "lone": 1, "two": 2,
-            "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
-            "ten": 10, "pair": 2, "couple": 2}
-# a number of people the words leave open
-_OPEN = {"few", "several", "some", "many", "dozen", "dozens", "crowd", "crowds", "group",
-         "groups", "handful", "line", "row", "rows", "number", "lots", "hundreds", "scores"}
-_PART = re.compile(r"\s*(?:;|,?\s+and\s+|,\s+(?=(?:a|an|one|two|three|four|five|six|seven|eight|"
-                   r"nine|ten|another)\b))\s*", re.I)
-
-
 def extras_count(text: str | None) -> int | None:
-    """How many people an `extras:` line names: 0 for none, None when its words leave it open.
-    Each part ("a night nurse", "two porters"; parts joined by "and", ";" or a comma before
-    "a"/"two"/...) starts with how many."""
-    text = (text or "").strip()
-    if not text:
-        return 0
-    total = 0
-    for part in _PART.split(text):
-        words = re.findall(r"[a-z]+|\d+", part.lower())
-        if not words:
-            continue
-        if any(w in _OPEN for w in words[:3]):
-            return None
-        first = words[0]
-        if first.isdigit():
-            total += int(first)
-        elif first in _NUMBERS:
-            n = _NUMBERS[first]
-            if first in ("a", "an") and len(words) > 1 and words[1] in ("pair", "couple"):
-                n = 2
-            total += n
-        else:
-            return None                         # "nurses passing", "the shoulders of ..."
-    return total
+    """How many people an `extras:` line names (core/extras.count): None when it's left open."""
+    from seriesmith.core import extras as X
+    return X.count(text)
 
 
-def _shot(root: str, shot_id: str) -> tuple[dict | None, dict, set]:
-    """(the script's shot as it is now, {variant: what it's a variant of}, the characters)."""
+def _shot(root: str, shot_id: str) -> tuple[dict | None, dict, dict]:
+    """(the script's shot as it is now, {variant: what it's a variant of}, {character: how
+    many people it is}: 1, or a group's `members`)."""
     from seriesmith import build as BLD
     from seriesmith.core import paths as P
     from seriesmith.core.series_config import variant_of
@@ -103,29 +73,30 @@ def _shot(root: str, shot_id: str) -> tuple[dict | None, dict, set]:
         text = fh.read()
     variants = variant_of(cfg)
     epi = BLD.parse_script(text, subjects, chars, variants)
+    people = {c: max(1, int(book[c].get("members") or 1)) for c in chars}
     for seq in epi["sequences"]:
         for sh in seq["shots"]:
             if sh.get("id") == shot_id:
-                return sh, variants, chars
-    return None, variants, chars
+                return sh, variants, people
+    return None, variants, people
 
 
 def expected(root: str, shot_id: str) -> tuple[int | None, str]:
     """(how many people the shot has, "") or (None, why it can't be said)."""
     from seriesmith.core.story import ScriptError
     try:
-        sh, variants, chars = _shot(root, shot_id)
+        sh, variants, people = _shot(root, shot_id)
     except (OSError, ValueError, KeyError, ScriptError) as e:
         return None, f"the script can't be read: {str(e)[:160]}"
     if sh is None:
         return None, f"{shot_id} isn't in the script now"
     # who: and with: (the parse files with: under props): the characters among them, once each
     named = (sh.get("cast") or []) + (sh.get("props") or [])
-    cast = {variants.get(c, c) for c in named if variants.get(c, c) in chars}
+    cast = {variants.get(c, c) for c in named if variants.get(c, c) in people}
     extra = extras_count(sh.get("extras"))
     if extra is None:
         return None, f"its extras don't say how many ({str(sh.get('extras'))[:60]})"
-    return len(cast) + extra, ""
+    return sum(people[c] for c in cast) + extra, ""
 
 
 def weights() -> tuple[dict | None, str]:

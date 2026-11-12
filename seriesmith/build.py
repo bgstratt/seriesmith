@@ -30,7 +30,7 @@ import sys
 from typing import Callable
 
 from seriesmith import targets as TG
-from seriesmith.core import framing, ir, wording  # noqa: F401
+from seriesmith.core import extras as extras_mod, framing, ir, wording  # noqa: F401
 from seriesmith.core.series_config import (character_ids, load_series_config, profile_styles,
                                            series_info, subject_ids, variant_of)
 # Model-neutral pieces, re-exported under their old names: the aligner and
@@ -197,6 +197,7 @@ def story_warnings(story: ir.Episode, series_cfg: dict | None = None) -> list[st
                 f"the cut reads as a single camera rather than a reverse angle. Give the "
                 f"location an angle per speaker and name it with `plate:`.")
     out += jump_cuts(story, person, name)
+    out += recurring_extras(story)
     out += no_eyeline(story, person)
     out += wording_warnings(story, series_cfg or {}, person)
     # the old forms of `continuous:` (docs/CONTINUOUS.md), read as the new ones
@@ -288,6 +289,43 @@ def jump_cuts(story: ir.Episode, person, name) -> list[str]:
                 f"same plate ({plate}): a jump cut, everyone re-posed in place. Change the size "
                 f"by two or more steps, give {b.id} another `plate:`, or put a cutaway between "
                 f"them (docs/AUTHORING.md, \"Cutting within a location\").")
+    return out
+
+
+def recurring_extras(story: ir.Episode) -> list[str]:
+    """The same people named in the `extras:` of two shots or more at one location
+    (core/extras.recurring): each shot invents extras afresh, so they change face, size and
+    colour from cut to cut, however alike their words. A character on a sheet (one person) or a
+    group subject (several, or the ones a crowd shows clearly) keeps them the same. People who
+    always appear together are one warning."""
+    def place(sq, sh) -> str:
+        # an angle on a location (`plate: diner_on_luis`) is still the location
+        return sq.location
+    shots = [(sh.id, sh.extras, place(sq, sh)) for sq in story.sequences for sh in sq.shots]
+    together: dict[tuple, list[str]] = {}
+    for group in extras_mod.recurring(shots):
+        together.setdefault(tuple(sid for sid, _ in group), []).append(group[0][1])
+    out = []
+    for ids, described in together.items():
+        whos, total = [], 0
+        for part in described:
+            n = (extras_mod.parts(part) or [(None, "")])[0][0]
+            total = None if n is None or total is None else total + n
+            whos.append(extras_mod.who_phrase(part))
+        listed = ", ".join(ids[:6]) + (f" and {len(ids) - 6} more" if len(ids) > 6 else "")
+        if total == 1:
+            make = "a character with a sheet"
+        elif total:
+            make = f"a group subject (`members: {total}`) with one picture of them all"
+        else:
+            make = ("a group subject of the ones the camera sees clearly (`members`: as many as "
+                    "that), with one picture of them all, and leave only far-off, blurred people "
+                    "in `extras:`")
+        said = "; ".join(f'"{w}"' for w in whos)
+        out.append(
+            f"{listed} name the same extras ({said}): drawn afresh in each shot, they change "
+            f"from cut to cut, however alike the words. Make them {make}, and cast them with "
+            f"`with:` in those shots (docs/AUTHORING.md, \"A group: the same extras every shot\").")
     return out
 
 

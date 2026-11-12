@@ -224,6 +224,9 @@ function JobsBody() {
   }, []);
   const lanes = [...new Set([...Object.keys(q.lanes), ...q.jobs.map((j) => j.lane)])].sort();
   const paid = q.paid;
+  const running = q.jobs.filter((j) => j.status === "running").length;
+  const waitingN = q.jobs.filter((j) => j.status === "queued").length;
+  const live = running + waitingN;
   const head = (
     <>
       <div className="h3-head-text">
@@ -241,6 +244,16 @@ function JobsBody() {
               onClick={() => void act("paid-reset", {})}>reset</button>
           )}
         </span>
+      )}
+      {live > 0 && (
+        <button className="h3-btn" title="Cancel every waiting and running job: the waiting ones leave the queue, the running ones are asked to stop"
+          onClick={() => {
+            if (confirm(`Cancel all ${live} job${live === 1 ? "" : "s"}? ${running} running ${running === 1 ? "is" : "are"} stopped, ${waitingN} waiting leave the queue.`)) {
+              void act("cancel-all", {});
+            }
+          }}>
+          <i className="pi pi-ban" /> Cancel all
+        </button>
       )}
       <button className="h3-btn h3-icon" onClick={() => void refresh()} title="Refresh"><i className="pi pi-refresh" /></button>
       <button className="h3-btn h3-icon" onClick={() => openJobs(false)} title="Close"><i className="pi pi-times" /></button>

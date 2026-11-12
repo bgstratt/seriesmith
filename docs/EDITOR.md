@@ -1220,7 +1220,8 @@ queue:
 - Each job shows what it is (`ep02 sh140 t03`, a ref view, an upscale, a tour), its
   progress, and its log (where it ran, what it held or started from, how it ended).
 - **Cancel** stops a running job or takes a waiting one off the queue (its take is marked
-  failed, `canceled`). **Earlier** / **Later** reorder a waiting job; a lane can be
+  failed, `canceled`). **Cancel all**, at the top, does that to every job once you confirm: the
+  waiting ones leave first, so none of them starts as the running ones stop. **Earlier** / **Later** reorder a waiting job; a lane can be
   **paused** (**Pause** / **Resume**), which lets the running job finish and starts nothing
 new.
 - **Again** runs a finished job once more, as a new take with the same settings. On a

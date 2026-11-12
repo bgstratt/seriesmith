@@ -18,7 +18,7 @@ from seriesmith.settings import load_settings, settings_path
 
 # the backends that run through comfy-sdk (Comfy Cloud, deployments, Router)
 SDK_KINDS = ("cloud", "deployment", "router")
-ACTIONS = ("cancel", "move", "pause", "retry", "paid-reset")
+ACTIONS = ("cancel", "cancel-all", "move", "pause", "retry", "paid-reset")
 
 # what queue_routes registers (server/routes.all_paths: known before the queue starts);
 # an action the page doesn't know answers 404 from the catch-all, after the five
@@ -62,6 +62,10 @@ def queue_routes(settings, runner, connected=lambda: False,
             if what == "paid-reset":
                 queue.paid_count = 0
                 return 200, queue.list()
+            if what == "cancel-all":
+                lane = body.get("lane")
+                n = queue.cancel_all(str(lane) if lane else None)
+                return 200, dict(queue.list(), canceled=n)
             try:
                 if what == "cancel":
                     queue.cancel(_field(body, "id"))
