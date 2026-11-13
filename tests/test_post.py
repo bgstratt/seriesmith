@@ -106,12 +106,23 @@ class PostTest(ApiTest):
         self.assertEqual(P.resolve_enhance("draft")["method"], "pixel")
         e = P.resolve_enhance("production")
         self.assertEqual((e["method"], e["seedvr2_model"], e["chunk"], e["overlap"]),
-                         ("seedvr2", U.SEEDVR2_MODELS["7b"], "fit", 6))
+                         ("seedvr2", U.SEEDVR2_MODELS["7b"], "fit", "fit"))
         # "fit": 61 frames at 1080p, fewer as the frame grows
         self.assertEqual(P.fit_chunk(1920, 1080), 61)
         self.assertEqual(P.fit_chunk(1920, 1088), 61)
         self.assertEqual(P.fit_chunk(2560, 1440), 33)
         self.assertEqual(P.fit_chunk(3840, 2160), 13)
+        # overlap "fit": 6 of 16 latent frames, kept in proportion as the chunk shrinks
+        self.assertEqual([P.fit_overlap(c) for c in (61, 33, 13, 5, 0)], [6, 3, 2, 1, 6])
+        for size, want in (((1920, 1080), (61, 6)), ((2560, 1440), (33, 3)), ((3840, 2160), (13, 2))):
+            e = P.resolve_enhance("production")
+            P.resolve_fit(e, *size)
+            self.assertEqual((e["chunk"], e["overlap"]), want)
+        e = P.resolve_enhance({"tier": "production", "overlap": 4})   # a number stays
+        P.resolve_fit(e, 2560, 1440)
+        self.assertEqual((e["chunk"], e["overlap"]), (33, 4))
+        with self.assertRaises(P.PostError):
+            P.resolve_enhance({"method": "seedvr2", "overlap": "most"})
         e = P.resolve_enhance({"tier": "production", "seedvr2_model": "3b", "chunk": 0})
         self.assertEqual(e["seedvr2_model"], U.SEEDVR2_MODELS["3b"])
         self.assertNotIn("chunk", e)                          # 0: auto

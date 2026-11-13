@@ -17,8 +17,9 @@ Two steps, in order, each optional:
   and tone the source's: a sharpen), `seedvr2` (3b or 7b at the same size: a
   video restoration) or `supir` (SUPIR on SDXL, a low denoise, one small batch
   of frames at a time, its colour and tone the source's). The tiers are names
-  for these: draft (pixel), production (SeedVR2 7B, fixed 61-frame chunks
-  crossfaded over 6), cinematic (SUPIR 0.2).
+  for these: draft (pixel), production (SeedVR2 7B, fixed chunks sized to the
+  frame, crossfaded over 6 latent frames at 1080p, 3 at 1440p, 2 at 4K),
+  cinematic (SUPIR 0.2).
 - motion blur: shutter blur along each pixel's optical flow (SeriesmithMotionBlur),
   `--blur` the fraction of the frame interval (0.5: a 180-degree shutter).
 
@@ -48,7 +49,7 @@ METHODS = ("pixel", "seedvr2", "supir")
 # redo would split the shot elsewhere
 TIERS = {
     "draft":      {"method": "pixel"},
-    "production": {"method": "seedvr2", "seedvr2_model": "7b", "chunk": "fit", "overlap": 6},
+    "production": {"method": "seedvr2", "seedvr2_model": "7b", "chunk": "fit", "overlap": "fit"},
     "cinematic":  {"method": "supir", "strength": 0.2},
 }
 NONE = ("none", "off")
@@ -75,12 +76,37 @@ BLUR = (0.0, 1.0)
 # 7B loaded), fewer as the frame grows, by its pixel count; fixed for a size, so a
 # redo splits the shot at the same frames
 FIT_CHUNK, FIT_PIXELS = 61, 1920 * 1088
+# `overlap: "fit"`: the 6 latent frames chosen for FIT_CHUNK's 16, kept in proportion
+# as "fit" shrinks the chunk (6 at 1080p, 3 at 1440p, 2 at 4K). A fixed 6 on 1440p's
+# 9-frame chunks advanced 3 a chunk: 7 chunks for 27 frames, ~50% slower than 3 or 2
+# for no measured gain in seams, ghosting or face identity (A/B on Ballroom sh040,
+# sh090, 2026-11-13)
+FIT_OVERLAP = 6
 
 
 def fit_chunk(width: int, height: int) -> int:
     """The largest 4n+1 frame count holding FIT_CHUNK frames' worth of 1080p pixels."""
     n = int(FIT_CHUNK * FIT_PIXELS / max(1, width * height))
     return max(5, (n - 1) // 4 * 4 + 1)
+
+
+def fit_overlap(chunk: int) -> int:
+    """FIT_OVERLAP latent frames scaled from FIT_CHUNK's chunk to `chunk` (pixel
+    frames, 4n+1); FIT_OVERLAP itself for auto chunks (0)."""
+    if not chunk:
+        return FIT_OVERLAP
+    latent, fit_latent = (chunk - 1) // 4 + 1, (FIT_CHUNK - 1) // 4 + 1
+    return max(1, min(latent - 1, int(FIT_OVERLAP * latent / fit_latent + 0.5)))
+
+
+def resolve_fit(enhance: dict | None, width: int, height: int) -> None:
+    """`chunk: "fit"` and `overlap: "fit"` made numbers for a width x height post."""
+    if not enhance:
+        return
+    if enhance.get("chunk") == "fit":
+        enhance["chunk"] = fit_chunk(width, height)
+    if enhance.get("overlap") == "fit":
+        enhance["overlap"] = fit_overlap(int(enhance.get("chunk") or 0))
 
 # torchvision's RAFT-large weights, which ComfyUI's OpticalFlowLoader reads
 # from models/optical_flow/ (it never downloads them)
@@ -162,14 +188,19 @@ def resolve_enhance(enhance) -> dict | None:
         out["seedvr2_model"] = U.seedvr2_file(e.get("seedvr2_model"))
         # fixed chunks: auto sizes them to the free VRAM, so a redo can split the
         # shot elsewhere and a face shift at different frames
-        chunk, overlap = e.get("chunk", 0), int(e.get("overlap", 2))
+        chunk, overlap = e.get("chunk", 0), e.get("overlap", 2)
         if chunk != "fit":
             chunk = int(chunk)
             if chunk and (chunk < 5 or (chunk - 1) % 4):
                 raise PostError(f"SeedVR2 chunk {chunk}: 0 (auto), \"fit\" or a 4n+1 frame "
                                 f"count (41, 49, 61...)")
-        if not 0 <= overlap <= 16:
-            raise PostError(f"SeedVR2 overlap {overlap}: 0 to 16 latent frames")
+        if overlap != "fit":
+            try:
+                overlap = int(overlap)
+            except (TypeError, ValueError):
+                overlap = -1
+            if not 0 <= overlap <= 16:
+                raise PostError(f"SeedVR2 overlap {overlap}: \"fit\" or 0 to 16 latent frames")
         if chunk:
             out["chunk"] = chunk
         if overlap != 2:
@@ -271,8 +302,7 @@ def plan_post(root: str, take: T.Take, *, enhance=None, blur: float = 0.0, redo:
     if after_upscale:
         job.width, job.height = (int(v) for v in after_upscale)
         job.fps = float((take.sidecar or {}).get("fps") or 24)
-        if job.enhance and job.enhance.get("chunk") == "fit":
-            job.enhance["chunk"] = fit_chunk(job.width, job.height)
+        resolve_fit(job.enhance, job.width, job.height)
         return job
     up = T.upscale_of(take)
     if quality is None and up:
@@ -284,8 +314,7 @@ def plan_post(root: str, take: T.Take, *, enhance=None, blur: float = 0.0, redo:
         return job
     job.width = int(up.get("width") or 0)
     job.height = int(up.get("height") or 0)
-    if job.enhance and job.enhance.get("chunk") == "fit":
-        job.enhance["chunk"] = fit_chunk(job.width, job.height)
+    resolve_fit(job.enhance, job.width, job.height)
     job.fps = float((take.sidecar or {}).get("fps") or 24)
     rec = T.post_of(take, up)
     if (not redo and rec and rec.get("fresh")

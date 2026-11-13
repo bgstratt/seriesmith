@@ -1606,7 +1606,7 @@ sentences). `{"queued": [{shot, take, what, width, height, prompt_id}], "skipped
 ### `GET /seriesmith/post/options[?ep=…]`
 ```json
 {"tiers": [{"id": "production", "enhance": {"method": "seedvr2", "seedvr2_model": "7b",
-            "chunk": "fit", "overlap": 6}, "text": "SeedVR2 7b",
+            "chunk": "fit", "overlap": "fit"}, "text": "SeedVR2 7b",
             "readiness": {"status": "ready", "missing": []}}, "…"],
  "methods": ["pixel", "seedvr2", "supir"],
  "blur": {"min": 0, "max": 1, "default": 0.3, "readiness": {"status": "ready", "missing": []}},

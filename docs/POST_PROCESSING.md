@@ -66,7 +66,7 @@ restoration, not another upscale). The tiers name the methods:
 | Tier | `enhance` | What it runs | Temporal? | Cost (5 s shot, est.) |
 |---|---|---|---|---|
 | Draft | `"draft"` / `{"method": "pixel"}` | an upscale model (RealESRGAN_x2) at 1x, colour and tone the source's: a sharpen | per frame, but it invents little, so little flickers | seconds |
-| Production | `"production"` / `{"method": "seedvr2", "seedvr2_model": "7b", "chunk": "fit", "overlap": 6}` | SeedVR2 7B at 1x in fixed chunks (`"fit"`: 61 frames at 1080p, 33 at 1440p, 13 at 4K, by pixel count) crossfaded over 6 latent frames, then the frequency-split finish | yes, a video model | 4.3 min for a 5 s shot at 1080p (sh2100); 11.2 min for a 6.6 s shot at 1440p, with blur 0.3 (measured: about 100 s per second of footage) |
+| Production | `"production"` / `{"method": "seedvr2", "seedvr2_model": "7b", "chunk": "fit", "overlap": "fit"}` | SeedVR2 7B at 1x in fixed chunks (`"fit"`: 61 frames at 1080p, 33 at 1440p, 13 at 4K, by pixel count) crossfaded over 6 latent frames at 1080p, 3 at 1440p, 2 at 4K (`"fit"`, in proportion to the chunk), then the frequency-split finish | yes, a video model | 4.3 min for a 5 s shot at 1080p (sh2100); 11.2 min for a 6.6 s shot at 1440p, with blur 0.3 (measured: about 100 s per second of footage) |
 | | `{"method": "pixel", "pixel_model": "rtx_vsr:DEBLUR_ULTRA"}` | NVIDIA RTX Video Super Resolution's deblur at 1x (`DENOISE_*` / `DEBLUR_*` levels, or `rtx_vsr` itself; an RTX card and Comfy-Org's RTX nodes, INSTALL.md), then the finish | per frame | seconds (not measured) |
 | | `{"method": "seedvr2", "seedvr2_model": "3b"}` | SeedVR2 3B | yes | 4.2–4.4 min at 1080p (measured) |
 | Cinematic | `"cinematic"` / `{"method": "supir", "strength": 0.2}` | SUPIR (ComfyUI core's `SUPIRApply`) on SDXL at denoise 0.05–0.5, two frames at a time, the same seed on every batch, then the frequency split (only its detail is kept) | **no** | to measure: about 10 SDXL steps a frame |
@@ -81,6 +81,17 @@ frame count, 0 for auto) and `overlap` (latent frames, default 2) are enhance fi
 fixed 61 needs about 29 GB of free VRAM at 1080p, so `"fit"` scales it down by the
 frame's pixel count (still fixed for a size). Give a number if a shot still runs out of
 memory.
+
+**Overlap scales with the chunk (2026-11-13).** A fixed 6 was tuned on 1080p's 16-latent-frame
+chunks. On 1440p's 9 it left each chunk 3 new frames, so a 4 s shot took 7 chunks instead of 4:
+about 50% longer (216 s against 145 s on Ballroom ep02 sh090) for no measured gain. An A/B on
+sh040 and sh090 (overlap 6, overlap 2, hard cut, and a warm-started hard cut that conditions
+each chunk on the previous one's last restored frames) found no seam spike above the shots'
+own motion, no ghosting in the crossfades, and face identity within 0.005 across all four.
+`overlap: "fit"` keeps 6 of 16: 6 at 1080p, 3 at 1440p, 2 at 4K. The warm start had 12-15%
+less flicker overall but ran slower as stock nodes; it is not built. The one face failure
+the A/B showed was the same in every variant: SeedVR2 redrawing a heavily motion-blurred
+face (sh090 f69), which chunking can't fix.
 
 **CCSR is not offered.** It isn't installed, has no node in ComfyUI core, and the only
 pack (kijai's ComfyUI-CCSR) is from 2024. If you install it, its `object_info` is enough
