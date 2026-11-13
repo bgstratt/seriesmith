@@ -739,11 +739,12 @@ a **crop**, a location that is one part of another's plate, closer.
 seriesmith never crops by itself: the script decides. Go through every medium and close shot:
 
 1. **Every `ms`, `mws`, `cowboy`, `mcu` and `cu` gets a crop**, unless its plate is already that
-   close: a plate that shows only what is directly behind a person at that size (a door filling
-   the frame, a counter seen from a stool, the wall behind a desk chair). **An angle is not close
-   because it is an angle**: an `_on_` plate that still shows a whole wall, a room's corner, a car
-   seat with the dash and windows, or a row of pews is wide for a medium shot. Ask what the plate
-   shows, not what it's called.
+   close: a location whose description is one thing filling the frame, just what is directly
+   behind a person at that size (a door, a counter seen from a stool, the wall behind a desk
+   chair). **An angle is not close because it is an angle**: an `_on_` location whose description
+   names a whole wall, a room's corner, a car seat with the dash and windows, a row of pews, or
+   more than one or two things, is wide for a medium shot. Go by what the description says it
+   shows, not by its name; when in doubt, crop.
 2. **The zoom follows the size**: `mws` and `cowboy` about 1.4 to 1.5, `ms` 1.5, `mcu` and `cu`
    2.2 (2.0 when 2.2 would cut away the thing the person is at: the door, the desk, the pump).
    A plate with both medium and close shots in one part gets two crops of that part, one for
@@ -751,7 +752,10 @@ seriesmith never crops by itself: the script decides. Go through every medium an
    crop comes out medium.
 3. **The part is what is behind the person**: where they stand or sit in the plate, so the crop
    keeps the thing the action puts them at (the door they wait by, the desk they lean on).
-   Shots in different parts of one plate get different crops.
+   Take it from the words: the location's description ("the office door on the right", "the
+   drinks machine on the left") and the shot's staging; when neither says where the thing is,
+   `center`, which is where a plate's subject usually sits. Shots in different parts of one
+   plate get different crops.
 4. **Two people facing each other** never share a crop: each gets a crop of their own angle
    (**Two people talking need an angle each**), or of another part.
 5. **Keep the full plate** for wide shots (`ws`, `fs`, `ews`); `ecu` inserts of hands, papers and
@@ -761,9 +765,12 @@ seriesmith never crops by itself: the script decides. Go through every medium an
 6. **Ids are the show's, not the episode's**: crop pictures live beside their master in the
    show's `refs/`, so an id another episode already uses for a different crop (another part or
    zoom, or a master with another plate) needs a different id.
-7. **Look at each crop once it's cut** (build cuts them): one that shows only wall, floor or sky,
-   or misses the thing the person is at, has the wrong part or too much zoom. Move the part or
-   lower the zoom.
+7. **Give each crop a `description` of what that part must show** ("the green side door with its
+   padlock and the brick around it"): it says what the crop is for, and lets whoever builds the
+   episode check it. Each crop is cut at the build and shown on its row in the Refs tab; one that
+   shows only wall, floor or sky, or misses what its description names, has the wrong part or too
+   much zoom: move the part or lower the zoom. Working from the script alone, without the
+   pictures, say so when you hand it over, so the crops get that look.
 
 ### What a place sounds like: `ambience`
 
