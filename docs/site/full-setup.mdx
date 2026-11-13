@@ -93,6 +93,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Upscaling H3 takes | None on ComfyUI 0.44 or later; before that Comfyui_Minimax_h3_latent_Upscaler or its Plus version, and comfyui-obvpm-timeline for takes over 5.5 s | H3's latent upscaler | |
 | Upscaling any take | Nvidia RTX Nodes (optional) | RealESRGAN, or SeedVR2 | |
 | Post-processing | | RealESRGAN / SeedVR2 7B / SUPIR + SDXL; RAFT for motion blur | |
+| Refine faces (post) | ComfyUI-H3-FaceRefine | H3 Ref2VA's files (above) and `face_yolov8m.pt` | `insightface` in ComfyUI's Python |
 | Master and publish | | | a title font (ffmpeg comes with seriesmith) |
 | 360s and turned views | | 3 LoRAs | |
 | Relights, and Turn without its LoRA | | any edit picture model (FLUX.2 Klein edit by default) | |
@@ -448,8 +449,8 @@ fast):
 
 ## Post-processing
 
-Post-processing runs after the upscale: whole-frame enhancement, then motion blur
-([POST_PROCESSING.md](/post-processing)).
+Post-processing runs after the upscale: whole-frame enhancement, then each character's
+face refined (optional), then motion blur ([POST_PROCESSING.md](/post-processing)).
 
 | Tier | Needs |
 |---|---|
@@ -457,6 +458,7 @@ Post-processing runs after the upscale: whole-frame enhancement, then motion blu
 | Production | SeedVR2 7B and its VAE, as above |
 | Cinematic | `SUPIR-v0F_fp16.safetensors` in `models/model_patches/` ([Kijai/SUPIR_pruned](https://huggingface.co/Kijai/SUPIR_pruned/resolve/main/SUPIR-v0F_fp16.safetensors)), and the SDXL base checkpoint `sd_xl_base_1.0_0.9vae.safetensors` in `models/checkpoints/` ([stabilityai/stable-diffusion-xl-base-1.0](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)) |
 | Deblur on RTX | Nvidia RTX Nodes, as above |
+| Refine faces | [Carasibana's ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine) in `custom_nodes/`; H3 Ref2VA's final weights, text encoder, VAEs and 8-step turbo LoRA, as above; `face_yolov8m.pt` in `models/ultralytics/bbox/` ([Bingsu/adetailer](https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8m.pt)); `insightface` in ComfyUI's Python, which tells two characters' faces apart (if it fails to import with an onnx error, `pip install onnx==1.22.0` there). `person_yolov8m-seg.pt` is used as a body fallback where Impact Subpack has it. Restart ComfyUI after installing the pack |
 | Motion blur | `raft_large_C_T_SKHT_V2-ff5fadd5.pth` in `models/optical_flow/` ([torchvision's weights](https://download.pytorch.org/models/raft_large_C_T_SKHT_V2-ff5fadd5.pth); ComfyUI doesn't download them) |
 
 ## Master, publish and the export
