@@ -393,10 +393,26 @@ export function toggleFlag(shot: string, flag?: boolean): Promise<boolean> {
   return editCut(on ? `Flag ${shot}` : `Unflag ${shot}`, (list) => withFields(list, shot, { flag: on }));
 }
 
+/** Mark (or unmark) a clip for the face pass once it's upscaled (R): changes nothing played. */
+export function toggleRefineFaces(shot: string, mark?: boolean): Promise<boolean> {
+  const c = ctx();
+  if (!c) return Promise.resolve(false);
+  const on = mark ?? !c.st.shots.find((s) => s.shot === shot)?.cut?.refine_faces;
+  return editCut(on ? `Mark ${shot} for faces` : `Unmark ${shot} for faces`,
+                 (list) => withFields(list, shot, { refine_faces: on }));
+}
+
 /** The flagged clips, in cut order (orphans and clips left out included: a flag is a reminder). */
 export function flaggedShots(st: EpisodeStatus | undefined): string[] {
   return (st?.shots ?? []).filter((s) => s.cut?.flag).map((s) => s.shot);
 }
+
+/** The clips marked for the face pass, in cut order (left out ones too: the mark is a reminder). */
+export function faceMarkedShots(st: EpisodeStatus | undefined): string[] {
+  return (st?.shots ?? []).filter((s) => s.cut?.refine_faces).map((s) => s.shot);
+}
+
+type Marks = (st: EpisodeStatus | undefined) => string[];
 
 /**
  * Shift+M / the timeline's flag count: the next flagged clip after the one
@@ -405,12 +421,21 @@ export function flaggedShots(st: EpisodeStatus | undefined): string[] {
  * plays); otherwise the clip is selected. False when nothing is flagged.
  */
 export function gotoFlagged(dir: 1 | -1 = 1): boolean {
+  return gotoMarked(flaggedShots, dir);
+}
+
+/** Shift+R: the next clip marked for the face pass, as gotoFlagged goes to the next flag. */
+export function gotoFaceMarked(dir: 1 | -1 = 1): boolean {
+  return gotoMarked(faceMarkedShots, dir);
+}
+
+function gotoMarked(marked: Marks, dir: 1 | -1): boolean {
   const c = ctx();
   if (!c) return false;
   const s = get();
   if (s.viewer?.kind === "cut") {
     const items = currentPlaylist(s);
-    const flagged = new Set(flaggedShots(c.st));
+    const flagged = new Set(marked(c.st));
     const hits = items.filter((it) => flagged.has(it.shot));
     if (!hits.length) return false;
     const { index } = locate(items, s.cutPlay.pos);
@@ -421,7 +446,7 @@ export function gotoFlagged(dir: 1 | -1 = 1): boolean {
     return true;
   }
   const order = c.st.shots.map((x) => x.shot);
-  const hits = flaggedShots(c.st);
+  const hits = marked(c.st);
   if (!hits.length) return false;
   const at = s.shot ? order.indexOf(s.shot) : -1;
   const pos = (sh: string) => order.indexOf(sh);
@@ -581,16 +606,33 @@ export function noteAtPlayhead(): boolean {
  * open (the caller flags the selected clip instead).
  */
 export function flagAtPlayhead(): boolean {
-  const s = get();
-  if (s.viewer?.kind !== "cut") return false;
-  const items = currentPlaylist(s);
-  const it = items[locate(items, s.cutPlay.pos).index];
+  const it = clipAtPlayhead();
   if (!it) return false;
   const on = !ctx()?.st.shots.find((x) => x.shot === it.shot)?.cut?.flag;
   void toggleFlag(it.shot, on).then((ok) => {
     if (ok) host().toast("info", on ? `Flagged ${it.shot}` : `Unflagged ${it.shot}`, on ? "Shift+M jumps to the next flagged clip." : undefined);
   });
   return true;
+}
+
+/** `r` while Play all is open: mark (or unmark) the clip on screen for the face pass, as `m` flags it. */
+export function faceMarkAtPlayhead(): boolean {
+  const it = clipAtPlayhead();
+  if (!it) return false;
+  const on = !ctx()?.st.shots.find((x) => x.shot === it.shot)?.cut?.refine_faces;
+  void toggleRefineFaces(it.shot, on).then((ok) => {
+    if (ok) host().toast("info", on ? `Marked ${it.shot} for faces` : `Unmarked ${it.shot} for faces`,
+                         on ? "Refine faces on marked clips (the cut menu) once they're upscaled; Shift+R jumps to the next." : undefined);
+  });
+  return true;
+}
+
+/** The clip under the Play all playhead, or null when Play all isn't open. */
+function clipAtPlayhead() {
+  const s = get();
+  if (s.viewer?.kind !== "cut") return null;
+  const items = currentPlaylist(s);
+  return items[locate(items, s.cutPlay.pos).index] ?? null;
 }
 
 export function shuttle(key: "j" | "k" | "l") {
@@ -691,6 +733,19 @@ export function cutKey(e: KeyLike): boolean {
     if (flagAtPlayhead()) return true;
     const shot = get().shot;
     if (shot) void toggleFlag(shot);
+    return !!shot;
+  }
+  // `r` marks the clip for the face pass once it's upscaled (Refine faces on
+  // marked clips); Shift+R goes to the next marked one. As `m` flags.
+  if (k === "r") {
+    if (e.repeat) return true;
+    if (e.shiftKey) {
+      if (!gotoFaceMarked(1)) host().toast("info", "No clips marked for faces", "R marks the clip on screen (or the selected one).");
+      return true;
+    }
+    if (faceMarkAtPlayhead()) return true;
+    const shot = get().shot;
+    if (shot) void toggleRefineFaces(shot);
     return !!shot;
   }
   // P10: `n` notes what is wrong with the selected clip. Not `i` — that is

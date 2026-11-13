@@ -409,6 +409,10 @@ motion), then motion blur:
 sharpen), `cinematic` (SUPIR, very slow) or `none`; `motion_blur` is a fraction of the
 frame interval (0.3 smooths blocky motion, 0.5 is a 180° shutter). Write it for a 1080p or
 1440p master; leave it out for 4K (unmeasured there) or when they haven't asked.
+`"faces": true` redraws each character's face from their sheet where it's too small to
+have eyes and a mouth (wides and full shots; about a minute a character a shot; a large
+face is barely touched). Add it to a shot's own `post` in overrides.json rather than the
+master when only a few wides need it.
 
 ### Series intro and outro: the `publish` block
 

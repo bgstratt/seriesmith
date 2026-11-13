@@ -11,7 +11,7 @@ import { newCue } from "../cueActions";
 import { currentMix, makeEffects, makeVoiceStems, pickSoundFile, setShotVoicesMix, toggleSound } from "../mixActions";
 import { firstOf, voicePlays, voicesOnly } from "../lib/mix";
 import { host } from "../host";
-import { JOIN_DEFAULT, MATCH_WAYS, clearClipAudio, matchColors, nudgeClip, setColdOpenEnd, setJoin, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
+import { JOIN_DEFAULT, MATCH_WAYS, clearClipAudio, matchColors, nudgeClip, setColdOpenEnd, setJoin, setTrims, toggleFlag, toggleLock, toggleOut, toggleRefineFaces } from "../cutActions";
 import { JOIN_KEYS } from "../lib/cutEdit";
 import { audioOf, audioWhy } from "../lib/audioSource";
 import { absPath, tn } from "../lib/format";
@@ -358,13 +358,21 @@ export function ContextMenu() {
   );
 
   const cutGroup = (
-    <Sub icon="pi-video" label="In the cut" note={[locked && "locked", cutShot?.cut.out && "left out", cutShot?.cut.flag && "flagged"].filter(Boolean).join(", ") || undefined}>
+    <Sub icon="pi-video" label="In the cut" note={[locked && "locked", cutShot?.cut.out && "left out", cutShot?.cut.flag && "flagged", cutShot?.cut.refine_faces && "for faces"].filter(Boolean).join(", ") || undefined}>
       <button
         disabled={!cutShot}
         title={cutShot?.cut.flag ? `Clear ${menu.shot}'s flag (M)` : `Flag ${menu.shot} to come back to: re-render it, change its prompt (M; Shift+M goes to the next flagged clip)`}
         onClick={run(() => void toggleFlag(menu.shot))}
       >
         <i className={cutShot?.cut.flag ? "pi pi-flag" : "pi pi-flag-fill"} /> {cutShot?.cut.flag ? "Unflag" : "Flag to come back to"}
+      </button>
+      <button
+        disabled={!cutShot}
+        title={cutShot?.cut.refine_faces ? `Unmark ${menu.shot} for faces (R)`
+          : `Mark ${menu.shot} to refine its faces once it's upscaled: the cut menu's Refine faces on marked clips (R; Shift+R goes to the next marked clip)`}
+        onClick={run(() => void toggleRefineFaces(menu.shot))}
+      >
+        <i className="pi pi-user" /> {cutShot?.cut.refine_faces ? "Unmark for faces" : "Mark for faces"}
       </button>
       <button
         disabled={!cutShot}
@@ -596,6 +604,15 @@ export function ContextMenu() {
               onClick={run(() => void postTake({ ep, pass: menu.pass, shot: menu.shot, take: take.take }, !!take.post?.fresh))}
             >
               <i className="pi pi-sparkles" /> {take.post?.fresh ? "Post-process again…" : "Post-process…"}
+            </button>
+            <button
+              disabled={!take.upscale?.fresh || take.upscale.status !== "ok" || take.post?.status === "queued"}
+              title={take.post?.status === "queued" ? "Its post is queued"
+                : !take.upscale?.fresh || take.upscale.status !== "ok" ? "Upscale it first: faces are refined on the upscale"
+                : "Redraw each character's face from their sheet (H3 on a crop the face fills), the lips held to the take's sound: for faces too small to have eyes and a mouth. Saved as its post"}
+              onClick={run(() => void postTake({ ep, pass: menu.pass, shot: menu.shot, take: take.take }, !!take.post?.fresh, true))}
+            >
+              <i className="pi pi-user" /> Refine faces…
             </button>
             {take.post && take.post.status !== "queued" && (
               <button onClick={run(() => void removePost({ ep, pass: menu.pass, shot: menu.shot, take: take.take }))}>

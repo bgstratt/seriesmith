@@ -648,6 +648,8 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                     "out": e.out,
                     # bookmarked to come back to (re-render, a new prompt)
                     "flag": e.flag,
+                    # marked for the face pass once upscaled (R in the dailies)
+                    "refine_faces": e.refine_faces,
                     # its colour (seriesmith.color), applied by assemble; null: as shot
                     "color": e.color,
                     # frames from / to black, and of a dissolve from the clip before
@@ -1681,8 +1683,8 @@ def match_colors(root: str, pass_: str, base: str, shots: list[str] | None = Non
 def set_cut_entry(root: str, pass_: str, shot_id: str, force: bool = False,
                   **fields) -> dict:
     """Change one entry's trim_in / trim_out / locked / note / audio / out /
-    flag / color (a flag is allowed on a locked entry: it changes nothing
-    played). Trims, audio sources, colour and leaving it out on a locked entry
+    flag / refine_faces / color (a flag or a face mark is allowed on a locked
+    entry: it changes nothing played). Trims, audio sources, colour and leaving it out on a locked entry
     are Locked unless `force`; trims and audio are checked as PUT
     /seriesmith/cut checks them, colour by seriesmith.color.check."""
     entries = cut_entries(root, pass_)
@@ -3009,6 +3011,7 @@ def print_cut(root: str, pass_: str) -> None:
         take = f"{'t%02d' % c['take'] if c['take'] else '--':4}"
         trim = f"{c['trim_in']}/{c['trim_out']}" if c["trim_in"] or c["trim_out"] else "-"
         flags = [f for f, on in (("FLAGGED", c.get("flag")),
+                                 ("REFINE FACES", c.get("refine_faces")),
                                  ("LEFT OUT", c.get("out")), ("locked", c["locked"]),
                                  ("picked", c["picked"]),
                                  (f"placeholder({c['pass']})", c["placeholder"]),
@@ -3081,6 +3084,9 @@ def cmd_cut(root: str, argv: list[str]) -> int:
     g.add_argument("--flag", metavar="SH",
                    help="flag a shot to come back to (re-render it, change its prompt)")
     g.add_argument("--unflag", metavar="SH")
+    g.add_argument("--mark-faces", metavar="SH",
+                   help="mark a shot for the face pass once it's upscaled (seriesmith post --faces)")
+    g.add_argument("--unmark-faces", metavar="SH")
     g.add_argument("--lock", metavar="SH", help="lock a shot (picks, moves and trims refuse)")
     g.add_argument("--unlock", metavar="SH")
     g.add_argument("--reset", choices=CUT_WHAT,
@@ -3131,6 +3137,9 @@ def cmd_cut(root: str, argv: list[str]) -> int:
             set_cut_entry(root, pass_, args.out or args.in_, force=args.force, out=bool(args.out))
         elif args.flag or args.unflag:
             set_cut_entry(root, pass_, args.flag or args.unflag, flag=bool(args.flag))
+        elif args.mark_faces or args.unmark_faces:
+            set_cut_entry(root, pass_, args.mark_faces or args.unmark_faces,
+                          refine_faces=bool(args.mark_faces))
         elif args.lock or args.unlock:
             set_cut_entry(root, pass_, args.lock or args.unlock, locked=bool(args.lock))
         elif args.reset:

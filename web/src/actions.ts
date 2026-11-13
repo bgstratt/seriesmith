@@ -1474,15 +1474,31 @@ export async function queuePost(req: Omit<PostRequest, "ep">, busyKey: string) {
 }
 
 /** The Post-process dialog for one take (`redo`: it already has a fresh post). */
-export function postTake(ref: TakeRef, redo = false) {
-  set({ menu: null, postAsk: { title: `Post-process ${ref.shot} ${tn(ref.take)}`, pass: ref.pass,
-                               takes: [{ shot: ref.shot, take: ref.take }], redo } });
+export function postTake(ref: TakeRef, redo = false, facesOnly = false) {
+  set({ menu: null, postAsk: { title: `${facesOnly ? "Refine faces in" : "Post-process"} ${ref.shot} ${tn(ref.take)}`,
+                               pass: ref.pass, takes: [{ shot: ref.shot, take: ref.take }], redo, facesOnly } });
 }
 
 /** The Post-process dialog for every take of the current pass's cut. */
 export function postCut() {
   const pass = get().pass;
   set({ menu: null, postAsk: { title: `Post-process the ${pass} cut`, pass, takes: null } });
+}
+
+/** The Post-process dialog on faces alone, for the takes of the current pass's cut
+ * marked for faces (R). A marked clip with no take in the cut is left out. */
+export function postFaceMarked() {
+  const s = get();
+  const st = s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined;
+  const marked = (st?.shots ?? []).filter((x) => x.cut?.refine_faces);
+  const takes = marked.filter((x) => x.cut.take != null).map((x) => ({ shot: x.shot, take: x.cut.take as number }));
+  if (!takes.length) {
+    set({ menu: null });
+    host().toast("info", "No marked clip has a take", "R marks the clip on screen for faces.");
+    return;
+  }
+  set({ menu: null, postAsk: { title: `Refine faces on ${takes.length} marked clip${takes.length === 1 ? "" : "s"}`,
+                               pass: s.pass, takes, facesOnly: true } });
 }
 
 export function closePost() {

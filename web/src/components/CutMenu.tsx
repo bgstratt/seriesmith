@@ -3,7 +3,7 @@
 // from the other pass. OverlayMenu is how it (and the Export menu) opens and closes.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { postCut, upscaleCut } from "../actions";
+import { postCut, postFaceMarked, upscaleCut } from "../actions";
 import { checkColour, copyCut, redoCut, resetCut, undoCut } from "../cutActions";
 import { toggleSound } from "../mixActions";
 import { clipsWithAudio } from "../lib/audioSource";
@@ -117,6 +117,17 @@ export function CutMenu() {
       <button onClick={run(() => postCut())} title={`Finish every upscaled take of the ${pass} cut (SeedVR2 clean-up, motion blur) by the series recipe or your choice`}>
         <i className="pi pi-sparkles" /> Post-process the cut…
       </button>
+      {(() => {
+        const marked = (st?.shots ?? []).filter((x) => x.cut?.refine_faces);
+        return (
+          <button disabled={!marked.length} onClick={run(() => postFaceMarked())}
+                  title={marked.length
+                    ? `Refine the faces of the clips marked for it (R): ${marked.map((x) => x.shot).join(", ")}. Each needs a fresh upscale; one that hasn't is said when queued`
+                    : "No clip is marked: R marks the clip on screen (or the selected one) for faces while you watch"}>
+            <i className="pi pi-user" /> Refine faces on marked clips{marked.length ? ` (${marked.length})` : ""}…
+          </button>
+        );
+      })()}
       <button onClick={run(() => void checkColour())} title="A take is measured when it's made; this measures the cut's older takes, so a clip whose colour is out of line with its sequence gets the colour badge">
         <i className="pi pi-palette" /> Check colour
       </button>

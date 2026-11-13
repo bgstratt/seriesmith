@@ -6,7 +6,7 @@ import {
   clickShot, closeViewer, currentPlaylist, openInspector, openMenu, openViewer, playAll, refreshEpisode, seekCut, seekToShot, select,
   setZoom, showMissingRefs, toggleCutPlay,
 } from "../actions";
-import { cutKey, flaggedShots, gotoFlagged, loadColdOpen, moveClip, redoCut, seekCutAt, setJoin, setTrims, undoCut } from "../cutActions";
+import { cutKey, faceMarkedShots, flaggedShots, gotoFaceMarked, gotoFlagged, loadColdOpen, moveClip, redoCut, seekCutAt, setJoin, setTrims, undoCut } from "../cutActions";
 import { api, host } from "../host";
 import { JOIN_MAX, clampTrim, dropIndex, framesLabel, pxToFrames } from "../lib/cutEdit";
 import {
@@ -189,6 +189,7 @@ const Clip = memo(function Clip({
   const mediaW = Math.min(width, Math.round(height * aspect));
   const locked = !!s.cut.locked;
   const flagged = !!s.cut.flag;
+  const faceMarked = !!s.cut.refine_faces;
   const trimIn = s.cut.trim_in || 0;
   const trimOut = s.cut.trim_out || 0;
   // a placeholder's take is the other pass's: its target is compared all the same
@@ -212,6 +213,7 @@ const Clip = memo(function Clip({
     `${label} · ${fmtShotSeconds(s, secs)}${s.size ? ` · ${s.size}` : ""}${lengthEstimated(s) ? `\n≈ ${ESTIMATE_TITLE}` : ""}`,
     group ? `one generation of ${group.length} shots (continuous: multishot): ${group.map((p) => `${p.id} at ${framesLabel(p.start, fps)}`).join(", ")}; the marks are where the script times the cuts, and the model lands near them` : "",
     flagged ? "flagged to come back to (M: unflag · Shift+M: the next flagged clip)" : "",
+    faceMarked ? "marked to refine its faces once upscaled (R: unmark · Shift+R: the next marked clip · the cut menu: Refine faces on marked clips)" : "",
     s.cut.look_off?.length ? `colour out of line with its sequence: ${s.cut.look_off.join(", ")} (its colour in the inspector, or Match the sequence's colour to a clip that looks right)` : "",
     noted ? `${noted} open note${noted > 1 ? "s" : ""} (the Shots tab's Issues list)` : "",
     s.cut.out ? "left out of the cut: Play all, assemble and Master skip it (right-click: Put back in the cut)" : "",
@@ -261,6 +263,8 @@ const Clip = memo(function Clip({
         </div>
       )}
       {flagged && <i className="pi pi-flag-fill h3-flag-mark" />}
+      {/* its own mark beside the flag, never folded into the badges' overflow */}
+      {faceMarked && <i className={`pi pi-user h3-face-mark${flagged ? " h3-with-flag" : ""}`} />}
       <div className="h3-clip-bottom">
         {locked && <i className="pi pi-lock" title="Locked in the cut" />}
         {noted > 0 && <i className="pi pi-comment" />}
@@ -372,6 +376,7 @@ export function Timeline() {
   const prog = useMemo(() => passProgress(st?.shots), [st]);
   const missing = useMemo(() => missingRefsSummary(st?.shots ?? []), [st]);
   const flagged = useMemo(() => flaggedShots(st), [st]);
+  const faceMarked = useMemo(() => faceMarkedShots(st), [st]);
   const issues = useApp((s) => (s.ep ? s.issues[statusKey(s.ep, s.pass)] : undefined));
   const noted = useMemo(() => {
     const m = new Map<string, number>();
@@ -673,6 +678,16 @@ export function Timeline() {
             onClick={() => gotoFlagged(1)}
           >
             <i className="pi pi-flag-fill" /> {flagged.length} flagged
+          </button>
+        )}
+        {faceMarked.length > 0 && (
+          <button
+            className="h3-badge h3-b-faces h3-badge-btn"
+            title={`Marked to refine their faces once upscaled: ${faceMarked.join(", ")}
+Click (or Shift+R): the next one · R marks or unmarks the clip on screen (or the selected one) · the cut menu: Refine faces on marked clips`}
+            onClick={() => gotoFaceMarked(1)}
+          >
+            <i className="pi pi-user" /> {faceMarked.length} for faces
           </button>
         )}
         {!coldOpen?.error && (coldOpen?.crossing?.length ?? 0) > 0 && (

@@ -847,6 +847,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--post", action="store_true",
                     help="with --upscaled: a clip's fresh post (post) in place of its "
                          "upscale where it has one")
+    ap.add_argument("--post-shots", metavar="SH,SH",
+                    help="with --post: only these shots' posts (master without Post-process "
+                         "plays the posts of the clips marked for faces, and nothing else's)")
     ap.add_argument("--quality", choices=sorted(QUALITY_ARGS), default="review",
                     help="how clips that must be re-encoded are written: review (x264 CRF 16) or "
                          "master (CRF 12, slow); clips that needn't be are copied either way")
@@ -979,7 +982,8 @@ def main(argv: list[str] | None = None) -> int:
         up = T.upscale_of(t) if args.upscaled else None
         clip = t.paths.up_mp4 if up and up["fresh"] else t.paths.mp4
         # --post: its fresh post (made from that upscale) in the upscale's place
-        po = T.post_of(t, up) if args.post and up and up["fresh"] else None
+        po = (T.post_of(t, up) if args.post and up and up["fresh"]
+              and (not args.post_shots or e.shot in args.post_shots.split(",")) else None)
         if po and po["fresh"]:
             clip = t.paths.post_mp4
         # a take that is a proxy of an original (an edit's import with proxies) is cut

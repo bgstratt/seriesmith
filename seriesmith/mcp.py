@@ -203,7 +203,7 @@ def episode_brief(res: dict) -> dict:
         shots.append(dict(
             _pick(s, "shot", "sequence", "seconds", "target", "subjects", "action",
                   "missing_refs", "retarget_error"),
-            cut=_pick(cut, "take", "usable", "picked", "out", "flag"),
+            cut=_pick(cut, "take", "usable", "picked", "out", "flag", "refine_faces"),
             takes=[dict(_pick(t, "take", "status", "stale", "frames", "target", "note",
                               "save_notes"),
                         **({"thumb": t["thumb"]} if t.get("thumb") else {}),
@@ -278,7 +278,7 @@ def passthrough(method: str, path: str) -> Callable:
     return lambda c, a: c.call(method, path, body=dict(a))
 
 
-CUT_CHANGES = ("take", "trim_in", "trim_out", "locked", "note", "out", "flag", "audio", "color",
+CUT_CHANGES = ("take", "trim_in", "trim_out", "locked", "note", "out", "flag", "refine_faces", "audio", "color",
                "fade_in", "fade_out", "dissolve")
 
 
@@ -500,6 +500,7 @@ TOOLS: list[Tool] = [
                              "trim_in": {"type": "integer"}, "trim_out": {"type": "integer"},
                              "locked": {"type": "boolean"}, "note": _s("a note"),
                              "out": {"type": "boolean"}, "flag": {"type": "boolean"},
+                             "refine_faces": {"type": "boolean"},
                              "audio": {"type": ["object", "null"]},
                              "color": {"type": ["object", "null"]},
                              "fade_in": {"type": "integer", "minimum": 0},

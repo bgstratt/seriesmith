@@ -212,7 +212,10 @@ export interface UpscaleAsk {
 }
 
 /** The Post-process dialog's subject: named takes of a pass, or that pass's whole cut. */
-export type PostAsk = UpscaleAsk;
+export interface PostAsk extends UpscaleAsk {
+  /** opened as "Refine faces": this run, faces only (no enhance, no blur) */
+  facesOnly?: boolean;
+}
 
 export interface RefTakeRef {
   ep: string;

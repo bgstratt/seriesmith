@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { applyEntries, entriesOf, sameEntries, withFields } from "../src/lib/cutEdit";
 import { applyEdit, diffEdit } from "../src/lib/undo";
 import { buildPlaylist } from "../src/lib/playlist";
-import { flaggedShots } from "../src/cutActions";
+import { faceMarkedShots, flaggedShots } from "../src/cutActions";
 import type { CutEntry, EpisodeStatus, ShotStatus } from "../src/types";
 
 function shot(id: string, extra: Partial<ShotStatus["cut"]> = {}): ShotStatus {
@@ -49,5 +49,37 @@ describe("flagging a clip", () => {
     expect(edited.shots[0].cut.flag).toBe(true);
     expect(buildPlaylist(edited).map((i) => i.shot)).toEqual(["a", "b", "c"]);
     expect(flaggedShots(edited)).toEqual(["a", "c"]);
+  });
+});
+
+// A clip marked for the face pass (R): the same as a flag, its own field, and the two
+// don't touch each other.
+describe("marking a clip for faces", () => {
+  it("the entry carries it beside a flag, and drops it when unmarked", () => {
+    const list: CutEntry[] = [{ shot: "a" }, { shot: "b", flag: true }];
+    const on = withFields(list, "b", { refine_faces: true });
+    expect(on[1]).toEqual({ shot: "b", flag: true, refine_faces: true });
+    expect(withFields(on, "b", { refine_faces: false })[1]).toEqual({ shot: "b", flag: true });
+    expect(withFields(on, "b", { flag: false })[1]).toEqual({ shot: "b", refine_faces: true });
+  });
+  it("is a change, undoable, and survives later edits", () => {
+    const s = st([shot("a"), shot("b")]);
+    const before = entriesOf(s);
+    const after = withFields(before, "b", { refine_faces: true });
+    expect(sameEntries(before, after)).toBe(false);
+    const edit = diffEdit("Mark b for faces", before, after);
+    expect(edit).not.toBeNull();
+    expect(applyEdit(after, edit!, "undo")[1]).toEqual({ shot: "b" });
+    const marked = st([shot("a"), shot("b", { refine_faces: true })]);
+    expect(entriesOf(marked)[1]).toEqual({ shot: "b", refine_faces: true });
+    expect(withFields(entriesOf(marked), "a", { trim_in: 2 })[1]).toEqual({ shot: "b", refine_faces: true });
+  });
+  it("the status follows; the marked list is in cut order and isn't the flagged one", () => {
+    const s = st([shot("a"), shot("b"), shot("c")]);
+    const edited = applyEntries(s, [{ shot: "a", refine_faces: true }, { shot: "b", flag: true }, { shot: "c", refine_faces: true }]);
+    expect(edited.shots[0].cut.refine_faces).toBe(true);
+    expect(faceMarkedShots(edited)).toEqual(["a", "c"]);
+    expect(flaggedShots(edited)).toEqual(["b"]);
+    expect(buildPlaylist(edited).map((i) => i.shot)).toEqual(["a", "b", "c"]);
   });
 });

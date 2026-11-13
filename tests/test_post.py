@@ -91,6 +91,193 @@ class PostTest(ApiTest):
         # and it goes with the take
         self.assertIn(t.paths.post_mp4, T.stem_files(t.paths.dir, t.paths.stem))
 
+    # -- faces ----------------------------------------------------------------
+
+    def faced(self, sheets=("ada",)) -> T.Take:
+        """An upscaled take whose frozen shotlist has Ada and Bo in it (Bo's sheet
+        only when named in `sheets`) and a location."""
+        t = self.upscaled()
+        os.makedirs(os.path.join(self.ep, "refs"), exist_ok=True)
+        for sid in sheets:
+            with open(os.path.join(self.ep, "refs", f"{sid}.png"), "wb") as fh:
+                fh.write(b"png")
+        doc = {"subjects": {"ada": {"kind": "character", "sheet": "refs/ada.png"},
+                            "bo": {"kind": "character", "sheet": "refs/bo.png"},
+                            "kitchen": {"kind": "location", "sheet": "refs/kitchen.png"}},
+               "shots": [{"id": "sh010", "subjects": ["ada", "bo"], "prompt": [
+                   "subject_definitions:\n<Subject 1> is Ada Lind, defined by <Picture 1> — one "
+                   "character. Preserve the exact reference styling: a red coat and a grey scarf.\n"
+                   "<Subject 2> is Bo, defined by <Picture 2> — one character. Preserve the exact "
+                   "reference styling: a yellow hat.\n<Subject 3> is the location, defined by <Picture 3>.",
+                   "summary:\n[reference generation] Ada waves to Bo across the kitchen.",
+                   "detailed_description:\nA naturalistic drama on 35mm film, soft window light.\n"
+                   "[Shot 1] A wide shot of the kitchen."]}]}
+        T.write_json(t.paths.shotlist, doc)
+        return T.get_take(self.ep, "final", "sh010", 1)
+
+    def test_faces_plan(self):
+        t = self.faced()
+        job = P.plan_post(self.ep, t, faces=True)
+        self.assertEqual(job.action, "post")
+        self.assertEqual([p["subject"] for p in job.face_passes], ["ada"])
+        self.assertIn("bo has no sheet", " ".join(job.notes))
+        p = job.face_passes[0]
+        self.assertEqual((p["name"], p["sheet"]), ("Ada Lind", "refs/ada.png"))
+        # the shot's own words, told as a close-up of the one face
+        self.assertIn("a red coat and a grey scarf.", p["prompt"])
+        self.assertIn("as in this moment: Ada waves to Bo across the kitchen.", p["prompt"])
+        self.assertIn("A naturalistic drama on 35mm film", p["prompt"])
+        self.assertNotIn("A wide shot", p["prompt"])
+        self.assertNotIn("[reference generation]", p["prompt"])
+        self.assertEqual(P.settings_of(job)["faces"], {"denoise": 0.4, "subjects": ["ada"]})
+        self.assertIn("faces (ada, denoise 0.4)", P.describe(job))
+        # its settings are its own: another denoise is another post
+        self.finish(t, job)
+        self.assertEqual(P.plan_post(self.ep, t, faces=True).action, "skip")
+        self.assertEqual(P.plan_post(self.ep, t, faces={"denoise": 0.3}).action, "post")
+        # named subjects: only them; one not in the shot is said
+        job = P.plan_post(self.ep, t, faces={"subjects": ["ada", "cy"]}, redo=True)
+        self.assertEqual([p["subject"] for p in job.face_passes], ["ada"])
+        self.assertIn("cy isn't in the shot", job.notes)
+
+    def test_a_clip_marked_for_faces(self):
+        """Marked in the cut (R): its post is refined unless faces are turned off for it."""
+        from seriesmith import edit as E
+        t = self.faced()
+        self.assertEqual(P.plan_post(self.ep, t).action, "error")        # unmarked: nothing asked
+        E.set_cut_entry(self.ep, "final", "sh010", refine_faces=True)
+        self.assertEqual(P.face_marks(self.ep, "final"), {"sh010"})
+        self.assertEqual(P.face_marks(self.ep, "proxy"), set())
+        job = P.plan_post(self.ep, t)                                     # faces alone
+        self.assertEqual((job.action, [p["subject"] for p in job.face_passes]), ("post", ["ada"]))
+        self.assertIn("marked for faces in the cut", job.notes)
+        job = P.plan_post(self.ep, t, enhance="draft")                   # beside the clean-up
+        self.assertTrue(job.enhance and job.face_passes)
+        job = P.plan_post(self.ep, t, enhance="draft", faces=False)      # turned off for this post
+        self.assertEqual(job.face_passes, [])
+        kw = P.recipe_for(self.ep, "sh010", {"enhance": "draft"}, {})     # the recipe leaves it to the mark
+        self.assertNotIn("faces", kw)
+        self.assertTrue(P.plan_post(self.ep, t, **kw).face_passes)
+
+    def test_the_dialogs_answer_beats_the_mark(self):
+        """One take's dialog says faces outright, by the series recipe too: off here
+        leaves a marked clip's faces alone (the dialog unmarks it beside)."""
+        from seriesmith import edit as E
+        self.ready_comfy()
+        self.faced()
+        p = os.path.join(self.ep, "series.json")
+        cfg = json.load(open(p, encoding="utf-8"))
+        cfg["post"] = {"master": {"enhance": "draft"}}
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh)
+        E.set_cut_entry(self.ep, "final", "sh010", refine_faces=True)
+        out = self.ok(A.queue_post(self.ctx, {"ep": self.ep, "takes": [{"shot": "sh010", "take": 1}],
+                                              "recipe": True, "faces": False}))
+        self.assertEqual(len(out["queued"]), 1)
+        self.assertNotIn("faces", out["queued"][0]["what"])
+        self.err(A.queue_post(self.ctx, {"ep": self.ep, "takes": [{"shot": "sh010", "take": 1}],
+                                         "recipe": True, "faces": "yes"}), 400)
+
+    def test_faces_with_no_one_to_refine(self):
+        t = self.faced(sheets=())
+        job = P.plan_post(self.ep, t, faces=True)
+        self.assertEqual(job.action, "error")            # master: plays its upscale
+        self.assertIn("nothing to do", job.why)
+        job = P.plan_post(self.ep, t, faces=True, enhance="draft")
+        self.assertEqual(job.action, "post")
+        self.assertEqual(job.face_passes, [])
+        self.assertIn("faces left out", " ".join(job.notes))
+        self.assertNotIn("faces", P.settings_of(job))
+
+    def test_faces_refusals(self):
+        t = self.faced()
+        self.assertIn("denoise", P.plan_post(self.ep, t, faces={"denoise": 0.9}).why)
+        self.assertIn("not a field", P.plan_post(self.ep, t, faces={"strength": 0.3}).why)
+        self.assertIn("subject ids", P.plan_post(self.ep, t, faces={"subjects": "ada"}).why)
+        self.assertIn("true, false", P.plan_post(self.ep, t, faces=3).why)
+        for off in (None, False, "none", {}):
+            self.assertIsNone(P.resolve_faces(off))
+        self.assertEqual(P.resolve_faces(True), {"denoise": 0.4})
+
+    def test_faces_graph(self):
+        t = self.faced()
+        if os.path.isfile(t.paths.h3_wav):
+            os.remove(t.paths.h3_wav)
+        g = P.post_graph(P.plan_post(self.ep, t, faces=True))
+        self.assertEqual(g["pp_video"]["inputs"]["audio_file"], "")     # no _h3.wav: nothing to hold
+        self.assertEqual(self.by_class(g, "SeriesmithHoldAudio"), [])
+        tr = g[self.by_class(g, "H3FaceTrackCrop")[0]]["inputs"]
+        self.assertFalse(tr["identity_track"])                          # one face: no identity needed
+        self.assertNotIn("identity_reference", tr)
+        self.assertEqual(g["pf0_sheet"], {"class_type": "H3LoadImageFile", "inputs": {
+            "project_root": self.ep, "image_file": "refs/ada.png"}})
+        self.assertEqual(g["pp_save"]["inputs"]["images"], ["pf0_stitch", 0])
+        self.assertEqual(g["pf0_sigmas"]["inputs"]["denoise"], 0.4)
+        # the take's sound held: the lips follow it
+        with open(t.paths.h3_wav, "wb") as fh:
+            fh.write(b"wav")
+        g = P.post_graph(P.plan_post(self.ep, t, faces=True))
+        self.assertTrue(g["pp_video"]["inputs"]["audio_file"].endswith("_h3.wav"))
+        self.assertEqual(g["pf_aenc"]["inputs"]["audio"], ["pp_video", 1])
+        self.assertEqual(g["pf0_denoise"]["inputs"]["av_latent"], ["pf0_hold", 0])
+        # two characters: a pass each, chained, each found by their sheet
+        t = self.faced(sheets=("ada", "bo"))
+        g = P.post_graph(P.plan_post(self.ep, t, faces=True, enhance="draft", blur=0.3))
+        self.assertEqual(len(self.by_class(g, "H3FaceTrackCrop")), 2)
+        for i in (0, 1):
+            ins = g[f"pf{i}_track"]["inputs"]
+            self.assertTrue(ins["identity_track"])
+            self.assertEqual(ins["identity_reference"], [f"pf{i}_sheet", 0])
+        self.assertEqual(g["pf1_track"]["inputs"]["images"], ["pf0_stitch", 0])
+        self.assertEqual(g["pf1_stitch"]["inputs"]["base_images"], ["pf0_stitch", 0])
+        self.assertNotEqual(g["pf0_noise"]["inputs"]["noise_seed"], g["pf1_noise"]["inputs"]["noise_seed"])
+        # enhance, then faces, then blur
+        self.assertEqual(g["pf0_track"]["inputs"]["images"], g["pf0_stitch"]["inputs"]["base_images"])
+        self.assertNotEqual(g["pf0_track"]["inputs"]["images"], ["pp_video", 0])
+        self.assertEqual(g["pp_blur"]["inputs"]["images"], ["pf1_stitch", 0])
+
+    def test_faces_portable(self):
+        from seriesmith import finishing as F
+        from seriesmith.backends import File
+        t = self.faced()
+        job = P.plan_post(self.ep, t, faces=True)
+        pg, _ = F.portable(F.of_post(job, P.post_graph(job)))
+        self.assertEqual(pg["pf0_sheet"]["class_type"], "LoadImage")
+        img = pg["pf0_sheet"]["inputs"]["image"]
+        self.assertIsInstance(img, File)
+        self.assertEqual(os.path.normpath(img.path), os.path.normpath(os.path.join(self.ep, "refs", "ada.png")))
+
+    def test_faces_not_ready(self):
+        t = self.faced()
+        job = P.plan_post(self.ep, t, faces=True)
+        info = {c: {"input": {"required": {}}} for c in P.BASE_NODES + P.FACES_CORE_NODES}
+        missing = P.not_ready([job], info)
+        self.assertTrue(any(P.FACES_PACK in m for m in missing))
+        info.update({c: {"input": {"required": {}}} for c in P.FACES_NODES})
+        for c, f, names in (("UNETLoader", "unet_name", [P.FACES_UNET]),
+                            ("LoraLoaderModelOnly", "lora_name", [P.FACES_LORA]),
+                            ("CLIPLoader", "clip_name", [P.FACES_CLIP]),
+                            ("VAELoader", "vae_name", [P.FACES_VAE, P.FACES_AUDIO_VAE])):
+            info[c] = {"input": {"required": {f: [names]}}}
+        info["H3FaceTrackCrop"] = {"input": {"required": {
+            "detector": [["bbox\\face_yolov8m.pt", "face_yolov8m.pt", "hand_yolov8s.pt"]]},
+            "optional": {"fallback_detector": [["none", "segm\\person_yolov8m-seg.pt"]]}}}
+        self.assertEqual(P.not_ready([job], info), [])
+        self.assertEqual(job.face_detectors, ("face_yolov8m.pt", "segm\\person_yolov8m-seg.pt"))
+        g = P.post_graph(job)
+        self.assertEqual((g["pf0_track"]["inputs"]["detector"], g["pf0_track"]["inputs"]["fallback_detector"]),
+                         ("face_yolov8m.pt", "segm\\person_yolov8m-seg.pt"))
+        info["H3FaceTrackCrop"]["input"]["required"]["detector"] = [["hand_yolov8s.pt"]]
+        self.assertTrue(any("face_yolov8m.pt in models/ultralytics" in m for m in P.not_ready([job], info)))
+        self.assertEqual(P.face_detectors(["face_yolov8m.pt"], ["none"]), ("face_yolov8m.pt", "none"))
+
+    def test_faces_recipe(self):
+        self.assertEqual(P.recipe_for(self.ep, "sh010", {"enhance": "draft", "faces": True}, {})["faces"], True)
+        self.assertEqual(P.describe_recipe({"faces": True, "blur": 0.3}), "faces, then motion blur 0.3")
+        self.assertEqual(P.describe_recipe({"faces": {"subjects": ["ada"]}}), "faces (ada)")
+        self.assertTrue(any("denoise" in m for m in P.check_recipe({"faces": {"denoise": 2}})))
+        self.assertEqual(P.check_recipe({"enhance": "production", "faces": True}), [])
+
     # -- the graph ------------------------------------------------------------
 
     def test_after_an_upscale_not_made_yet(self):
@@ -261,7 +448,7 @@ class PostTest(ApiTest):
         self.assertEqual(P.recipe_for(self.ep, "sh010", recipe, shots),
                          {"enhance": "none", "blur": 0.3})
         self.assertEqual(P.check_recipe(recipe), [])
-        bad = P.check_recipe({"enhance": "ultra", "motion_blur": 3, "faces": True})
+        bad = P.check_recipe({"enhance": "ultra", "motion_blur": 3, "sharpen": True})
         self.assertEqual(len(bad), 3, bad)
 
 

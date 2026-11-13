@@ -65,6 +65,9 @@ PACKS: dict[str, dict] = {
                     "LTXICLoRALoaderModelOnly", "LTXAddVideoICLoRAGuide",
                     # ltx23_foley's guiders and mask
                     "GuiderParameters", "MultimodalGuider", "LTXVSetAudioVideoMaskByTime"]},
+    "ComfyUI-H3-FaceRefine": {
+        "repo": "https://github.com/Carasibana/ComfyUI-H3-FaceRefine",
+        "classes": ["H3FaceTrackCrop", "H3InjectVideoLatent", "H3PerFrameDenoise", "H3FaceStitch"]},
     "Comfyui_Minimax_h3_latent_Upscaler": {
         "repo": "https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler",
         "classes": ["MinimaxH3LatentUpscaler3D"]},
@@ -637,6 +640,14 @@ def catalog() -> list[Feature]:
                 "SUPIR on the SDXL base checkpoint.",
                 [Item("model", P.SUPIR_MODEL, folder="model_patches", url=P.SUPIR_URL),
                  Item("model", P.SUPIR_CHECKPOINT, folder="checkpoints", url=P.SUPIR_CHECKPOINT_URL)]),
+        Feature("post.faces", "post", "Refine faces",
+                "Each character's face redrawn by H3 Ref2VA on a crop the face fills, from their "
+                "sheet, the lips held to the take's sound: Carasibana's H3-FaceRefine node pack, "
+                "the face detector (Bingsu/adetailer) and H3 Ref2VA itself.",
+                [_pack("ComfyUI-H3-FaceRefine"),
+                 Item("model", P.FACE_DETECTOR, folder="ultralytics/bbox",
+                      url="https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8m.pt")]
+                + _target_items("minimax_h3_ref2va"), restart=True),
         Feature("post.motion_blur", "post", "Motion blur",
                 "RAFT optical flow (torchvision's weights).",
                 [Item("model", P.RAFT_FILE, folder="optical_flow", url=P.RAFT_URL)]),

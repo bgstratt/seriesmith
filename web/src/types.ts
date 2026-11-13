@@ -128,6 +128,8 @@ export interface CutInfo {
   /** flagged to come back to (re-render it, change its prompt); changes nothing
    * played. Absent from older servers. */
   flag?: boolean;
+  /** marked for the face pass once upscaled (R); changes nothing played */
+  refine_faces?: boolean;
   /** its colour in the cut (exposure, contrast, black, saturation, warmth, tint; null: as shot),
    * applied by assemble. Absent from older servers. */
   color?: ShotColor | null;
@@ -986,6 +988,8 @@ export interface CutEntry {
   out?: boolean;
   /** flagged to come back to */
   flag?: boolean;
+  /** marked for the face pass once upscaled */
+  refine_faces?: boolean;
   /** its colour (seriesmith/color.py): the fields that aren't 0 */
   color?: ShotColor | null;
   /** frames from / to black at its head / tail; of a dissolve from the clip before */
@@ -1233,11 +1237,15 @@ export interface PostRequest {
   enhance?: string | Record<string, unknown> | null;
   /** motion blur, 0-1 of the frame interval */
   blur?: number | null;
+  /** the face pass: true, or {denoise, subjects} */
+  faces?: boolean | { denoise?: number; subjects?: string[] } | null;
   quality?: "review" | "master" | null;
 }
 
 export interface PostResult {
-  queued: { shot: string; take: number; what: string; width: number; height: number; prompt_id: string }[];
+  queued: { shot: string; take: number; what: string; width: number; height: number; prompt_id: string;
+            /** who the face pass left out, and why */
+            notes?: string[] }[];
   skipped: { shot: string; take?: number; reason: string }[];
   errors: { shot: string; take?: number; error: string }[];
 }
@@ -1254,6 +1262,8 @@ export interface PostOptions {
   methods: string[];
   blur: { min: number; max: number; default: number; readiness: PostReadiness };
   strength: { min: number; max: number; default: number };
+  /** the face pass (H3-FaceRefine): absent from older servers */
+  faces?: { denoise: { min: number; max: number; default: number }; readiness: PostReadiness };
   /** the episode's post.master (asked with `ep`; null: none) */
   recipe: { fields: Record<string, unknown>; text: string;
             shots: Record<string, { fields: Record<string, unknown>; text: string }>;

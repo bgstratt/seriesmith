@@ -538,8 +538,8 @@ seriesmith publish Shows\ep05                          # intro + review cut + ou
   NVIDIA RTX Video Super Resolution) or `seedvr2`.
   `--start-step`, `--scale`, `--vae`, `--deliver WxH`, `--quality review|master`, `--redo`.
 - `post` finishes an upscale into `<stem>.post.mp4`: `--enhance draft|production|cinematic`
-  (or `pixel|seedvr2|supir|none`), `--blur`, `--grain`; with neither, the series config's
-  `post.master` recipe ([POST_PROCESSING.md](/post-processing)).
+  (or `pixel|seedvr2|supir|none`), `--faces` (`--faces-denoise`), `--blur`, `--grain`; with
+  none of them, the series config's `post.master` recipe ([POST_PROCESSING.md](/post-processing)).
 - `master` runs the series config's `upscale.master` recipe (and `post.master` with
   `--post`) on every shot of the cut, waits for them, then assembles and titles the master
   into `<episode>/master/`. `--conform`, `--allow-gaps`, `--order cut|target`,
