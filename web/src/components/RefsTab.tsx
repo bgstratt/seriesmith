@@ -1301,6 +1301,12 @@ function RefRow({ ep, r }: { ep: string; r: Ref }) {
               </span>
             )}
             {showMissing && <span className="h3-badge h3-b-failed" title={`${r.path} isn't on disk`}>missing</span>}
+            {(r.uncropped?.length ?? 0) > 0 && (
+              <span className="h3-badge h3-b-stale"
+                title={`Medium and close shots on this place's whole plate, which come out as wide as it:\n${r.uncropped!.map(([s, z]) => `${s} (${z})`).join(", ")}\n\nGive them a crop of the part they play in (a place of its own with Crop, under Angle of), or, if this plate is already that close, mark it so (framing: medium or close in series.json).`}>
+                uncropped {r.uncropped!.length}
+              </span>
+            )}
             {r.panels_conflict && <span className="h3-badge h3-b-stale" title={PANELS_TITLE}>sheet marked one picture</span>}
             {/* P9: the live file isn't this episode's own pick, and others read it */}
             {note && <span className={`h3-badge ${note.label === "not from here" ? "h3-b-override-stale" : "h3-b-override"}`} title={note.title}>{note.label}</span>}

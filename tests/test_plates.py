@@ -255,3 +255,34 @@ class UpscaleTest(_Episode):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UncroppedTest(unittest.TestCase):
+    """Medium and close shots on a wide place's whole plate (build.uncropped): warned, and
+    listed on the place's row; a crop, a place marked `framing`, an insert or a wide isn't."""
+
+
+    def test_framing_checked(self):
+        c = cfg()
+        c["locations"]["alcove"]["framing"] = "tight"
+        with self.assertRaises(ValueError):
+            SC.series_config_from(c)
+        c["locations"]["alcove"]["framing"] = "close"
+        SC.series_config_from(c)
+
+    def test_which_shots(self):
+        from seriesmith import build as B
+        from seriesmith.core import ir
+        c = cfg()
+        c["locations"]["door"] = {"description": "a green door", "plate": "../refs/_bg/door.png",
+                                  "framing": "close"}
+        c = SC.series_config_from(c)
+        def shot(i, size, plate=""):
+            return ir.Shot(id=i, cast=["ada"], size=size, plate=plate)
+        story = ir.Episode(id="ep01", title="T", sequences=[ir.Sequence(id="sq01", location="alcove", shots=[
+            shot("sh010", "ws"), shot("sh020", "ms"), shot("sh030", "cu", "alcove_left"),
+            shot("sh040", "ecu"), shot("sh050", "mcu", "door"), shot("sh060", "medium close")])])
+        self.assertEqual(B.uncropped(story, c), {"alcove": [("sh020", "ms"), ("sh060", "mcu")]})
+        w = B.uncropped_warnings(story, c)
+        self.assertEqual(len(w), 1)
+        self.assertIn("location 'alcove': sh020 (ms), sh060 (mcu) play on its whole plate", w[0])

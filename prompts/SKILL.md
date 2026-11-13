@@ -769,7 +769,10 @@ seriesmith never crops by itself: the script decides. Go through every medium an
    chair). **An angle is not close because it is an angle**: an `_on_` location whose description
    names a whole wall, a room's corner, a car seat with the dash and windows, a row of pews, or
    more than one or two things, is wide for a medium shot. Go by what the description says it
-   shows, not by its name; when in doubt, crop.
+   shows, not by its name; when in doubt, crop. Mark a location that is already close
+   `"framing": "close"` (or `"medium"`): `seriesmith check` warns about every medium and close
+   shot on a wide location's whole plate (and the Refs tab badges the place **uncropped**),
+   and a location marked so, or a crop, is never flagged.
 2. **The zoom follows the size**: `mws` and `cowboy` about 1.4 to 1.5, `ms` 1.5, `mcu` and `cu`
    2.2 (2.0 when 2.2 would cut away the thing the person is at: the door, the desk, the pump).
    A plate with both medium and close shots in one part gets two crops of that part, one for

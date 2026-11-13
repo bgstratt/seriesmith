@@ -1044,6 +1044,10 @@ script call for is listed here.
   machine's ComfyUI for the detail a stretch can't give; the row then says "upscaled", and the
   button **Upscale again**. When the plate it's cut from changes, it's stretched again at once,
   ready to upscale again. **Generate** instead asks the edit model to draw that part anew.
+- **uncropped N** on a place's row: N medium and close shots play on its whole plate, and
+  come out as wide as it. Point at it for the shots; give them a crop (+ Location, **Angle of**
+  this place, **Crop**), or, if the plate is already that close, mark the place
+  `framing: close` (or `medium`) in series.json.
 - A character's sheet is stitched automatically once all four views are picked — or you
   supply a finished one, below.
 - **A view's settings vs the character's.** Seed, model, LoRAs and steps set on a character's

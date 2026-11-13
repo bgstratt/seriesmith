@@ -198,6 +198,7 @@ def story_warnings(story: ir.Episode, series_cfg: dict | None = None) -> list[st
                 f"location an angle per speaker and name it with `plate:`.")
     out += jump_cuts(story, person, name)
     out += recurring_extras(story)
+    out += uncropped_warnings(story, series_cfg or {})
     out += no_eyeline(story, person)
     out += wording_warnings(story, series_cfg or {}, person)
     # the old forms of `continuous:` (docs/CONTINUOUS.md), read as the new ones
@@ -361,6 +362,44 @@ def no_eyeline(story: ir.Episode, person) -> list[str]:
 # the shot's words that reach a model's prompt (`text:` is lettering on screen,
 # `music:` a music model's, and neither is read as a scene)
 SHOT_WORDS = ("action", "camera", "extras", "sound")
+
+
+# the sizes a whole plate is too wide for (docs/AUTHORING.md, "Medium and close shots get a crop
+# of the plate"): not an ecu (an insert fills the frame), not the wides, not the angles
+CROPPED_SIZES = ("cu", "mcu", "ms", "cowboy", "mws")
+
+
+def uncropped(story: ir.Episode, series_cfg: dict) -> dict[str, list[tuple[str, str]]]:
+    """{location id: [(shot, size)]}: the medium and close shots that play on a location's whole
+    plate, where its plate is wide: a location with a plate, not a crop, not marked `framing:
+    medium` or `close`. A video model takes the plate as what the place is, so such a shot
+    comes out as wide as the plate (docs/PLATE_VARIANTS.md)."""
+    from seriesmith.core import framing as FR
+    locs = (series_cfg or {}).get("locations") or {}
+    out: dict[str, list[tuple[str, str]]] = {}
+    for sq in story.sequences:
+        for sh in sq.shots:
+            size = FR.canonical(sh.size)
+            if size not in CROPPED_SIZES:
+                continue
+            lid = sh.plate or sq.location
+            e = locs.get(lid) or {}
+            if not e.get("plate") or e.get("crop") is not None or e.get("framing") in ("medium", "close"):
+                continue
+            out.setdefault(lid, []).append((sh.id, size))
+    return out
+
+
+def uncropped_warnings(story: ir.Episode, series_cfg: dict) -> list[str]:
+    out = []
+    for lid, shots in uncropped(story, series_cfg).items():
+        listed = ", ".join(f"{s} ({z})" for s, z in shots[:6]) + (f" and {len(shots) - 6} more" if len(shots) > 6 else "")
+        out.append(f"location '{lid}': {listed} play on its whole plate, and come out as wide as "
+                   f"it. Give them a crop of the part they play in (a location with `of`, `crop`, "
+                   f"`zoom`, named by their `plate:`), or mark '{lid}' `framing: medium` (or "
+                   f"`close`) if its plate is already that close (docs/AUTHORING.md, \"Medium and "
+                   f"close shots get a crop of the plate\").")
+    return out
 
 
 def wording_warnings(story: ir.Episode, series_cfg: dict, person) -> list[str]:

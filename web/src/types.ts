@@ -1698,6 +1698,8 @@ export interface Ref {
   zoom?: number;
   /** a crop's picture: the upscale model it was made with, null when it's stretched */
   upscaled?: string | null;
+  /** a wide place's medium and close shots on its whole plate: [shot, size] (build.uncropped) */
+  uncropped?: [string, string][];
   /** false when this ref can't be generated; `why_not` says why */
   can_generate?: boolean;
   why_not?: string | null;

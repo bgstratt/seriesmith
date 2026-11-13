@@ -1802,7 +1802,10 @@ you supply. Refs are the same thing whatever model consumes them. Each has a `sc
 - A **crop** (a location with `of`, `crop` and `zoom`: docs/PLATE_VARIANTS.md) carries
   `"crop"` (which part), `"zoom"` (how much closer, 1.6 when the series config leaves it
   out) and `"upscaled"` (the upscale model its picture was made with, null when stretched)
-  beside its `"of"`; any other ref has none of them.
+  beside its `"of"`; any other ref has none of them. A series location carries `"uncropped"`:
+  `[[shot, size]]`, its medium and close shots (ms, mws, cowboy, mcu, cu) on its whole plate
+  when that plate is wide (not a crop, no `framing: medium` or `close`), from the built
+  episode (`build.uncropped`, what `seriesmith check` warns about); `[]` otherwise.
 - **Picking** a take copies it to the path the series config names, which is the file renders
   read. The pick is recorded in `refs/_picks.json`, so the UI knows which take is
   live. Re-picking changes the file's sha1, so video takes that used the old file

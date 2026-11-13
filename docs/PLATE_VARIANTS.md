@@ -92,3 +92,6 @@ shots plays in one part of a wide plate, that part becomes a crop, and those sho
       `collect_upscale`; `Runner.enqueue_crop_upscale`; the Refs tab's **Upscale**).
 - [ ] Live: a render on an upscaled crop beside one on the stretched crop.
 - [ ] A close crop made soft on purpose (`soft: true`), if close-up renders ask for it.
+- [x] Medium and close shots left on a wide plate: `seriesmith check` warns per location
+      (`build.uncropped`), the Refs tab badges the place **uncropped N**; a location says its
+      plate is already close with `framing: medium | close` (`core/series_config.FRAMINGS`).

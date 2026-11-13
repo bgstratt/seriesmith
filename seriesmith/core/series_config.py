@@ -123,6 +123,10 @@ def _check_angles(locations: dict) -> None:
     """A location's `of` names another location, which is not itself an angle
     (a relit one's may be an angle, but not another relit one)."""
     for lid, e in locations.items():
+        fr = e.get("framing")
+        if fr is not None and fr not in FRAMINGS:
+            raise ValueError(f"location '{lid}' has `framing: {fr!r}`: how close its plate "
+                             f"already is, one of {', '.join(FRAMINGS)}")
         of = e.get("of")
         relight = e.get("relight")
         if relight is not None and (not isinstance(relight, str) or not relight.strip()):
@@ -159,6 +163,10 @@ CROPS = ("center", "left", "right", "top", "bottom", "top-left", "top-right", "b
          "bottom-right")
 ZOOM = 1.6                  # about the middle 60% of the plate: what Porchlights sh1115 was tested at
 ZOOM_RANGE = (1.2, 3.0)
+# a location's `framing`: how close its plate already is. "wide" (the default) is a whole place,
+# which a medium or close shot wants a crop of; "medium" or "close", a plate already that close
+# (a door filling the frame, a counter seen from a stool), whose shots play on it as it is
+FRAMINGS = ("wide", "medium", "close")
 
 
 def _check_crop(lid: str, e: dict, master: dict, of: str) -> None:

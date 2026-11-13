@@ -69,6 +69,7 @@ import copy
 import dataclasses
 import glob
 import hashlib
+import json
 import os
 import random
 import re
@@ -4610,6 +4611,24 @@ def shared_takes(ep: str, ref: Ref, episodes: list[str]) -> list[dict]:
     return out
 
 
+_UNCROPPED: dict = {}
+
+
+def uncropped_shots(s: Series) -> dict[str, list[list[str]]]:
+    """{location id: [[shot, size]]}: the medium and close shots on a wide location's whole
+    plate (build.uncropped), from the built episode; {} before a build. Once per built story."""
+    story = episode_story(s.ep)
+    if story is None:
+        return {}
+    key = (id(story), json.dumps(s.series_cfg.get("locations") or {}, sort_keys=True, default=str))
+    if key not in _UNCROPPED:
+        from seriesmith import build as B
+        if len(_UNCROPPED) > 8:
+            _UNCROPPED.clear()
+        _UNCROPPED[key] = {k: [list(x) for x in v] for k, v in B.uncropped(story, s.series_cfg).items()}
+    return _UNCROPPED[key]
+
+
 def _crop_upscaled(path: str | None) -> str | None:
     """The upscale model a crop's picture was made with (plates.upscaled), None when it's
     stretched, not there, or a picture of yours."""
@@ -4646,6 +4665,9 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
         **({"crop": ref.entry["crop"], "zoom": float(ref.entry.get("zoom") or SC.ZOOM),
             "upscaled": _crop_upscaled(live)}
            if ref.kind == "location" and ref.entry.get("crop") else {}),
+        # a wide place's medium and close shots on its whole plate (build.uncropped): crop them
+        **({"uncropped": uncropped_shots(s).get(ref.subject or ref.id.split(":", 1)[1], [])}
+           if ref.kind == "location" and ref.scope == "series" else {}),
         "path": ep_rel(s.ep, live),
         "exists": exists, "sha1": T.file_sha1(live) if exists else None,
         # the live picture's [width, height] from its header (the gallery's tile

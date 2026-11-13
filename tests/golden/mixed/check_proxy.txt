@@ -11,6 +11,8 @@
     ! sh060 overrides loras: profile_turbo_8step.safetensors@1, profile_style.safetensors@0.6
     ! sh060 overrides model: profile_model.safetensors
     ! sh060 overrides steps: 7
+    ! location 'kitchen': sh020 (ms), sh030 (cu), sh060 (cu) play on its whole plate, and come out as wide as it. Give them a crop of the part they play in (a location with `of`, `crop`, `zoom`, named by their `plate:`), or mark 'kitchen' `framing: medium` (or `close`) if its plate is already that close (docs/AUTHORING.md, "Medium and close shots get a crop of the plate").
+    ! location 'kitchen_window': sh050 (cu) play on its whole plate, and come out as wide as it. Give them a crop of the part they play in (a location with `of`, `crop`, `zoom`, named by their `plate:`), or mark 'kitchen_window' `framing: medium` (or `close`) if its plate is already that close (docs/AUTHORING.md, "Medium and close shots get a crop of the plate").
     ! sh040: one person speaks on screen and the action doesn't say where they look, so the model has them talk to the camera. Say it in the action ("his eyes down and off to frame left") (docs/AUTHORING.md, "Keep them on one side of the line").
 
   target ltx2 (LTX-2): 3 shot(s) of this episode

@@ -9,6 +9,8 @@
   references   0/3 on disk, 3 to make
     ! sh090: overlap 30 holds 39 frames (H3 holds 17j+5: 22, 39, 56, 73, ...)
     ! sequence sq01: Ada and Bo each get their own shot on the same plate (kitchen), so they are drawn against one background from one view and the cut reads as a single camera rather than a reverse angle. Give the location an angle per speaker and name it with `plate:`.
+    ! location 'kitchen': sh010 (ms), sh020 (ms), sh040 (cu), sh070 (ms), sh080 (ms) play on its whole plate, and come out as wide as it. Give them a crop of the part they play in (a location with `of`, `crop`, `zoom`, named by their `plate:`), or mark 'kitchen' `framing: medium` (or `close`) if its plate is already that close (docs/AUTHORING.md, "Medium and close shots get a crop of the plate").
+    ! location 'street': sh060 (ms) play on its whole plate, and come out as wide as it. Give them a crop of the part they play in (a location with `of`, `crop`, `zoom`, named by their `plate:`), or mark 'street' `framing: medium` (or `close`) if its plate is already that close (docs/AUTHORING.md, "Medium and close shots get a crop of the plate").
     ! line 42: `first: continuity` on shot sh050 is the old form: write `continuous: first`
 
   target minimax_h3_fl2va (H3 FL2V): 4 shot(s) of this episode
