@@ -553,21 +553,27 @@ def image_defaults(s: Series, ready=None) -> dict:
     (TG.voice_targets): an audio one is `voice_target` (what voice samples are
     made on) and leaves `dub_target` (what a dub track renders on) at H3
     Ref2VA; a video one is `dub_target` and leaves `voice_target` at
-    ltx2_voice. RefError for a name that isn't a target of the right kind."""
+    ltx2_voice. An editor's choice the series config's block already makes is
+    "series" (nothing of the episode's own to copy back). RefError for a name
+    that isn't a target of the right kind."""
     ov = T.load_overrides(s.ep)
     try:
         block = TG.refs_block(s.series_cfg)
         known = {t.id for t in TG.list_targets("image")}
         out = {}
-        ed = T.episode_field(ov, "refs_target")
-        if ed and ed in known:
+        def chosen_in(field, valid):
+            # an editor's choice the series config already makes is the series's
+            v = T.episode_field(ov, field)
+            return v if v and v in valid and v != block.get(field.removeprefix("refs_")) else None
+        ed = chosen_in("refs_target", known)
+        if ed:
             out.update(target=ed, target_source="editor")
         elif block.get("target"):
             out.update(target=block["target"], target_source="series")
         else:
             out.update(target=TG.machine_default("image"), target_source="default")
-        ek = T.episode_field(ov, "keyframe_target")
-        if ek and ek in known:
+        ek = chosen_in("keyframe_target", known)
+        if ek:
             out.update(keyframe_target=ek, keyframe_target_source="editor")
         elif block.get("keyframe_target"):
             out.update(keyframe_target=block["keyframe_target"],
@@ -576,8 +582,8 @@ def image_defaults(s: Series, ready=None) -> dict:
             t = TG.default_keyframe_target(ready)
             out.update(keyframe_target=t.id if t else out["target"], keyframe_target_source="default")
         editors = {t.id for t in TG.list_targets("image") if is_edit_target(t)}
-        ee = T.episode_field(ov, "edit_target")
-        if ee and ee in editors:
+        ee = chosen_in("edit_target", editors)
+        if ee:
             out.update(edit_target=ee, edit_target_source="editor")
         elif block.get("edit_target"):
             out.update(edit_target=block["edit_target"], edit_target_source="series")
@@ -593,8 +599,8 @@ def image_defaults(s: Series, ready=None) -> dict:
         out.setdefault("edit_target_person", out["edit_target"])
         # Turn's model: chosen, else None (automatic: Qwen 2.1 + angles when it is
         # installed, else the edit target; plan_edit)
-        et = T.episode_field(ov, "turn_target")
-        if et and et in editors:
+        et = chosen_in("turn_target", editors)
+        if et:
             out.update(turn_target=et, turn_target_source="editor")
         elif block.get("turn_target"):
             out.update(turn_target=block["turn_target"], turn_target_source="series")
@@ -603,8 +609,8 @@ def image_defaults(s: Series, ready=None) -> dict:
         out.update(ambience_target=block.get("ambience_target") or TG.machine_default("ambience"),
                    ambience_target_source="series" if block.get("ambience_target") else "default")
         kinds = {t.id: t.kind for t in TG.voice_targets()}
-        ev = T.episode_field(ov, "voice_target")
-        if ev and ev in kinds:
+        ev = chosen_in("voice_target", kinds)
+        if ev:
             chosen, source = ev, "editor"
         elif block.get("voice_target"):
             chosen, source = block["voice_target"], "series"

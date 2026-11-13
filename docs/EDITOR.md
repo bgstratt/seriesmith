@@ -908,7 +908,8 @@ script call for is listed here.
 - **Made with** names the models that make refs, keyframes, edits, turns and voice samples;
   **Change** opens their pickers: **Refs render with:**, **Keyframes with:**, **Edits
   with:**, **Turns with:** and **Voices with:** (a choice here is this episode's, kept in `overrides.json`,
-  with the `series.json` line to make it the series default); a ref with its own model
+  with the `series.json` line to make it the series default; none when `series.json`
+  already names that model); a ref with its own model
   keeps it. **Edits with:** lists only the models that can edit a picture: it is what
   Edit and Relight start on, unless you pick another in their own dialog. **Turns with:** is
   the model **↻ Turn** runs on: **Automatic** (Qwen 2.1 + angles when it's installed, else

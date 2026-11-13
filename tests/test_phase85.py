@@ -355,8 +355,12 @@ class ImageTargetsTest(Episode):
         self.assertEqual((d["target"], d["target_source"], d["keyframe_target"],
                           d["keyframe_target_source"]),
                          ("z_image_turbo", "series", "flux_kontext", "series"))
+        # an episode choice the series config already makes is the series's
+        R.set_image_defaults(self.ep, {"target": "z_image_turbo"})
+        self.assertEqual(R.image_defaults(self.s)["target_source"], "series")
         # the episode's choice beats the series config's
         R.set_image_defaults(self.ep, {"target": "flux2_klein"})
+        self.assertEqual(R.image_defaults(self.s)["target_source"], "editor")
         self.assertEqual(self.job(None).target.id, "flux2_klein")
         # a per-ref override beats both, a request beats that
         ov = R.load_overrides(self.s.home)

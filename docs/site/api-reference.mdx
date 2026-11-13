@@ -2792,7 +2792,8 @@ here too) or **[settled]** (the contract left it open).
   sheet (`h3_refsheet.py`, PIL).
 - **[added] Image defaults.** `GET /seriesmith/refs` returns `{"refs": [...], "defaults":   {"target", "target_source", "keyframe_target", "keyframe_target_source", "edit_target",   "edit_target_person", "edit_target_source", "turn_target", "turn_target_source", "ambience_target",   "ambience_target_source", ...}}` (the voice and dub defaults below), sources `"editor"` |
   `"series"` | `"default"` (`ambience_target` is the series config's `refs.ambience_target`
-  or the default, never the editor's). **`PUT /seriesmith/refs/defaults`** `{ep, target?,   keyframe_target?, edit_target?, turn_target?}` (null clears; a key left out is kept)
+  or the default, never the editor's); an editor choice of the same model the series config's `refs`
+  block names is `"series"`). **`PUT /seriesmith/refs/defaults`** `{ep, target?,   keyframe_target?, edit_target?, turn_target?}` (null clears; a key left out is kept)
   stores `overrides.json` `episode.refs_target` / `episode.keyframe_target` /
   `episode.edit_target` / `episode.turn_target` beside the video `episode.target` and
   returns `{"defaults": ...}`; 400 for a non-image target, an `edit_target` that can't edit
