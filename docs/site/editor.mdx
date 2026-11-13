@@ -643,6 +643,13 @@ clip has a lime figure in its corner, left of a flag (its own mark, like the fla
 folds into the badges' overflow); the timeline's header counts them, and **Shift+R** or a click
 on the count goes to the next one.
 
+R turns the clip's faces the other way and keeps that as the clip's own answer, either way:
+**marked** (true) or **kept out** (false). It's the last word, over the series setting below
+and a shot's own `post.faces` in overrides.json, so a clip you mark or unmark stays as you left
+it whatever the series says later. When the series refines every shot, R on a clip keeps it out:
+it gets a grey figure with a minus (**Keep out of faces** in its menu). **Faces as the series
+says** (In the cut ›, shown once a clip has a mark either way) clears it.
+
 The mark is the clip's faces setting. The Post dialog for one take shows it as **Refine faces**
 (ticked when the clip is marked) and saves what you leave it at as the mark when you queue; for
 several takes or the cut it says how many are marked and offers **Also refine every other clip,
@@ -663,14 +670,14 @@ A mark changes nothing played; it says the clip's faces get refined wherever it'
 So: watch the dailies at render size, mark as you go, then upscale, post and master as usual.
 
 Not wanting to mark at all: **Series settings → Finishing → Post: refine faces → every shot**
-treats every clip as marked (the Post dialog says so in place of the marked count). The
-default, **clips marked with R**, is the mark alone.
+refines every clip but those kept out with R (the Post dialog counts them). The default,
+**clips marked with R**, is the mark alone.
 A locked clip can be marked; each pass's cut keeps its own marks, so mark in the pass you'll
 upscale. A clip whose post was already made another way is kept as it is (as any post made with
 other settings is): post it again, or master with **Conform**, to add its faces.
 
 ```
-seriesmith cut Shows\ep05 --mark-faces sh0370        # --unmark-faces to clear; --show lists them
+seriesmith cut Shows\ep05 --mark-faces sh0370        # --unmark-faces keeps it out; --clear-faces: the series'; --show lists them
 seriesmith post Shows\ep05 --only sh0370 --faces      # once it's upscaled
 ```
 
@@ -1947,7 +1954,7 @@ These work while the timeline or Play all has focus, and never while you are typ
 | `N` | Note what is wrong with the clip (the one on screen in Play all) |
 | `M` | Flag or unflag the clip to come back to (the one on screen in Play all) |
 | `Shift+M` | Go to the next flagged clip |
-| `R` | Mark or unmark the clip for faces, to refine once upscaled (the one on screen in Play all) |
+| `R` | Mark the clip for faces, to refine once upscaled, or keep it out (the one on screen in Play all) |
 | `Shift+R` | Go to the next clip marked for faces |
 | `Alt+←` `Alt+→` | Move the selected clip in the cut |
 | `Ctrl+Z` / `Ctrl+Y`, `Ctrl+Shift+Z` | Undo / redo the cut (and the mix) |

@@ -460,14 +460,16 @@ blocky edges and shadows, and moving things that smear in blocks instead of blur
   `{"subjects": ["peg"]}` refines only those characters. A character without a sheet is
   left out, and a shot with no characters plays its upscale.
   Off by default. In `post.master` (Series settings → Finishing → **Post: refine faces** →
-  **every shot**) it applies to every shot, marked or not, wherever the shot is finished: the
-  upscale queues its face pass behind it, and Master makes it whatever its Post-process mode.
-  `false` there turns it off, marks included.
+  **every shot**) it applies to every shot wherever the shot is finished: the upscale queues
+  its face pass behind it, and Master makes it whatever its Post-process mode.
 - A shot can have its own over it in overrides.json: `"post": {"sh040": {"motion_blur": 0},   "sh050": {"enhance": "none"}, "sh1350": {"faces": true}}` (`"faces": false` leaves one
   shot out of "every shot").
-- Or mark the clip while you watch the dailies (the editor's **R**, `seriesmith cut --mark-faces`):
-  its upscale, its post and the master refine its faces from then on, with or without a post
-  recipe (EDITOR.md, **Marking clips for faces**).
+- Or mark the clip while you watch the dailies (the editor's **R**, `seriesmith cut --mark-faces`
+  / `--unmark-faces`): its upscale, its post and the master refine its faces from then on, or
+  leave them, with or without a post recipe (EDITOR.md, **Marking clips for faces**).
+
+  Which wins, when a post isn't told outright: the clip's mark (true or false, the last word),
+  then the shot's own `post.faces`, then the series'; none of them, no faces.
 
 `seriesmith post Shows\ep05` posts every upscaled shot of the cut by the recipe (`--only`,
 `--redo`, or `--enhance` / `--faces` / `--blur` for a one-off), and the editor's take and cut

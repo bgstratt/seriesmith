@@ -353,31 +353,38 @@ def face_passes(root: str, take: T.Take, subjects: list | None = None) -> tuple[
     return out, notes
 
 
-def face_marks(root: str, pass_: str) -> set[str]:
-    """The shots of a pass's cut marked for the face pass (cut.json `refine_faces`,
-    the editor's R key)."""
+def face_marks(root: str, pass_: str) -> dict[str, bool]:
+    """{shot: its mark} for the clips of a pass's cut that say: true marked for
+    the face pass, false kept out of it (cut.json `refine_faces`, the editor's R key)."""
     try:
-        return {e["shot"] for e in T.load_cut(root).get(pass_) or []
-                if isinstance(e, dict) and e.get("refine_faces") and e.get("shot")}
+        return {e["shot"]: e["refine_faces"] for e in T.load_cut(root).get(pass_) or []
+                if isinstance(e, dict) and isinstance(e.get("refine_faces"), bool) and e.get("shot")}
     except Exception:                                     # noqa: BLE001  an unreadable cut: no marks
-        return set()
+        return {}
 
 
-def faces_of(root: str, pass_: str, shot: str, marks: set | None = None,
+def faces_of(root: str, pass_: str, shot: str, marks: dict | None = None,
              recipe: dict | None = None, shots: dict | None = None) -> tuple:
     """The face pass a shot gets when a post isn't told either way, and why:
-    (resolve_faces' input, "...") or (None, ""). The shot's own post.faces
-    (overrides.json) over the series' post.master.faces ("every shot") over the
-    cut's mark (R). `false` at either level turns it off, marks or not."""
+    (resolve_faces' input, "...") or (None, ""). The clip's mark in the cut (R:
+    true or false, the last word) over the shot's own post.faces (overrides.json)
+    over the series' post.master.faces ("every shot"); none of them: no faces."""
     own = ((shot_recipes(root) if shots is None else shots).get(shot) or {}).get("faces")
     series = ((master_recipe(root) if recipe is None else recipe) or {}).get("faces")
+    mark = (face_marks(root, pass_) if marks is None else marks).get(shot)
+    if mark is False:
+        return None, ""
     for v, why in ((own, "its own post.faces"), (series, "every shot (series settings)")):
         if v is not None:
             try:
-                return (v, why) if resolve_faces(v) else (None, "")
+                on = resolve_faces(v)
             except PostError:
                 return v, why                                 # plan_post says what's wrong
-    if shot in (face_marks(root, pass_) if marks is None else marks):
+            if on:                                            # its settings (denoise), marked or not
+                return v, "marked for faces in the cut" if mark else why
+            if not mark:
+                return None, ""
+    if mark:
         return True, "marked for faces in the cut"
     return None, ""
 

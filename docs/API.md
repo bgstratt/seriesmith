@@ -687,8 +687,10 @@ changes nothing played or assembled, a locked entry takes one, and reset and cop
 pass's own. The status's `cut.flag` says so; the timeline shows a marker and a count.
 `"refine_faces": true` marks the clip for the face pass (the editor's R key): kept and shown as
 a flag is, and its own (`cut.refine_faces`). A marked clip's post refines its faces whenever a
-post doesn't say `faces` either way (post.faces_of, plan_post: the shot's own `post.faces`, then
-the series' `post.master.faces`, "every shot", then the mark); `POST /seriesmith/upscale`
+post doesn't say `faces` either way (post.faces_of, plan_post: the mark, then the shot's own
+`post.faces`, then the series' `post.master.faces`, "every shot"); `"refine_faces": false` keeps
+the clip out, null or absent leaves it to those, and each shot's `cut.faces_default` says what
+it gets without a mark; `POST /seriesmith/upscale`
 queues its face pass right behind its upscale (`faces_prompt_id` in its `queued` entry;
 `"marked_faces": false` in the body doesn't; without the face pass on this ComfyUI the upscale
 goes ahead and `errors` says why the faces didn't); master makes and plays its post in every
@@ -3634,7 +3636,7 @@ waveforms, and play-through polish. Backend and UI build in parallel; the backen
   the UI also refuses to move, trim, leave out or put back them.
 - **CLI:** `seriesmith cut <ep> [--proxy] (--show | --order sh010,sh030,... | --move SH (--before|
   --after) SH | --trim SH IN OUT | --lock SH | --unlock SH | --out SH | --in SH | --flag SH | --unflag SH |
-  --mark-faces SH | --unmark-faces SH | --reset order|trims|all |
+  --mark-faces SH | --unmark-faces SH | --clear-faces SH | --reset order|trims|all |
   --copy-from final|proxy [order|trims|all])`.
 
 ### Waveforms (backend)

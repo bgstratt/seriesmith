@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { applyEntries, entriesOf, sameEntries, withFields } from "../src/lib/cutEdit";
 import { applyEdit, diffEdit } from "../src/lib/undo";
 import { buildPlaylist } from "../src/lib/playlist";
-import { faceMarkedShots, flaggedShots } from "../src/cutActions";
+import { faceMarkedShots, faceShots, facesOn, flaggedShots } from "../src/cutActions";
 import type { CutEntry, EpisodeStatus, ShotStatus } from "../src/types";
 
 function shot(id: string, extra: Partial<ShotStatus["cut"]> = {}): ShotStatus {
@@ -59,7 +59,8 @@ describe("marking a clip for faces", () => {
     const list: CutEntry[] = [{ shot: "a" }, { shot: "b", flag: true }];
     const on = withFields(list, "b", { refine_faces: true });
     expect(on[1]).toEqual({ shot: "b", flag: true, refine_faces: true });
-    expect(withFields(on, "b", { refine_faces: false })[1]).toEqual({ shot: "b", flag: true });
+    expect(withFields(on, "b", { refine_faces: false })[1]).toEqual({ shot: "b", flag: true, refine_faces: false });
+    expect(withFields(on, "b", { refine_faces: null })[1]).toEqual({ shot: "b", flag: true });
     expect(withFields(on, "b", { flag: false })[1]).toEqual({ shot: "b", refine_faces: true });
   });
   it("is a change, undoable, and survives later edits", () => {
@@ -81,5 +82,16 @@ describe("marking a clip for faces", () => {
     expect(faceMarkedShots(edited)).toEqual(["a", "c"]);
     expect(flaggedShots(edited)).toEqual(["b"]);
     expect(buildPlaylist(edited).map((i) => i.shot)).toEqual(["a", "b", "c"]);
+  });
+  it("the mark is the last word over the series' every shot, either way", () => {
+    expect(facesOn({ cut: { faces_default: true } })).toBe(true);
+    expect(facesOn({ cut: { faces_default: true, refine_faces: false } })).toBe(false);
+    expect(facesOn({ cut: { faces_default: false, refine_faces: true } })).toBe(true);
+    expect(facesOn({ cut: {} })).toBe(false);
+    const s = st([shot("a", { faces_default: true }), shot("b", { faces_default: true }), shot("c")]);
+    const edited = applyEntries(s, [{ shot: "a" }, { shot: "b", refine_faces: false }, { shot: "c", refine_faces: true }]);
+    expect(faceShots(edited)).toEqual(["a", "c"]);
+    expect(faceMarkedShots(edited)).toEqual(["c"]);
+    expect(entriesOf(edited)[1]).toEqual({ shot: "b", refine_faces: false });
   });
 });

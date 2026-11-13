@@ -757,6 +757,15 @@ class MasterTest(ApiTest):
             self.settle()
         self.assertTrue(all("faces_prompt_id" in q for q in res["queued"]), res)
         self.assertEqual(res["errors"], [])
+        # kept out with R: the clip's own word, over "every shot"
+        from seriesmith import edit as E
+        before = M.plan_master(self.ep).face_shots
+        k = before[-1]
+        E.set_cut_entry(self.ep, "final", k, refine_faces=False)
+        with self.face_ready():
+            plan = M.plan_master(self.ep)
+        self.assertEqual(plan.face_shots, before[:-1])
+        self.assertIsNone(self.by_shot(plan)[k].post_job)
 
     def test_queue_order(self):
         """In cut order by default; grouped by what ComfyUI loads on request, each

@@ -128,8 +128,11 @@ export interface CutInfo {
   /** flagged to come back to (re-render it, change its prompt); changes nothing
    * played. Absent from older servers. */
   flag?: boolean;
-  /** marked for the face pass once upscaled (R); changes nothing played */
-  refine_faces?: boolean;
+  /** its own answer to the face pass (R): true marked, false kept out, null/absent
+   * as faces_default says; changes nothing played */
+  refine_faces?: boolean | null;
+  /** the face pass it gets without a mark: its own post.faces, the series' "every shot" */
+  faces_default?: boolean;
   /** its colour in the cut (exposure, contrast, black, saturation, warmth, tint; null: as shot),
    * applied by assemble. Absent from older servers. */
   color?: ShotColor | null;
@@ -988,8 +991,8 @@ export interface CutEntry {
   out?: boolean;
   /** flagged to come back to */
   flag?: boolean;
-  /** marked for the face pass once upscaled */
-  refine_faces?: boolean;
+  /** its own answer to the face pass: true marked, false kept out (absent: the series') */
+  refine_faces?: boolean | null;
   /** its colour (seriesmith/color.py): the fields that aren't 0 */
   color?: ShotColor | null;
   /** frames from / to black at its head / tail; of a dissolve from the clip before */

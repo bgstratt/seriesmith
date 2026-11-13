@@ -2794,9 +2794,8 @@ def _cut_entry(raw) -> dict:
             e["flag"] = True
     if raw.get("refine_faces") is not None:
         if not isinstance(raw["refine_faces"], bool):
-            raise ApiError(400, f"{raw['shot']}: refine_faces must be true or false")
-        if raw["refine_faces"]:
-            e["refine_faces"] = True
+            raise ApiError(400, f"{raw['shot']}: refine_faces must be true, false or null")
+        e["refine_faces"] = raw["refine_faces"]       # false: kept out, over "every shot"
     if raw.get("color") is not None:
         from seriesmith import color as COL
         try:

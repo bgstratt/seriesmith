@@ -393,12 +393,20 @@ export function toggleFlag(shot: string, flag?: boolean): Promise<boolean> {
   return editCut(on ? `Flag ${shot}` : `Unflag ${shot}`, (list) => withFields(list, shot, { flag: on }));
 }
 
-/** Mark (or unmark) a clip for the face pass once it's upscaled (R): changes nothing played. */
-export function toggleRefineFaces(shot: string, mark?: boolean): Promise<boolean> {
+/** Whether a clip gets the face pass: its own mark (R), else what the series and
+ * its overrides say (faces_default: "every shot"). */
+export function facesOn(s: { cut?: { refine_faces?: boolean | null; faces_default?: boolean } } | undefined): boolean {
+  return s?.cut?.refine_faces ?? !!s?.cut?.faces_default;
+}
+
+/** R: turn a clip's face pass the other way, saved as its own mark (true, or
+ * false: kept out even when the series refines every shot); `mark` says which,
+ * null clears the mark (back to the series'). Changes nothing played. */
+export function toggleRefineFaces(shot: string, mark?: boolean | null): Promise<boolean> {
   const c = ctx();
   if (!c) return Promise.resolve(false);
-  const on = mark ?? !c.st.shots.find((s) => s.shot === shot)?.cut?.refine_faces;
-  return editCut(on ? `Mark ${shot} for faces` : `Unmark ${shot} for faces`,
+  const on = mark === undefined ? !facesOn(c.st.shots.find((s) => s.shot === shot)) : mark;
+  return editCut(on === null ? `${shot}'s faces as the series says` : on ? `Mark ${shot} for faces` : `Keep ${shot} out of faces`,
                  (list) => withFields(list, shot, { refine_faces: on }));
 }
 
@@ -407,9 +415,14 @@ export function flaggedShots(st: EpisodeStatus | undefined): string[] {
   return (st?.shots ?? []).filter((s) => s.cut?.flag).map((s) => s.shot);
 }
 
-/** The clips marked for the face pass, in cut order (left out ones too: the mark is a reminder). */
+/** The clips marked for the face pass (R, true), in cut order (left out ones too: the mark is a reminder). */
 export function faceMarkedShots(st: EpisodeStatus | undefined): string[] {
-  return (st?.shots ?? []).filter((s) => s.cut?.refine_faces).map((s) => s.shot);
+  return (st?.shots ?? []).filter((s) => s.cut?.refine_faces === true).map((s) => s.shot);
+}
+
+/** The clips that get the face pass (marked, or by the series' "every shot" and not kept out), in cut order. */
+export function faceShots(st: EpisodeStatus | undefined): string[] {
+  return (st?.shots ?? []).filter((s) => facesOn(s)).map((s) => s.shot);
 }
 
 type Marks = (st: EpisodeStatus | undefined) => string[];
@@ -619,9 +632,9 @@ export function flagAtPlayhead(): boolean {
 export function faceMarkAtPlayhead(): boolean {
   const it = clipAtPlayhead();
   if (!it) return false;
-  const on = !ctx()?.st.shots.find((x) => x.shot === it.shot)?.cut?.refine_faces;
+  const on = !facesOn(ctx()?.st.shots.find((x) => x.shot === it.shot));
   void toggleRefineFaces(it.shot, on).then((ok) => {
-    if (ok) host().toast("info", on ? `Marked ${it.shot} for faces` : `Unmarked ${it.shot} for faces`,
+    if (ok) host().toast("info", on ? `Marked ${it.shot} for faces` : `Kept ${it.shot} out of faces`,
                          on ? "Refine faces on marked clips (the cut menu) once they're upscaled; Shift+R jumps to the next." : undefined);
   });
   return true;

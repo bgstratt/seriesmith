@@ -84,7 +84,14 @@ class FaceMarkTest(CutFlagTest):
         self.assertFalse(shots[b]["cut"]["out"])                # still played
         self.cli("--flag", b)
         self.assertEqual(self.entry(b), {"shot": b, "flag": True, "refine_faces": True})
-        self.cli("--unmark-faces", b)
+        out = self.cli("--unmark-faces", b)                    # kept out: a mark too
+        self.assertEqual(self.entry(b), {"shot": b, "flag": True, "refine_faces": False})
+        self.assertIn("NO FACES", out)
+        _, shots = self.status()
+        self.assertIs(shots[b]["cut"]["refine_faces"], False)
+        self.assertIs(shots[a]["cut"]["refine_faces"], None)
+        self.assertIs(shots[b]["cut"]["faces_default"], False)
+        self.cli("--clear-faces", b)                            # back to the series'
         self.assertEqual(self.entry(b), {"shot": b, "flag": True})
 
     def test_mark_route(self):
@@ -93,6 +100,8 @@ class FaceMarkTest(CutFlagTest):
         self.assertTrue(self.entry(b)["refine_faces"])
         self.put_cut([{"shot": b, "refine_faces": 1}], status=400)
         self.put_cut([{"shot": b, "refine_faces": False}])
+        self.assertIs(self.entry(b)["refine_faces"], False)
+        self.put_cut([{"shot": b, "refine_faces": None}])
         self.assertNotIn("refine_faces", self.entry(b))
 
     def test_mark_kept_by_reset_and_lock(self):

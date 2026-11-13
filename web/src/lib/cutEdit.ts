@@ -28,7 +28,7 @@ export function entryOf(s: ShotStatus, listPass: Pass): CutEntry {
   if (au) e.audio = au;
   if (c?.out) e.out = true;
   if (c?.flag) e.flag = true;
-  if (c?.refine_faces) e.refine_faces = true;
+  if (typeof c?.refine_faces === "boolean") e.refine_faces = c.refine_faces;
   if (hasColor(c?.color)) e.color = cleanColor(c?.color);
   for (const k of JOIN_KEYS) {
     const n = frameInt(c?.[k]);
@@ -234,8 +234,8 @@ export interface CutFields {
   out: boolean;
   /** flagged to come back to (changes nothing played) */
   flag: boolean;
-  /** marked for the face pass once upscaled (changes nothing played) */
-  refine_faces: boolean;
+  /** its own answer to the face pass: true marked, false kept out, null the series' (changes nothing played) */
+  refine_faces: boolean | null;
   /** its colour (the fields that aren't 0; {} as shot) */
   color: ShotColor;
   /** frames from / to black at its head / tail, and of a dissolve from the clip before */
@@ -252,7 +252,8 @@ export const JOIN_MAX = 240;
 export function fieldsOf(e: CutEntry | undefined): CutFields {
   return {
     trim_in: frameInt(e?.trim_in), trim_out: frameInt(e?.trim_out), locked: !!e?.locked,
-    audio: normalizeAudio(audioOf(e), e?.shot), out: !!e?.out, flag: !!e?.flag, refine_faces: !!e?.refine_faces,
+    audio: normalizeAudio(audioOf(e), e?.shot), out: !!e?.out, flag: !!e?.flag,
+    refine_faces: typeof e?.refine_faces === "boolean" ? e.refine_faces : null,
     color: cleanColor(e?.color),
     fade_in: frameInt(e?.fade_in), fade_out: frameInt(e?.fade_out), dissolve: frameInt(e?.dissolve),
   };
@@ -284,7 +285,7 @@ export function withFields(entries: CutEntry[], shot: string, patch: Partial<Cut
     if (au) out.audio = au;
     if (f.out) out.out = true;
     if (f.flag) out.flag = true;
-    if (f.refine_faces) out.refine_faces = true;
+    if (f.refine_faces != null) out.refine_faces = f.refine_faces;
     if (hasColor(f.color)) out.color = cleanColor(f.color);
     for (const k of JOIN_KEYS) if (f[k] > 0) out[k] = Math.min(JOIN_MAX, Math.floor(f[k]));
     return out;
@@ -322,7 +323,7 @@ export function applyEntries(st: EpisodeStatus, entries: CutEntry[]): EpisodeSta
       const e = by.get(s.shot);
       const f = e
         ? fieldsOf(e)
-        : { trim_in: s.cut.trim_in, trim_out: s.cut.trim_out, locked: s.cut.locked, audio: audioOf(s.cut), out: !!s.cut.out, flag: !!s.cut.flag, refine_faces: !!s.cut.refine_faces };
+        : { trim_in: s.cut.trim_in, trim_out: s.cut.trim_out, locked: s.cut.locked, audio: audioOf(s.cut), out: !!s.cut.out, flag: !!s.cut.flag, refine_faces: s.cut.refine_faces ?? null };
       const cut = { ...s.cut, trim_in: f.trim_in, trim_out: f.trim_out, locked: f.locked, out: f.out, flag: f.flag, refine_faces: f.refine_faces, in_cut_file: e ? true : s.cut.in_cut_file };
       if (e) {
         // its colour, fades and dissolve follow at once too (the preview, the curves)

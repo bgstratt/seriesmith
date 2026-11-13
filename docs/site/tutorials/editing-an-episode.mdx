@@ -17,7 +17,7 @@ marked. Two marks do it, and a third for faces:
 |---|---|---|
 | **n** | a **note**: a sentence about what's wrong | Things the script or series config should say differently: an assistant can rewrite them |
 | **M** | a **flag**: a pink flag on the clip | Anything else to come back to: a new take, a prompt, a trim |
-| **R** | a **mark for faces**: a person icon on the clip | A face too small or garbled to read (a wide, a full shot): the clip's upscale is followed by a face pass ([Tutorial 13](/tutorials/finishing)) |
+| **R** | a **mark for faces**: a person icon on the clip (or, when the series refines every shot, kept out) | A face too small or garbled to read (a wide, a full shot): the clip's upscale is followed by a face pass ([Tutorial 13](/tutorials/finishing)) |
 
 ## 1. Watch it through
 
@@ -58,6 +58,7 @@ compiled from them, and the pictures it used. Editing the script later never rew
   <Step title="Both in one pass">
     Keep going to the end: **n** for words to change, **M** for everything else, and **R**
     on a clip whose faces need redrawing (**Shift+R** goes to the next one; **R** again unmarks).
+    If the series refines every shot, **R** keeps a clip out instead.
     Judge faces at render size, as the dailies play: the face pass runs after the upscale.
   </Step>
 </Steps>

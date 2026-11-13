@@ -568,6 +568,8 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
     shots = {d["shots"][i]["id"]: (d, d["shots"][i]) for d, i in entries}
     ov = T.load_overrides(root)
     cut = T.load_cut(root)
+    from seriesmith import post as P
+    face_series, face_own = P.master_recipe(root), P.shot_recipes(root)
     cache: dict = {}
     out = []
     script_idx = {sid: i for i, sid in enumerate(shots)}
@@ -648,8 +650,13 @@ def _episode_status(root: str, pass_: str, folder: str | None, listed: dict) -> 
                     "out": e.out,
                     # bookmarked to come back to (re-render, a new prompt)
                     "flag": e.flag,
-                    # marked for the face pass once upscaled (R in the dailies)
+                    # its mark for the face pass (R in the dailies): true, false
+                    # (kept out), null: as faces_default
                     "refine_faces": e.refine_faces,
+                    # the face pass it gets without a mark: its own post.faces, the
+                    # series' "every shot"
+                    "faces_default": P.faces_of(root, pass_, e.shot, {}, face_series,
+                                                face_own)[0] is not None,
                     # its colour (seriesmith.color), applied by assemble; null: as shot
                     "color": e.color,
                     # frames from / to black, and of a dissolve from the clip before
@@ -3011,7 +3018,8 @@ def print_cut(root: str, pass_: str) -> None:
         take = f"{'t%02d' % c['take'] if c['take'] else '--':4}"
         trim = f"{c['trim_in']}/{c['trim_out']}" if c["trim_in"] or c["trim_out"] else "-"
         flags = [f for f, on in (("FLAGGED", c.get("flag")),
-                                 ("REFINE FACES", c.get("refine_faces")),
+                                 ("REFINE FACES", c.get("refine_faces") is True),
+                                 ("NO FACES", c.get("refine_faces") is False),
                                  ("LEFT OUT", c.get("out")), ("locked", c["locked"]),
                                  ("picked", c["picked"]),
                                  (f"placeholder({c['pass']})", c["placeholder"]),
@@ -3086,7 +3094,10 @@ def cmd_cut(root: str, argv: list[str]) -> int:
     g.add_argument("--unflag", metavar="SH")
     g.add_argument("--mark-faces", metavar="SH",
                    help="mark a shot for the face pass once it's upscaled (seriesmith post --faces)")
-    g.add_argument("--unmark-faces", metavar="SH")
+    g.add_argument("--unmark-faces", metavar="SH",
+                   help="keep a shot out of the face pass, even when the series refines every shot")
+    g.add_argument("--clear-faces", metavar="SH",
+                   help="a shot's face pass as the series and its overrides say (no mark either way)")
     g.add_argument("--lock", metavar="SH", help="lock a shot (picks, moves and trims refuse)")
     g.add_argument("--unlock", metavar="SH")
     g.add_argument("--reset", choices=CUT_WHAT,
@@ -3140,6 +3151,8 @@ def cmd_cut(root: str, argv: list[str]) -> int:
         elif args.mark_faces or args.unmark_faces:
             set_cut_entry(root, pass_, args.mark_faces or args.unmark_faces,
                           refine_faces=bool(args.mark_faces))
+        elif args.clear_faces:
+            set_cut_entry(root, pass_, args.clear_faces, refine_faces=None)
         elif args.lock or args.unlock:
             set_cut_entry(root, pass_, args.lock or args.unlock, locked=bool(args.lock))
         elif args.reset:

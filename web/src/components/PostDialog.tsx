@@ -38,19 +38,17 @@ function PostBody() {
   // one take: the checkbox is its clip's mark for faces (R), saved when queued;
   // several or the cut: the marked ones are refined, and "every other clip" adds the rest
   const one = ask.takes?.length === 1 ? ask.takes[0] : null;
-  const marked = (st?.shots ?? []).filter((x) => x.cut?.refine_faces).map((x) => x.shot);
+  // the clips that get faces: marked (R), or by the series' "every shot" and not kept out
+  const marked = (st?.shots ?? []).filter((x) => x.cut?.refine_faces ?? x.cut?.faces_default).map((x) => x.shot);
   const markedHere = ask.takes ? ask.takes.filter((t) => marked.includes(t.shot)).length : marked.length;
   const wasMarked = !!one && marked.includes(one.shot);
-  // the series' Finishing says every shot (post.master.faces): no clip needs a mark
+  const oneCut = one ? st?.shots.find((x) => x.shot === one.shot)?.cut : undefined;
+  // the series' Finishing says every shot (post.master.faces)
   const everyShot = !!opts?.recipe?.fields?.faces;
   const [useRecipe, setUseRecipe] = useState(!facesOnly);
   const [tier, setTier] = useState(facesOnly ? "none" : "production");
   const [blur, setBlur] = useState(facesOnly ? 0 : 0.3);
   const [faces, setFaces] = useState(one ? facesOnly || wasMarked : false);
-  const [everyInit, setEveryInit] = useState(false);
-  useEffect(() => {          // the options arrive after the first render: tick it then
-    if (everyShot && one && !everyInit) { setFaces(true); setEveryInit(true); }
-  }, [everyShot, one, everyInit]);
   const [redo, setRedo] = useState(!!ask.redo);
 
   useEffect(() => {
@@ -82,7 +80,7 @@ function PostBody() {
     const req: Omit<PostRequest, "ep"> = byRecipe
       ? { ...who, recipe: true, ...f, ...(redo ? { redo: true } : {}) }
       : { ...who, recipe: false, enhance: tier, blur, ...f, ...(redo ? { redo: true } : {}) };
-    if (one && !everyShot && faces !== wasMarked && ask.pass === curPass) void toggleRefineFaces(one.shot, faces);
+    if (one && faces !== wasMarked && ask.pass === curPass) void toggleRefineFaces(one.shot, faces);
     void queuePost(req, key);
     closePost();
   };
@@ -162,16 +160,18 @@ function PostBody() {
                   <input type="checkbox" checked={faces} onChange={(e) => setFaces(e.target.checked)} />
                   Refine faces{opts.faces.readiness.status === "not_ready" ? " (not ready here)" : ""}
                   <span className="h3-small h3-muted">
-                    {everyShot
-                      ? (faces ? " (every shot: Series settings)" : " (this run only; Series settings says every shot)")
-                      : faces === wasMarked
-                      ? (wasMarked ? " (the clip is marked, R)" : "")
-                      : faces ? " (marks the clip, as R does)" : " (unmarks the clip)"}
+                    {faces === wasMarked
+                      ? (oneCut?.refine_faces === true ? " (the clip is marked, R)"
+                        : oneCut?.refine_faces === false && oneCut.faces_default ? " (the clip is kept out, R)"
+                        : wasMarked ? " (every shot: Series settings)" : "")
+                      : faces ? " (marks the clip, as R does)"
+                      : oneCut?.faces_default ? " (keeps the clip out, over Series settings' every shot)" : " (unmarks the clip)"}
                   </span>
                 </label>
               ) : everyShot ? (
                 <span className="h3-small">
-                  Faces: every shot refined <span className="h3-muted">(Series settings → Finishing)</span>
+                  Faces: {markedHere} clip{markedHere === 1 ? "" : "s"} refined, every shot but those kept out with R
+                  <span className="h3-muted"> (Series settings → Finishing)</span>
                   {opts.faces.readiness.status === "not_ready" ? <span className="h3-error"> (not ready here)</span> : null}
                 </span>
               ) : (

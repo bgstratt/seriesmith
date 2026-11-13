@@ -1490,7 +1490,7 @@ export function postCut() {
 export function postFaceMarked() {
   const s = get();
   const st = s.ep ? s.status[statusKey(s.ep, s.pass)] : undefined;
-  const marked = (st?.shots ?? []).filter((x) => x.cut?.refine_faces);
+  const marked = (st?.shots ?? []).filter((x) => x.cut?.refine_faces ?? x.cut?.faces_default);
   const takes = marked.filter((x) => x.cut.take != null).map((x) => ({ shot: x.shot, take: x.cut.take as number }));
   if (!takes.length) {
     set({ menu: null });

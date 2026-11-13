@@ -1052,11 +1052,13 @@ def set_override(data: dict, shot_id: str, pass_: str | None = None,
 # SH`; `--unflag SH`). A locked entry can be flagged. Each pass's cut has its
 # own; resetting or copying the cut keeps a pass's flags as they are.
 #
-# An entry may be `"refine_faces": true`: marked, while watching the dailies, for
-# the face pass (post.py `faces`) once it's upscaled. Like a flag it changes
-# nothing played; the timeline shows a badge (the editor's R key, `seriesmith cut
-# --mark-faces SH`; `--unmark-faces SH`), and the cut menu's Refine faces on marked
-# clips posts the marked clips' takes, faces only. Kept as flags are.
+# An entry may say `"refine_faces": true` or `false`: the clip's own answer to
+# the face pass (post.py `faces`, post.faces_of), set while watching the dailies,
+# over the shot's own post.faces and the series' post.master.faces ("every
+# shot"); absent, the clip follows those. Like a flag it changes nothing played;
+# the timeline shows a badge (the editor's R key, `seriesmith cut --mark-faces SH`,
+# `--unmark-faces SH`, `--clear-faces SH`), and the cut menu's Refine faces on
+# marked clips posts the marked clips' takes, faces only. Kept as flags are.
 #
 # An entry may carry `color` (seriesmith/color.py): the clip's exposure,
 # contrast, black point, saturation, warmth and tint, the ones that aren't 0. Assemble applies it;
@@ -1234,7 +1236,7 @@ class CutEntry:
     audio: dict | None = None       # where the clip's sound comes from (audio_spec)
     out: bool = False               # left out of the cut (still in the script)
     flag: bool = False              # bookmarked: come back to it (changes nothing played)
-    refine_faces: bool = False      # marked for the face pass once upscaled (changes nothing played)
+    refine_faces: bool | None = None  # the clip's own face pass answer (None: the series'; changes nothing played)
     color: dict | None = None       # exposure, contrast, black, ... (seriesmith.color)
     fade_in: int = 0                # frames from black at its head
     fade_out: int = 0               # frames to black at its tail
@@ -1281,7 +1283,8 @@ def resolve_cut(data: dict, pass_: str, script_order: list[str]) -> list[CutEntr
             trim_in=int(raw.get("trim_in") or 0), trim_out=int(raw.get("trim_out") or 0),
             locked=bool(raw.get("locked")), note=raw.get("note") or "", audio=audio,
             out=bool(raw.get("out")), flag=bool(raw.get("flag")),
-            refine_faces=bool(raw.get("refine_faces")), color=color,
+            refine_faces=raw["refine_faces"] if isinstance(raw.get("refine_faces"), bool) else None,
+            color=color,
             **joins,
             orphan=sid not in in_script, placeholder=src != pass_,
             extra={k: v for k, v in raw.items() if k not in ENTRY_FIELDS}))
@@ -1319,8 +1322,8 @@ def cut_entry_to_json(e: CutEntry, list_pass: str) -> dict:
         out["out"] = True
     if e.flag:
         out["flag"] = True
-    if e.refine_faces:
-        out["refine_faces"] = True
+    if e.refine_faces is not None:
+        out["refine_faces"] = e.refine_faces
     if e.color:
         out["color"] = dict(e.color)
     for k in JOIN_FIELDS:

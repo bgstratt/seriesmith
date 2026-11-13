@@ -189,7 +189,9 @@ const Clip = memo(function Clip({
   const mediaW = Math.min(width, Math.round(height * aspect));
   const locked = !!s.cut.locked;
   const flagged = !!s.cut.flag;
-  const faceMarked = !!s.cut.refine_faces;
+  const faceMarked = s.cut.refine_faces === true;
+  // kept out (R) where the series or its overrides would refine it
+  const faceKeptOut = s.cut.refine_faces === false && !!s.cut.faces_default;
   const trimIn = s.cut.trim_in || 0;
   const trimOut = s.cut.trim_out || 0;
   // a placeholder's take is the other pass's: its target is compared all the same
@@ -214,6 +216,7 @@ const Clip = memo(function Clip({
     group ? `one generation of ${group.length} shots (continuous: multishot): ${group.map((p) => `${p.id} at ${framesLabel(p.start, fps)}`).join(", ")}; the marks are where the script times the cuts, and the model lands near them` : "",
     flagged ? "flagged to come back to (M: unflag · Shift+M: the next flagged clip)" : "",
     faceMarked ? "marked to refine its faces once upscaled (R: unmark · Shift+R: the next marked clip · the cut menu: Refine faces on marked clips)" : "",
+    faceKeptOut ? "kept out of the face pass the series gives every shot (R: refine it after all · right-click: Faces as the series says)" : "",
     s.cut.look_off?.length ? `colour out of line with its sequence: ${s.cut.look_off.join(", ")} (its colour in the inspector, or Match the sequence's colour to a clip that looks right)` : "",
     noted ? `${noted} open note${noted > 1 ? "s" : ""} (the Shots tab's Issues list)` : "",
     s.cut.out ? "left out of the cut: Play all, assemble and Master skip it (right-click: Put back in the cut)" : "",
@@ -265,6 +268,7 @@ const Clip = memo(function Clip({
       {flagged && <i className="pi pi-flag-fill h3-flag-mark" />}
       {/* its own mark beside the flag, never folded into the badges' overflow */}
       {faceMarked && <i className={`pi pi-user h3-face-mark${flagged ? " h3-with-flag" : ""}`} />}
+      {faceKeptOut && <i className={`pi pi-user-minus h3-face-mark h3-face-out${flagged ? " h3-with-flag" : ""}`} />}
       <div className="h3-clip-bottom">
         {locked && <i className="pi pi-lock" title="Locked in the cut" />}
         {noted > 0 && <i className="pi pi-comment" />}

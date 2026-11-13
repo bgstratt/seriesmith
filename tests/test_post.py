@@ -146,8 +146,8 @@ class PostTest(ApiTest):
         t = self.faced()
         self.assertEqual(P.plan_post(self.ep, t).action, "error")        # unmarked: nothing asked
         E.set_cut_entry(self.ep, "final", "sh010", refine_faces=True)
-        self.assertEqual(P.face_marks(self.ep, "final"), {"sh010"})
-        self.assertEqual(P.face_marks(self.ep, "proxy"), set())
+        self.assertEqual(P.face_marks(self.ep, "final"), {"sh010": True})
+        self.assertEqual(P.face_marks(self.ep, "proxy"), {})
         job = P.plan_post(self.ep, t)                                     # faces alone
         self.assertEqual((job.action, [p["subject"] for p in job.face_passes]), ("post", ["ada"]))
         self.assertIn("marked for faces in the cut", job.notes)
@@ -171,11 +171,17 @@ class PostTest(ApiTest):
                                     shots={"sh010": {"faces": False}}), (None, ""))
         self.assertEqual(P.faces_of(self.ep, "final", "sh010", recipe={}, shots={"sh010": {"faces": True}}),
                          (True, "its own post.faces"))
+        # the clip's own mark (R) is the last word, either way
         E.set_cut_entry(self.ep, "final", "sh010", refine_faces=True)
-        self.assertEqual(P.faces_of(self.ep, "final", "sh010", recipe={"faces": False}, shots={}),
-                         (None, ""))                              # off for the series: marks too
-        self.assertEqual(P.faces_of(self.ep, "final", "sh010")[1], "marked for faces in the cut")
+        self.assertEqual(P.faces_of(self.ep, "final", "sh010", recipe={"faces": False},
+                                    shots={"sh010": {"faces": False}}),
+                         (True, "marked for faces in the cut"))
+        self.assertEqual(P.faces_of(self.ep, "final", "sh010", recipe={"faces": {"denoise": 0.3}}, shots={}),
+                         ({"denoise": 0.3}, "marked for faces in the cut"))   # the series' settings
         E.set_cut_entry(self.ep, "final", "sh010", refine_faces=False)
+        self.assertEqual(P.faces_of(self.ep, "final", "sh010", recipe={"faces": True},
+                                    shots={"sh010": {"faces": True}}), (None, ""))   # kept out
+        E.set_cut_entry(self.ep, "final", "sh010", refine_faces=None)
         p = os.path.join(self.ep, "series.json")
         cfg = json.load(open(p, encoding="utf-8"))
         cfg["post"] = {"master": {"faces": {"denoise": 0.3}}}

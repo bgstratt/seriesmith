@@ -118,7 +118,7 @@ export function CutMenu() {
         <i className="pi pi-sparkles" /> Post-process the cut…
       </button>
       {(() => {
-        const marked = (st?.shots ?? []).filter((x) => x.cut?.refine_faces);
+        const marked = (st?.shots ?? []).filter((x) => x.cut?.refine_faces ?? x.cut?.faces_default);
         return (
           <button disabled={!marked.length} onClick={run(() => postFaceMarked())}
                   title={marked.length

@@ -500,7 +500,7 @@ TOOLS: list[Tool] = [
                              "trim_in": {"type": "integer"}, "trim_out": {"type": "integer"},
                              "locked": {"type": "boolean"}, "note": _s("a note"),
                              "out": {"type": "boolean"}, "flag": {"type": "boolean"},
-                             "refine_faces": {"type": "boolean"},
+                             "refine_faces": {"type": ["boolean", "null"]},
                              "audio": {"type": ["object", "null"]},
                              "color": {"type": ["object", "null"]},
                              "fade_in": {"type": "integer", "minimum": 0},
