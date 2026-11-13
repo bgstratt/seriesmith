@@ -91,9 +91,10 @@ def series_config_from(series_cfg: dict) -> dict:
     if not has_subjects:
         raise ValueError("series.json has no `subjects` block")
     series_cfg["subjects"] = _resolve_variants(series_cfg["subjects"])
+    _check_angles(series_cfg["locations"])
+    _crop_defaults(series_cfg["locations"])     # a crop's description, before it's required
     _check_required(series_cfg)
     _check_groups(series_cfg["subjects"])
-    _check_angles(series_cfg["locations"])
     _check_ambience(series_cfg["locations"])
     profile_styles(series_cfg)                 # a profile's look and lens, checked
     _check_continuous(series_cfg)
@@ -122,6 +123,10 @@ def _check_angles(locations: dict) -> None:
     """A location's `of` names another location, which is not itself an angle
     (a relit one's may be an angle, but not another relit one)."""
     for lid, e in locations.items():
+        fr = e.get("framing")
+        if fr is not None and fr not in FRAMINGS:
+            raise ValueError(f"location '{lid}' has `framing: {fr!r}`: how close its plate "
+                             f"already is, one of {', '.join(FRAMINGS)}")
         of = e.get("of")
         relight = e.get("relight")
         if relight is not None and (not isinstance(relight, str) or not relight.strip()):
@@ -142,12 +147,72 @@ def _check_angles(locations: dict) -> None:
         if master is None:
             raise ValueError(f"location '{lid}' has `of: {of}`, which is not a location in "
                              f"series.json")
+        if e.get("crop") is not None:
+            _check_crop(lid, e, master, of)
+            continue
         if master.get("relight"):
             raise ValueError(f"location '{lid}' is of '{of}', which is itself relit "
                              f"(of '{master['of']}'): name '{master['of']}'")
         if master.get("of") and not relight:
             raise ValueError(f"location '{lid}' is an angle of '{of}', which is itself an angle "
                              f"(of '{master['of']}'): name the master, '{master['of']}'")
+
+
+# a crop (docs/PLATE_VARIANTS.md): which part of its master's plate, and how much closer
+CROPS = ("center", "left", "right", "top", "bottom", "top-left", "top-right", "bottom-left",
+         "bottom-right")
+ZOOM = 1.6                  # about the middle 60% of the plate: what Porchlights sh1115 was tested at
+ZOOM_RANGE = (1.2, 3.0)
+# a location's `framing`: how close its plate already is. "wide" (the default) is a whole place,
+# which a medium or close shot wants a crop of; "medium" or "close", a plate already that close
+# (a door filling the frame, a counter seen from a stool), whose shots play on it as it is
+FRAMINGS = ("wide", "medium", "close")
+
+
+def _check_crop(lid: str, e: dict, master: dict, of: str) -> None:
+    """A crop: `crop` one of CROPS, `zoom` in ZOOM_RANGE, of a location that isn't a crop
+    itself, and not also relit (relight the master, and crop that)."""
+    if e["crop"] not in CROPS:
+        raise ValueError(f"location '{lid}' has `crop: {e['crop']!r}`: one of {', '.join(CROPS)}")
+    z = e.get("zoom")
+    if z is not None and (isinstance(z, bool) or not isinstance(z, (int, float))
+                          or not ZOOM_RANGE[0] <= z <= ZOOM_RANGE[1]):
+        raise ValueError(f"location '{lid}' has `zoom: {z!r}`: how much closer, "
+                         f"{ZOOM_RANGE[0]} to {ZOOM_RANGE[1]}")
+    if e.get("relight"):
+        raise ValueError(f"location '{lid}' has both `crop` and `relight`: relight '{of}' "
+                         f"first, and crop the relit one")
+    if master.get("crop") is not None:
+        raise ValueError(f"location '{lid}' is a crop of '{of}', which is itself a crop (of "
+                         f"'{master.get('of')}'): crop '{master.get('of')}' with a larger zoom")
+
+
+def _crop_defaults(locations: dict) -> None:
+    """A crop's description is its master's, and its plate `<id>` beside the master's, when it
+    doesn't give its own."""
+    for lid, e in locations.items():
+        if e.get("crop") is None:
+            continue
+        master = locations.get(e.get("of")) or {}
+        if not e.get("description") and master.get("description"):
+            e["description"] = master["description"]
+        mp = master.get("plate")
+        if not e.get("plate") and isinstance(mp, str) and mp:
+            folder = mp[:max(mp.rfind("/"), mp.rfind("\\")) + 1]
+            ext = mp[mp.rfind("."):] if "." in mp[len(folder):] else ".png"
+            e["plate"] = f"{folder}{lid}{ext}"
+
+
+def crop_box(width: int, height: int, where: str, zoom: float = ZOOM) -> tuple[int, int, int, int]:
+    """(left, top, right, bottom) of `where`'s part of a `width` x `height` picture, `zoom` times
+    closer: the same shape as the picture, against its edges or centred between them."""
+    w, h = round(width / zoom), round(height / zoom)
+    x = {"left": 0, "right": width - w}
+    y = {"top": 0, "bottom": height - h}
+    parts = where.split("-")
+    left = next((x[p] for p in parts if p in x), (width - w) // 2)
+    top = next((y[p] for p in parts if p in y), (height - h) // 2)
+    return left, top, left + w, top + h
 
 
 def profile_styles(series_cfg: dict) -> dict[str, dict]:
@@ -183,7 +248,7 @@ def location_master(series_cfg: dict, lid: str) -> str:
     """The location an angle is of (`of`), or the location itself; a relit
     angle's is its angle's."""
     locs = series_cfg.get("locations") or {}
-    for _ in range(2):
+    for _ in range(3):                         # a crop of a relit angle is three deep
         of = (locs.get(lid) or {}).get("of")
         if not of:
             break

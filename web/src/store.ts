@@ -347,6 +347,8 @@ export interface IssueDraft {
   pass: Pass;
   take: number | null;
   text: string;
+  /** what it is filed as (one of issueCategories), or null */
+  category: string | null;
   busy?: boolean;
   error?: string | null;
 }
@@ -554,6 +556,8 @@ export interface AppState {
   soundAsk: { shots: string[]; focus?: "cut" | null } | null;
   /** P10: the note being written (null: no box open) */
   issueDraft: IssueDraft | null;
+  /** what a note can be filed as (GET /seriesmith/issues/categories), read once */
+  issueCategories: import("./types").IssueCategory[] | null;
   /** P10: the Issues window is open */
   issuesOpen: boolean;
   /** the Series settings form (components/SeriesForm.tsx) */
@@ -706,6 +710,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     supply: null,
     issues: {},
     issueDraft: null,
+    issueCategories: null,
     issuesOpen: false,
     seriesFormOpen: false,
     shotForm: null,

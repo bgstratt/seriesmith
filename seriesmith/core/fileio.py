@@ -6,6 +6,7 @@ only: the build uses it.
 
     write_json(path, data)           atomic; UTF-8, LF, a trailing newline
     write_text(path, text) / write_bytes(path, data) / copy(src, dst)
+    append_text(path, text)          added to the end of a log (one write, LF)
     replace(src, dst)                os.replace, waiting out a file in use
     temp_beside(path)                a temp name of its own beside `path`
     read_json(path, default)         `default` when the file isn't there
@@ -93,6 +94,23 @@ def write_json(path: str, data, indent: int | None = 2, end: str = "\n",
     """`data` as JSON (json.dumps' own options), then `end`."""
     write_text(path, json.dumps(data, indent=indent, ensure_ascii=ensure_ascii,
                                 default=default, separators=separators) + end)
+
+
+_APPEND = threading.Lock()
+
+
+def append_text(path: str, text: str) -> None:
+    """`text` added to the end of `path` (made, with its folder, when missing), UTF-8 and
+    LF, in one write: for a log only ever added to (a JSON line each), never replaced.
+    One writer at a time in this process; waits out a reader holding it (Windows)."""
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    data = text.encode("utf-8")
+
+    def write():
+        with open(path, "ab") as fh:
+            fh.write(data)
+    with _APPEND:
+        shared(write)
 
 
 def copy(src: str, dst: str) -> None:

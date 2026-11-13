@@ -273,7 +273,13 @@ export function checkBadges(c: TakeChecks | null | undefined): { label: string; 
                  + "\nListen to it: Whisper can mishear a name, but a line dropped or garbled shows here." });
   }
   for (const [name, why] of Object.entries(c.more ?? {})) {
-    out.push({ label: name, title: why || `${name} flagged this take` });
+    // the count check says what it found ("3 people for 1 (0.5-1.1 s)"): that, short, is its label
+    const label = name === "count" && why ? why.replace(/\s*\(.*$/, "") : name;
+    out.push({ label, title: name === "count" && why
+      ? `More people than the shot has: ${why}. Its cast and extras, against people and faces found `
+        + "in the frames. Someone in the background the script doesn't name counts too: look, "
+        + "then add them to extras: or render another."
+      : why || `${name} flagged this take` });
   }
   if (!c.flags.length) {
     out.push({ ok: true, label: "checked",

@@ -69,6 +69,7 @@ import copy
 import dataclasses
 import glob
 import hashlib
+import json
 import os
 import random
 import re
@@ -552,21 +553,27 @@ def image_defaults(s: Series, ready=None) -> dict:
     (TG.voice_targets): an audio one is `voice_target` (what voice samples are
     made on) and leaves `dub_target` (what a dub track renders on) at H3
     Ref2VA; a video one is `dub_target` and leaves `voice_target` at
-    ltx2_voice. RefError for a name that isn't a target of the right kind."""
+    ltx2_voice. An editor's choice the series config's block already makes is
+    "series" (nothing of the episode's own to copy back). RefError for a name
+    that isn't a target of the right kind."""
     ov = T.load_overrides(s.ep)
     try:
         block = TG.refs_block(s.series_cfg)
         known = {t.id for t in TG.list_targets("image")}
         out = {}
-        ed = T.episode_field(ov, "refs_target")
-        if ed and ed in known:
+        def chosen_in(field, valid):
+            # an editor's choice the series config already makes is the series's
+            v = T.episode_field(ov, field)
+            return v if v and v in valid and v != block.get(field.removeprefix("refs_")) else None
+        ed = chosen_in("refs_target", known)
+        if ed:
             out.update(target=ed, target_source="editor")
         elif block.get("target"):
             out.update(target=block["target"], target_source="series")
         else:
             out.update(target=TG.machine_default("image"), target_source="default")
-        ek = T.episode_field(ov, "keyframe_target")
-        if ek and ek in known:
+        ek = chosen_in("keyframe_target", known)
+        if ek:
             out.update(keyframe_target=ek, keyframe_target_source="editor")
         elif block.get("keyframe_target"):
             out.update(keyframe_target=block["keyframe_target"],
@@ -575,8 +582,8 @@ def image_defaults(s: Series, ready=None) -> dict:
             t = TG.default_keyframe_target(ready)
             out.update(keyframe_target=t.id if t else out["target"], keyframe_target_source="default")
         editors = {t.id for t in TG.list_targets("image") if is_edit_target(t)}
-        ee = T.episode_field(ov, "edit_target")
-        if ee and ee in editors:
+        ee = chosen_in("edit_target", editors)
+        if ee:
             out.update(edit_target=ee, edit_target_source="editor")
         elif block.get("edit_target"):
             out.update(edit_target=block["edit_target"], edit_target_source="series")
@@ -592,8 +599,8 @@ def image_defaults(s: Series, ready=None) -> dict:
         out.setdefault("edit_target_person", out["edit_target"])
         # Turn's model: chosen, else None (automatic: Qwen 2.1 + angles when it is
         # installed, else the edit target; plan_edit)
-        et = T.episode_field(ov, "turn_target")
-        if et and et in editors:
+        et = chosen_in("turn_target", editors)
+        if et:
             out.update(turn_target=et, turn_target_source="editor")
         elif block.get("turn_target"):
             out.update(turn_target=block["turn_target"], turn_target_source="series")
@@ -602,8 +609,8 @@ def image_defaults(s: Series, ready=None) -> dict:
         out.update(ambience_target=block.get("ambience_target") or TG.machine_default("ambience"),
                    ambience_target_source="series" if block.get("ambience_target") else "default")
         kinds = {t.id: t.kind for t in TG.voice_targets()}
-        ev = T.episode_field(ov, "voice_target")
-        if ev and ev in kinds:
+        ev = chosen_in("voice_target", kinds)
+        if ev:
             chosen, source = ev, "editor"
         elif block.get("voice_target"):
             chosen, source = block["voice_target"], "series"
@@ -899,6 +906,16 @@ def built_prompt(s: Series, ref: Ref, view: str | None = None,
                 from seriesmith.relight import instruction
                 from seriesmith.targets.image.common import edit_prompt
                 return edit_prompt(instruction(e["relight"]), refs[:1], word)
+            if e.get("crop") is not None:
+                # a crop (docs/PLATE_VARIANTS.md): the master's plate, closer on one part
+                from seriesmith.core.series_config import ZOOM
+                from seriesmith.targets.image.common import edit_prompt
+                part = "middle" if e["crop"] == "center" else e["crop"].replace("-", " ")
+                return edit_prompt(
+                    f"Show the {part} part of this place {float(e.get('zoom') or ZOOM):g} times "
+                    f"closer, filling the whole frame at the same size: the same place, light and "
+                    f"colours, the camera nearer, everything in it sharp and whole, empty of people",
+                    refs[:1], word)
             return angle_prompt(s.look, e["description"], e["of"].replace("_", " "),
                                 master.get("description", ""), word)
         return plate_prompt(s.look, e["description"])
@@ -3912,6 +3929,8 @@ def queue_generate(s: Series, req: GenRequest, comfy, base=None,
     target}], "errors": [{ref, view, take?, error}]}; a take that fails to
     queue is marked failed and the others still go. Raises RefError /
     UnknownRef for a request that can't be planned at all."""
+    from seriesmith import plates as PL
+    PL.ensure(s.ep)                         # the crops' plates, before a keyframe needs one
     if runner is None:
         raise ValueError("queue_generate needs seriesmith's queue (runner.Runner)")
     jobs = plan_generate(s, req, rng=rng, ready=target_ready(listing))
@@ -4598,6 +4617,33 @@ def shared_takes(ep: str, ref: Ref, episodes: list[str]) -> list[dict]:
     return out
 
 
+_UNCROPPED: dict = {}
+
+
+def uncropped_shots(s: Series) -> dict[str, list[list[str]]]:
+    """{location id: [[shot, size]]}: the medium and close shots on a wide location's whole
+    plate (build.uncropped), from the built episode; {} before a build. Once per built story."""
+    story = episode_story(s.ep)
+    if story is None:
+        return {}
+    key = (id(story), json.dumps(s.series_cfg.get("locations") or {}, sort_keys=True, default=str))
+    if key not in _UNCROPPED:
+        from seriesmith import build as B
+        if len(_UNCROPPED) > 8:
+            _UNCROPPED.clear()
+        _UNCROPPED[key] = {k: [list(x) for x in v] for k, v in B.uncropped(story, s.series_cfg).items()}
+    return _UNCROPPED[key]
+
+
+def _crop_upscaled(path: str | None) -> str | None:
+    """The upscale model a crop's picture was made with (plates.upscaled), None when it's
+    stretched, not there, or a picture of yours."""
+    if not path:
+        return None
+    from seriesmith import plates as PL
+    return PL.upscaled(path)
+
+
 def ref_json(s: Series, ref: Ref, usage: dict | None = None,
              ov_data: dict | None = None, picks: dict | None = None,
              view_size=VIEW_SIZE, needs: dict | None = None, ready=None,
@@ -4621,6 +4667,13 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
         # variant it is rather than inventing a second name for them
         "of": ref.entry.get("of") or None,
         "relight": ref.entry.get("relight") or None,
+        # a crop of its place's plate (docs/PLATE_VARIANTS.md): which part, how much closer
+        **({"crop": ref.entry["crop"], "zoom": float(ref.entry.get("zoom") or SC.ZOOM),
+            "upscaled": _crop_upscaled(live)}
+           if ref.kind == "location" and ref.entry.get("crop") else {}),
+        # a wide place's medium and close shots on its whole plate (build.uncropped): crop them
+        **({"uncropped": uncropped_shots(s).get(ref.subject or ref.id.split(":", 1)[1], [])}
+           if ref.kind == "location" and ref.scope == "series" else {}),
         "path": ep_rel(s.ep, live),
         "exists": exists, "sha1": T.file_sha1(live) if exists else None,
         # the live picture's [width, height] from its header (the gallery's tile

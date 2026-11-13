@@ -1,0 +1,330 @@
+{
+  "id": "h3_hybrid",
+  "kind": "video",
+  "label": "H3 Hybrid (H3 FL2VA with Ref2VA's reference layers)",
+  "retry": {"_note": "A render that asked for retries and whose takes kept failing their checks (takecheck) renders once more on `fallback`, from the failed take's first frame as its first keyframe (api's retry step): stock FL2VA, the weights the hybrid is mostly made of.", "fallback": "minimax_h3_fl2va"},
+  "short": "H3 Hybrid",
+  "_note": "A community merge of MiniMax H3's two official checkpoints (huggingface.co/smhfacct/Minimax-H3-fl2va-ref2va-hybrid-models; MiniMax H3's licence): FL2VA's weights everywhere but the per-block `adaln_proj` of blocks 25-49, which are Ref2VA's, so it reads Ref2VA's reference pictures with FL2VA's cleaner picture. Checked tensor by tensor against the two pruned INT8 files (2026-11-12): 681 tensors FL2VA's, 50 Ref2VA's (exactly those adaln_proj), 201 the same in both. It is Ref2VA's architecture in its slot, so everything but the weights is Ref2VA's: the node, the prompt and compile (compile.py), the text encoder, VAEs and the Ref2V turbo LoRAs. Why: Ref2VA with its 8-step turbo LoRA turns thin lines in a reference (a stethoscope, a phone cord, a lanyard) into a lattice over the picture, and a new seed doesn't help (docs/DAILIES.md). Tried live 2026-11-12 (Porchlights ep02, final pass, 8-step turbo, each shot's own seed): sh1460, sh1495, sh1590, sh1610 and sh290 clean where Ref2VA's takes had the lattice; sh140, sh170 and sh1620 as good as Ref2VA's. Holds a reference a little less tightly than Ref2VA (its card says so): on sh1470 it lost Denise's locs, and moved the lattice to a mesh over the whole frame. No default_rank: picked by name.",
+  "code": "compile.py",
+  "template": {
+    "_note": "H3 renders 17k+5 frames, at most 3592; width and height must be multiples of 32.",
+    "fps": 24,
+    "frames": {
+      "step": 17,
+      "base": 5,
+      "max": 3592
+    },
+    "size_multiple": 32
+  },
+  "continuous": {
+    "_note": "docs/CONTINUOUS.md. `latent`: the previous take's last `overlap` frames (rounded up to 17j+5) held at the head of the render, video and audio, by H3ChainLatent between `sampler`'s `input` and its source; it reads the previous take's kept latent, else encodes its last frames through the VAEs. The held frames are trimmed off before the saver (H3ChainTrim). `continuous: first` needs a first keyframe, which Ref2VA doesn't read: such a shot builds on `first` (H3 FL2VA) instead, unless it names its own target.",
+    "modes": [
+      "latent"
+    ],
+    "latent": {
+      "overlap": 39,
+      "hold_audio": true,
+      "sampler": {
+        "class_type": "SamplerCustomAdvanced",
+        "input": "latent_image"
+      }
+    }
+  },
+  "multishot": {
+    "_note": "H3's spec's timed sections: one prompt whose description has a [Shot N] section per shot of the group, every later one `At MM:SS.mmm, the shot cuts to ...` (docs/MULTISHOT.md; a three-shot proof cut within 3 frames of the asked times). One plate a generation: the group's first shot's.",
+    "form": "timed",
+    "plates": 1
+  },
+  "recipe": {
+    "_note": "Up to eight subjects (characters first, then props and vehicles, in script order): Pictures 1-3, then 5-9. Picture 4 is always the location plate, where it has always been, so a shot of three subjects or fewer sends just what it did. Sockets past the last subject stay empty. Each character is fed ONE panel of its 4-panel sheet: the face panel on a single-character close-up, the three-quarter body panel otherwise. Clone mode feeds one voice sample per speaker, at most 3.",
+    "subject_slots": ["Picture 1", "Picture 2", "Picture 3", "Picture 5", "Picture 6", "Picture 7", "Picture 8", "Picture 9"],
+    "plate_slot": "Picture 4",
+    "voice_slots": [
+      "Audio 1",
+      "Audio 2",
+      "Audio 3"
+    ],
+    "sheet_panels": 4,
+    "panels": 1,
+    "face_sizes": [
+      "close",
+      "cu",
+      "mcu",
+      "ecu"
+    ],
+    "policies": [
+      "generate",
+      "dub",
+      "dub_keep_foley",
+      "clone"
+    ],
+    "retention": {
+      "_note": "H3's audio retention markers, and the IR's neutral `preserve` mapped onto them. fully_copy makes a dub slice the whole soundtrack; partially_copy copies the voices and lets H3 add foley; reference only borrows timbre and timing.",
+      "values": [
+        "fully_copy",
+        "partially_copy",
+        "reference"
+      ],
+      "default": {
+        "dub": "fully_copy",
+        "dub_keep_foley": "partially_copy"
+      },
+      "from_preserve": {
+        "strict": "fully_copy",
+        "loose": "partially_copy",
+        "style": "reference"
+      }
+    },
+    "refs": {
+      "character": {
+        "kind": "character sheet",
+        "shape": "sheet",
+        "views": 4
+      },
+      "object": {
+        "kind": "{kind} reference",
+        "shape": "object"
+      },
+      "location": {
+        "kind": "background plate",
+        "shape": "plate"
+      },
+      "voice": {
+        "kind": "voice sample",
+        "shape": "voice"
+      }
+    },
+    "size_hints": {
+      "character sheet": "4096x1024 or larger (horizontal 4-panel strip)",
+      "prop reference": "1024x1024 or larger",
+      "vehicle reference": "1024x1024 or larger",
+      "background plate": "1344x768 (the render resolution)",
+      "voice sample": "5-15 seconds of clean speech, mono wav"
+    },
+    "keyframes": [
+      "first"
+    ],
+    "keyframes_when_asked": true,
+    "keyframe_path": "refs/shots/{shot}/{end}.png",
+    "_keyframes_note": "A first frame only when the shot asks for one (continuous: first, a first: line): anchored at frame 0 by MiniMaxH3AddGuide after the reference node, its pictures kept (minimax_h3_ref2va/first_frame.py). Not asked for: rendered as Ref2VA always is."
+  },
+  "binding": {
+    "workflow": "workflow.json",
+    "workflow_name": "H3_Hybrid_Shotlist_v1.json",
+    "env": "SERIESMITH_H3_HYBRID_WORKFLOW",
+    "loader": {
+      "class_type": "H3ShotListLoader",
+      "inputs": {
+        "root": "project_root",
+        "shotlist": "shotlist_file",
+        "index": "index"
+      }
+    },
+    "saver": {
+      "class_type": "H3SaveShot",
+      "inputs": {
+        "root": "project_root",
+        "subfolder": "subfolder",
+        "take": "take",
+        "sidecar": "sidecar"
+      },
+      "latent": {
+        "class_type": "SamplerCustomAdvanced",
+        "output": 0
+      }
+    },
+    "params": {
+      "model": {
+        "class_type": "UNETLoader",
+        "field": "unet_name"
+      },
+      "loras": {
+        "class_type": "LoraLoaderModelOnly",
+        "name": "lora_name",
+        "strength": "strength_model",
+        "input": "model",
+        "chain": true
+      },
+      "steps": {
+        "via": "loader"
+      },
+      "seed": {
+        "via": "loader"
+      },
+      "sampler": {
+        "class_type": "KSamplerSelect",
+        "field": "sampler_name"
+      },
+      "ref_image_size": {
+        "class_type": "MiniMaxH3ReferenceToVideo",
+        "field": "ref_image_size"
+      },
+      "text_encoder": {
+        "class_type": "CLIPLoader",
+        "field": "clip_name"
+      },
+      "video_vae": {
+        "class_type": "VAELoader",
+        "field": "vae_name",
+        "feeds": [
+          "VAEDecode",
+          "vae"
+        ]
+      },
+      "audio_vae": {
+        "class_type": "VAELoader",
+        "field": "vae_name",
+        "feeds": [
+          "VAEDecodeAudio",
+          "vae"
+        ]
+      }
+    },
+    "review_nodes": [
+      "SaveVideo",
+      "CreateVideo"
+    ],
+    "bypass_if_missing": {
+      "H3SLAAttention": "model"
+    }
+  },
+  "models": {
+    "_note": "The family each model param must be (targets/modelid.py). Names are checked first (case-insensitive globs; a series config's model_families adds more), then the file's header. Ref2VA and FL2VA share every tensor, so a file named neither is accepted as H3 with a note, and one named FL2VA is refused. Tiers (docs/API.md): the turbo LoRA is an accelerator (without it the pass renders its `base`); the rest are required. text_encoder / video_vae / audio_vae are the workflow's own files (`default`): patched only when another file of the family stands in. A substitute LoRA keeps the wanted one's step count (`keep`).",
+    "model": {
+      "family": "minimax-h3-ref2va",
+      "patterns": [
+        "*h3*hybrid*"
+      ],
+      "tier": "required",
+      "_note": "Its header is H3's and its name says both FL2VA and Ref2VA, so it is identified as H3 with a note (targets/modelid.py: a name matching both variants picks neither), never refused. Told apart from the stock files by name: every other H3 target's model pattern excludes *hybrid*."
+    },
+    "loras": {
+      "family": "minimax-h3-ref2v-turbo-lora",
+      "patterns": [
+        "*h3*ref2v*turbo*",
+        "*h3*ref2v*lightx2v*"
+      ],
+      "tier": "accelerator",
+      "keep": [
+        "(\\d+)[_-]?steps?"
+      ],
+      "exclude": [
+        "*sla*"
+      ],
+      "class_type": "LoraLoaderModelOnly",
+      "field": "lora_name",
+      "folder": "loras"
+    },
+    "text_encoder": {
+      "family": "qwen3vl-32b",
+      "patterns": [
+        "*qwen3*vl*32b*"
+      ],
+      "tier": "required",
+      "default": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"
+    },
+    "video_vae": {
+      "family": "minimax-h3-video-vae",
+      "prefer": ["*h3*video*vae*fp16*", "*h3*video*vae*"],
+      "patterns": [
+        "*h3*video*vae*"
+      ],
+      "tier": "required",
+      "default": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "audio_vae": {
+      "family": "minimax-h3-audio-vae",
+      "patterns": [
+        "*h3*audio*vae*"
+      ],
+      "tier": "required",
+      "default": "minimax_h3_audio_vae_fp32.safetensors"
+    }
+  },
+  "presets": {
+    "_note": "Turbo LoRA per pass. The final pass uses lightx2v's 8-step Ref2V v1.0, distilled at 768p for exactly 8 steps. The proxy keeps the 4-step v0.1: a distilled LoRA is trained on a fixed set of timesteps, so it does best at its own step count, and the proxy wants 4 steps for speed. The series config's `series` and `proxy` blocks override these. `base` is what a pass renders with when its turbo LoRA isn't installed: no LoRA, 20 steps with res_multistep (ComfyUI's H3 templates, video_minimax_h3_r2v.json / _i2v / _t2v, full branch: 'Int (Full)' 20, KSamplerSelect res_multistep, BasicScheduler simple) and no CFG, as those templates guide with BasicGuider and so does this workflow ('Guider (CFG 1)').",
+    "final": {
+      "model": "minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+      "lora": "minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors",
+      "ref_image_size": "max",
+      "steps": 8,
+      "width": 1344,
+      "height": 768,
+      "base": {
+        "loras": [],
+        "steps": 20,
+        "sampler": "res_multistep"
+      }
+    },
+    "proxy": {
+      "lora": "minimax_h3_ref2v_lightx2v_turbo_4step_v0.1_resized_avg_rank_20_bf16.safetensors",
+      "ref_image_size": "match",
+      "steps": 4,
+      "width": 512,
+      "height": 288,
+      "base": {
+        "loras": [],
+        "steps": 20,
+        "sampler": "res_multistep"
+      }
+    }
+  },
+  "upscale": {
+    "any_take": true,
+    "_note": "h3upscale.py: a final take re-sampled at `scale` from `start` (a fraction of its own schedule: 0.875 is step 7 of 8), its latent's video upscaled by `upscaler` (ComfyUI's own, or a node pack: its `fallback`). The loader's resolution_override carries the new size into the conditioning.",
+    "scale": 2,
+    "start": 0.875,
+    "size": {
+      "class_type": "H3ShotListLoader",
+      "field": "resolution_override"
+    },
+    "windows": {"_note": "A re-sample of a take longer than `seconds` (5.5: the 4.5-5.2 s shots fit one pass at 2688x1536, longer ones risk running out of memory) is sampled in windows (upscale.windowed): MultiDiffusion along time with pyramid weights over each overlap, so 1344x768 x2 (2688x1536) fits 32 GB. ComfyUI's own node counts real frames (`frames`: 17n+5, so 5.5 s is 124 and 1.25 s is 39) and FreeNoise stays off, as the A/B against obvpm's ran it. `fallback`: obvpm's H3 Context Windowing, for a ComfyUI before 0.44 or asked for by the recipe's `windowing`. The series' upscale recipe's `window` overrides the length (0: off).", "class_type": "MiniMaxH3ContextWindows", "comfyui": "0.44", "seconds_input": "context_length", "overlap_input": "context_overlap", "frames": {"step": 17, "offset": 5}, "inputs": {"fuse_method": "pyramid", "freenoise": false, "split_conds_to_windows": false}, "seconds": 5.5, "overlap": 1.25, "fallback": {"class_type": "H3ContextWindows", "pack": "comfyui-obvpm-timeline"}},
+    "upscaler": {"_note": "ComfyUI's own (0.44 or later), loading the same model file as LBH-123-AI's pack. `fallback`: that pack, or its Plus, which register the same node, for an older ComfyUI or asked for by the recipe's `upscaler`.",
+                 "class_type": "MiniMaxH3LatentUpscaleWithModel", "comfyui": "0.44", "latent": "samples", "size": ["width", "height"], "align": 32,
+                 "model": {"class_type": "LatentUpscaleModelLoader", "input": "model",
+                           "inputs": {"model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors"}},
+                 "fallback": {"class_type": "MinimaxH3LatentUpscaler3D", "pack": "Comfyui_Minimax_h3_latent_Upscaler (LBH-123-AI) or its Plus version",
+                              "latent": "latent", "scale": "mode.scale", "align": 32,
+                              "inputs": {"model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+                                         "mode": "scale by multiplier", "align": 32, "enable_temporal_chunking": true,
+                                         "force_unload": true, "device": "cuda", "precision": "fp16"}}}
+  },
+  "downloads": {
+    "_note": "Where to get each file this target names (docs/API.md 'Downloads'). A url is only given when a trustworthy record has it: a ComfyUI template's or saved workflow's properties.models entry, or ComfyUI-Manager's model list; `source` says which. Otherwise url is null and source says what to search for. Never a guessed URL.",
+    "minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors": {
+      "folder": "diffusion_models",
+      "url": "https://huggingface.co/smhfacct/Minimax-H3-fl2va-ref2va-hybrid-models/resolve/main/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+      "source": "the Hugging Face repo smhfacct/Minimax-H3-fl2va-ref2va-hybrid-models (file checked on the repo's listing 2026-11-12, sha256 a629cfea8d89a071b140c6e1935dc9a23e72de6badc18975a2bb9e6d1423d76d; the README's first pick of its four block ranges)"
+    },
+    "minimax_h3_audio_vae_fp32.safetensors": {
+      "folder": "vae",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_audio_vae_fp32.safetensors",
+      "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"
+    },
+    "minimax_h3_ref2v_lightx2v_turbo_4step_v0.1_resized_avg_rank_20_bf16.safetensors": {
+      "folder": "loras",
+      "url": "https://huggingface.co/Kijai/MiniMax-H3_comfy/resolve/main/loras/minimax_h3_ref2v_lightx2v_turbo_4step_v0.1_resized_avg_rank_20_bf16.safetensors",
+      "source": "saved workflow H3_Ref2VA_Shotlist_v1.json (properties.models)"
+    },
+    "minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors": {
+      "folder": "loras",
+      "url": "https://huggingface.co/lightx2v/Minimax-h3-Turbo/resolve/main/minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors",
+      "source": "the Hugging Face repo lightx2v/Minimax-h3-Turbo (file and name checked on the Hugging Face repo 2026-10-09)"
+    },
+    "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors": {
+      "folder": "text_encoders",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"
+    },
+    "minimax_h3_video_vae_fp16.safetensors": {
+      "folder": "vae",
+      "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/vae/minimax_h3_video_vae_fp16.safetensors",
+      "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models)"
+    },
+    "minimax_h3_latent_upscaler_3d_fp16.safetensors": {
+      "folder": "latent_upscale_models",
+      "url": "https://huggingface.co/LBH-123-AI/Minimax_h3_latent_Upscaler/resolve/main/minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors",
+      "source": "the Hugging Face repo LBH-123-AI/Minimax_h3_latent_Upscaler, which now publishes it as minimax_h3_latent_upscaler_3d_conv_v1/minimax_h3_latent_upscaler_3d_conv_v1_fp16.safetensors (the same file: sha256 043e5a48e161..., checked 2026-10-09): save it under this name. Only needed to upscale, never to render."
+    }
+  }
+}

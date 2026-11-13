@@ -47,7 +47,7 @@ def kitchen_sink():
 class LoadingTest(unittest.TestCase):
     def test_list_and_load(self):
         ids = {(t.kind, t.id) for t in TG.list_targets()}
-        self.assertEqual(ids - {(k, r) for r in ROUTER for k in ("video", "image")}, {("video", H3), ("video", "hold"), ("video", "h3_singularity"), ("video", "h3_singularity_fl2va"), ("video", "fasth3_fl2va"), ("video", "ltx2"), ("video", "ltx2_ingredients"), ("video", "ltx2_msr"),
+        self.assertEqual(ids - {(k, r) for r in ROUTER for k in ("video", "image")}, {("video", H3), ("video", "hold"), ("video", "h3_hybrid"), ("video", "h3_singularity"), ("video", "h3_singularity_fl2va"), ("video", "fasth3_fl2va"), ("video", "ltx2"), ("video", "ltx2_ingredients"), ("video", "ltx2_msr"),
                                ("video", "minimax_h3_fl2va"), ("video", "pika_h3_flex"), ("video", "pika_h3_flex_fl2va"), ("video", "wan22_i2v"),
                                ("video", "seedance_2_5"),
                                ("video", "wan22_ti2v"), ("video", "wan22_vace"), ("image", "krea2"),
@@ -57,6 +57,7 @@ class LoadingTest(unittest.TestCase):
                                ("image", "z_image_turbo"), ("image", "flux2_klein"),
                                ("image", "flux2_klein_edit"), ("image", "flux_kontext"),
                                ("image", "flux3_klein"), ("image", "flux3_klein_turbo"),
+                               ("image", "minimax_h3_image"),
                                ("image", "minimax_h3_still"), ("image", "qwen_image_21"),
                                ("image", "qwen_rapid_aio"), ("image", "klein_erp_360"),
                                ("image", "moss_image_sft"), ("image", "moss_image_base"),
@@ -66,7 +67,7 @@ class LoadingTest(unittest.TestCase):
                                ("audio", "ltx2_voice"), ("audio", "drama3"), ("audio", "qwen3_tts"),
                                ("audio", "fishaudio_drama3")})
         self.assertEqual([t.id for t in TG.list_targets("video") if t.id not in ROUTER],
-                         ["fasth3_fl2va", "fasth3_omni", "h3_singularity", "h3_singularity_fl2va", "hold", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", H3, "pika_h3_flex", "pika_h3_flex_fl2va", "seedance_2_5",
+                         ["fasth3_fl2va", "fasth3_omni", "h3_hybrid", "h3_singularity", "h3_singularity_fl2va", "hold", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", H3, "pika_h3_flex", "pika_h3_flex_fl2va", "seedance_2_5",
                           "wan22_i2v", "wan22_ti2v", "wan22_vace"])
         self.assertIs(TG.load_target(H3), TG.load_target(H3))
         with self.assertRaises(TG.TargetError) as cm:
@@ -107,6 +108,17 @@ class LoadingTest(unittest.TestCase):
                              os.environ["SERIESMITH_MINIMAX_H3_REF2VA_WORKFLOW"]))
         g, where = R.resolve_workflow(None)
         self.assertIsNotNone(g)
+
+
+    def test_only_h3_hybrid_takes_the_hybrid_file(self):
+        # its name says both FL2VA and Ref2VA: every other H3 target excludes it by name
+        from seriesmith.targets.modelid import name_matches
+        f = "minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors"
+        takes = sorted(t.id for t in TG.list_targets()
+                       if (m := t.models.get("model"))
+                       and name_matches(f, m.get("patterns") or [])
+                       and not name_matches(f, m.get("exclude") or []))
+        self.assertEqual(takes, ["h3_hybrid"])
 
 
 class TemplateTest(unittest.TestCase):
@@ -200,7 +212,7 @@ class ProfileTest(unittest.TestCase):
         self.assertIn("not a video target (known: ", str(cm.exception))
         known = str(cm.exception).split("(known: ")[1].split(")")[0].split(", ")
         self.assertEqual(sorted(set(known) - ROUTER),
-                         ["fasth3_fl2va", "fasth3_omni", "h3_singularity", "h3_singularity_fl2va", "hold", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va",
+                         ["fasth3_fl2va", "fasth3_omni", "h3_hybrid", "h3_singularity", "h3_singularity_fl2va", "hold", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va",
                           "minimax_h3_ref2va", "pika_h3_flex", "pika_h3_flex_fl2va", "seedance_2_5", "wan22_i2v",
                           "wan22_ti2v", "wan22_vace"])
         # sh320 names the series target itself, which beats its profile's; sh330
@@ -432,12 +444,12 @@ class TargetsRouteTest(ApiTest):
     def test_targets(self):
         data = self.ok(A.get_targets(self.ctx, {}))
         by = {t["id"]: t for t in data["targets"]}
-        self.assertEqual(set(by) - ROUTER, {H3, "hold", "h3_singularity", "h3_singularity_fl2va", "fasth3_fl2va", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", "pika_h3_flex", "pika_h3_flex_fl2va", "krea2",
+        self.assertEqual(set(by) - ROUTER, {H3, "hold", "h3_hybrid", "h3_singularity", "h3_singularity_fl2va", "fasth3_fl2va", "ltx2", "ltx2_ingredients", "ltx2_msr", "minimax_h3_fl2va", "pika_h3_flex", "pika_h3_flex_fl2va", "krea2",
                                    "wan22_i2v", "wan22_ti2v", "wan22_vace", "z_image_turbo",
                                    "stable_audio3", "ace_step15", "yue2", "minimax_music3", "minimax_music3_cloud", "mrt2", "pika_music", "suno_chirp_v6", "elevenlabs_music", "mmaudio_ambience", "sa3_sfx_ambience",
                                    "h3_foley", "ltx23_foley", "hunyuan_xl_foley",
                                    "flux2_klein", "flux2_klein_edit", "flux_kontext",
-                                   "flux3_klein", "flux3_klein_turbo",
+                                   "flux3_klein", "flux3_klein_turbo", "minimax_h3_image",
                                    "minimax_h3_still", "qwen_image_21", "qwen_rapid_aio",
                                    "moss_image_sft", "moss_image_base",
                                    "klein_erp_360", "ltx2_voice", "drama3", "qwen3_tts", "fishaudio_drama3", "seedance_2_5", "krea_2_router",
@@ -506,7 +518,7 @@ class TargetsRouteTest(ApiTest):
                          ["fasth3_omni_still", "fibo2_dev", "fibo2_edit_turbo",
                           "flux2_klein", "flux2_klein_edit", "flux3_klein", "flux3_klein_turbo",
                           "flux_kontext", "klein_erp_360", "krea2", "krea_2_router",
-                          "minimax_h3_still", "moss_image_base", "moss_image_sft", "qwen_image_21",
+                          "minimax_h3_image", "minimax_h3_still", "moss_image_base", "moss_image_sft", "qwen_image_21",
                           "qwen_rapid_aio", "z_image_turbo"])
         # seriesmith's fields (where a job runs, whether it repeats) are the same
         # for every workflow target (test_capabilities); h3pipe's are compared here

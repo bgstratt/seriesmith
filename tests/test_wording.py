@@ -76,7 +76,7 @@ class WordingWarningsTest(unittest.TestCase):
     def warn(self, shot: str, who: str = "ada", c: dict | None = None) -> list[str]:
         c = series_config_from(c or cfg())
         st = story(f"= ep01 T\n\n# sq01 kitchen\n\n## sh010\nwho: {who}\ndur: 3\n{shot}\n", c)
-        keys = ("names what it forbids", "not in its `who:`", "said in quotation marks")
+        keys = ("names what it forbids", "not in its `who:` or `with:`", "said in quotation marks")
         return [w for w in B.story_warnings(st, c) if any(k in w for k in keys)]
 
     def test_a_negation_in_the_action(self):
@@ -92,8 +92,12 @@ class WordingWarningsTest(unittest.TestCase):
     def test_a_person_named_outside_who(self):
         w = self.warn("Ada sets down her cup and looks at Bo.")
         self.assertEqual(len(w), 1)
-        self.assertIn("names Bo, not in its `who:`", w[0])
+        self.assertIn("names Bo, not in its `who:` or `with:`", w[0])
         self.assertEqual(self.warn("Ada sets down her cup and looks at Bo.", who="ada, bo"), [])
+
+    def test_a_person_cast_in_with(self):
+        # `with:` is cast too: a group or a character beside the principals
+        self.assertEqual(self.warn("with: bo\nAda sets down her cup and looks at Bo."), [])
 
     def test_quoted_speech_in_the_action(self):
         w = self.warn('Ada sets down her cup and says, "Done."')

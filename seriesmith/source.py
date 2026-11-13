@@ -735,7 +735,7 @@ def skeleton_script(raw: dict, name: str, title: str) -> str | None:
             f"\n"
             f"## sh010\n"
             f"who: {who}\n"
-            f"size: medium\n"
+            f"size: wide\n"
             f"dur: 3\n"
             f"{person} stands still, looking off to one side.\n"
             f"camera: holds static\n"

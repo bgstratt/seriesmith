@@ -1,0 +1,23 @@
+{
+  "1": {"class_type": "UNETLoader", "_meta": {"title": "Load Diffusion Model"},
+        "inputs": {"unet_name": "minimax_h3_image_pruned_int8_convrot.safetensors", "weight_dtype": "default"}},
+  "2": {"class_type": "CLIPLoader", "_meta": {"title": "Load CLIP"},
+        "inputs": {"clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors", "type": "minimax", "device": "default"}},
+  "3": {"class_type": "VAELoader", "_meta": {"title": "Load VAE"},
+        "inputs": {"vae_name": "minimax_h3_image_vae_fp16.safetensors"}},
+  "20": {"class_type": "LoadImage", "_meta": {"title": "Reference 1"},
+         "inputs": {"image": "example.png"}},
+  "4": {"class_type": "MiniMaxH3ImageConditioning", "_meta": {"title": "MiniMax H3 Image Conditioning"},
+        "inputs": {"clip": ["2", 0], "vae": ["3", 0], "prompt": "", "width": 2048, "height": 2048,
+                   "images.image_0": ["20", 0]}},
+  "5": {"class_type": "ConditioningZeroOut", "_meta": {"title": "ConditioningZeroOut"},
+        "inputs": {"conditioning": ["4", 0]}},
+  "6": {"class_type": "KSampler", "_meta": {"title": "KSampler"},
+        "inputs": {"model": ["1", 0], "positive": ["4", 0], "negative": ["5", 0], "latent_image": ["4", 1],
+                   "seed": 0, "steps": 6, "cfg": 1, "sampler_name": "euler", "scheduler": "simple",
+                   "denoise": 1}},
+  "7": {"class_type": "VAEDecode", "_meta": {"title": "VAE Decode"},
+        "inputs": {"samples": ["6", 0], "vae": ["3", 0]}},
+  "8": {"class_type": "SaveImage", "_meta": {"title": "Save Image"},
+        "inputs": {"images": ["7", 0], "filename_prefix": "h3refs/tmp"}}
+}

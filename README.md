@@ -45,7 +45,7 @@ series config format.
 | **[docs/CONTINUOUS.md](docs/CONTINUOUS.md)**, **[docs/POST_PROCESSING.md](docs/POST_PROCESSING.md)**, **[docs/RECORDED_DIALOGUE.md](docs/RECORDED_DIALOGUE.md)**, **[docs/KREAGEN.md](docs/KREAGEN.md)** | Continuous shots; the post pass; lip sync to a recording; the reference-image generator | Using that part |
 | **[docs/H3_TARGET.md](docs/H3_TARGET.md)** | The default video target, MiniMax H3 Ref2VA, in detail: its reference slots, sheets, voices, audio policies, pacing | Tuning shots for H3 |
 | **[docs/API.md](docs/API.md)** | The editor's HTTP API and the on-disk contracts behind it (takes, overrides, the cut, references) | Changing the editor, or driving seriesmith from your own code |
-| **[docs/DESIGN.md](docs/DESIGN.md)**, **[docs/PLAN.md](docs/PLAN.md)** | How seriesmith is built (backends, the queue, the two hosts) and the work list | Changing seriesmith |
+| **[docs/DESIGN.md](docs/DESIGN.md)**, **[docs/RELEASES.md](docs/RELEASES.md)** | How seriesmith is built (backends, the queue, the two hosts) and what each release brought; [docs/PLAN.md](docs/PLAN.md) is the retired work list, kept as a record | Changing seriesmith |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | House rules: the golden tests, how the generated docs are regenerated | Sending a change |
 
 `prompts/SKILL.md` and `prompts/seriesmith-script.instructions.md` are **generated**
@@ -263,7 +263,7 @@ runs its own queue. **[docs/COMMANDS.md](docs/COMMANDS.md)** covers every comman
 
     pip install -e .[test]
     python -m pytest                  # six workers in parallel; -n 0 for one process
-    cd web && npx vitest run
+    cd web && npm test                # not a bare npx vitest: see web/scripts/vitest.mjs
 
 The golden tests rebuild every fixture and compare the results byte for byte with
 `tests/golden/`; no test reaches a real backend.

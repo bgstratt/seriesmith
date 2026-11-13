@@ -79,7 +79,7 @@ class CompileTest(unittest.TestCase):
                 self.assertIn("<Picture 4>", pictures(sh["prompt"]), sh["id"])
 
     def test_the_h3_family_takes_eight_round_picture_4(self):
-        for tid in (H3, "h3_singularity", "pika_h3_flex", OMNI):
+        for tid in (H3, "h3_singularity", "h3_hybrid", "pika_h3_flex", OMNI):
             t = TG.load_target(tid)
             self.assertEqual(t.recipe["plate_slot"], "Picture 4")
             self.assertEqual(t.recipe["subject_slots"],

@@ -365,7 +365,7 @@ under the shot.
 
 ### Take checks
 
-Once a take finishes, seriesmith looks it over for two things a video model sometimes does
+Once a take finishes, seriesmith looks it over for things a video model sometimes does
 that the script didn't ask for. It marks what it finds and changes nothing:
 
 - **cut at 0.58 s**: the picture cuts to another shot partway through, a shot asked for as
@@ -378,9 +378,18 @@ that the script didn't ask for. It marks what it finds and changes nothing:
   garbled line shows up here. This only runs when the model voiced the lines (Generate or
   Clone, not a dub) and a Whisper model is downloaded (Features, Sound: **Whisper small.en** is
   the quickest, and the Recorded dialogue line's medium.en does too).
+- **3 people for 1**: more people or faces in the take than the shot has, for a quarter second
+  or more: a duplicate of a character, a stranger walking in, one person with two heads. The
+  shot has its `who:` and `with:` characters and its `extras:`, counted from their words ("a
+  night nurse" is one, "two paramedics" two). Extras whose number isn't said ("nurses passing",
+  "a few") leave the take unchecked. Fewer is never flagged: a turned head or a person out of
+  frame is fine. Someone in the background the script doesn't name counts, so look before you
+  re-render: name them in `extras:` if they belong. This runs on the processor too, about 20 s
+  a take, when ComfyUI has ultralytics and the two detectors are downloaded (Features, Tools:
+  **Count check**).
 
 The badges are on the take in the bin and on its tile in the gallery. A check comes in a few
-seconds after the take does. It doesn't hold up the next render. A place that slowly turns
+seconds after the take does (the count check in about 20). It doesn't hold up the next render. A place that slowly turns
 into another during one camera move isn't a cut, so it isn't caught. Takes made before
 checks existed are checked with `seriesmith takes <episode> --check`.
 
@@ -394,7 +403,8 @@ A render can try again by itself when a take fails its checks. In the **Render**
   and why ("retry 1 after t03: a cut at 0.58 s").
 - **then from its first frame (FL2VA)**: when the seeds are spent (or with none asked for),
   the shot renders once more on the model's first-and-last-frame version: H3 Ref2VA on H3
-  FL2VA, FastH3 Omni on FastH3 FL2VA, H3 Singularity and Pika H3 Flex on theirs. It starts
+  FL2VA, FastH3 Omni on FastH3 FL2VA, H3 Singularity and Pika H3 Flex on theirs, H3 Hybrid on
+  H3 FL2VA. It starts
   from a first frame, the first of these there is:
   - the shot's own first keyframe, if it has one (one you gave, continuity, a frame you
     picked), kept as it is;
@@ -560,23 +570,29 @@ problems are fixed.
 **While you watch:** press **n** (in Play all it notes the clip on screen and pauses; otherwise
 the selected clip), or right-click a clip and choose **Add issue…**.
 A small box opens with the shot and the take it is about; type a sentence and press **Enter**
-(Shift+Enter for a second line). `i` and `o` are still trim-in and trim-out at the playhead, as
+(Shift+Enter for a second line). Its **Category** can file the note as what kind of problem it
+is: identity, wardrobe, place, light, morph, artifact (the render itself breaking: a lattice,
+lines, smears), action, camera, count, cut, lipsync, text, performance (the acting: delivery,
+reactions, how people play off each other) or other. Leaving it at **(none)** is fine. `i` and `o` are still trim-in and trim-out at the playhead, as
 in any NLE, which is why the note key is `n`.
 
 **The note button** (a speech bubble) in the Shots toolbar shows how many are open and opens
 the list, where
 **Copy export** puts the whole document on the clipboard for an assistant, **✕** resolves one,
-and **Clear addressed** empties the ones whose shots you have already fixed. A clip with open
+and **Clear addressed** empties the ones whose shots you have already fixed. Once the notes
+are in more than one category, **Show** narrows the list to one (and **Re-render noted** to
+its shots). A clip with open
 notes shows the same speech bubble in the timeline.
 
 The same thing from the command line:
 
 ```
-seriesmith issues Shows\ep05 --proxy --add sh0140 "Kell enters from the wrong side"
+seriesmith issues Shows\ep05 --proxy --add sh0140 "Kell enters from the wrong side" --category action
 seriesmith issues Shows\ep05 --proxy --add-from notes.txt    # one "sh0140: …" per line
 seriesmith issues Shows\ep05 --proxy                         # the list
 seriesmith issues Shows\ep05 --proxy --export                # one document to paste
 seriesmith issues Shows\ep05 --clear --addressed             # empty what is done
+seriesmith issues Shows\ep05 --history                       # every note that has gone, counted
 ```
 
 Each note **snapshots what produced the take**: the script's lines for that shot, the prompt the
@@ -588,6 +604,13 @@ have started editing. Editing the script later never rewrites a note.
 A shot that has since been rebuilt or re-rendered reads **(addressed)**. Nothing is deleted for
 you: `--clear --addressed` empties those when you are satisfied, and an episode with no issues
 has no issue file at all.
+
+**Nothing is lost when a note goes.** A note you resolve or clear moves to the show's history,
+`_history.jsonl` beside `series.json`, marked with how it ended: **rebuilt** (you changed the
+script or the series config), **rerendered** (a newer take), or **dismissed** (dropped with
+nothing changed). `seriesmith issues <episode> --history` lists it with a count per category and
+ending. Over a few episodes, that shows which problems keep coming back, and whether a script
+edit fixes them or only a new take does.
 
 ### Flagging clips to come back to
 
@@ -701,7 +724,7 @@ Every run takes a new seed, and the result is a new take: the one you started fr
   of the range change slightly. The new take has the original's frame count and sound.
 - **Dialogue:** the sound is the original's, so a mouth that changes can drift from the words. Check the lip sync.
 - **A flaw outside the range stays.** Held frames also steer the new ones, so a flaw all through the clip needs a full new take.
-- **Which models:** H3 Ref2VA, Singularity, Pika H3 Flex, FastH3 and LTX-2, on local ComfyUI. A take from any other model can be brought in: it's encoded from its video into the model you pick, at its own size as near as that model allows. A take at another frame rate than the model's is refused. A take kept without a latent (usually a proxy) is encoded the same way.
+- **Which models:** H3 Ref2VA, Singularity, H3 Hybrid, Pika H3 Flex, FastH3 and LTX-2, on local ComfyUI. A take from any other model can be brought in: it's encoded from its video into the model you pick, at its own size as near as that model allows. A take at another frame rate than the model's is refused. A take kept without a latent (usually a proxy) is encoded the same way.
 - **What encoding costs:** the kept frames are softer, and on LTX-2 the outer edge of the frame goes slightly darker. A take that kept its latent on the model you pick avoids both, so use that model when you can. An H3 encode adds about 40 seconds.
 - **On LTX-2:** it works in steps of 8 frames, so the change can reach further past the range: in three tests, up to 5 frames before it and up to 10 after. A take encoded and rounded up to LTX-2's frame grid is trimmed back to its own length, and keeps no latent of its own.
 
@@ -885,7 +908,8 @@ script call for is listed here.
 - **Made with** names the models that make refs, keyframes, edits, turns and voice samples;
   **Change** opens their pickers: **Refs render with:**, **Keyframes with:**, **Edits
   with:**, **Turns with:** and **Voices with:** (a choice here is this episode's, kept in `overrides.json`,
-  with the `series.json` line to make it the series default); a ref with its own model
+  with the `series.json` line to make it the series default; none when `series.json`
+  already names that model); a ref with its own model
   keeps it. **Edits with:** lists only the models that can edit a picture: it is what
   Edit and Relight start on, unless you pick another in their own dialog. **Turns with:** is
   the model **↻ Turn** runs on: **Automatic** (Qwen 2.1 + angles when it's installed, else
@@ -1012,6 +1036,16 @@ script call for is listed here.
   side, rather than four views drawn apart.
 - **Make 360** (a place's row, under its plate) outpaints the plate into a 360 panorama.
   Open it to look around and save a view as a new angle of the place.
+- **A crop** (a place that is one part of another's plate, closer: its row says "↳ left of
+  vending_alcove_night, 1.6×") gets its picture by itself, the part cut and stretched. **Upscale**
+  on its row queues that part through an upscale model (4x-UltraSharp, else RealESRGAN) on this
+  machine's ComfyUI for the detail a stretch can't give; the row then says "upscaled", and the
+  button **Upscale again**. When the plate it's cut from changes, it's stretched again at once,
+  ready to upscale again. **Generate** instead asks the edit model to draw that part anew.
+- **uncropped N** on a place's row: N medium and close shots play on its whole plate, and
+  come out as wide as it. Point at it for the shots; give them a crop (+ Location, **Angle of**
+  this place, **Crop**), or, if the plate is already that close, mark the place
+  `framing: close` (or `medium`) in series.json.
 - A character's sheet is stitched automatically once all four views are picked — or you
   supply a finished one, below.
 - **A view's settings vs the character's.** Seed, model, LoRAs and steps set on a character's
@@ -1106,6 +1140,7 @@ The target picker sets which image model generates. They are not interchangeable
 | `qwen_image_21` | Up to 16 | The default for keyframes when installed. Text to image *or* an edit, decided by whether there is anything to edit from. The only one with a usable denoise; cfg, scheduler and negative prompt are ordinary settings |
 | `flux3_klein` | Up to 10 | FLUX.3 Image Klein: text to image *or* an edit, as `qwen_image_21`. cfg, scheduler and negative prompt are ordinary settings |
 | `flux3_klein_turbo` | Up to 10 | The step-distilled FLUX.3 Klein: the same in 16 steps at cfg 1, so no negative prompt |
+| `minimax_h3_image` | Up to 16 | MiniMax-H3-Image: text to image *or* an edit, as `qwen_image_21`, in 6 steps at cfg 1 (no negative prompt). Draws at about 4 MP; uses H3's own text encoder |
 | `fasth3_omni_still` | Up to 9 | FastH3 Omni rendering 5 frames and keeping the first, as `minimax_h3_still` |
 | `fibo2_dev` | Up to 4 | Fibo 2.0: text to image *or* an edit (relights too), 50 steps at cfg 5. Non-commercial licence |
 | `fibo2_edit_turbo` | Up to 4 | Fibo 2.0's 4-step edit model: edits only, so not for a character's first views |
@@ -1120,7 +1155,7 @@ A subject with `of:` in the series config is the same character in different clo
 its own sheet ([AUTHORING.md](AUTHORING.md), "A wardrobe change is a new subject"). How its
 views are made depends on the model:
 
-- **On an edit model** (`qwen_image_21`, `flux3_klein`, `flux3_klein_turbo`, `flux2_klein_edit`, `flux_kontext`,
+- **On an edit model** (`qwen_image_21`, `flux3_klein`, `flux3_klein_turbo`, `minimax_h3_image`, `flux2_klein_edit`, `flux_kontext`,
   `minimax_h3_still`, `fasth3_omni_still`, `fibo2_dev`, `fibo2_edit_turbo`) each view is generated **from the character's own matching view** —
   the towel's back panel is an edit of their back panel.
 - **On a text-to-image model** there is nothing to edit from, so it draws the variant from
@@ -1194,9 +1229,13 @@ queue:
 
 - One lane per backend. Your own ComfyUI runs one job at a time; a cloud backend several.
 - Each job shows what it is (`ep02 sh140 t03`, a ref view, an upscale, a tour), its
-  progress, and its log (where it ran, what it held or started from, how it ended).
+  progress, and its log (where it ran, what it held or started from, how it ended). A job
+  that succeeded shows what it made: the take's frame, the ref's picture, the upscaled crop.
+  Its picture and its name open what it was for, in its episode: the shot in Shots, on the
+  take it made, or the ref in Refs.
 - **Cancel** stops a running job or takes a waiting one off the queue (its take is marked
-  failed, `canceled`). **Earlier** / **Later** reorder a waiting job; a lane can be
+  failed, `canceled`). **Cancel all**, at the top, does that to every job once you confirm: the
+  waiting ones leave first, so none of them starts as the running ones stop. **Earlier** / **Later** reorder a waiting job; a lane can be
   **paused** (**Pause** / **Resume**), which lets the running job finish and starts nothing
 new.
 - **Again** runs a finished job once more, as a new take with the same settings. On a

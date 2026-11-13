@@ -108,7 +108,10 @@
         "*h3*ref2v*",
         "*ref2va*"
       ],
-      "tier": "required"
+      "tier": "required",
+      "exclude": [
+        "*hybrid*"
+      ]
     },
     "loras": {
       "family": "minimax-h3-ref2v-turbo-lora",

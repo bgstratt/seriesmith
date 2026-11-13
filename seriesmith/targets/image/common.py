@@ -177,8 +177,16 @@ def keyframe_prompt(shot, seq, series_cfg: dict, which: str,
         parts.append(intro)
     end = "first" if which == "first" else "last"
     size = sizes.term(shot.size)
+    # A medium or close keyframe doesn't list the place: its inventory said here ("two machines,
+    # a water fountain and a trash can") is drawn, which takes a wide (docs/KEYFRAME_FRAMING.md).
+    # With the plate among the pictures its line says the place; without, the place's first
+    # clause names it ("a small hospital vending alcove at night off a corridor").
+    place = env
+    if env and sizes.family(shot.size) != "wide":
+        has_plate = any(r.get("role") == "plate" for r in refs or [])
+        place = "" if has_plate else env.split(",")[0].strip()
     parts.append(_sentence(f"the {end} frame of {_article(size)}"
-                           f"{' of ' + env if env else ''}, one still picture"))
+                           f"{' of ' + place if place else ''}, one still picture"))
 
     def name_of(s: str) -> str:
         return (book.get(s) or {}).get("name", s)

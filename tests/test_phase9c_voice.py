@@ -551,9 +551,9 @@ class VoiceDefaultsTest(Episode):
             json.dump(cfg, fh)
         s = R.load_series(self.ep)
         self.assertEqual(R.image_defaults(s)["voice_target_source"], "series")
-        # the editor's episode choice beats it
+        # the editor's episode choice of the same model is still the series's
         R.set_image_defaults(self.ep, {"voice_target": VOICE})
-        self.assertEqual(R.image_defaults(s)["voice_target_source"], "editor")
+        self.assertEqual(R.image_defaults(s)["voice_target_source"], "series")
         self.assertEqual(T.episode_field(T.load_overrides(self.ep), "voice_target"), VOICE)
         R.set_image_defaults(self.ep, {"voice_target": None})
         self.assertEqual(R.image_defaults(s)["voice_target_source"], "series")

@@ -32,7 +32,7 @@ section and search for the path for its later additions.
 | `POST /seriesmith/server/stop` | Config (standalone only) |
 | `GET /seriesmith/episodes`, `GET /seriesmith/episode`, `GET /seriesmith/shot`, `GET /seriesmith/take`, `POST` / `GET /seriesmith/download`, `POST /seriesmith/build` | Episodes |
 | `GET` / `POST /seriesmith/episode/new`, `POST /seriesmith/import`, `POST /seriesmith/import/xml` | Episodes |
-| `GET` / `POST` / `DELETE /seriesmith/issues`, `GET /seriesmith/issues/export` | Issues |
+| `GET` / `POST` / `DELETE /seriesmith/issues`, `GET /seriesmith/issues/export`, `GET /seriesmith/issues/categories` | Issues |
 | `GET /seriesmith/file`, `GET /seriesmith/thumb` | Files |
 | `POST /seriesmith/render`, `POST /seriesmith/cancel` | Rendering |
 | `PUT /seriesmith/pick`, `PUT /seriesmith/cut`, `PUT` / `DELETE /seriesmith/override` | Cut and overrides |
@@ -45,7 +45,7 @@ section and search for the path for its later additions.
 | `GET /seriesmith/info`, `GET /seriesmith/jobs`, `POST /seriesmith/jobs/{action}`, `GET /seriesmith/backends`, `GET` / `PUT /seriesmith/settings` | The queue |
 | `GET /seriesmith/browse` | Round 2 additions |
 | `GET /seriesmith/refs`, `POST /seriesmith/refs/generate`, `PUT /seriesmith/refs/pick`, `POST /seriesmith/refs/import`, `PUT` / `DELETE /seriesmith/refs/override` | References (Phase 5) |
-| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes`, `GET /seriesmith/refs/shared-takes` | References (Phase 5) |
+| `POST /seriesmith/refs/tour`, `/refs/tour-frame`, `/refs/copy-take`, `/refs/relight`, `/refs/upscale-crop`, `/refs/from-frame`, `/refs/video`, `GET /seriesmith/refs/videos`, `GET /seriesmith/refs/owner-takes`, `GET /seriesmith/refs/shared-takes` | References (Phase 5) |
 | `GET /seriesmith/ambience`, `GET /seriesmith/refs/one` | Ambience beds |
 | `GET /seriesmith/fx`, `GET /seriesmith/fx/shots`, `POST /seriesmith/fx/render`, `POST /seriesmith/fx/pick` | Effects |
 | `GET /seriesmith/drafts` | References (Phase 5): Seedance drafts |
@@ -300,8 +300,13 @@ Body `{"ep"}`. Runs `build` for the final pass, then the proxy pass, on the
 episode's series config and script (`edit.episode_series_config` / `episode_script`).
 ```json
 {"ok": true, "passes": {"final": {"ok": true, "report": "…stdout…", "error": ""},
-                        "proxy": {"ok": true, "report": "…", "error": ""}}}
+                        "proxy": {"ok": true, "report": "…", "error": ""}},
+ "crops": [{"id": "alcove_drinks", "status": "made", "path": "…"}]}
 ```
+`crops`: each crop location's plate (docs/PLATE_VARIANTS.md), made from its master's after the
+build: `made`, `current`, `yours` (a picture seriesmith didn't make, kept) or `waiting` (the
+master has no plate yet, with `why`). A render (`POST /seriesmith/render`) and a ref generation
+make them too.
 A script error returns `ok: false` with the message (it names the line) in `error`.
 The status is still 200: a script that doesn't compile is a result, not a server error.
 
@@ -411,20 +416,36 @@ destroy what the note is about. Editing the script never rewrites an issue.
 has moved (a rebuild) or a newer usable take exists (a re-render). It is per shot, not per
 episode, so a rebuild on its own addresses nothing. Nothing is deleted for the user.
 
+**The history** (2026-11-12): a note resolved or cleared leaves the notepad but is appended to
+the show's `_history.jsonl`, beside `series.json` (only ever added to, one JSON line a note): the
+issue as it was, plus `episode` (the folder's name), `ended` (`rebuilt`, `rerendered` or
+`dismissed`: how it left, from `addressed` at that moment) and `ended_when`. Counted by
+`category`, it shows which problems keep coming back and what fixed them (docs/DAILIES.md).
+
 ### `GET /seriesmith/issues?ep=&pass=`
-`{"issues": [{id, shot, pass, take, note, when, shot_hash, target, script, prompt, seed, refs,
-take_file, addressed}]}`, in the order noted. No `pass` lists both.
+`{"issues": [{id, shot, pass, take, note, category, source, when, shot_hash, target, script,
+prompt, seed, refs, take_file, addressed}]}`, in the order noted. No `pass` lists both. Notes
+from before categories have neither `category` nor `source` (read them as none and `human`).
 
 ### `POST /seriesmith/issues`
-`{ep, pass, shot, note, take?}` → the issue, snapshotted. `take` defaults to the one the cut
-plays, else the newest usable, and may be null (a note before anything has rendered is worth
-keeping). 404 for a shot that isn't in the pass, 400 for a note that says nothing or is over
-4000 characters. Emits `seriesmith.issues`.
+`{ep, pass, shot, note, take?, category?, source?}` → the issue, snapshotted. `take` defaults to
+the one the cut plays, else the newest usable, and may be null (a note before anything has
+rendered is worth keeping). `category` is one of the categories below, or null (left unfiled);
+`source` is `human` (the default), `dailies` or `check`. 404 for a shot that isn't in the pass,
+400 for a note that says nothing or is over 4000 characters, or a category or source not on the
+lists. Emits `seriesmith.issues`.
+
+### `GET /seriesmith/issues/categories`
+`{"categories": [{id, about}], "sources": [...]}`: what a note can be filed as, in the order the
+note box offers them (`issues.CATEGORIES`, the one list): `identity`, `wardrobe`, `place`,
+`light`, `morph`, `artifact`, `action`, `camera`, `count`, `cut`, `lipsync`, `text`,
+`performance`, `other`.
 
 ### `DELETE /seriesmith/issues?ep=&id=` / `?ep=&pass=&clear=1[&addressed=1]`
 `id` resolves one (comma-separated for several); `clear=1` empties the pass, and `addressed=1`
 with it takes only the ones whose shot has moved on. Answers `{removed, issues}`. 400 when
-neither is given — there is no "delete everything by accident" shape.
+neither is given — there is no "delete everything by accident" shape. What goes is appended to
+the history first.
 
 ### `GET /seriesmith/issues/export?ep=&pass=&format=md|json`
 One document to hand to an assistant: `{"format": "md", "text"}` by default, or the JSON bundle.
@@ -436,8 +457,9 @@ back**. Addressed issues are left out unless `addressed=1`.
 
 ### CLI
 `seriesmith issues <episode> [--proxy|--final]` with `--add <shot> <note>`,
-`--add-from <file>` (one `sh0140: what is wrong` per line), `--export [--json] [-o FILE]`,
-`--resolve <id>` and `--clear [--addressed]`.
+`--add-from <file>` (one `sh0140: what is wrong` per line), `--category <name>` (with either
+add), `--export [--json] [-o FILE]`, `--resolve <id>`, `--clear [--addressed]` and
+`--history [--category <name>]` (the show's history, with a count per category and ending).
 
 ## Files
 
@@ -1359,7 +1381,7 @@ kept no latent by default, so its re-sample goes through the VAE. A take with a 
 upscale is skipped unless `redo`.
 `vae` forces the VAE route; `start_step` is an exact step of the take's schedule.
 `through` (a target id with `upscale.any_take`: `minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`,
-`pika_h3_flex`) re-samples a take its family didn't make through that model: always the VAE route, the prompt
+`h3_hybrid`, `pika_h3_flex`) re-samples a take its family didn't make through that model: always the VAE route, the prompt
 and references compiled for that model from the script, the frames fitted to its grid (`.up.shotlist.json`
 beside the upscale, `.up.json`'s `through` and `from_target`). Takes of its family ignore it. A recipe's
 section or a shot's recipe takes `through` too.
@@ -1763,15 +1785,18 @@ it can't take. A field the environment sets wins over the file.
 newest first; `paid` counts the runs sent to a paid backend this session against
 `paid_limit`. A job is
 `{"id", "kind" (render | ref | upscale | post | tour), "lane" (its backend), "title",
-"after" (the job it waits for, or null), "info" ({ep, pass, shot, take, target, backend,
-...}), "status" (queued | running | succeeded | failed | canceled), "progress" (0-1),
+"after" (the job it waits for, or null), "info" ({ep, pass, shot, take, ref, view, target,
+backend, ...; `picture`, once it has succeeded, what it made as a path from the episode for
+`GET /seriesmith/thumb`: a take's thumbnail, a ref's picture, an upscaled crop}), "status" (queued | running | succeeded | failed | canceled), "progress" (0-1),
 "step", "steps", "created", "started", "finished", "error", "log" (the last 20 lines),
 "can_retry"}`.
 
 ### `POST /seriesmith/jobs/{action}`
 `cancel` `{"id"}` (a waiting job leaves the queue; a running one is asked to stop),
 `move` `{"id", "index"}` (a waiting job to that place in its lane; 0 is next), `retry`
-`{"id"}` (a finished job again; a render: a new take with the same settings), `pause`
+`{"id"}` (a finished job again; a render: a new take with the same settings), `cancel-all`
+`{"lane"?}` (every waiting and running job, or one lane's: the waiting ones first, so none
+starts as the running ones stop; the answer adds `canceled`, how many), `pause`
 `{"lane", "paused"}` (a lane stops starting jobs, or resumes), `paid-reset` `{}` (the paid
 run count back to 0). Answers with
 `GET /seriesmith/jobs`' body; 404 for an unknown job, 409 for one that can't (moving a
@@ -1911,6 +1936,13 @@ you supply. Refs are the same thing whatever model consumes them. Each has a `sc
   the listing's `of` is what tells them apart on screen. Its views are generated as an edit
   of the base's same view on any target that reads reference images, and on a text-to-image
   target from the base's seed and the variant's words.
+- A **crop** (a location with `of`, `crop` and `zoom`: docs/PLATE_VARIANTS.md) carries
+  `"crop"` (which part), `"zoom"` (how much closer, 1.6 when the series config leaves it
+  out) and `"upscaled"` (the upscale model its picture was made with, null when stretched)
+  beside its `"of"`; any other ref has none of them. A series location carries `"uncropped"`:
+  `[[shot, size]]`, its medium and close shots (ms, mws, cowboy, mcu, cu) on its whole plate
+  when that plate is wide (not a crop, no `framing: medium` or `close`), from the built
+  episode (`build.uncropped`, what `seriesmith check` warns about); `[]` otherwise.
 - **Picking** a take copies it to the path the series config names, which is the file renders
   read. The pick is recorded in `refs/_picks.json`, so the UI knows which take is
   live. Re-picking changes the file's sha1, so video takes that used the old file
@@ -2081,6 +2113,17 @@ ones and rebuilds. Returns `{"locations": [{"source", "id", "exists", "entry"}],
 "errors", "repointed": [sequence and shot ids]}`; `dry_run` writes and queues nothing. 400
 for a source with no plate yet, an unknown sequence or location, a suffix other than
 letters, digits and `_`, or an id already taken by another location.
+
+### `POST /seriesmith/refs/upscale-crop`
+Body `{"ep", "crops"? | "all"?, "redo"?, "model"?, "backend"?}`: crops' pictures upscaled
+(`seriesmith/plates.py`, docs/PLATE_VARIANTS.md). Give `crops` (location ids of crops in the
+episode's series config) or `all: true` (every crop not upscaled yet; `redo` every one). Each is
+queued on the backend (`local` by default) as a `ref` job: its part of the master's plate
+through an upscale model (`model`, else 4x-UltraSharp, RealESRGAN x4 or x2, else the first the
+ComfyUI lists), scaled to the plate's size, written as the crop's picture with its record.
+`seriesmith.ref` (`view` and `take` null) is sent as each is queued and ends. Returns
+`{"queued": [{"id", "job"}], "skipped": [{"id", "why"}]}` (a picture of yours, a master with no
+plate yet, already upscaled). 404 for an id that isn't a crop; 409 without the queue.
 
 ### `POST /seriesmith/refs/from-frame` (step 13)
 Body `{"ep", "pass", "shot", "take", "frame", "ref", "view"?, "instruction"?, "target"?,
@@ -2922,7 +2965,8 @@ here too) or **[settled]** (the contract left it open).
   "edit_target_person", "edit_target_source", "turn_target", "turn_target_source", "ambience_target",
   "ambience_target_source", ...}}` (the voice and dub defaults below), sources `"editor"` |
   `"series"` | `"default"` (`ambience_target` is the series config's `refs.ambience_target`
-  or the default, never the editor's). **`PUT /seriesmith/refs/defaults`** `{ep, target?,
+  or the default, never the editor's); an editor choice of the same model the series config's `refs`
+  block names is `"series"`). **`PUT /seriesmith/refs/defaults`** `{ep, target?,
   keyframe_target?, edit_target?, turn_target?}` (null clears; a key left out is kept)
   stores `overrides.json` `episode.refs_target` / `episode.keyframe_target` /
   `episode.edit_target` / `episode.turn_target` beside the video `episode.target` and

@@ -55,7 +55,10 @@ class TestStarter(unittest.TestCase):
         cfg = json.loads(read(os.path.join(STARTER, "series.json")))
         kinds = sorted(s["kind"] for s in cfg["subjects"].values())
         self.assertEqual(kinds, ["character", "prop"])       # one of each, no more
-        self.assertEqual(len(cfg["locations"]), 1)
+        places = [k for k, v in cfg["locations"].items() if not v.get("crop")]
+        self.assertEqual(len(places), 1)                      # one place,
+        crops = [v for v in cfg["locations"].values() if v.get("crop")]
+        self.assertEqual({v["of"] for v in crops}, set(places))  # and crops of it for the closer shots
         script = read(os.path.join(STARTER, "ep01.md"))
         self.assertEqual(script.count("\n## "), 3)          # three shots
         self.assertIn("ADA:", script)                        # one of them speaks
@@ -66,7 +69,7 @@ class TestStarter(unittest.TestCase):
         the same folder while keeping a series config of its own."""
         cfg = json.loads(read(os.path.join(STARTER, "series.json")))
         paths = [s["sheet"] for s in cfg["subjects"].values()]
-        paths += [loc["plate"] for loc in cfg["locations"].values()]
+        paths += [loc["plate"] for loc in cfg["locations"].values() if not loc.get("crop")]   # a crop's is beside its place's
         for p in paths:
             self.assertTrue(p.startswith("../refs/"), p)
 

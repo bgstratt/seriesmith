@@ -1,0 +1,288 @@
+"""
+Plate variants (docs/PLATE_VARIANTS.md): a crop is a location `of` another with `crop` and
+`zoom`; its plate is the master's cut to that part and enlarged, made by seriesmith when missing
+or out of date, and never over a picture of yours.
+"""
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from seriesmith import plates as PL  # noqa: E402
+from seriesmith.core import series_config as SC  # noqa: E402
+
+
+def cfg(**alcove):
+    return {"series": {"id": "t", "title": "T"}, "style": {"look": "a live-action drama"},
+            "subjects": {"ada": {"kind": "character", "name": "Ada", "design": "a girl"}},
+            "locations": {
+                "alcove": {"description": "a vending alcove, two machines, a fountain",
+                           "plate": "../refs/_bg/alcove.png"},
+                "alcove_left": dict({"of": "alcove", "crop": "left"}, **alcove)}}
+
+
+class ConfigTest(unittest.TestCase):
+    def test_defaults(self):
+        c = SC.series_config_from(cfg())
+        e = c["locations"]["alcove_left"]
+        self.assertEqual(e["plate"], "../refs/_bg/alcove_left.png")
+        self.assertEqual(e["description"], "a vending alcove, two machines, a fountain")
+
+    def test_its_own_win(self):
+        e = SC.series_config_from(cfg(description="the drinks machine", plate="x/mine.png"))["locations"]["alcove_left"]
+        self.assertEqual((e["description"], e["plate"]), ("the drinks machine", "x/mine.png"))
+
+    def test_checked(self):
+        for bad, why in [({"crop": "middle"}, "one of"), ({"zoom": 5}, "zoom"),
+                         ({"zoom": True}, "zoom"), ({"relight": "dusk"}, "relight")]:
+            with self.assertRaises(ValueError, msg=bad) as cm:
+                SC.series_config_from(cfg(**bad))
+            self.assertIn(why, str(cm.exception))
+
+    def test_not_a_crop_of_a_crop(self):
+        c = cfg()
+        c["locations"]["alcove_far_left"] = {"of": "alcove_left", "crop": "left"}
+        with self.assertRaises(ValueError):
+            SC.series_config_from(c)
+
+    def test_a_crop_of_an_angle(self):
+        c = cfg()
+        c["locations"]["alcove_back"] = {"of": "alcove", "description": "the other way",
+                                         "plate": "../refs/_bg/back.png"}
+        c["locations"]["alcove_back_right"] = {"of": "alcove_back", "crop": "right"}
+        got = SC.series_config_from(c)
+        self.assertEqual(SC.location_master(got, "alcove_back_right"), "alcove")
+
+
+class BoxTest(unittest.TestCase):
+    def test_parts(self):
+        self.assertEqual(SC.crop_box(1600, 900, "center", 2), (400, 225, 1200, 675))
+        self.assertEqual(SC.crop_box(1600, 900, "left", 2), (0, 225, 800, 675))
+        self.assertEqual(SC.crop_box(1600, 900, "bottom-right", 2), (800, 450, 1600, 900))
+        self.assertEqual(SC.crop_box(1600, 900, "top", 2), (400, 0, 1200, 450))
+
+    def test_the_same_shape(self):
+        l, t, r, b = SC.crop_box(1344, 768, "top-left")
+        self.assertAlmostEqual((r - l) / (b - t), 1344 / 768, places=2)
+
+
+class _Episode(unittest.TestCase):
+    """An episode with a 160x90 plate (its left half red) and a left crop of it."""
+    def setUp(self):
+        from PIL import Image
+        self.tmp = tempfile.mkdtemp(prefix="plates-")
+        self.ep = os.path.join(self.tmp, "show", "ep01")
+        os.makedirs(self.ep)
+        os.makedirs(os.path.join(self.tmp, "show", "refs", "_bg"))
+        self.master = os.path.join(self.tmp, "show", "refs", "_bg", "alcove.png")
+        im = Image.new("RGB", (160, 90), "white")
+        for x in range(80):                      # the left half red
+            for y in range(90):
+                im.putpixel((x, y), (255, 0, 0))
+        im.save(self.master)
+        self.write(cfg())
+        self.crop = os.path.join(self.tmp, "show", "refs", "_bg", "alcove_left.png")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def write(self, c):
+        with open(os.path.join(self.ep, "series.json"), "w", encoding="utf-8") as fh:
+            json.dump(c, fh)
+
+    def status(self):
+        return [(c["id"], c["status"]) for c in PL.make_crops(self.ep)]
+
+
+class MakeTest(_Episode):
+    def test_made_then_current(self):
+        from PIL import Image
+        self.assertEqual(self.status(), [("alcove_left", "made")])
+        with Image.open(self.crop) as im:
+            self.assertEqual(im.size, (160, 90))
+            self.assertEqual(im.getpixel((10, 45)), (255, 0, 0))   # the left part, closer
+        self.assertEqual(self.status(), [("alcove_left", "current")])
+
+    def test_made_again_when_the_master_changes(self):
+        from PIL import Image
+        self.status()
+        Image.new("RGB", (160, 90), "blue").save(self.master)
+        self.assertEqual(self.status(), [("alcove_left", "made")])
+
+    def test_made_again_when_the_crop_changes(self):
+        self.status()
+        self.write(cfg(zoom=2.5))
+        self.assertEqual(self.status(), [("alcove_left", "made")])
+
+    def test_yours_is_kept(self):
+        from PIL import Image
+        self.status()
+        Image.new("RGB", (160, 90), "green").save(self.crop)    # made by hand, or an edit
+        self.write(cfg(zoom=2.5))
+        self.assertEqual(self.status(), [("alcove_left", "yours")])
+        with Image.open(self.crop) as im:
+            self.assertEqual(im.getpixel((10, 10)), (0, 128, 0))
+
+    def test_waiting_for_the_master(self):
+        os.remove(self.master)
+        got = PL.make_crops(self.ep)
+        self.assertEqual(got[0]["status"], "waiting")
+        self.assertFalse(os.path.exists(self.crop))
+
+    def test_the_edit_instruction(self):
+        from seriesmith import refs as R
+        s = R.load_series(self.ep)
+        ref = next(r for r in R.series_refs(s) if r.id == "location:alcove_left")
+        got = R.built_prompt(s, ref, refs=[{"role": "plate", "path": self.master}])
+        self.assertIn("left part of this place 1.6 times closer", got)
+
+    def test_listed_as_a_crop(self):
+        from seriesmith import refs as R
+        s = R.load_series(self.ep)
+        by = {r.id: r for r in R.series_refs(s)}
+        got = R.ref_json(s, by["location:alcove_left"])
+        self.assertEqual((got["of"], got["crop"], got["zoom"]), ("alcove", "left", 1.6))
+        self.assertNotIn("crop", R.ref_json(s, by["location:alcove"]))
+
+
+class _Out:
+    def __init__(self, color, size=(320, 180)):
+        self.type, self.name, self.node = "image", "crop_00001_.png", "save"
+        self.color, self.size = color, size
+
+    def save(self, path):
+        from PIL import Image
+        Image.new("RGB", self.size, self.color).save(path)
+        return path
+
+
+class _Run:
+    def __init__(self, out):
+        self.out, self.error = out, None
+
+    def outputs(self):
+        return [self.out]
+
+
+class UpscaleTest(_Episode):
+    def test_pick_model(self):
+        self.assertEqual(PL.pick_model(["RealESRGAN_x2.pth", "4x-UltraSharp.pth"]), "4x-UltraSharp.pth")
+        self.assertEqual(PL.pick_model(["other.pth"]), "other.pth")
+        self.assertEqual(PL.pick_model(None), "4x-UltraSharp.pth")
+        self.assertEqual(PL.pick_model(["a.pth"], "a.pth"), "a.pth")
+        with self.assertRaises(ValueError):
+            PL.pick_model([])
+        with self.assertRaises(ValueError):
+            PL.pick_model(["a.pth"], "b.pth")
+
+    def test_the_part_and_the_graph(self):
+        from PIL import Image
+        PL.make_crops(self.ep)
+        c = PL.crop_of(self.ep, "alcove_left")
+        part = PL.stage_part(c)
+        try:
+            with Image.open(part) as im:
+                self.assertEqual(im.size, (100, 56))           # 160x90 at 1.6: not enlarged
+            g = PL.upscale_graph(part, "4x-UltraSharp.pth", 160, 90)
+        finally:
+            os.remove(part)
+        self.assertEqual(g["model"]["inputs"]["model_name"], "4x-UltraSharp.pth")
+        self.assertEqual((g["fit"]["inputs"]["width"], g["fit"]["inputs"]["height"]), (160, 90))
+        self.assertEqual(g["save"]["inputs"]["images"], ["fit", 0])
+
+    def test_collected_then_current(self):
+        from PIL import Image
+        PL.make_crops(self.ep)
+        c = PL.crop_of(self.ep, "alcove_left")
+        PL.collect_upscale(self.ep, c, "4x-UltraSharp.pth", _Run(_Out("blue")), "succeeded")
+        with Image.open(self.crop) as im:
+            self.assertEqual(im.size, (160, 90))             # back to the plate's size
+            self.assertEqual(im.getpixel((5, 5)), (0, 0, 255))
+        self.assertEqual(PL.upscaled(self.crop), "4x-UltraSharp.pth")
+        got = PL.make_crops(self.ep)[0]
+        self.assertEqual((got["status"], got["upscaled"]), ("current", "4x-UltraSharp.pth"))
+
+    def test_stretched_again_when_the_master_changes(self):
+        from PIL import Image
+        PL.make_crops(self.ep)
+        c = PL.crop_of(self.ep, "alcove_left")
+        PL.collect_upscale(self.ep, c, "4x-UltraSharp.pth", _Run(_Out("blue")), "succeeded")
+        Image.new("RGB", (160, 90), "green").save(self.master)
+        self.assertEqual(self.status(), [("alcove_left", "made")])
+        self.assertIsNone(PL.upscaled(self.crop))
+
+    def test_not_kept_when_the_crop_changed_meanwhile(self):
+        PL.make_crops(self.ep)
+        c = PL.crop_of(self.ep, "alcove_left")
+        self.write(cfg(zoom=2.5))
+        with self.assertRaises(RuntimeError):
+            PL.collect_upscale(self.ep, c, "x.pth", _Run(_Out("blue")), "succeeded")
+
+    def test_never_over_yours(self):
+        from PIL import Image
+        PL.make_crops(self.ep)
+        c = PL.crop_of(self.ep, "alcove_left")
+        Image.new("RGB", (160, 90), "green").save(self.crop)
+        with self.assertRaises(RuntimeError):
+            PL.collect_upscale(self.ep, c, "x.pth", _Run(_Out("blue")), "succeeded")
+        with Image.open(self.crop) as im:
+            self.assertEqual(im.getpixel((5, 5)), (0, 128, 0))
+
+    def test_a_failed_run(self):
+        PL.make_crops(self.ep)
+        c = PL.crop_of(self.ep, "alcove_left")
+        with self.assertRaises(RuntimeError):
+            PL.collect_upscale(self.ep, c, "x.pth", _Run(_Out("blue")), "failed")
+
+    def test_listed_upscaled(self):
+        from seriesmith import refs as R
+        PL.make_crops(self.ep)
+        c = PL.crop_of(self.ep, "alcove_left")
+        s = R.load_series(self.ep)
+        ref = next(r for r in R.series_refs(s) if r.id == "location:alcove_left")
+        self.assertIsNone(R.ref_json(s, ref)["upscaled"])
+        PL.collect_upscale(self.ep, c, "4x-UltraSharp.pth", _Run(_Out("blue")), "succeeded")
+        s = R.load_series(self.ep)
+        ref = next(r for r in R.series_refs(s) if r.id == "location:alcove_left")
+        self.assertEqual(R.ref_json(s, ref)["upscaled"], "4x-UltraSharp.pth")
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class UncroppedTest(unittest.TestCase):
+    """Medium and close shots on a wide place's whole plate (build.uncropped): warned, and
+    listed on the place's row; a crop, a place marked `framing`, an insert or a wide isn't."""
+
+
+    def test_framing_checked(self):
+        c = cfg()
+        c["locations"]["alcove"]["framing"] = "tight"
+        with self.assertRaises(ValueError):
+            SC.series_config_from(c)
+        c["locations"]["alcove"]["framing"] = "close"
+        SC.series_config_from(c)
+
+    def test_which_shots(self):
+        from seriesmith import build as B
+        from seriesmith.core import ir
+        c = cfg()
+        c["locations"]["door"] = {"description": "a green door", "plate": "../refs/_bg/door.png",
+                                  "framing": "close"}
+        c = SC.series_config_from(c)
+        def shot(i, size, plate=""):
+            return ir.Shot(id=i, cast=["ada"], size=size, plate=plate)
+        story = ir.Episode(id="ep01", title="T", sequences=[ir.Sequence(id="sq01", location="alcove", shots=[
+            shot("sh010", "ws"), shot("sh020", "ms"), shot("sh030", "cu", "alcove_left"),
+            shot("sh040", "ecu"), shot("sh050", "mcu", "door"), shot("sh060", "medium close")])])
+        self.assertEqual(B.uncropped(story, c), {"alcove": [("sh020", "ms"), ("sh060", "mcu")]})
+        w = B.uncropped_warnings(story, c)
+        self.assertEqual(len(w), 1)
+        self.assertIn("location 'alcove': sh020 (ms), sh060 (mcu) play on its whole plate", w[0])

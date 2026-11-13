@@ -1587,6 +1587,8 @@ def get_drafts(ctx: Context, query: dict):
 def post_render(ctx: Context, body):
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
+    from seriesmith import plates as PL
+    PL.ensure(ep)                           # the crops' plates, before a shot needs one
     pass_ = check_pass(body.get("pass"))
     shots = body.get("shots")
     if shots is not None and (not isinstance(shots, list)
@@ -6929,6 +6931,54 @@ def post_vocals(ctx: Context, body):
     return 200, {"job": job, "stem": None}
 
 
+def post_refs_upscale_crop(ctx: Context, body):
+    """Crops' pictures upscaled (plates.py): `{ep, crops?: [location ids] | all?: true, redo?,
+    model?, backend?}`. Each is queued on the backend (local by default): its part of the
+    master's plate through an upscale model, scaled to the plate's size. `all` is every crop
+    of the episode's series config not upscaled yet (`redo`: every one). Returns
+    {queued: [{id, job}], skipped: [{id, why}]}."""
+    from seriesmith import plates as PL
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    crops, every = body.get("crops"), body.get("all", False)
+    redo, model = body.get("redo", False), body.get("model")
+    if not isinstance(every, bool) or not isinstance(redo, bool):
+        raise ApiError(400, "all and redo must be true or false")
+    if (crops is None) == (not every):
+        raise ApiError(400, "give crops (a list of location ids) or all: true")
+    if crops is not None and (not isinstance(crops, list) or not crops
+                              or not all(isinstance(x, str) and x for x in crops)):
+        raise ApiError(400, "crops must be a list of location ids")
+    if model is not None and (not isinstance(model, str) or not model):
+        raise ApiError(400, "model must be an upscale model's file name")
+    if ctx.runner is None:
+        raise ApiError(409, "upscaling crops needs seriesmith's queue (seriesmith serve)")
+    made = {c["id"]: c for c in PL.make_crops(ep, crops)}
+    if crops is not None:
+        missing = [x for x in crops if x not in made]
+        if missing:
+            raise ApiError(404, f"not crops of this episode's series config: {', '.join(missing)}")
+    backend = _opt_backend(ctx, body) or "local"
+    out = {"queued": [], "skipped": []}
+    for cid, c in made.items():
+        if c["status"] == "yours":
+            out["skipped"].append({"id": cid, "why": "its picture is one of yours"})
+            continue
+        if c["status"] == "waiting":
+            out["skipped"].append({"id": cid, "why": c.get("why") or "its master has no plate"})
+            continue
+        if every and not redo and c.get("upscaled"):
+            out["skipped"].append({"id": cid, "why": f"already upscaled ({c['upscaled']})"})
+            continue
+        try:
+            job = ctx.runner.enqueue_crop_upscale(ep, cid, backend, model)
+        except ValueError as e:
+            out["skipped"].append({"id": cid, "why": str(e)})
+            continue
+        out["queued"].append({"id": cid, "job": job})
+    return 200, out
+
+
 def _local_backend():
     from seriesmith.backends import available
     b = available().get("local")
@@ -7071,22 +7121,34 @@ def get_issues(ctx: Context, query: dict):
 @handler
 def post_issues(ctx: Context, body):
     """Note what is wrong with a shot as it was rendered. Body
-    `{ep, pass, shot, note, take?}`; the answer is the issue, snapshotted. 404
-    for a shot that isn't in the pass, 400 for a note that says nothing."""
+    `{ep, pass, shot, note, take?, category?, source?}` (category one of
+    GET /seriesmith/issues/categories, or none; source `human` unless given); the answer
+    is the issue, snapshotted. 404 for a shot that isn't in the pass, 400 for a note that
+    says nothing or a category or source not on the lists."""
     body = body_dict(body)
     ep = check_ep(ctx, body.get("ep"))
     item = IS.add(ep, check_pass(body.get("pass")), check_shot(body.get("shot")),
-                  body.get("note"), check_take(body.get("take"), nullable=True))
+                  body.get("note"), check_take(body.get("take"), nullable=True),
+                  body.get("category"), body.get("source"))
     ctx.emit("seriesmith.issues", {"ep": ep, "pass": item["pass"], "shot": item["shot"],
                                "id": item["id"]})
     return 200, item
 
 
 @handler
+def get_issue_categories(ctx: Context, query: dict):
+    """What a note can be filed as (issues.CATEGORIES: `{id, about}` each, in order) and
+    who can make one (`sources`)."""
+    return 200, {"categories": [{"id": c, "about": about} for c, about in IS.CATEGORIES],
+                 "sources": list(IS.SOURCES)}
+
+
+@handler
 def delete_issues(ctx: Context, query: dict):
     """Drop issues: `id` (one, repeatable as a comma-separated list), or
     `clear=1` for a whole pass, or `clear=1&addressed=1` for only the ones whose
-    shot has moved on. Answers what is left."""
+    shot has moved on. Each goes into the show's history (`_history.jsonl` beside
+    series.json) with how it ended. Answers what is left."""
     ep = check_ep(ctx, query.get("ep"))
     pass_ = check_pass(query["pass"]) if query.get("pass") else None
     ids = [x for x in str(query.get("id") or "").split(",") if x]
@@ -7149,6 +7211,7 @@ ROUTES = [
     ("POST", "/seriesmith/issues", post_issues, "body"),
     ("DELETE", "/seriesmith/issues", delete_issues, "query"),
     ("GET", "/seriesmith/issues/export", get_issues_export, "query"),
+    ("GET", "/seriesmith/issues/categories", get_issue_categories, "query"),
     ("GET", "/seriesmith/file", get_file, "query"),
     ("GET", "/seriesmith/thumb", get_thumb, "query"),
     ("GET", "/seriesmith/presets", get_presets, "query"),
@@ -7254,6 +7317,7 @@ ROUTES = [
     ("POST", "/seriesmith/refs/tour", post_refs_tour, "body"),
     ("POST", "/seriesmith/refs/copy-take", post_refs_copy_take, "body"),
     ("POST", "/seriesmith/refs/relight", post_refs_relight, "body"),
+    ("POST", "/seriesmith/refs/upscale-crop", post_refs_upscale_crop, "body"),
     ("POST", "/seriesmith/refs/tour-frame", post_refs_tour_frame, "body"),
     ("PUT", "/seriesmith/refs/pick", put_refs_pick, "body"),
     ("DELETE", "/seriesmith/refs/pick", delete_refs_pick, "query"),

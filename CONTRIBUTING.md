@@ -21,7 +21,8 @@ Issues and pull requests are welcome.
 - The editor lives in `web/` (React/Vite) and is built twice: `npm run build:standalone`
   writes the page `seriesmith serve` serves (`seriesmith/server/static/`), `npm run build`
   the one inside ComfyUI (`comfy_nodes/web/seriesmith-editor.js`). Both are committed, so
-  rebuild and commit them with the source; `npx vitest run` runs its tests.
+  rebuild and commit them with the source; `npm test` runs its tests (not a bare
+  `npx vitest`: from a lowercase `c:\` working directory on Windows every test fails to start).
 - `prompts/` (with the skill's zip, `prompts/seriesmith-episode-script.zip`) is generated.
   Edit `docs/AUTHORING.md` (and `docs/SCRIPT_CONVERSION.md`) and run
   `python tools/make_prompts.py`; run it before a release too, since the zip bundles the

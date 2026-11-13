@@ -1,0 +1,83 @@
+{
+  "id": "minimax_h3_image",
+  "kind": "image",
+  "label": "MiniMax-H3-Image (text to image, and edit from reference images)",
+  "default_rank": 45,
+  "short": "H3 Image",
+  "code": "target.py",
+
+  "capabilities": {
+    "_note": "One graph, both jobs: MiniMaxH3ImageConditioning takes the references and makes the latent, and with none its LoadImage is cut out and the graph is text to image (target.py). Up to 16 references (MiniMax's API limit; ComfyUI's node takes more, untested past 16). No negative prompt: the template zeroes the positive for the negative pass, at cfg 1. 6 steps, distilled.",
+    "mode": "edit",
+    "max_refs": 16
+  },
+
+  "template": {
+    "_note": "MiniMax-H3-Image is tuned for about 4 MP (2048x2048 of area; the template scales an edit's source to 4 MP and warns that it does poorly at low resolution), so a ref is generated at about 4 MP and a keyframe at its shot's render size scaled up to at least min_pixels, as flux2_klein_edit's. Multiples of 32 on both axes (the node's canvas step). The output is the job's size (the node's width and height); each reference is scaled by the node itself.",
+    "view_size": [2048, 2048],
+    "plate_size": [2688, 1536],
+    "object_size": [2048, 2048],
+    "size_multiple": 32,
+    "min_pixels": 4194304
+  },
+
+  "recipe": {
+    "_note": "The prompt names each reference by its number ('Picture 1', 'Picture 2', ...; `ref_word`), the label the node gives each picture for the text encoder, and says what to take from it (targets/image/common.py reference_intro), up to max_refs.",
+    "ref_word": "picture"
+  },
+
+  "binding": {
+    "_note": "An API graph built from ComfyUI's image_minimax_h3_image_edit.json (workflow templates 0.11.106): UNETLoader, CLIPLoader type minimax, VAELoader, MiniMaxH3ImageConditioning (prompt, size, the references), ConditioningZeroOut for the negative, KSampler euler/simple at 6 steps and cfg 1. The template's prompt enhancer (a 9B Qwen3.5 TextGenerate with its own system prompt and a switch), its resize nodes, ImageCompare and notes are left out: the prompts seriesmith writes are already full captions, and the node scales the references. The text encoder is H3's own Qwen3-VL 32B (the same file the H3 video targets load; the template names its int8 copy). H3SaveRefTake takes the place of SaveImage.",
+    "workflow": "workflow.json",
+    "workflow_name": "seriesmith_minimax_h3_image.json",
+    "env": "SERIESMITH_MINIMAX_H3_IMAGE_WORKFLOW",
+    "saver": {"class_type": "H3SaveRefTake",
+              "replace": {"class_type": "SaveImage", "inputs": {"images": "images"}}},
+    "prune": true,
+    "params": {
+      "model": {"class_type": "UNETLoader", "field": "unet_name"},
+      "text_encoder": {"class_type": "CLIPLoader", "field": "clip_name"},
+      "vae": {"class_type": "VAELoader", "field": "vae_name"},
+      "loras": {"class_type": "LoraLoaderModelOnly", "name": "lora_name", "strength": "strength_model",
+                "input": "model", "chain": true,
+                "insert_after": {"class_type": "UNETLoader", "output": 0}},
+      "prompt": {"class_type": "MiniMaxH3ImageConditioning", "field": "prompt"},
+      "width": {"class_type": "MiniMaxH3ImageConditioning", "field": "width"},
+      "height": {"class_type": "MiniMaxH3ImageConditioning", "field": "height"},
+      "steps": {"class_type": "KSampler", "field": "steps"},
+      "seed": {"class_type": "KSampler", "field": "seed"},
+      "cfg": {"class_type": "KSampler", "field": "cfg"},
+      "sampler": {"class_type": "KSampler", "field": "sampler_name"},
+      "scheduler": {"class_type": "KSampler", "field": "scheduler"}
+    }
+  },
+
+  "models": {
+    "_note": "Name-based identification only: no header fingerprint is recorded for MiniMax-H3-Image yet (targets/modelid.py). P-H3-Image's files (Pruna's LoRA on H3 FL2VA) are another model and are excluded by name. The text encoder is H3's Qwen3-VL 32B, header-identified (`default`: the workflow's own file, patched only when another file of the family stands in).",
+    "model": {"family": "minimax-h3-image", "patterns": ["*minimax*h3*image*", "*h3_image*"],
+              "tier": "required", "exclude": ["*vae*", "*lora*", "p-h3*", "p_h3*", "*text_encoder*", "*upsampler*"]},
+    "text_encoder": {"family": "qwen3vl-32b", "patterns": ["*qwen3*vl*32b*"], "tier": "required",
+                     "default": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"},
+    "vae": {"family": "minimax-h3-image-vae", "patterns": ["*minimax*h3*image*vae*", "*h3_image*vae*"],
+            "tier": "required", "exclude": ["p-h3*", "p_h3*"]}
+  },
+
+  "presets": {
+    "_note": "The template's settings: 6 steps, cfg 1, euler/simple, denoise 1 (the model is distilled to 6 steps without CFG). The text encoder is the nvfp4 copy the H3 video targets already use (a Blackwell GPU's format); the int8 one is the template's, for any other GPU. Tried live 2026-11-11 (RTX 5090, ComfyUI 0.45, the starter example): a plate (2688x1536) and a prop (2048x2048) from text, 36 s for both with the model loading; a character's four-view sheet, 19 s; a relight of the plate (an edit, 16 s) that kept every board, post and railing; a keyframe from three pictures (Ada, the lantern, the plate; 24 s) that drew all three as they are. Not tried: more than 3 references, LoRAs, the int8 text encoder.",
+    "final": {
+      "model": "minimax_h3_image_pruned_int8_convrot.safetensors",
+      "text_encoder": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "vae": "minimax_h3_image_vae_fp16.safetensors",
+      "lora": "",
+      "steps": 6, "cfg": 1, "sampler": "euler", "scheduler": "simple"
+    }
+  },
+
+  "downloads": {
+    "_note": "Comfy-Org's repack of MiniMax's open weights (MiniMaxAI/MiniMax-H3-Image is the raw diffusers/transformers checkpoint, 204 GB, which ComfyUI doesn't load). The repo also has a bf16 (40 GB) and a w4a8 (12.6 GB) copy of the model; the templates name the int8 one. The text encoder is the same file as the H3 video targets' (sha256 35a88d51… in both repos, checked 2026-11-11).",
+    "minimax_h3_image_pruned_int8_convrot.safetensors": {"folder": "diffusion_models", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3-Image/resolve/main/diffusion_models/minimax_h3_image_pruned_int8_convrot.safetensors", "source": "ComfyUI template image_minimax_h3_image_edit.json (properties.models)"},
+    "minimax_h3_image_vae_fp16.safetensors": {"folder": "vae", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3-Image/resolve/main/vae/minimax_h3_image_vae_fp16.safetensors", "source": "ComfyUI template image_minimax_h3_image_edit.json (properties.models)"},
+    "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors", "source": "ComfyUI template video_minimax_h3_r2v.json (properties.models); the same file is in Comfy-Org/MiniMax-H3-Image"},
+    "qwen3vl_32b_minimax_h3_int8_convrot.safetensors": {"folder": "text_encoders", "url": "https://huggingface.co/Comfy-Org/MiniMax-H3/resolve/main/text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors", "source": "ComfyUI template image_minimax_h3_image_edit.json (properties.models): the int8 copy, for a GPU without nvfp4"}
+  }
+}

@@ -20,7 +20,7 @@ failed exits 1.
 | `seriesmith render <episode>…` | Each shot as a take, on its backend |
 | `seriesmith takes` / `pick` / `override` / `keyframe` / `discard` / `cut` | Takes, the cut and per-shot tweaks (below) |
 | `seriesmith promote <episode>` | Overrides moved into the script or the series config |
-| `seriesmith issues <episode>` | The pass's notepad (`--add <shot> <note>`, `--export`, `--clear`, `--resolve <id>`) |
+| `seriesmith issues <episode>` | The pass's notepad (`--add <shot> <note> [--category <c>]`, `--export`, `--clear`, `--resolve <id>`, `--history`) |
 | `seriesmith align <episode> <recording>` | The script timed against a dialogue recording (`--vocals`: from its vocal stem, made on local ComfyUI first) |
 | `seriesmith assemble <episode>` | The review cut, its mix and the lines as subtitles (`<cut>.srt`, `.vtt`; `--no-subtitles`) |
 | `seriesmith fx <episode> --shots sh010,…` | A shot's effects (sync sound) made from the frames of the take the cut plays, on the Effects track (`--proxy`, `--target`, `--takes`, `--pick`, `--list`) |
@@ -53,7 +53,7 @@ parent with `--each`; `render` and `master` take several folders.
 | `seriesmith/post.py` | The post pass on a take's upscale: enhance (draft / production / cinematic), then motion blur | a take's `.up.mp4` | `<stem>.post.mp4`, `<stem>.post.json` beside the take |
 | `seriesmith/master.py` | The series' `upscale.master` recipe on every shot of the cut (and `post.master` with `--post`), then the master assembled and titled | the episode, its cut | `<episode>/master/` |
 | `seriesmith/publish.py` | The review cut between the series intro and outro, with the episode title | a cut, `_titles/` | `<episode>/publish/` |
-| `seriesmith/issues.py` | The pass's review notepad, each note snapshotting the shot's script lines and compiled prompt | the episode | `<episode>/_issues.json` |
+| `seriesmith/issues.py` | The pass's review notepad, each note snapshotting the shot's script lines and compiled prompt; what's resolved or cleared kept in the show's history | the episode | `<episode>/_issues.json`, `_history.jsonl` beside `series.json` |
 | `seriesmith/inspector.py` (`seriesmith target-from-workflow`) | Proposes a `target.json` from a ComfyUI workflow, video or image, ending in any save node | a workflow, ComfyUI's `/object_info` | `<show>/targets/<id>/target.json` |
 | `seriesmith/assemble.py` | Joins the rendered shots in cut order (`cut.json`, else script order), trimming timed shots to their windows and using each clip's chosen audio | `shotlist*.json`, `cut.json`, renders | `renders/epNN.mp4`, `epNN_shots.txt` |
 

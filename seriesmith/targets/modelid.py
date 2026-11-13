@@ -135,6 +135,10 @@ FAMILIES: dict[str, dict] = {
     # FLUX.3 Image Klein (targets/image/flux3_klein, flux3_klein_turbo)
     "flux3-klein": {"label": "FLUX.3 Image Klein"},
     "flux3-klein-distilled": {"label": "FLUX.3 Image Klein step-distilled (turbo)"},
+    # MiniMax-H3-Image (targets/image/minimax_h3_image): MiniMax's image model,
+    # its own transformer and VAE; the text encoder is H3's Qwen3-VL 32B
+    "minimax-h3-image": {"label": "MiniMax-H3-Image"},
+    "minimax-h3-image-vae": {"label": "MiniMax-H3-Image VAE"},
     # MOSS-Image (targets/image/moss_image_sft, moss_image_base): one architecture,
     # the base and its supervised fine-tune, told apart by name
     "moss-image": {"label": "MOSS-Image"},

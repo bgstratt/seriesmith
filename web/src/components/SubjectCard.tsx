@@ -72,7 +72,9 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
   // is the one you have, or made from the words when it's used)
   const first = useFirstStep({ ep, kind, of: form.of == null ? "" : String(form.of), pic: ownPic, browse: browsePic,
                                clearPic: () => setOwnPic("") });
-  const firstStep = isNew && !simple;
+  // a crop's picture is cut from its place's plate when it's saved: no first step to choose
+  const crop = kind === "location" && !isEmpty(form.of) && !isEmpty(form.crop);
+  const firstStep = isNew && !simple && !crop;
   const block = blockOf(kind);
   const label = CARD_KINDS.find((c) => c.kind === kind)!.label;
   const before = sc.base && !isNew ? (getPath(sc.base, [block, id]) as Raw | undefined) : undefined;
@@ -84,13 +86,14 @@ function SubjectCard({ ep, kind: asked, id0 }: { ep: string; kind: CardKind; id0
     setForm(Object.fromEntries(Object.entries(e).filter(([, v]) => typeof v !== "object")));
   }, [sc.base]);
 
-  const fields = useMemo(() => (sc.base ? cardFields(kind, sc.base, id) : []), [sc.base, kind, id]);
+  const all = useMemo(() => (sc.base ? cardFields(kind, sc.base, id) : []), [sc.base, kind, id]);
+  const fields = all.filter((f) => !f.when || f.when(form));
 
   const prefix = sc.base ? refsPrefix(sc.base) : "../refs/";
   const problem = isNew && !added && sc.base ? idProblem(sc.base, id) : "";
   const changed = !!sc.base && JSON.stringify(entryFor(kind, before, form, id, prefix)) !== JSON.stringify(before ?? {});
   const required = kind === "location" ? "description" : kind === "voice" ? "voice" : "design";
-  const missing = isEmpty(form[required])
+  const missing = isEmpty(form[required]) && !crop
     ? `${required[0].toUpperCase()}${required.slice(1)} is what the ${kind === "location" ? "plate" : kind === "voice" ? "voice" : "picture"} is made from: fill it in.`
     : "";
 

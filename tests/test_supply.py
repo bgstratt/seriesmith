@@ -419,12 +419,13 @@ class TestSupplyCli(unittest.TestCase):
         out = self.run_supply(self.drop)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         self.assertIn("3 supplied, 1 unmatched, 0 failed", out.stdout)
-        build = subprocess.run(
-            [sys.executable, "-m", "seriesmith.build",
-             os.path.join(self.ep, "series.json"), os.path.join(self.ep, "ep01.md"),
-             "-o", self.ep], capture_output=True, text=True, cwd=ROOT)
+        build = subprocess.run([sys.executable, "-m", "seriesmith.commands", "build", self.ep],
+                               capture_output=True, text=True, cwd=ROOT)
         self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
-        self.assertIn("references   3/3 on disk", build.stdout)
+        # the three supplied; the porch's two crops are cut from it once the build is done
+        self.assertIn("references   3/5 on disk, 2 to make", build.stdout)
+        self.assertIn("-> crop porch_lamp:", build.stdout)
+        self.assertIn("-> crop porch_lamp_close:", build.stdout)
 
     def test_one_file_into_a_named_slot(self):
         out = self.run_supply(os.path.join(self.drop, "mystery.png"), "--ref", "location:porch")
@@ -500,7 +501,8 @@ class TestSharedLiveFiles(unittest.TestCase):
             for sub in raw["subjects"].values():
                 sub["sheet"] = sub["sheet"].replace("../refs/", "refs/")
             for loc in raw["locations"].values():
-                loc["plate"] = loc["plate"].replace("../refs/", "refs/")
+                if "plate" in loc:                  # a crop has none: its master's is cut
+                    loc["plate"] = loc["plate"].replace("../refs/", "refs/")
             with io.open(cfg, "w", encoding="utf-8") as fh:
                 json.dump(raw, fh)
         R._PATHS.clear()

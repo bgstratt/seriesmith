@@ -30,7 +30,7 @@ import sys
 from typing import Callable
 
 from seriesmith import targets as TG
-from seriesmith.core import framing, ir, wording  # noqa: F401
+from seriesmith.core import extras as extras_mod, framing, ir, wording  # noqa: F401
 from seriesmith.core.series_config import (character_ids, load_series_config, profile_styles,
                                            series_info, subject_ids, variant_of)
 # Model-neutral pieces, re-exported under their old names: the aligner and
@@ -197,6 +197,8 @@ def story_warnings(story: ir.Episode, series_cfg: dict | None = None) -> list[st
                 f"the cut reads as a single camera rather than a reverse angle. Give the "
                 f"location an angle per speaker and name it with `plate:`.")
     out += jump_cuts(story, person, name)
+    out += recurring_extras(story)
+    out += uncropped_warnings(story, series_cfg or {})
     out += no_eyeline(story, person)
     out += wording_warnings(story, series_cfg or {}, person)
     # the old forms of `continuous:` (docs/CONTINUOUS.md), read as the new ones
@@ -291,6 +293,43 @@ def jump_cuts(story: ir.Episode, person, name) -> list[str]:
     return out
 
 
+def recurring_extras(story: ir.Episode) -> list[str]:
+    """The same people named in the `extras:` of two shots or more at one location
+    (core/extras.recurring): each shot invents extras afresh, so they change face, size and
+    colour from cut to cut, however alike their words. A character on a sheet (one person) or a
+    group subject (several, or the ones a crowd shows clearly) keeps them the same. People who
+    always appear together are one warning."""
+    def place(sq, sh) -> str:
+        # an angle on a location (`plate: diner_on_luis`) is still the location
+        return sq.location
+    shots = [(sh.id, sh.extras, place(sq, sh)) for sq in story.sequences for sh in sq.shots]
+    together: dict[tuple, list[str]] = {}
+    for group in extras_mod.recurring(shots):
+        together.setdefault(tuple(sid for sid, _ in group), []).append(group[0][1])
+    out = []
+    for ids, described in together.items():
+        whos, total = [], 0
+        for part in described:
+            n = (extras_mod.parts(part) or [(None, "")])[0][0]
+            total = None if n is None or total is None else total + n
+            whos.append(extras_mod.who_phrase(part))
+        listed = ", ".join(ids[:6]) + (f" and {len(ids) - 6} more" if len(ids) > 6 else "")
+        if total == 1:
+            make = "a character with a sheet"
+        elif total:
+            make = f"a group subject (`members: {total}`) with one picture of them all"
+        else:
+            make = ("a group subject of the ones the camera sees clearly (`members`: as many as "
+                    "that), with one picture of them all, and leave only far-off, blurred people "
+                    "in `extras:`")
+        said = "; ".join(f'"{w}"' for w in whos)
+        out.append(
+            f"{listed} name the same extras ({said}): drawn afresh in each shot, they change "
+            f"from cut to cut, however alike the words. Make them {make}, and cast them with "
+            f"`with:` in those shots (docs/AUTHORING.md, \"A group: the same extras every shot\").")
+    return out
+
+
 # Words that say where someone is looking: "off to frame left", "her eyes
 # down", "looks up at", "watches", "not at the camera".
 EYELINE = re.compile(
@@ -325,6 +364,44 @@ def no_eyeline(story: ir.Episode, person) -> list[str]:
 SHOT_WORDS = ("action", "camera", "extras", "sound")
 
 
+# the sizes a whole plate is too wide for (docs/AUTHORING.md, "Medium and close shots get a crop
+# of the plate"): not an ecu (an insert fills the frame), not the wides, not the angles
+CROPPED_SIZES = ("cu", "mcu", "ms", "cowboy", "mws")
+
+
+def uncropped(story: ir.Episode, series_cfg: dict) -> dict[str, list[tuple[str, str]]]:
+    """{location id: [(shot, size)]}: the medium and close shots that play on a location's whole
+    plate, where its plate is wide: a location with a plate, not a crop, not marked `framing:
+    medium` or `close`. A video model takes the plate as what the place is, so such a shot
+    comes out as wide as the plate (docs/PLATE_VARIANTS.md)."""
+    from seriesmith.core import framing as FR
+    locs = (series_cfg or {}).get("locations") or {}
+    out: dict[str, list[tuple[str, str]]] = {}
+    for sq in story.sequences:
+        for sh in sq.shots:
+            size = FR.canonical(sh.size)
+            if size not in CROPPED_SIZES:
+                continue
+            lid = sh.plate or sq.location
+            e = locs.get(lid) or {}
+            if not e.get("plate") or e.get("crop") is not None or e.get("framing") in ("medium", "close"):
+                continue
+            out.setdefault(lid, []).append((sh.id, size))
+    return out
+
+
+def uncropped_warnings(story: ir.Episode, series_cfg: dict) -> list[str]:
+    out = []
+    for lid, shots in uncropped(story, series_cfg).items():
+        listed = ", ".join(f"{s} ({z})" for s, z in shots[:6]) + (f" and {len(shots) - 6} more" if len(shots) > 6 else "")
+        out.append(f"location '{lid}': {listed} play on its whole plate, and come out as wide as "
+                   f"it. Give them a crop of the part they play in (a location with `of`, `crop`, "
+                   f"`zoom`, named by their `plate:`), or mark '{lid}' `framing: medium` (or "
+                   f"`close`) if its plate is already that close (docs/AUTHORING.md, \"Medium and "
+                   f"close shots get a crop of the plate\").")
+    return out
+
+
 def wording_warnings(story: ir.Episode, series_cfg: dict, person) -> list[str]:
     """What the words ask of the model that the writer didn't mean (core/wording.py):
     a thing named to forbid it, in a shot or in the series config's descriptions
@@ -348,10 +425,13 @@ def wording_warnings(story: ir.Episode, series_cfg: dict, person) -> list[str]:
                 found = wording.negations(getattr(sh, f, None) or "")
                 if found:
                     out.append(f"{sh.id} {f}: {quoted(found)} {say}")
-            absent = wording.named_absent(sh.action or "", people, {person(c) for c in sh.cast})
+            # `with:` is cast too (filed among the props): a group, a character beside the
+            # principals
+            here = {person(c) for c in list(sh.cast) + list(sh.props)}
+            absent = wording.named_absent(sh.action or "", people, here)
             if absent:
                 names = " and ".join(absent)
-                out.append(f"{sh.id}: the action names {names}, not in its `who:`, so they "
+                out.append(f"{sh.id}: the action names {names}, not in its `who:` or `with:`, so they "
                            f"are drawn from the words alone, without their picture. Add "
                            f"{'them' if len(absent) > 1 else 'the name'} to `who:` if "
                            f"{'they are' if len(absent) > 1 else 'that person is'} in the "

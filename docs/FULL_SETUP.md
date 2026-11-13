@@ -93,6 +93,7 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Relights, and Turn without its LoRA | | any edit picture model (FLUX.2 Klein edit by default) | |
 | Hosted models (Comfy Router), Comfy Cloud, deployments | | | a Comfy API key; comfy-sdk |
 | Local renders through comfy-api-proxy (optional) | | | `pip install comfy-api-proxy` |
+| The count check: more people in a take than its shot has (optional) | ComfyUI-Impact-Subpack (or `pip install ultralytics` for ComfyUI's Python) | 2 YOLOv8 detectors (Features: Count check) | |
 
 ## Rendering video
 
@@ -134,7 +135,8 @@ their pictures and lip-syncs what they say.
 FL2VA also runs the editor's **location tours**. Tours still need
 ComfyUI-PlagueKind-Nodes.
 
-**Other models.** FastH3 Omni, H3 Singularity (a community fine-tune of H3 Ref2VA), LTX-2.5
+**Other models.** FastH3 Omni, H3 Singularity (a community fine-tune of H3 Ref2VA), H3 Hybrid (a merge
+of H3's two checkpoints, for Ref2VA's lattice on thin things), LTX-2.5
 (it makes its own sound), LTX-2.3 ingredients, and Wan 2.2 I2V, 5B and VACE (Wan makes no
 sound) are listed file by file in
 [INSTALL.md, Everything, by model family](../INSTALL.md#everything-by-model-family), and
@@ -217,6 +219,7 @@ ref's own. Every picture model, and the voice model:
 | `qwen_image_21` | Qwen-Image 2.1 — one model for both jobs: text to image for a character's own views, an edit of up to 16 reference images for a variant's. Takes a real negative prompt, and its cfg, scheduler and denoise are ordinary sampler settings |
 | `flux3_klein` | FLUX.3 Image Klein — like `qwen_image_21`, one model for both jobs: text to image, or an edit of up to 10 reference images. Takes a real negative prompt |
 | `flux3_klein_turbo` | FLUX.3 Image Klein step-distilled: the same as `flux3_klein` in 16 steps, over twice as fast, without a negative prompt |
+| `minimax_h3_image` | MiniMax-H3-Image, MiniMax's own image model — like `qwen_image_21`, one model for both jobs: text to image, or an edit of up to 16 reference images. 6 steps at cfg 1, drawing at about 4 MP. Its text encoder is H3's, so with H3 installed it adds the model (21 GB) and its VAE |
 | `fasth3_omni_still` | FastH3 Omni as an image model, as `minimax_h3_still`: up to 9 reference images, 8 steps, no turbo LoRA |
 | `fibo2_dev` | Bria's Fibo 2.0 Dev: text to image, or an edit of up to 4 reference images (relights too); 50 steps at cfg 5. Non-commercial licence (CC BY-NC 4.0) |
 | `fibo2_edit_turbo` | Fibo 2.0 Edit Turbo: edits only (it needs a picture to start from), 4 steps at cfg 1. Non-commercial licence |
@@ -249,6 +252,7 @@ What each picture model takes (generated from the models by `python tools/make_r
 | `flux_kontext` | Kontext | your ComfyUI | up to 1 | edits and new pictures |
 | `klein_erp_360` | Klein 360 | your ComfyUI | up to 1 | new pictures |
 | `krea2` | krea2 | your ComfyUI | none | new pictures |
+| `minimax_h3_image` | H3 Image | your ComfyUI | up to 16 | edits and new pictures |
 | `minimax_h3_still` | H3 still | your ComfyUI | up to 9 | edits and new pictures |
 | `moss_image_base` | MOSS base | your ComfyUI | none | new pictures |
 | `moss_image_sft` | MOSS | your ComfyUI | none | new pictures |
@@ -531,6 +535,7 @@ config so the pipeline knows which one it is:
 | `pip install faster-whisper numpy`, in the Python of the server align runs from | recorded dialogue: `align` and the Recording window (seriesmith's own server: seriesmith's Python; the editor inside ComfyUI: ComfyUI's) |
 | `pip install nvidia-cublas-cu12`, in that same Python | Whisper on an NVIDIA card instead of the CPU (faster-whisper brings no CUDA 12 cuBLAS) |
 | `pip install demucs`, for ComfyUI's `python` | the `dub_keep_foley` audio policy |
+| `pip install ultralytics`, for ComfyUI's `python` (the Impact Subpack brings it) | the count check |
 | `pip install comfy-api-proxy`, in seriesmith's Python | local renders through comfy-api-proxy (optional; [SETUP.md](SETUP.md)) |
 | Node.js 20.19+ and `npm install` in `web/` | only to rebuild the editor after changing `web/` |
 | `pip install pytest` | the test suite |

@@ -422,6 +422,22 @@ class Queue:
                 job.log.append(f"cancel: {e}")
         return job
 
+    def cancel_all(self, lane: str | None = None) -> int:
+        """Every queued and running job (of one lane, or all): the waiting ones first, so none
+        starts as the running ones stop, then the running ones asked to. How many."""
+        with self._lock:
+            mine = [j for j in self.jobs.values()
+                    if j.status in ("queued", "running") and (lane is None or j.lane == lane)]
+        mine.sort(key=lambda j: j.status != "queued")
+        n = 0
+        for j in mine:
+            try:
+                if self.cancel(j.id).status in ("canceled", "running"):
+                    n += 1
+            except KeyError:
+                pass
+        return n
+
     def move(self, job_id: str, index: int) -> Job:
         """A queued job to `index` in its lane's waiting line (0: next)."""
         with self._lock:

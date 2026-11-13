@@ -129,7 +129,8 @@ class TestSiteDocs(unittest.TestCase):
 
     def test_no_internal_document(self):
         sources = {src for src, _, _ in S.PAGES}
-        self.assertFalse(sources & {"docs/DESIGN.md", "docs/PLAN.md"})
+        self.assertFalse(sources & {"docs/DESIGN.md", "docs/PLAN.md", "docs/RELEASES.md",
+                                    "docs/DAILIES.md"})
 
 
 class TestPicturesBlock(unittest.TestCase):

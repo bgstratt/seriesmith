@@ -73,6 +73,18 @@ under a show at once.
     "porch": {
       "description": "a wooden front porch at dawn, wet boards, a hanging lamp still lit, mist over the lawn beyond",
       "plate": "../refs/_bg/porch.png"
+    },
+    "porch_lamp": {
+      "of": "porch",
+      "crop": "center",
+      "zoom": 1.5,
+      "description": "the wet porch boards and the hanging lamp by the door, mist beyond the rail"
+    },
+    "porch_lamp_close": {
+      "of": "porch",
+      "crop": "center",
+      "zoom": 2.2,
+      "description": "the porch wall and the hanging lamp, close"
     }
   },
   "audio": { "mode": "generate" }
@@ -98,6 +110,7 @@ sound: dawn birdsong, dripping water, a faint breeze
 who: ada
 with: lantern
 size: medium
+plate: porch_lamp
 dur: 4
 Ada lifts the lantern off its hook and turns the flame down until it gutters out.
 camera: holds static
@@ -106,6 +119,7 @@ sound: a metal hook ringing, the soft pop of a flame going out
 ## sh030
 who: ada
 size: close
+plate: porch_lamp_close
 dur: auto
 Ada grins and pulls her hood up, her eyes out over the lawn, off to frame left.
 camera: pushes in with small amplitude at slow speed
@@ -197,6 +211,7 @@ shot 93. So:
 | `minimax_h3_ref2va` (default) | your sheets and plate, as up to nine reference pictures: eight subjects and the plate | generated, dubbed to a recording, or cloned from voice samples | first, when the series' `first_target` sends its continuing shots to it (otherwise they go to H3 FL2VA) | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
 | `fasth3_omni` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | crowded shots (up to eight characters, props and vehicles); FastVideo's 8-step H3, no turbo LoRA |
 | `h3_singularity` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | Ref2VA shots on AIGC-Singularity's fine-tune of H3 Ref2VA (its v2 pruned INT8: sharper highlights, distant faces, motion). A shot that asks for a first frame (`continuous: first`, a `first:` line) opens on it here, its pictures kept |
+| `h3_hybrid` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | Ref2VA shots on a merge of H3's two checkpoints: FL2VA's cleaner picture with Ref2VA's reference pictures. For shots where Ref2VA's turbo draws a lattice over thin things in a reference (a stethoscope, a phone cord, a lanyard); it holds a reference a little less tightly. A shot that asks for a first frame opens on it here, its pictures kept |
 | `fasth3_fl2va`, `h3_singularity_fl2va` | the first/last keyframes, as FL2VA | as FL2VA | as FL2VA | as FL2VA | FL2VA's graph with FastH3 Omni's or Singularity's weights. `fasth3_fl2va` is where a `continuous: first` shot on FastH3 Omni goes, so it keeps FastH3's look; either can be named, or be the series' `first_target` |
 | `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated, dubbed, or cloned (the lines made by LTX first) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
 | `ltx2` | words, plus keyframes when there are any | generated, dubbed to a recording, or cloned from voice samples | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
@@ -217,7 +232,7 @@ shot 93. So:
   first frame by itself: H3 Ref2VA's to H3 FL2VA, FastH3 Omni's to its own FL2VA; H3
   Singularity opens on it itself (see **Continuous shots**).
 - **Dialogue needs a target with sound**, and lip sync to a recording needs one of the H3
-  workflow targets (`minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`, `minimax_h3_fl2va`). Wan acts the lines silently.
+  workflow targets (`minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`, `h3_hybrid`, `minimax_h3_fl2va`). Wan acts the lines silently.
 - **On a target that takes no reference pictures** (`ltx2`, `minimax_h3_fl2va`, `wan22_i2v`,
   `wan22_ti2v`; `wan22_vace` takes the sheets but not the plate), the `design` and location
   `description` sentences are what the model knows about the look, apart from any
@@ -712,6 +727,67 @@ preset's id (`dusk`, `night`, `rain`, `neon`, …) or the instruction in your ow
 - The source may be an angle; a relit plate's source can't itself be relit.
 - The editor can also make these from the plates (Relight on a sequence; a 360 panorama or a
   camera tour of a master for its angles' pictures): in a config you only name them.
+
+### Medium and close shots get a crop of the plate
+
+A video model takes a plate as what the place *is*, not what the camera sees. In front of a
+wide establishing plate, a medium shot comes out as wide as the plate, or, told less about
+the room, the model invents what fills the closer view. Give it the closer view as a picture:
+a **crop**, a location that is one part of another's plate, closer.
+
+```json
+"vending_alcove_drinks": {"of": "vending_alcove_night", "crop": "left",
+                          "description": "the drinks machine and the water fountain of a small hospital vending alcove at night"}
+```
+
+- `crop` says which part: `center`, `left`, `right`, `top`, `bottom`, `top-left`, `top-right`,
+  `bottom-left` or `bottom-right`. `zoom` says how much closer, 1.2 to 3 (1.6 when left out):
+  the crop keeps 1/zoom of the plate's width and height, centred on that part.
+- `description` says what that part shows; left out, it's the master's. Its picture is made
+  from the master's plate, cut and enlarged, when you build or render (**Upscale** on its row in
+  the Refs tab gives it the detail a stretch can't); `plate` names it if you want it somewhere
+  else. A picture you put there yourself (or make in the Refs tab with an edit model) is kept.
+- A crop's master may be an angle or a relit plate, not another crop: crop the master with a
+  larger `zoom` instead.
+
+seriesmith never crops by itself: the script decides. Go through every medium and close shot:
+
+1. **Every `ms`, `mws`, `cowboy`, `mcu` and `cu` gets a crop**, unless its plate is already that
+   close: a location whose description is one thing filling the frame, just what is directly
+   behind a person at that size (a door, a counter seen from a stool, the wall behind a desk
+   chair). **An angle is not close because it is an angle**: an `_on_` location whose description
+   names a whole wall, a room's corner, a car seat with the dash and windows, a row of pews, or
+   more than one or two things, is wide for a medium shot. Go by what the description says it
+   shows, not by its name; when in doubt, crop. Mark a location that is already close
+   `"framing": "close"` (or `"medium"`): `seriesmith check` warns about every medium and close
+   shot on a wide location's whole plate (and the Refs tab badges the place **uncropped**),
+   and a location marked so, or a crop, is never flagged.
+2. **The zoom follows the size**: `mws` and `cowboy` about 1.4 to 1.5, `ms` 1.5, `mcu` and `cu`
+   2.2 (2.0 when 2.2 would cut away the thing the person is at: the door, the desk, the pump).
+   A plate with both medium and close shots in one part gets two crops of that part, one for
+   each (`<master>_<part>` at 1.5 and `<master>_<part>_close` at 2.2): a close-up on the 1.5
+   crop comes out medium.
+3. **The part is what is behind the person**: where they stand or sit in the plate, so the crop
+   keeps the thing the action puts them at (the door they wait by, the desk they lean on).
+   Take it from the words: the location's description ("the office door on the right", "the
+   drinks machine on the left") and the shot's staging; when neither says where the thing is,
+   `center`, which is where a plate's subject usually sits. Shots in different parts of one
+   plate get different crops.
+4. **Two people facing each other** never share a crop: each gets a crop of their own angle
+   (**Two people talking need an angle each**), or of another part.
+5. **Keep the full plate** for wide shots (`ws`, `fs`, `ews`); `ecu` inserts of hands, papers and
+   screens, where the object fills the frame; a shot the action composes against the whole
+   view ("small on the left third, the pickup on the right", "walks toward camera down the
+   corridor"); and a plate that is what the person looks at rather than what is behind them.
+6. **Ids are the show's, not the episode's**: crop pictures live beside their master in the
+   show's `refs/`, so an id another episode already uses for a different crop (another part or
+   zoom, or a master with another plate) needs a different id.
+7. **Give each crop a `description` of what that part must show** ("the green side door with its
+   padlock and the brick around it"): it says what the crop is for, and lets whoever builds the
+   episode check it. Each crop is cut at the build and shown on its row in the Refs tab; one that
+   shows only wall, floor or sky, or misses what its description names, has the wrong part or too
+   much zoom: move the part or lower the zoom. Working from the script alone, without the
+   pictures, say so when you hand it over, so the crops get that look.
 
 ### What a place sounds like: `ambience`
 
@@ -1297,6 +1373,7 @@ What each video model takes (generated from the models by `python tools/make_ref
 |---|---|---|---|---|---|
 | `fasth3_fl2va` | FastH3 FL2V | your ComfyUI | none | first and last | — |
 | `fasth3_omni` | Omni | your ComfyUI | 8 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
+| `h3_hybrid` | H3 Hybrid | your ComfyUI | 8 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
 | `h3_singularity` | Singularity | your ComfyUI | 8 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
 | `h3_singularity_fl2va` | Singularity FL2V | your ComfyUI | none | first and last | — |
 | `hold` | Hold | this machine | none | first | — |
@@ -1313,7 +1390,7 @@ What each video model takes (generated from the models by `python tools/make_ref
 | `flux_3_video` | FLUX 3 | Comfy Router | none | first and last | — |
 | `kling_v3_omni` | Kling | Comfy Router | up to 7: the subjects, then the plate; as links | first and last | names each: `<<<image_N>>>` is … |
 | `kling_video_o1` | Kling O1 | Comfy Router | up to 4: the subjects, then the plate; as links | first and last | names each: `<<<image_N>>>` is … |
-| `minimax_h3` | MiniMax | Comfy Router | up to 4: the subjects, then the plate; as links | first and last | by their order |
+| `minimax_h3` | MiniMax | Comfy Router | up to 9: the subjects, then the plate; as links | first and last | by their order |
 | `runway_gen4_turbo` | Runway | Comfy Router | none | first | — |
 | `seedance_2_0` | Seedance | Comfy Router | up to 9: the subjects, then the plate; through the Seedance library (`asset://`) | first and last | defines each first: *Define … in @Image N as …* |
 | `seedance_2_0_fast` | Seedance | Comfy Router | up to 9: the subjects, then the plate; through the Seedance library (`asset://`) | first and last | defines each first: *Define … in @Image N as …* |
@@ -1629,7 +1706,10 @@ gone unless this shot says it again.
   Cora in `who:` gets an invented stranger.
 - **Repeat `extras:` on every shot of a populated room**, closes included ("diners at the far
   tables, blurred behind him"). It does not carry over from the previous shot, and without it
-  the room is empty on the cut.
+  the room is empty on the cut. That's for far-off, blurred people. **Anyone who comes back
+  and is seen** (the clerk behind the register, the nurse at the desk, two paramedics, the
+  workers at the next table) is a character, or a group subject for several, never the same
+  `extras:` line in two shots: see **A group: the same extras every shot**.
 - **Say the posture.** A plate of a kitchen table is an empty table, and the sheet shows the
   character standing. Open on the posture plus the movement: "Seated at the kitchen table,
   Harold turns his head slowly…", not "Harold turns his head slowly…".
@@ -1737,9 +1817,15 @@ camera: arcs around Eleanor with small amplitude at slow speed
 ### A group: the same extras every shot
 
 `extras:` people are invented fresh every shot, so they change sex, size and colour from
-cut to cut. When the same few people recur — the ladies watching from the edge of the
-ballroom, a family at the next table — make them one **group** subject: a character with
-`members`, whose picture holds all of them.
+cut to cut. When the same people recur in two shots or more — the clerk behind the register,
+the ladies watching from the edge of the ballroom, a family at the next table — take them out of
+`extras:` and give them a picture. One person is an ordinary character with a sheet (`name` can
+be "the night clerk"). Several are one **group** subject: a character with `members`, whose
+picture holds all of them. `seriesmith check` warns when two shots' `extras:` name the same
+people (however alike the words: the same words twice mean the same people, and the model
+still draws new ones), and says which to make. That goes for a crowd too: the lunch table's
+three workers, the day-shift nurses round the station. Make the ones the camera sees clearly a
+group subject, and leave only far-off, blurred people in `extras:`.
 
 ```json
 "ladies": {
@@ -1751,9 +1837,10 @@ ballroom, a family at the next table — make them one **group** subject: a char
 }
 ```
 
-Cast it like anyone else (`who:` or `with:`). It takes one slot however many people it
-holds, which is how a shot gets more than three people who stay the same: two named
-characters and a group of four is three subjects. The prompt defines it as a picture of N
+Cast it like anyone else (`who:` or `with:`), in every shot they're in, and drop them from those
+shots' `extras:`. It takes one slot however many people it holds (H3 has eight besides the
+plate): two named characters and a group of four is three subjects, six people who stay the
+same. The prompt defines it as a picture of N
 different people and counts its members in the shot's headcount ("Exactly six characters
 appear in this shot: &lt;Subject 1>, &lt;Subject 2> and the four members of &lt;Subject 3>"), which
 is what keeps H3 from drawing the same woman twice. Put where they are in the action text

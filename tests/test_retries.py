@@ -107,10 +107,11 @@ class DecideTest(unittest.TestCase):
         self.assertFalse(RT.Plan.from_json(None).asks)
 
     def test_each_ref2va_family_target_falls_back_to_its_fl2va(self):
-        self.assertEqual({t: fallback_of(t) for t in ("minimax_h3_ref2va", "fasth3_omni", "h3_singularity",
+        self.assertEqual({t: fallback_of(t) for t in ("minimax_h3_ref2va", "fasth3_omni", "h3_singularity", "h3_hybrid",
                                                       "pika_h3_flex", "minimax_h3_fl2va")},
                          {"minimax_h3_ref2va": "minimax_h3_fl2va", "fasth3_omni": "fasth3_fl2va",
-                          "h3_singularity": "h3_singularity_fl2va", "pika_h3_flex": "pika_h3_flex_fl2va",
+                          "h3_singularity": "h3_singularity_fl2va", "h3_hybrid": "minimax_h3_fl2va",
+                          "pika_h3_flex": "pika_h3_flex_fl2va",
                           "minimax_h3_fl2va": None})
         for t in ("minimax_h3_fl2va", "fasth3_fl2va", "h3_singularity_fl2va", "pika_h3_flex_fl2va"):
             TG.load_target(t, "video")                      # each one is there
@@ -218,8 +219,13 @@ class StepTest(unittest.TestCase):
 class MoreChecksTest(unittest.TestCase):
     """The hook a vision-language model's look joins by."""
 
+    def setUp(self):
+        self._had = dict(TC.CHECKERS)
+        TC.CHECKERS.clear()
+
     def tearDown(self):
         TC.CHECKERS.clear()
+        TC.CHECKERS.update(self._had)
 
     def test_a_registered_check_flags_and_retries_like_a_cut(self):
         TC.register("look", lambda root, take, shot: {"flag": True, "why": "two of Mara"})

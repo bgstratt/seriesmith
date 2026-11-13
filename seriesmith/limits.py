@@ -233,10 +233,13 @@ def apply(spec: dict, limits: dict) -> dict:
                     # pictures in all, the place's plate included ("up to 3
                     # asset images"): subjects first, the plate when there's room
                     refs = inp["references"]
-                    if _refs_max(refs, caps) != n:
+                    old = _refs_max(refs, caps)
+                    if old != n:
+                        # the plate's own slot, when the model has one (H3: 8
+                        # subjects and the plate, 9 in all), stays out of the subjects
+                        plate = max(old - caps.get("max_subjects", old), 0)
                         refs["max"] = refs["max_total"] = n
-                    if caps.get("max_subjects", 4) != n:
-                        caps["max_subjects"] = n
+                        caps["max_subjects"] = max(n - plate, 1)
             if not off:
                 router.pop("off", None)
             recipe["keyframes"] = [e for e in ("first", "last") if e in inp]

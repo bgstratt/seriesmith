@@ -412,7 +412,9 @@ backends; the first render (H3 on your own GPU); the first hosted render
 (Router); every local target; refs, the 360 tour and continuity; takes,
 picks, cuts and notes; the server, the queue and both hosts; finishing; then
 forms, resilience, simple mode, pictures from a frame, and hosted models as data.
-The work list, with what "done" means for each step, is [PLAN.md](PLAN.md).
+Work in progress is a document of its own in `docs/`, its design and its checklist (as
+[DAILIES.md](DAILIES.md) is); [PLAN.md](PLAN.md), the work list until 2026-11-11, is kept as a
+record, and releases are [RELEASES.md](RELEASES.md).
 
 ## Open questions
 

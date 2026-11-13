@@ -112,6 +112,7 @@ CORE_CLASSES = frozenset({
     "EmptyLatentImage", "EmptySD3LatentImage", "EmptyYuE2LatentAudio", "Flux2Scheduler",
     "FluxGuidance", "FluxKVCache", "FluxKontextImageScale", "GetICLoRAParameters",
     "GetVideoComponents", "ImageBatch", "ImageFromBatch", "ImageInvert", "ImageScale",
+    "ImageUpscaleWithModel",
     "ImageScaleToTotalPixels", "ImageToMask", "KSampler", "KSamplerAdvanced", "KSamplerSelect",
     "LTXAVTextEncoderLoader", "LTXVAddGuide", "LTXVAudioVAEDecode", "LTXVAudioVAEEncode",
     "LTXVAudioVAELoader", "LTXVConcatAVLatent", "LTXVConditioning", "LTXVCropGuides",
@@ -121,6 +122,7 @@ CORE_CLASSES = frozenset({
     "MiniMaxH3ContextWindows", "MiniMaxH3LatentUpscaleWithModel",
     "LoadVideo", "LoraLoader", "LoraLoaderModelOnly", "ManualSigmas", "MiniMaxH3AddGuide",
     "MiniMaxH3ImageToVideo", "MiniMaxH3ReferenceToVideo", "MiniMaxH3SigmaShift",
+    "MiniMaxH3ImageConditioning",
     "MiniMaxMusic3TextEncode", "EmptyMiniMaxMusic3LatentAudio",
     "ComfyCloudMiniMaxMusic3TextToAudioNode",
     "FishAudioTextToSpeech", "FishAudioInstantVoiceClone",
@@ -384,6 +386,7 @@ def _pack(folder: str) -> Item:
 
 def catalog() -> list[Feature]:
     """Every feature, in the window's order."""
+    from seriesmith import countcheck as CC
     from seriesmith import post as P
     from seriesmith import refs as R
     from seriesmith import sdk as SDK
@@ -426,6 +429,10 @@ def catalog() -> list[Feature]:
                 "its shots that carry on from the one before. H3's text encoder, VAEs and turbo "
                 "LoRAs. Apache 2.0 over H3's community licence.",
                 _merge(_target_items("h3_singularity"), _target_items("h3_singularity_fl2va"))),
+        target_feature("video.h3_hybrid", "video", "h3_hybrid", "H3 Hybrid",
+                       "A merge of H3's two checkpoints: FL2VA's cleaner picture, Ref2VA's reference "
+                       "pictures. For shots where Ref2VA's turbo draws a lattice over thin things "
+                       "(cords, tubing, lanyards). H3's text encoder, VAEs and turbo LoRAs."),
         target_feature("video.ltx2", "video", "ltx2", "LTX-2.5",
                        "Quick, and makes its own sound. Gated: accept the licence on Hugging Face."),
         Feature("video.ltx2_duration", "video", "LTX-2.5 duration head",
@@ -464,6 +471,9 @@ def catalog() -> list[Feature]:
         Feature("pictures.flux3_klein", "pictures", "FLUX.3 Klein",
                 "Text to image and edits, with a step-distilled turbo. Gated.",
                 _merge(_target_items("flux3_klein"), _target_items("flux3_klein_turbo"))),
+        target_feature("pictures.minimax_h3_image", "pictures", "minimax_h3_image", "MiniMax-H3-Image",
+                       "MiniMax's image model: text to image and edits from up to 16 pictures, "
+                       "in 6 steps at about 4 MP. Uses H3's text encoder."),
         Feature("pictures.fibo2", "pictures", "Fibo 2.0",
                 "Bria's Fibo 2.0: text to image and edits (relights too), with a 4-step edit turbo. "
                 "Non-commercial licence (CC BY-NC 4.0).",
@@ -663,6 +673,15 @@ def catalog() -> list[Feature]:
                 "kept latents, upscales and posts. Installed with ComfyUI-Manager, or linked "
                 "from this repo into ComfyUI's custom_nodes. Without it, shots render through "
                 "ComfyUI's own nodes.", [OWN_PACK], restart=True),
+        Feature("tools.count_check", "tools", CC.FEATURE,
+                "A take check: more people or faces in a take than its shot's cast and extras "
+                "(a duplicate, a stranger), for a quarter second or more. Two YOLOv8 detectors "
+                "(a person, a face), run on the processor in ComfyUI's Python, which needs "
+                "ultralytics: the Impact Subpack brings it. The weights are loaded only when "
+                "they're the exact files seriesmith knows.",
+                [Item("pip", "ultralytics", where="comfyui", module="ultralytics")]
+                + [Item("model", w["name"], folder=CC.FOLDER, url=w["url"])
+                   for w in CC.WEIGHTS.values()]),
         Feature("tools.ffmpeg", "tools", "ffmpeg and ffprobe",
                 "A full ffmpeg build in seriesmith's own folder, used before the built-in fallbacks "
                 "(or set your own folder in Settings): assemble, master, publish, the XML "

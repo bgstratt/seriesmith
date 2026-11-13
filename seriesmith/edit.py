@@ -2820,7 +2820,10 @@ def build_episode(root: str, timeout: int = 600) -> dict:
         rc, out, err = run_tool("build.py", [series_cfg, script, "-o", root]
                                 + (["--proxy"] if ps == "proxy" else []), root, timeout)
         passes[ps] = {"ok": rc == 0, "report": out, "error": err.strip() if rc else ""}
-    return {"ok": all(p["ok"] for p in passes.values()), "passes": passes}
+    # the crops' plates (plates.py: Pillow, which the build itself can't use)
+    from seriesmith import plates as PL
+    return {"ok": all(p["ok"] for p in passes.values()), "passes": passes,
+            "crops": PL.ensure(root)}
 
 
 def assemble_episode(root: str, pass_: str, partial: bool = True,

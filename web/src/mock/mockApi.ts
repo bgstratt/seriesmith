@@ -2073,6 +2073,8 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         pass: req.pass,
         take,
         note: req.note.trim(),
+        category: req.category || null,
+        source: "human",
         when: new Date().toISOString(),
         // the snapshot: what produced the take, kept as it was
         shot_hash: `h${JSON.stringify(d.built).length}`,
@@ -2109,6 +2111,26 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       return issues
         .filter((x) => !pass || x.pass === pass)
         .map((x) => ({ ...x, addressed: issueAddressed(x) }));
+    },
+    async issueCategories() {
+      await wait();
+      // the server's list (issues.CATEGORIES), as the demo needs it
+      return [
+        ["identity", "the wrong face or person"],
+        ["wardrobe", "clothes or props unlike their reference"],
+        ["place", "a setting unlike the plate, or something appearing from nowhere"],
+        ["light", "light or look unlike the prompt or the plate"],
+        ["morph", "a shape changing, or a body malformed"],
+        ["artifact", "the render itself breaking: a lattice, lines, smears, an overlay"],
+        ["action", "the action not as written"],
+        ["camera", "the move or framing not as written"],
+        ["count", "too many or too few people or things"],
+        ["cut", "a cut inside the take"],
+        ["lipsync", "the mouth against the speech"],
+        ["text", "lettering in the picture"],
+        ["performance", "the acting: delivery, reactions, how people play off each other"],
+        ["other", "anything else"],
+      ].map(([id, about]) => ({ id, about }));
     },
     async exportIssues(ep, pass) {
       await wait();
@@ -2219,6 +2241,11 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         locations: ids.map((source) => ({ source, id: `${source}_${req.suffix || req.relight}`, exists: false, entry: {} })),
         queued: [], errors: req.dry_run ? [] : [{ error: "the mock doesn't relight" }], repointed: [],
       };
+    },
+    async refsUpscaleCrop(req) {
+      await wait();
+      need(req.ep);
+      return { queued: [], skipped: (req.crops ?? []).map((id) => ({ id, why: "the mock doesn't upscale" })) };
     },
     async refsPick(req) {
       await wait();

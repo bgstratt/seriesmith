@@ -204,6 +204,54 @@ class ImageTargetsTest(Episode):
             self.assertEqual((sampler["steps"], sampler["cfg"]),
                              (25, 3.5) if tid == "flux3_klein" else (16, 1.0), tid)
 
+    def test_minimax_h3_image_references(self):
+        # MiniMaxH3ImageConditioning takes every picture on its autogrow slots
+        # (image_0, image_1, ...: the first is the one to edit), up to 16
+        t = TG.load_target("minimax_h3_image", "image")
+        names = [f"h3pipe/{n}.png" for n in "abcdefghijklmnopqr"]       # 18, over max_refs
+        job = self.job("minimax_h3_image")
+        job.inputs = {"references": names}
+        g = R.image_graph(J.load_graph(t.binding.workflow), job, None)
+        self.assertEqual(J.check_graph(g, OBJECT_INFO), [])
+        (cond,) = [v["inputs"] for v in g.values()
+                   if v["class_type"] == "MiniMaxH3ImageConditioning"]
+        slots = sorted((k for k in cond if k.startswith("images.")),
+                       key=lambda k: int(k.removeprefix("images.image_")))
+        self.assertEqual(slots, [f"images.image_{i}" for i in range(16)])
+        self.assertEqual([g[cond[k][0]]["inputs"]["image"] for k in slots], names[:16])
+        sampler = next(v for v in g.values() if v["class_type"] == "KSampler")["inputs"]
+        self.assertEqual((sampler["steps"], sampler["cfg"]), (6, 1))
+        self.assertEqual(sampler["latent_image"][0], next(
+            k for k, v in g.items() if v["class_type"] == "MiniMaxH3ImageConditioning"))
+        # with none: text to image, the LoadImage gone, the node's own latent
+        job = self.job("minimax_h3_image")
+        job.inputs = {"references": []}
+        g = R.image_graph(J.load_graph(t.binding.workflow), job, None)
+        self.assertEqual(J.check_graph(g, OBJECT_INFO), [])
+        self.assertFalse([v for v in g.values() if v["class_type"] == "LoadImage"])
+        (cond,) = [v["inputs"] for v in g.values()
+                   if v["class_type"] == "MiniMaxH3ImageConditioning"]
+        self.assertFalse([k for k in cond if k.startswith("images.")])
+
+    def test_minimax_h3_image_resolution(self):
+        # H3's own text encoder serves (the int8 copy for the nvfp4 one); the
+        # P-H3-Image files are another model and never stand in
+        installed = {"diffusion_models": ["minimax_h3_image_pruned_bf16.safetensors",
+                                          "minimax_h3_fl2va_pruned_int8_convrot.safetensors"],
+                     "text_encoders": ["qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+                                       "p-h3-image_text_encoder_int8_convrot.safetensors"],
+                     "vae": ["minimax_h3_image_vae_fp16.safetensors",
+                             "p-h3-image_vae_int8_convrot.safetensors"]}
+        job = self.job("minimax_h3_image")
+        missing = R.resolve_job_models(job, lambda spec: installed.get(spec["folder"]))
+        self.assertEqual(missing, [])
+        self.assertEqual(job.model, "minimax_h3_image_pruned_bf16.safetensors")
+        installed["diffusion_models"] = ["minimax_h3_fl2va_pruned_int8_convrot.safetensors"]
+        installed["vae"] = ["p-h3-image_vae_int8_convrot.safetensors"]
+        job = self.job("minimax_h3_image")
+        missing = R.resolve_job_models(job, lambda spec: installed.get(spec["folder"]))
+        self.assertEqual(sorted(m["param"] for m in missing), ["model", "vae"])
+
     def test_flux3_klein_resolution(self):
         # the bf16 checkpoints in place of the int8 ones, Krea 2's Qwen3-VL 4B
         # for the encoder: each target takes its own checkpoint, by family
@@ -307,8 +355,12 @@ class ImageTargetsTest(Episode):
         self.assertEqual((d["target"], d["target_source"], d["keyframe_target"],
                           d["keyframe_target_source"]),
                          ("z_image_turbo", "series", "flux_kontext", "series"))
+        # an episode choice the series config already makes is the series's
+        R.set_image_defaults(self.ep, {"target": "z_image_turbo"})
+        self.assertEqual(R.image_defaults(self.s)["target_source"], "series")
         # the episode's choice beats the series config's
         R.set_image_defaults(self.ep, {"target": "flux2_klein"})
+        self.assertEqual(R.image_defaults(self.s)["target_source"], "editor")
         self.assertEqual(self.job(None).target.id, "flux2_klein")
         # a per-ref override beats both, a request beats that
         ov = R.load_overrides(self.s.home)
@@ -485,9 +537,12 @@ class KeyframePromptTest(Episode):
         first = IC.keyframe_prompt(sh, sq, self.s.series_cfg, "first")
         last = IC.keyframe_prompt(sh, sq, self.s.series_cfg, "last")
         look = self.s.series_cfg["style"]["look"]
+        env = self.s.series_cfg["locations"]["kitchen"]["description"]
         for p in (first, last):
             self.assertIn(look, p)
-            self.assertIn(self.s.series_cfg["locations"]["kitchen"]["description"], p)
+            # a close-up names the place by its first clause, never its inventory (a wide's)
+            self.assertIn(env.split(",")[0], p)
+            self.assertNotIn(env, p)
             self.assertIn(self.s.series_cfg["subjects"]["bo"]["design"], p)
             self.assertIn("close-up", p)
             self.assertNotIn("Left! Left!", p)               # no dialogue text in a still
@@ -497,6 +552,20 @@ class KeyframePromptTest(Episode):
         self.assertIn("last frame", last)
         self.assertIn("after the action is over", last)
         self.assertIn("completed", last)
+
+    def test_the_place_by_size(self):
+        """A wide lists the place; a medium or close names it by its plate's picture when that's
+        sent, else by its first clause (docs/KEYFRAME_FRAMING.md)."""
+        import copy
+        sh, sq = self.ir("sh040")
+        env = self.s.series_cfg["locations"]["kitchen"]["description"]
+        plate = [{"role": "plate", "location": "kitchen", "name": "the kitchen", "kind": "plate"}]
+        close = IC.keyframe_prompt(sh, sq, self.s.series_cfg, "first", refs=plate)
+        self.assertIn("frame of a close-up, one still picture", close)
+        self.assertNotIn(env.split(",")[0], close)
+        wide = copy.copy(sh)
+        wide.size = "ws"
+        self.assertIn(env, IC.keyframe_prompt(wide, sq, self.s.series_cfg, "first", refs=plate))
 
     def test_opening_and_closing_sentences(self):
         text = "Ada opens the door. She steps in. She sits down by the fire."

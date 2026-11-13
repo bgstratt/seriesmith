@@ -7,7 +7,7 @@
 // "seriesmith.queue" events keep this copy current.
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { openJobs, openSettings, setRenderBackend } from "../actions";
+import { focusRef, openJobs, openSettings, select, selectEpisode, setRenderBackend } from "../actions";
 import { cutTake } from "../lib/format";
 import { api, host } from "../host";
 import { statusKey, store, useApp } from "../store";
@@ -108,24 +108,50 @@ function elapsed(j: QJob, now: number): string {
   return fmt((j.finished ?? now) - j.started);
 }
 
-/** A shot job's picture: its take's thumbnail when the episode's status is loaded
- * (the take it makes once it has one, else the one in the cut). */
+/** A job's picture: what it made (`info.picture`, set by the server as it succeeds: a take's
+ * thumbnail, a ref's picture, an upscaled crop), else for a shot job its take's thumbnail when
+ * the episode's status is loaded (the take it makes once it has one, else the one in the cut). */
 function useJobThumb(j: QJob): string | null {
   const ep = typeof j.info?.ep === "string" ? j.info.ep : null;
   const shot = typeof j.info?.shot === "string" ? j.info.shot : null;
   const pass = j.info?.pass === "final" ? "final" : "proxy";
   const s = useApp((st) => (ep && shot ? st.status[statusKey(ep, pass)]?.shots.find((x) => x.shot === shot) : undefined));
-  if (!ep || !s) return null;
+  if (!ep) return null;
+  if (typeof j.info?.picture === "string") return api().thumbUrl(ep, j.info.picture, 128, String(j.finished ?? ""));
+  if (!s) return null;
   const t = s.takes.find((x) => x.take === j.info?.take && x.thumb) ?? cutTake(s);
   return t?.thumb ? api().thumbUrl(ep, t.thumb, 128) : null;
+}
+
+/** What a job is for, opened: its shot in the Shots tab (on the take it made) or its ref in
+ * the Refs tab, in its episode. Null when it's for neither (a master, a cue). */
+function jobTarget(j: QJob): { label: string; open: () => void } | null {
+  const ep = typeof j.info?.ep === "string" ? j.info.ep : null;
+  if (!ep) return null;
+  const goTo = () => { if (store.get().ep !== ep) selectEpisode(ep); };
+  const ref = typeof j.info?.ref === "string" ? j.info.ref : null;
+  if (ref) {
+    return { label: `Open ${ref} in Refs`, open: () => { goTo(); focusRef(ref); } };
+  }
+  const shot = typeof j.info?.shot === "string" ? j.info.shot : null;
+  if (shot) {
+    const take = typeof j.info?.take === "number" ? j.info.take : null;
+    return {
+      label: `Open ${shot}${take ? ` t${String(take).padStart(2, "0")}` : ""} in Shots`,
+      open: () => { goTo(); host().show("shots"); select(shot, j.status === "succeeded" ? take : null); },
+    };
+  }
+  return null;
 }
 
 const ORDINAL = ["1st", "2nd", "3rd"];
 
 function JobThumb({ j, place }: { j: QJob; place: number }) {
   const url = useJobThumb(j);
+  const to = jobTarget(j);
   return (
-    <div className="sm-job-thumb" style={url ? { backgroundImage: `url("${url}")` } : undefined}>
+    <div className={`sm-job-thumb${to ? " sm-job-link" : ""}`} style={url ? { backgroundImage: `url("${url}")` } : undefined}
+      title={to?.label} onClick={to?.open}>
       {!url && (j.status === "queued" && place >= 0 ? ORDINAL[place] ?? `${place + 1}th` : "")}
     </div>
   );
@@ -224,6 +250,9 @@ function JobsBody() {
   }, []);
   const lanes = [...new Set([...Object.keys(q.lanes), ...q.jobs.map((j) => j.lane)])].sort();
   const paid = q.paid;
+  const running = q.jobs.filter((j) => j.status === "running").length;
+  const waitingN = q.jobs.filter((j) => j.status === "queued").length;
+  const live = running + waitingN;
   const head = (
     <>
       <div className="h3-head-text">
@@ -241,6 +270,16 @@ function JobsBody() {
               onClick={() => void act("paid-reset", {})}>reset</button>
           )}
         </span>
+      )}
+      {live > 0 && (
+        <button className="h3-btn" title="Cancel every waiting and running job: the waiting ones leave the queue, the running ones are asked to stop"
+          onClick={() => {
+            if (confirm(`Cancel all ${live} job${live === 1 ? "" : "s"}? ${running} running ${running === 1 ? "is" : "are"} stopped, ${waitingN} waiting leave the queue.`)) {
+              void act("cancel-all", {});
+            }
+          }}>
+          <i className="pi pi-ban" /> Cancel all
+        </button>
       )}
       <button className="h3-btn h3-icon" onClick={() => void refresh()} title="Refresh"><i className="pi pi-refresh" /></button>
       <button className="h3-btn h3-icon" onClick={() => openJobs(false)} title="Close"><i className="pi pi-times" /></button>
@@ -281,7 +320,12 @@ function JobsBody() {
                       <JobThumb j={j} place={place} />
                       <div className="sm-job-main">
                         <div className="h3-row" style={{ alignItems: "baseline" }}>
-                          <span className="sm-job-title h3-ell" title={j.id}>{j.title}</span>
+                          {(() => {
+                            const to = jobTarget(j);
+                            return to
+                              ? <button className="h3-link sm-job-title h3-ell" title={`${to.label} (${j.id})`} onClick={to.open}>{j.title}</button>
+                              : <span className="sm-job-title h3-ell" title={j.id}>{j.title}</span>;
+                          })()}
                           <span className="h3-muted h3-small h3-nowrap">
                             {j.status}{j.status === "running" && j.step && j.steps ? ` · step ${j.step}/${j.steps}` : ""}
                             {j.started ? ` · ${elapsed(j, now)}` : ""}

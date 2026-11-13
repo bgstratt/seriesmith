@@ -10,7 +10,7 @@
     "build:dev": "vite build --mode devpage",
     "build:standalone": "tsc --noEmit && vite build --mode standalone",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "node scripts/vitest.mjs run"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",

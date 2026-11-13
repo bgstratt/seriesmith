@@ -1693,6 +1693,13 @@ export interface Ref {
   of?: string | null;
   /** a relit location (sequence relight): the relight preset id or instruction; `of` its source */
   relight?: string | null;
+  /** a crop of its place's plate (`of`): which part, and how much closer (docs/PLATE_VARIANTS.md) */
+  crop?: string;
+  zoom?: number;
+  /** a crop's picture: the upscale model it was made with, null when it's stretched */
+  upscaled?: string | null;
+  /** a wide place's medium and close shots on its whole plate: [shot, size] (build.uncropped) */
+  uncropped?: [string, string][];
   /** false when this ref can't be generated; `why_not` says why */
   can_generate?: boolean;
   why_not?: string | null;
@@ -2546,6 +2553,10 @@ export interface Issue {
   refs?: { role?: string | null; id?: string | null; path?: string | null }[];
   /** the rendered file, relative to the episode */
   take_file?: string | null;
+  /** what it is filed as (GET /seriesmith/issues/categories); none: left unfiled */
+  category?: string | null;
+  /** who made it: a person, a review by a vision-language model, a take check (none: a person) */
+  source?: "human" | "dailies" | "check";
   /**
    * The shot has been rebuilt or rendered again since: computed on every read,
    * never stored. The list fades these and **Clear addressed** empties them —
@@ -2560,6 +2571,13 @@ export interface IssueAddRequest {
   shot: string;
   note: string;
   take?: number | null;
+  category?: string | null;
+}
+
+/** One of the categories a note can be filed as (the server's one list). */
+export interface IssueCategory {
+  id: string;
+  about: string;
 }
 
 export interface SourceCheck {

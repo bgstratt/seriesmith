@@ -15,7 +15,7 @@ import type {
   ColorMatch,
   MatchBy,
   AlignJob, AlignReady, AlignRequest, AlignResult, AssembleOptions, AssembleResult, BrowseFiles, BrowseResult, BuildResult, CancelResult, ComfyQueue, Config, CutEntry,
-  CutFile, CutWhat, DiscardResult, EpisodeStatus, EpisodeSummary, ClipQueueResult, EpisodeTargetResult, EpisodeTemplate, Issue, IssueAddRequest, ModelList, NewEpisodeRequest,
+  CutFile, CutWhat, DiscardResult, EpisodeStatus, EpisodeSummary, ClipQueueResult, EpisodeTargetResult, EpisodeTemplate, Issue, IssueAddRequest, IssueCategory, ModelList, NewEpisodeRequest,
   ImportSeriesRequest, ImportSeriesResult, XmlImportRequest, XmlImportSummary, XmlImportUpload, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
   PeaksResult, PickRequest, Ref, RefDefaults, RefDiscardRequest, RefGenerateMissingRequest, RefGenerateMissingResult, RefGenerateRequest,
   RefGenerateResult, RefImportRequest, RefKeyframeRequest, RefList, RefMatchResult, RefOverrideInfo, RefOverrideRequest, RefPickRequest, RefPickResult,
@@ -498,6 +498,8 @@ export interface Api {
   refsCopyTake(req: { ep: string; ref: string; view?: string | null; take: number; to: string }): Promise<RefTake>;
   /** POST /seriesmith/refs/relight: a sequence relight (relit locations, their edits queued) */
   refsRelight(req: RelightRequest): Promise<RelightResult>;
+  /** crops' pictures upscaled: queued on the local backend (plates.py) */
+  refsUpscaleCrop(req: { ep: string; crops?: string[]; all?: boolean; redo?: boolean; model?: string }): Promise<{ queued: { id: string; job: string }[]; skipped: { id: string; why: string }[] }>;
   /** P5: POST /seriesmith/refs/tour-frame, any moment of a finished tour as a hold */
   refsTourFrame(req: { ep: string; ref: string; tour: number; seconds: number }): Promise<RefTake>;
   /** POST /seriesmith/refs/generate-missing: one candidate for every missing series
@@ -537,6 +539,8 @@ export interface Api {
   clearIssues(ep: string, pass?: Pass | null, addressedOnly?: boolean): Promise<Issue[]>;
   /** GET /seriesmith/issues/export: the markdown to hand to an assistant. */
   exportIssues(ep: string, pass?: Pass | null): Promise<string>;
+  /** GET /seriesmith/issues/categories: what a note can be filed as, in order. */
+  issueCategories(): Promise<IssueCategory[]>;
   /** P8: POST /seriesmith/refs/match -- which slot each file name means. Read-only,
    * names only (no file bodies), so the table can be shown before anything is sent. */
   refsMatch(ep: string, names: string[]): Promise<RefMatchResult>;
@@ -1061,6 +1065,7 @@ export function createHttpApi(t: Transport): Api {
     refsTour: (req) => call("POST", "/seriesmith/refs/tour", req),
     refsCopyTake: (req) => call("POST", "/seriesmith/refs/copy-take", req),
     refsRelight: (req) => call("POST", "/seriesmith/refs/relight", req),
+    refsUpscaleCrop: (req) => call("POST", "/seriesmith/refs/upscale-crop", req),
     refsTourFrame: (req) => call("POST", "/seriesmith/refs/tour-frame", req),
     refsGenerateMissing: (req) => {
       // only what's set: the server's defaults apply to the rest
@@ -1148,6 +1153,8 @@ export function createHttpApi(t: Transport): Api {
     ).then((r) => r.issues),
     exportIssues: (ep, pass) => get<{ text: string }>(`/seriesmith/issues/export?${qs({ ep, pass: pass || undefined })}`)
       .then((r) => r.text),
+    issueCategories: () => get<{ categories: IssueCategory[] }>("/seriesmith/issues/categories")
+      .then((r) => r.categories),
     refsMatch: (ep, names) => call("POST", "/seriesmith/refs/match", { ep, names }),
     refsDiscard: ({ ep, ref, view, take }) => call("POST", "/seriesmith/refs/discard", view ? { ep, ref, view, take } : { ep, ref, take }),
     refsKeyframe: (req) => call("POST", "/seriesmith/refs/keyframe", req),
