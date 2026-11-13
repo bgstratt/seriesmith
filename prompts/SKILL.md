@@ -95,6 +95,18 @@ under a show at once.
     "porch": {
       "description": "a wooden front porch at dawn, wet boards, a hanging lamp still lit, mist over the lawn beyond",
       "plate": "../refs/_bg/porch.png"
+    },
+    "porch_lamp": {
+      "of": "porch",
+      "crop": "center",
+      "zoom": 1.5,
+      "description": "the wet porch boards and the hanging lamp by the door, mist beyond the rail"
+    },
+    "porch_lamp_close": {
+      "of": "porch",
+      "crop": "center",
+      "zoom": 2.2,
+      "description": "the porch wall and the hanging lamp, close"
     }
   },
   "audio": { "mode": "generate" }
@@ -120,6 +132,7 @@ sound: dawn birdsong, dripping water, a faint breeze
 who: ada
 with: lantern
 size: medium
+plate: porch_lamp
 dur: 4
 Ada lifts the lantern off its hook and turns the flame down until it gutters out.
 camera: holds static
@@ -128,6 +141,7 @@ sound: a metal hook ringing, the soft pop of a flame going out
 ## sh030
 who: ada
 size: close
+plate: porch_lamp_close
 dur: auto
 Ada grins and pulls her hood up, her eyes out over the lawn, off to frame left.
 camera: pushes in with small amplitude at slow speed

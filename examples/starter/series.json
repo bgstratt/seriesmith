@@ -29,6 +29,18 @@
     "porch": {
       "description": "a wooden front porch at dawn, wet boards, a hanging lamp still lit, mist over the lawn beyond",
       "plate": "../refs/_bg/porch.png"
+    },
+    "porch_lamp": {
+      "of": "porch",
+      "crop": "center",
+      "zoom": 1.5,
+      "description": "the wet porch boards and the hanging lamp by the door, mist beyond the rail"
+    },
+    "porch_lamp_close": {
+      "of": "porch",
+      "crop": "center",
+      "zoom": 2.2,
+      "description": "the porch wall and the hanging lamp, close"
     }
   },
   "audio": { "mode": "generate" }
