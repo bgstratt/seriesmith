@@ -1938,7 +1938,9 @@ you supply. Refs are the same thing whatever model consumes them. Each has a `sc
   target from the base's seed and the variant's words.
 - A **crop** (a location with `of`, `crop` and `zoom`: docs/PLATE_VARIANTS.md) carries
   `"crop"` (which part), `"zoom"` (how much closer, 1.6 when the series config leaves it
-  out) and `"upscaled"` (the upscale model its picture was made with, null when stretched)
+  out), `"upscaled"` (the upscale model its picture was made with, null when stretched) and
+  `"undescribed"` (`[[shot, size]]`: its close shots with no one named in them, when it has no
+  description of its own and so speaks with its master's, `build.undescribed`; `[]` otherwise)
   beside its `"of"`; any other ref has none of them. A series location carries `"uncropped"`:
   `[[shot, size]]`, its medium and close shots (ms, mws, cowboy, mcu, cu) on its whole plate
   when that plate is wide (not a crop, no `framing: medium` or `close`), from the built

@@ -810,7 +810,11 @@ seriesmith never crops by itself: the script decides. Go through every medium an
    episode check it. Each crop is cut at the build and shown on its row in the Refs tab; one that
    shows only wall, floor or sky, or misses what its description names, has the wrong part or too
    much zoom: move the part or lower the zoom. Working from the script alone, without the
-   pictures, say so when you hand it over, so the crops get that look.
+   pictures, say so when you hand it over, so the crops get that look. A crop without one
+   speaks with its master's description, and an insert (a close shot of a thing, no one in
+   it) names its place by the first clause, up to the first comma: start the crop's
+   description with the thing itself ("close on the cracked dashboard of an old pickup
+   truck, its air vents and an old radio"), not with the room it's in.
 
 ### What a place sounds like: `ambience`
 

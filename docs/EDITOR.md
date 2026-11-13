@@ -1046,6 +1046,10 @@ script call for is listed here.
   come out as wide as it. Point at it for the shots; give them a crop (+ Location, **Angle of**
   this place, **Crop**), or, if the plate is already that close, mark the place
   `framing: close` (or `medium`) in series.json.
+- **no description N** on a crop's row: N close shots of a thing (no one named in them) play on
+  it, and it has no description of its own, so their prompts name it by its master's first
+  clause: the room, not the thing. Give the crop a short description that starts with the
+  thing itself ("close on the cracked dashboard of an old pickup truck, ...").
 - A character's sheet is stitched automatically once all four views are picked — or you
   supply a finished one, below.
 - **A view's settings vs the character's.** Seed, model, LoRAs and steps set on a character's

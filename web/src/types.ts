@@ -1700,6 +1700,8 @@ export interface Ref {
   upscaled?: string | null;
   /** a wide place's medium and close shots on its whole plate: [shot, size] (build.uncropped) */
   uncropped?: [string, string][];
+  /** a crop's close shots with no one named, when it has no description of its own: [shot, size] (build.undescribed) */
+  undescribed?: [string, string][];
   /** false when this ref can't be generated; `why_not` says why */
   can_generate?: boolean;
   why_not?: string | null;

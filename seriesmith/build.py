@@ -199,6 +199,7 @@ def story_warnings(story: ir.Episode, series_cfg: dict | None = None) -> list[st
     out += jump_cuts(story, person, name)
     out += recurring_extras(story)
     out += uncropped_warnings(story, series_cfg or {})
+    out += undescribed_warnings(story, series_cfg or {})
     out += no_eyeline(story, person)
     out += wording_warnings(story, series_cfg or {}, person)
     # the old forms of `continuous:` (docs/CONTINUOUS.md), read as the new ones
@@ -399,6 +400,44 @@ def uncropped_warnings(story: ir.Episode, series_cfg: dict) -> list[str]:
                    f"`zoom`, named by their `plate:`), or mark '{lid}' `framing: medium` (or "
                    f"`close`) if its plate is already that close (docs/AUTHORING.md, \"Medium and "
                    f"close shots get a crop of the plate\").")
+    return out
+
+
+def undescribed(story: ir.Episode, series_cfg: dict) -> dict[str, list[tuple[str, str]]]:
+    """{crop id: [(shot, size)]}: the close shots with no one named in them (an insert, or an
+    extra's close-up) that play on a crop with no `description` of its own. Such a shot names
+    its place by the description's first clause, and a crop without one speaks with its
+    master's: the room, where the shot is of a thing in it (docs/AUTHORING.md, rule 7)."""
+    from seriesmith.core import framing as FR
+    locs = (series_cfg or {}).get("locations") or {}
+    out: dict[str, list[tuple[str, str]]] = {}
+    for sq in story.sequences:
+        for sh in sq.shots:
+            size = FR.canonical(sh.size)
+            if FR.family(sh.size) != "close" or sh.cast:
+                continue
+            lid = sh.plate or sq.location
+            e = locs.get(lid) or {}
+            # its own, or its master's (series_config fills a crop's in from its master)
+            own = (e.get("description") or "").strip()
+            if e.get("crop") is None or (own and own != ((locs.get(e.get("of")) or {}).get("description") or "").strip()):
+                continue
+            out.setdefault(lid, []).append((sh.id, size))
+    return out
+
+
+def undescribed_warnings(story: ir.Episode, series_cfg: dict) -> list[str]:
+    locs = (series_cfg or {}).get("locations") or {}
+    out = []
+    for lid, shots in undescribed(story, series_cfg).items():
+        listed = ", ".join(f"{s} ({z})" for s, z in shots[:6]) + (f" and {len(shots) - 6} more" if len(shots) > 6 else "")
+        master = (locs.get(lid) or {}).get("of", "")
+        out.append(f"location '{lid}': {listed} hold on a detail of it with no one named, and it "
+                   f"has no `description` of its own, so they name it by '{master}''s first "
+                   f"clause: the room, not the thing. Give '{lid}' a short description that starts "
+                   f"with the thing itself (\"close on the cracked dashboard of an old pickup "
+                   f"truck, ...\"; docs/AUTHORING.md, \"Medium and close shots get a crop of the "
+                   f"plate\", rule 7).")
     return out
 
 

@@ -1307,6 +1307,12 @@ function RefRow({ ep, r }: { ep: string; r: Ref }) {
                 uncropped {r.uncropped!.length}
               </span>
             )}
+            {(r.undescribed?.length ?? 0) > 0 && (
+              <span className="h3-badge h3-b-stale"
+                title={`Close shots of a thing on this crop, with no one named in them:\n${r.undescribed!.map(([s, z]) => `${s} (${z})`).join(", ")}\n\nThis crop has no description of its own, so they name it by its master's first clause: the room, not the thing. Give it a short description that starts with the thing itself ("close on the cracked dashboard of an old pickup truck, ...").`}>
+                no description {r.undescribed!.length}
+              </span>
+            )}
             {r.panels_conflict && <span className="h3-badge h3-b-stale" title={PANELS_TITLE}>sheet marked one picture</span>}
             {/* P9: the live file isn't this episode's own pick, and others read it */}
             {note && <span className={`h3-badge ${note.label === "not from here" ? "h3-b-override-stale" : "h3-b-override"}`} title={note.title}>{note.label}</span>}
