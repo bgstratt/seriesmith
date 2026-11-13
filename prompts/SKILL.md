@@ -438,8 +438,10 @@ frame interval (0.3 smooths blocky motion, 0.5 is a 180° shutter). Write it for
 1440p master; leave it out for 4K (unmeasured there) or when they haven't asked.
 `"faces": true` redraws each character's face from their sheet where it's too small to
 have eyes and a mouth (wides and full shots; about a minute a character a shot; a large
-face is barely touched). Add it to a shot's own `post` in overrides.json rather than the
-master when only a few wides need it.
+face is barely touched). Leave it out by default: the user marks the clips that need it
+with R while watching the dailies. Put it in `post.master` (Series settings → Finishing →
+**Post: refine faces** → every shot) only when they ask for every shot without marking; a
+shot's own `post` in overrides.json (`true` or `false`) is over both.
 
 ### Series intro and outro: the `publish` block
 

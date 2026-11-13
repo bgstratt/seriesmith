@@ -132,6 +132,8 @@ export interface Field {
   when?: (raw: Raw) => boolean;
   /** shown under "More" */
   more?: boolean;
+  /** a select whose "true" / "false" choices are stored as booleans */
+  bool?: boolean;
   /** a number field shown and typed as a percentage of the stored fraction */
   percent?: boolean;
   /** a number field typed as seconds before a clip's end, stored as a one-second fade
@@ -249,6 +251,11 @@ export const SECTIONS: Section[] = [
       { path: ["post", "master", "motion_blur"], label: "Post: motion blur", kind: "number", min: 0, max: 1, step: 0.05,
         when: (r) => !isEmpty(getPath(r, ["post", "master", "enhance"])),
         help: "A fraction of the frame interval: 0.3 smooths blocky motion, 0.5 is a 180° shutter. Still areas are left alone." },
+      { path: ["post", "master", "faces"], label: "Post: refine faces", kind: "select", bool: true,
+        choices: [{ value: "", label: "clips marked with R (the default)" }, { value: "true", label: "every shot" }],
+        help: "Each character's face redrawn by H3 from their sheet, on a crop the face fills: for faces too small to have eyes and a mouth (about a minute a character a shot). "
+          + "By default only the clips you mark with R while watching the cut; every shot means you never have to mark one. "
+          + "Upscale queues it behind each clip it applies to, and Master makes it whatever its Post-process mode. A shot's own post.faces in overrides.json (true or false) is over this." },
     ],
   },
   {
@@ -340,6 +347,7 @@ export function parsed(f: Field, text: string): unknown {
     if (f.beforeEnd) return n > 0 ? [-n, n > 1 ? 1 - n : 0] : undefined;
     return f.percent ? Math.round(n * 10) / 1000 : n;
   }
+  if (f.bool && (text === "true" || text === "false")) return text === "true";
   return text;
 }
 

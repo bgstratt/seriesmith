@@ -2023,12 +2023,16 @@ def post_upscale(ctx: Context, body):
         bases: dict = {}
         backend = finish_backend(ctx, body)
         ids: dict = {}
-        # a clip marked for faces (R) gets its face pass queued behind its upscale;
-        # without the face pass here, the upscales go ahead and the reason is said
-        marks = P.face_marks(ep, pass_) if body.get("marked_faces", True) is not False else set()
+        # a clip marked for faces (R), or every clip when the series says so, gets its
+        # face pass queued behind its upscale; without the face pass here, the
+        # upscales go ahead and the reason is said
+        marks, series_post, own_post = P.face_marks(ep, pass_), P.master_recipe(ep), P.shot_recipes(ep)
+        faced = ({up.shot for up in jobs if P.faces_of(ep, pass_, up.shot, marks, series_post,
+                                                      own_post)[0] is not None}
+                 if body.get("marked_faces", True) is not False else set())
         faces = {up.shot: P.plan_post(ep, up.take, after_upscale=tuple(up.out_size),
                                       quality=up.quality if up.quality in U.QUALITIES else None)
-                 for up in jobs if up.shot in marks}
+                 for up in jobs if up.shot in faced}
         faces = {s: j for s, j in faces.items() if j.action == "post"}
         if faces:
             not_here = missing_on_comfy(ctx, lambda info: P.not_ready(list(faces.values()), info))

@@ -39,6 +39,13 @@ describe("series settings form", () => {
     expect("proxy" in setSize(raw, "proxy", "")).toBe(false);
   });
 
+  it("refine faces: every shot is stored as true, the default leaves it out", () => {
+    const f = SECTIONS.find((s) => s.id === "finishing")!.fields.find((x) => x.path.join(".") === "post.master.faces")!;
+    expect(parsed(f, "true")).toBe(true);
+    expect(parsed(f, "")).toBe("");
+    expect(shown(setPath(raw, ["post", "master", "faces"], true), f)).toBe("true");
+  });
+
   it("numbers are stored as numbers, an empty number field clears", () => {
     const f = SECTIONS[0].fields.find((x) => x.path.join(".") === "series.fps")!;
     expect(parsed(f, "25")).toBe(25);

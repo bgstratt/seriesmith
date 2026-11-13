@@ -741,6 +741,23 @@ class MasterTest(ApiTest):
         self.assertNotIn("faces_prompt_id", res["queued"][0])
         self.assertIn("weren't queued", res["errors"][0]["error"])
 
+    def test_every_shot_for_faces(self):
+        """Series settings' "every shot": master refines every clip without Post-process,
+        and the upscale queues each one's face pass, no mark needed."""
+        rendered = self.render_all()
+        self.set_recipe(RECIPE)
+        self.set_post({"faces": True})
+        with self.face_ready():
+            plan = M.plan_master(self.ep)
+            rows = self.by_shot(plan)
+            self.assertEqual(sorted(plan.face_shots), sorted(rendered))
+            self.assertIn("post: faces (every shot)", rows[rendered[0]].recipe)
+            res = self.ok(A.post_upscale(self.ctx, {"ep": self.ep, "shots": rendered[:2], "method": "pixel",
+                                                    "redo": True}))
+            self.settle()
+        self.assertTrue(all("faces_prompt_id" in q for q in res["queued"]), res)
+        self.assertEqual(res["errors"], [])
+
     def test_queue_order(self):
         """In cut order by default; grouped by what ComfyUI loads on request, each
         group where its first shot is, cut order within it."""

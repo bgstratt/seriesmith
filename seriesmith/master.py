@@ -186,8 +186,9 @@ def plan_master(root: str, pass_: str = "final", conform: bool = False,
                               "(docs/POST_PROCESSING.md): master without Post-process, or add one")
         post_shots = P.shot_recipes(root)
     from seriesmith import post as P
-    marks = P.face_marks(root, pass_)
+    marks, series_post, own_post = P.face_marks(root, pass_), P.master_recipe(root), P.shot_recipes(root)
     for shot, t, why in U.cut_takes(root, None, None, pass_=pass_):
+        faced = P.faces_of(root, pass_, shot, marks, series_post, own_post)[0] is not None
         if t is None:
             plan.rows.append(Row(shot, None, "gap", why))
             continue
@@ -239,11 +240,11 @@ def plan_master(root: str, pass_: str = "final", conform: bool = False,
                     row.job = job
         if mode == "recipe" and row.status != "gap":
             plan_row_post(plan, row, post_shots, conform)      # a marked clip's adds faces
-        elif shot in marks and row.status != "gap":
+        elif faced and row.status != "gap":
             plan_row_post(plan, row, post_shots, conform, kw={})   # faces alone, made and played
         elif mode == "present" and row.take is not None:
             note_present_post(row)
-        if shot in marks and row.status != "gap":
+        if faced and row.status != "gap":
             plan.face_shots.append(shot)
         plan.rows.append(row)
     if not plan.rows:
@@ -328,8 +329,11 @@ def plan_row_post(plan: Plan, row: Row, post_shots: dict, conform: bool,
     t = row.take
     row.post_kw = dict(kw) if kw is not None else P.recipe_for(plan.root, row.shot, plan.post, post_shots)
     words = P.describe_recipe(row.post_kw)
-    if "faces" not in row.post_kw and row.shot in P.face_marks(plan.root, plan.pass_):
-        words = ", then ".join(w for w in (words, "faces (marked)") if w)
+    if "faces" not in row.post_kw:
+        f, why = P.faces_of(plan.root, plan.pass_, row.shot)
+        if f is not None:
+            words = ", then ".join(w for w in (words, "faces (marked)" if why.startswith("marked")
+                                               else "faces (every shot)") if w)
     row.recipe = f"{row.recipe}; post: {words or 'none'}"
     quality = plan.recipe.get("quality") or "review"
     if row.status == "upscale":

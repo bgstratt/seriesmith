@@ -457,8 +457,13 @@ blocky edges and shadows, and moving things that smear in blocks instead of blur
   `{"denoise": 0.3}` is gentler (0.05 to 0.6; above 0.4 the head can drift from the body);
   `{"subjects": ["peg"]}` refines only those characters. A character without a sheet is
   left out, and a shot with no characters plays its upscale.
+  Off by default. In `post.master` (Series settings → Finishing → **Post: refine faces** →
+  **every shot**) it applies to every shot, marked or not, wherever the shot is finished: the
+  upscale queues its face pass behind it, and Master makes it whatever its Post-process mode.
+  `false` there turns it off, marks included.
 - A shot can have its own over it in overrides.json: `"post": {"sh040": {"motion_blur": 0},
-  "sh050": {"enhance": "none"}, "sh1350": {"faces": true}}`.
+  "sh050": {"enhance": "none"}, "sh1350": {"faces": true}}` (`"faces": false` leaves one
+  shot out of "every shot").
 - Or mark the clip while you watch the dailies (the editor's **R**, `seriesmith cut --mark-faces`):
   its upscale, its post and the master refine its faces from then on, with or without a post
   recipe (EDITOR.md, **Marking clips for faces**).

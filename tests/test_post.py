@@ -159,6 +159,33 @@ class PostTest(ApiTest):
         self.assertNotIn("faces", kw)
         self.assertTrue(P.plan_post(self.ep, t, **kw).face_passes)
 
+    def test_every_shot_by_the_series(self):
+        """Series settings' "every shot" (post.master.faces) refines a clip nobody marked;
+        a shot's own post.faces is over it, and false at either level turns it off."""
+        from seriesmith import edit as E
+        t = self.faced()
+        self.assertEqual(P.faces_of(self.ep, "final", "sh010"), (None, ""))
+        self.assertEqual(P.faces_of(self.ep, "final", "sh010", recipe={"faces": True}, shots={}),
+                         (True, "every shot (series settings)"))
+        self.assertEqual(P.faces_of(self.ep, "final", "sh010", recipe={"faces": True},
+                                    shots={"sh010": {"faces": False}}), (None, ""))
+        self.assertEqual(P.faces_of(self.ep, "final", "sh010", recipe={}, shots={"sh010": {"faces": True}}),
+                         (True, "its own post.faces"))
+        E.set_cut_entry(self.ep, "final", "sh010", refine_faces=True)
+        self.assertEqual(P.faces_of(self.ep, "final", "sh010", recipe={"faces": False}, shots={}),
+                         (None, ""))                              # off for the series: marks too
+        self.assertEqual(P.faces_of(self.ep, "final", "sh010")[1], "marked for faces in the cut")
+        E.set_cut_entry(self.ep, "final", "sh010", refine_faces=False)
+        p = os.path.join(self.ep, "series.json")
+        cfg = json.load(open(p, encoding="utf-8"))
+        cfg["post"] = {"master": {"faces": {"denoise": 0.3}}}
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh)
+        job = P.plan_post(self.ep, t)                                     # unmarked, refined all the same
+        self.assertEqual((job.action, job.faces["denoise"]), ("post", 0.3))
+        self.assertIn("every shot (series settings)", job.notes)
+        self.assertEqual(P.plan_post(self.ep, t, faces=False).action, "error")   # told outright: off
+
     def test_the_dialogs_answer_beats_the_mark(self):
         """One take's dialog says faces outright, by the series recipe too: off here
         leaves a marked clip's faces alone (the dialog unmarks it beside)."""

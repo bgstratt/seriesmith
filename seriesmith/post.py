@@ -363,6 +363,25 @@ def face_marks(root: str, pass_: str) -> set[str]:
         return set()
 
 
+def faces_of(root: str, pass_: str, shot: str, marks: set | None = None,
+             recipe: dict | None = None, shots: dict | None = None) -> tuple:
+    """The face pass a shot gets when a post isn't told either way, and why:
+    (resolve_faces' input, "...") or (None, ""). The shot's own post.faces
+    (overrides.json) over the series' post.master.faces ("every shot") over the
+    cut's mark (R). `false` at either level turns it off, marks or not."""
+    own = ((shot_recipes(root) if shots is None else shots).get(shot) or {}).get("faces")
+    series = ((master_recipe(root) if recipe is None else recipe) or {}).get("faces")
+    for v, why in ((own, "its own post.faces"), (series, "every shot (series settings)")):
+        if v is not None:
+            try:
+                return (v, why) if resolve_faces(v) else (None, "")
+            except PostError:
+                return v, why                                 # plan_post says what's wrong
+    if shot in (face_marks(root, pass_) if marks is None else marks):
+        return True, "marked for faces in the cut"
+    return None, ""
+
+
 def settings_of(job: PostJob) -> dict:
     """What decides the post's picture (the record's `recipe`)."""
     d: dict = {"size": [job.width, job.height]}
@@ -432,13 +451,14 @@ def plan_post(root: str, take: T.Take, *, enhance=None, blur: float = 0.0, faces
     queues it right behind): planned at that size without one, never skipped.
     `faces` on a shot with no character to refine is left out with a note; a post
     asked for faces alone then has nothing to do. `faces` None (not asked either
-    way): as the cut marks the shot (R; face_marks), so a marked clip's post is
-    always refined unless faces are turned off for it."""
+    way): faces_of's (the shot's own, the series' "every shot", the cut's mark R),
+    so a marked clip's post is always refined unless faces are turned off for it."""
     job = PostJob(root=root, take=take, enhance=None, blur=0.0, encoder=encoder,
                   quality=quality or "review")
-    if faces is None and take is not None and take.shot in face_marks(root, take.pass_):
-        faces = True
-        job.notes.append("marked for faces in the cut")
+    if faces is None and take is not None:
+        faces, why = faces_of(root, take.pass_, take.shot)
+        if why:
+            job.notes.append(why)
     try:
         job.enhance = resolve_enhance(enhance)
         job.faces = resolve_faces(faces)

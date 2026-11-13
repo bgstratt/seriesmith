@@ -658,6 +658,10 @@ A mark changes nothing played; it says the clip's faces get refined wherever it'
 - **Refine faces on marked clips…** (the cut menu) does it now, for clips already upscaled.
 
 So: watch the dailies at render size, mark as you go, then upscale, post and master as usual.
+
+Not wanting to mark at all: **Series settings → Finishing → Post: refine faces → every shot**
+treats every clip as marked (the Post dialog says so in place of the marked count). The
+default, **clips marked with R**, is the mark alone.
 A locked clip can be marked; each pass's cut keeps its own marks, so mark in the pass you'll
 upscale. A clip whose post was already made another way is kept as it is (as any post made with
 other settings is): post it again, or master with **Conform**, to add its faces.

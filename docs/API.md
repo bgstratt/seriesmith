@@ -687,7 +687,8 @@ changes nothing played or assembled, a locked entry takes one, and reset and cop
 pass's own. The status's `cut.flag` says so; the timeline shows a marker and a count.
 `"refine_faces": true` marks the clip for the face pass (the editor's R key): kept and shown as
 a flag is, and its own (`cut.refine_faces`). A marked clip's post refines its faces whenever a
-post doesn't say `faces` either way (post.face_marks, plan_post); `POST /seriesmith/upscale`
+post doesn't say `faces` either way (post.faces_of, plan_post: the shot's own `post.faces`, then
+the series' `post.master.faces`, "every shot", then the mark); `POST /seriesmith/upscale`
 queues its face pass right behind its upscale (`faces_prompt_id` in its `queued` entry;
 `"marked_faces": false` in the body doesn't; without the face pass on this ComfyUI the upscale
 goes ahead and `errors` says why the faces didn't); master makes and plays its post in every

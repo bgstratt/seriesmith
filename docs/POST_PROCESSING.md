@@ -461,8 +461,9 @@ light and pose, by the model that drew the shot, so it doesn't read as an overla
 the lips still follow the line.
 
 **Built** as post's middle step, `faces` (`seriesmith post --faces`, the Post dialog's
-**Refine faces**, the take menu's **Refine faces…**, `post.master.faces`, a shot's own in
-overrides.json):
+**Refine faces**, the take menu's **Refine faces…**, the cut's mark (R), `post.master.faces`
+for every shot (Series settings → Finishing), a shot's own in overrides.json; when a post
+isn't told either way, the shot's own is over the series', which is over the mark: `faces_of`):
 
 - **One pass a character**, each on the one before's output: every character subject of the
   shot with a sheet (`subjects` narrows it). A character without a sheet, a location or a
