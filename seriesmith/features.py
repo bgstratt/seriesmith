@@ -112,6 +112,7 @@ CORE_CLASSES = frozenset({
     "EmptyLatentImage", "EmptySD3LatentImage", "EmptyYuE2LatentAudio", "Flux2Scheduler",
     "FluxGuidance", "FluxKVCache", "FluxKontextImageScale", "GetICLoRAParameters",
     "GetVideoComponents", "ImageBatch", "ImageFromBatch", "ImageInvert", "ImageScale",
+    "ImageUpscaleWithModel",
     "ImageScaleToTotalPixels", "ImageToMask", "KSampler", "KSamplerAdvanced", "KSamplerSelect",
     "LTXAVTextEncoderLoader", "LTXVAddGuide", "LTXVAudioVAEDecode", "LTXVAudioVAEEncode",
     "LTXVAudioVAELoader", "LTXVConcatAVLatent", "LTXVConditioning", "LTXVCropGuides",
