@@ -442,7 +442,8 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
           <i className="pi pi-pencil" /> Re-render part of {takeA ? tn(takeA.take) : "A"}…
         </button>
         <button
-          className="h3-btn h3-primary"
+          // "In the cut" is how A stands, not something to press: the state's look, not the primary's
+          className={`h3-btn ${takeA && isCutTake(takeA.take) ? "h3-state" : "h3-primary"}`}
           disabled={!takeA || takeA.status !== "ok" || !takeA.has_video || isCutTake(takeA.take) || !!locked}
           onClick={() => takeA && void pickTake(v.shot, takeA.take, v.pass)}
           title={takeA && isCutTake(takeA.take) ? "The cut already uses A" : locked ?? "Put A in the cut"}

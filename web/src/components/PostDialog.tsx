@@ -131,7 +131,7 @@ function PostBody() {
             <div className="h3-col" style={{ gap: 6 }}>
               <label className="h3-col" style={{ gap: 2 }}>
                 <span className="h3-small h3-muted">Enhance</span>
-                <select value={tier} onChange={(e) => setTier(e.target.value)}>
+                <select className="h3-in" value={tier} onChange={(e) => setTier(e.target.value)}>
                   {opts.tiers.map((t) => (
                     <option key={t.id} value={t.id}>
                       {(TIER_LABEL[t.id] ?? t.id) + (t.readiness.status === "not_ready" ? " (not ready here)" : "")}

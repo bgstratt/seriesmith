@@ -706,12 +706,12 @@ function ShotBin() {
                 <span className="h3-chev">{isCollapsed ? "▶" : "▼"}</span>
                 <b>{g.sequence}</b>
                 <span className="h3-muted h3-small">{g.shots.length} shot{g.shots.length > 1 ? "s" : ""} · {fmtSeconds(g.seconds)}</span>
-                <button className="h3-link h3-small" style={{ marginLeft: "auto" }}
+                <button className="h3-btn h3-btn-sm" style={{ marginLeft: "auto" }}
                   title="Render this sequence's shots again, as new takes with the same seeds (after a relight or a character change): only what changed differs. The takes you have stay."
                   onClick={(e) => { e.stopPropagation(); renderSequence(g.sequence, g.shots.map((s) => s.shot)); }}>
                   Re-render…
                 </button>
-                <button className="h3-link h3-small"
+                <button className="h3-btn h3-btn-sm"
                   title="Relight: every plate this sequence uses at another time, in other weather or light (a flashback, a night version)"
                   onClick={(e) => { e.stopPropagation(); openRelight(g.sequence); }}>
                   Relight…

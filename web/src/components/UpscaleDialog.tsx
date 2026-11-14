@@ -20,7 +20,7 @@ function ScaleSelect({ value, onChange, labelOf, max }: {
   const [custom, setCustom] = useState(!SCALES.includes(value));
   return (
     <div className="h3-row" style={{ gap: 6 }}>
-      <select value={custom ? "custom" : value} onChange={(e) => {
+      <select className="h3-in" value={custom ? "custom" : value} onChange={(e) => {
         if (e.target.value === "custom") setCustom(true);
         else { setCustom(false); onChange(Number(e.target.value)); }
       }}>
@@ -31,7 +31,7 @@ function ScaleSelect({ value, onChange, labelOf, max }: {
         <option value="custom">Custom…</option>
       </select>
       {custom && (
-        <input type="number" min={1.05} max={max} step={0.05} value={value} style={{ width: 72 }}
+        <input className="h3-in" type="number" min={1.05} max={max} step={0.05} value={value} style={{ width: 72 }}
                title={`Any scale above 1, up to ${max}: a re-sample's sides must land on its grid`}
                onChange={(e) => { const n = Number(e.target.value); if (n > 1 && n <= max) onChange(n); }} />
       )}
@@ -288,7 +288,7 @@ function UpscaleBody() {
           {latentish && (opts.through?.length ?? 0) > 0 && (
             <label className="h3-col" style={{ gap: 2 }} title="Takes from other models go through this model: their frames through its VAEs, then its sampler from late in its schedule, with its prompt built from the script and the characters' references. Faces can move toward the references. The take's own sound is kept. Takes this model's family made keep their own re-sample">
               <span className="h3-h">Re-sample through</span>
-              <select value={f.through ?? ""} onChange={(e) => set({ through: e.target.value || null })}>
+              <select className="h3-in" value={f.through ?? ""} onChange={(e) => set({ through: e.target.value || null })}>
                 <option value="">Each take's own model</option>
                 {opts.through!.map((c) => <option key={c.id} value={c.id} disabled={c.status === "not_ready"}>{c.label}{c.status === "not_ready" ? " — not ready" : ""}</option>)}
               </select>
@@ -297,7 +297,7 @@ function UpscaleBody() {
           {f.method === "seedvr2" && sv2Ready && (
             <label className="h3-col" style={{ gap: 2 }}>
               <span className="h3-h">SeedVR2 model</span>
-              <select value={f.seedvr2Model ?? opts.seedvr2!.default} onChange={(e) => set({ seedvr2Model: e.target.value })}>
+              <select className="h3-in" value={f.seedvr2Model ?? opts.seedvr2!.default} onChange={(e) => set({ seedvr2Model: e.target.value })}>
                 {opts.seedvr2!.models.map((m) => <option key={m} value={m}>{m}{m === opts.seedvr2!.default ? " (default)" : ""}</option>)}
               </select>
             </label>
@@ -305,7 +305,7 @@ function UpscaleBody() {
           {f.method === "ltx" && ltxReady && (
             <label className="h3-col" style={{ gap: 2 }} title="Refine Details adds detail and keeps the look; Restore also cleans up compression and softness, and moves the colour more (the colour finish below takes it back)">
               <span className="h3-h">LTX LoRA</span>
-              <select value={ltxLora} onChange={(e) => set({ ltxLora: e.target.value })}>
+              <select className="h3-in" value={ltxLora} onChange={(e) => set({ ltxLora: e.target.value })}>
                 {(["refine", "restore"] as const).map((m) => (
                   <option key={m} value={m} disabled={!opts.ltx!.loras.includes(m)}>
                     {m === "refine" ? "Refine Details" : "Restore"}{m === opts.ltx!.default ? " (default)" : ""}{!opts.ltx!.loras.includes(m) ? " — not installed" : ""}
@@ -317,7 +317,7 @@ function UpscaleBody() {
           {f.method !== "seedvr2" && f.method !== "ltx" && (f.method !== "latent" || refineModel) && pixelReady && (
             <label className="h3-col" style={{ gap: 2 }}>
               <span className="h3-h">Upscale model{f.method === "pixel" ? "" : refineModel ? " (pixel takes, and Wan's re-sample starts with it)" : " (for takes without a re-sample)"}</span>
-              <select value={f.pixelModel ?? ""} onChange={(e) => set({ pixelModel: e.target.value })}>
+              <select className="h3-in" value={f.pixelModel ?? ""} onChange={(e) => set({ pixelModel: e.target.value })}>
                 {opts.pixel.models.map((m) => <option key={m} value={m}>{modelLabel(m)}{m === opts.pixel.default ? " (default)" : ""}</option>)}
               </select>
             </label>
@@ -325,7 +325,7 @@ function UpscaleBody() {
           {latentish && latentSome && (
             <label className="h3-col" style={{ gap: 2 }}>
               <span className="h3-h">Detail (re-sample)</span>
-              <select value={f.detail} onChange={(e) => set({ detail: Number(e.target.value) as 0 | 1 | 2 })}>
+              <select className="h3-in" value={f.detail} onChange={(e) => set({ detail: Number(e.target.value) as 0 | 1 | 2 })}>
                 {opts.details.map((d) => <option key={d} value={d}>{DETAIL_LABELS[d] ?? `${d} steps earlier`}</option>)}
               </select>
             </label>
@@ -333,7 +333,7 @@ function UpscaleBody() {
           {latentish && latentSome && upscalers.length > 1 && (
             <label className="h3-col" style={{ gap: 2 }} title="The nodes that upscale the take's latent before the re-sample">
               <span className="h3-h">Latent upscaler</span>
-              <select value={f.upscaler ?? ""} onChange={(e) => set({ upscaler: e.target.value })}>
+              <select className="h3-in" value={f.upscaler ?? ""} onChange={(e) => set({ upscaler: e.target.value })}>
                 {upscalers.map((c) => <option key={c.id} value={c.id}>{c.label}{c.id ? "" : " (default)"}</option>)}
               </select>
             </label>
@@ -341,7 +341,7 @@ function UpscaleBody() {
           {latentish && latentSome && windowings.length > 1 && (
             <label className="h3-col" style={{ gap: 2 }} title="The nodes that sample a take longer than one window (5.5 s) in overlapping windows, so it fits the card. Shorter takes don't use them">
               <span className="h3-h">Context windows (long takes)</span>
-              <select value={f.windowing ?? ""} onChange={(e) => set({ windowing: e.target.value })}>
+              <select className="h3-in" value={f.windowing ?? ""} onChange={(e) => set({ windowing: e.target.value })}>
                 {windowings.map((c) => <option key={c.id} value={c.id}>{c.label}{c.id ? "" : " (default)"}</option>)}
               </select>
             </label>
@@ -355,7 +355,7 @@ function UpscaleBody() {
           <div className="h3-col" style={{ gap: 3 }}>
             <label className="h3-col" style={{ gap: 2 }} title="An exact size for the result. The last step that can make any size (the upscale model, SeedVR2) is scaled to it; a re-sample keeps its own scale and is resized to it, so add an upscale model after it for detail. A take whose shape isn't the size's (1344×768 is 7:4, not 16:9) is cropped or padded, below">
               <span className="h3-h">Output size</span>
-              <select value={customSize ? "custom" : (f.deliver ?? "")} onChange={(e) => {
+              <select className="h3-in" value={customSize ? "custom" : (f.deliver ?? "")} onChange={(e) => {
                 const v = e.target.value;
                 if (v === "custom") { setCustomSize(true); set({ deliver: D ? `${D.w}x${D.h}` : "" }); }
                 else { setCustomSize(false); set({ deliver: v || null }); }
@@ -366,7 +366,7 @@ function UpscaleBody() {
               </select>
             </label>
             {customSize && (
-              <input placeholder="3840x2160" value={f.deliver ?? ""} style={{ width: 120 }}
+              <input className="h3-in" placeholder="3840x2160" value={f.deliver ?? ""} style={{ width: 120 }}
                      onChange={(e) => set({ deliver: e.target.value || null })} />
             )}
             {D && (
@@ -392,7 +392,7 @@ function UpscaleBody() {
             <div className="h3-col" style={{ gap: 3 }}>
               <label className="h3-col" style={{ gap: 2 }} title="After the re-sample, a second step takes the frames further in the same job: an upscale model (re-sample 2x then RealESRGAN_x2 = 4x; steadiest frame to frame) or SeedVR2 (sharpest stills, a little more shimmer, which the colour finish halves). The re-sample's generated detail comes first either way">
                 <span className="h3-h">Then (re-sampled takes)</span>
-                <select value={!f.thenModel ? "" : f.thenMethod ?? "pixel"} onChange={(e) => {
+                <select className="h3-in" value={!f.thenModel ? "" : f.thenMethod ?? "pixel"} onChange={(e) => {
                   const v = e.target.value;
                   if (!v) set({ thenModel: null });
                   else if (v === "seedvr2") set({ thenMethod: "seedvr2", thenModel: "seedvr2" });
@@ -406,11 +406,11 @@ function UpscaleBody() {
               {f.thenModel && (
                 <div className="h3-row" style={{ gap: 6 }}>
                   {thenSv2 ? (
-                    <select value={f.seedvr2Model ?? opts.seedvr2!.default} onChange={(e) => set({ seedvr2Model: e.target.value })}>
+                    <select className="h3-in" value={f.seedvr2Model ?? opts.seedvr2!.default} onChange={(e) => set({ seedvr2Model: e.target.value })}>
                       {opts.seedvr2!.models.map((m) => <option key={m} value={m}>{m}{m === opts.seedvr2!.default ? " (default)" : ""}</option>)}
                     </select>
                   ) : (
-                    <select value={f.thenModel} onChange={(e) => set({ thenModel: e.target.value })}>
+                    <select className="h3-in" value={f.thenModel} onChange={(e) => set({ thenModel: e.target.value })}>
                       {opts.pixel.models.map((m) => <option key={m} value={m}>{modelLabel(m)}</option>)}
                     </select>
                   )}
@@ -427,7 +427,7 @@ function UpscaleBody() {
           <div className="h3-row" style={{ gap: 8, flexWrap: "wrap" }}>
             <label className="h3-col" style={{ gap: 2 }} title="How the upscale's mp4 is written. Auto: H.264 on the GPU (NVENC) up to 4096 wide, x264 on the CPU past that (slower, but it plays in the editor). GPU (NVENC) past 4096 wide writes HEVC: fast, but the browser may show it black">
               <span className="h3-h">Encoder</span>
-              <select value={f.encoder} onChange={(e) => set({ encoder: e.target.value as UpscaleForm["encoder"] })}>
+              <select className="h3-in" value={f.encoder} onChange={(e) => set({ encoder: e.target.value as UpscaleForm["encoder"] })}>
                 <option value="auto">Auto (GPU when it can)</option>
                 <option value="nvenc">GPU (NVENC; HEVC past 4096)</option>
                 <option value="x264">CPU (x264)</option>
@@ -435,7 +435,7 @@ function UpscaleBody() {
             </label>
             <label className="h3-col" style={{ gap: 2 }} title="Review: quick to write, fine to watch and cut. Master: x264 at CRF 12 on a slower preset, for delivery (a 4K shot takes a minute or two more to write); it still plays in the editor">
               <span className="h3-h">Quality</span>
-              <select value={f.quality ?? "review"} onChange={(e) => set({ quality: e.target.value as "review" | "master" })}>
+              <select className="h3-in" value={f.quality ?? "review"} onChange={(e) => set({ quality: e.target.value as "review" | "master" })}>
                 <option value="review">Review</option>
                 <option value="master">Master</option>
               </select>
@@ -443,7 +443,7 @@ function UpscaleBody() {
             {f.method !== "seedvr2" && f.method !== "ltx" && (f.method === "latent" ? !!f.thenModel && !thenSv2 && !isVsr(f.thenModel) : !isVsr(f.pixelModel)) && (
               <label className="h3-col" style={{ gap: 2 }} title="The upscale model's precision: 16-bit is about twice as fast and looks the same; 32-bit is how ComfyUI's own node runs it">
                 <span className="h3-h">Model precision</span>
-                <select value={f.precision} onChange={(e) => set({ precision: e.target.value as UpscaleForm["precision"] })}>
+                <select className="h3-in" value={f.precision} onChange={(e) => set({ precision: e.target.value as UpscaleForm["precision"] })}>
                   <option value="fp16">16-bit (fast)</option>
                   <option value="fp32">32-bit</option>
                 </select>
@@ -460,7 +460,7 @@ function UpscaleBody() {
               <div className="h3-row" style={{ gap: 8, flexWrap: "wrap" }}>
                 <label className="h3-col" style={{ gap: 2 }} title="Fade the detail the model invents where the original was soft (out-of-focus backgrounds, bokeh), so shallow depth of field stays shallow">
                   <span className="h3-small h3-muted">Keep soft areas soft</span>
-                  <select value={f.keepSoft} onChange={(e) => set({ keepSoft: Number(e.target.value) })}>
+                  <select className="h3-in" value={f.keepSoft} onChange={(e) => set({ keepSoft: Number(e.target.value) })}>
                     <option value={0}>Off</option>
                     <option value={0.5}>Some</option>
                     <option value={1}>Full</option>
@@ -468,7 +468,7 @@ function UpscaleBody() {
                 </label>
                 <label className="h3-col" style={{ gap: 2 }} title="Film grain after the model (which scrubs grain away), different each frame; not added before a Wan re-sample">
                   <span className="h3-small h3-muted">Grain</span>
-                  <select value={f.grain} onChange={(e) => set({ grain: Number(e.target.value) })}>
+                  <select className="h3-in" value={f.grain} onChange={(e) => set({ grain: Number(e.target.value) })}>
                     <option value={0}>Off</option>
                     <option value={0.02}>Light</option>
                     <option value={0.04}>Medium</option>

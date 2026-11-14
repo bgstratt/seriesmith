@@ -72,7 +72,13 @@
   border-bottom: 1px solid var(--h3-border); flex: 0 0 auto; min-width: 0; flex-wrap: wrap;
 }
 
-/* controls */
+/* controls. One set, and which to reach for:
+   - a button (.h3-btn; .h3-btn-sm in a row's head) does something: renders, saves, opens a dialog.
+   - a text link (.h3-link) goes somewhere or opens a list: another tab, a file, a panel's section.
+   - the filled primary (.h3-primary; .h3-paid when it spends money) is the one thing its surface
+     is for (Generate missing, Save, Export): one to a surface.
+   - a state (.h3-state) says how a thing stands ("In the cut"): never the primary's look.
+   - every select, number and text field takes .h3-in. */
 .h3-root button.h3-btn, .h3-root .h3-btn {
   font: inherit; color: var(--h3-fg); background: var(--h3-bg2);
   border: 1px solid var(--h3-border); border-radius: var(--h3-radius); padding: 2px 9px;
@@ -87,6 +93,10 @@
 .h3-root .h3-btn.h3-paid:hover:not(:disabled) { filter: brightness(1.1); background: var(--h3-paid); }
 .h3-root .h3-btn.h3-primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--h3-primary); }
 .h3-root .h3-btn.h3-danger { color: var(--h3-failed); }
+.h3-root .h3-btn.h3-btn-sm { min-height: 20px; padding: 0 7px; font-size: 11px; font-weight: 400; }
+.h3-root .h3-btn.h3-state, .h3-root .h3-btn.h3-state:disabled {
+  background: none; border-color: transparent; color: var(--h3-ok); opacity: 1; cursor: default; font-weight: 600;
+}
 .h3-root .h3-btn.h3-icon { padding: 2px 5px; min-width: 22px; justify-content: center; }
 .h3-root .h3-btn.h3-on { border-color: var(--h3-accent); color: var(--h3-accent); }
 .h3-root .h3-btn.h3-primary.h3-on { color: var(--h3-primary-fg); }

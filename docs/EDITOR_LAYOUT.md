@@ -250,7 +250,11 @@ Each line is a commit on this branch. After the last one on a day: `npm run type
 - [x] 6. The timeline's splitter and the lanes' scroll (section 7). As built: a lane is 18
       to 72 px (22 as it comes), a clip keeps 36 px; in a short panel the lanes shrink to 18
       first, then the whole track (clips and lanes) scrolls down.
-- [ ] 7. The controls: the fields' sweep, links and buttons, one primary (section 8).
+- [x] 7. The controls: the fields' sweep, links and buttons, one primary (section 8). As
+      built: the 26 fields the browser drew (the storyboard's bar, the upscale, master and
+      post dialogs) take `h3-in`; Re-render…, Relight…, Fill N and Fill act are small
+      buttons; "In the cut" has the state look; the rule is at the head of `styles.css`.
+      The other text links and the other surfaces' primaries were not gone through.
 - [ ] 8. The take strip as a column beside the video; the take rows' seed in Details
       (section 9).
 - [ ] 9. Looked at live in both themes on the standalone page and in ComfyUI, at 1600×1000
