@@ -264,7 +264,14 @@ Each line is a commit on this branch. `python tools/make_prompts.py` and
 `python tools/make_site_docs.py` are run and their output committed with the change that
 alters it; `.venv\Scripts\python -m pytest tests/test_docs.py -n 0` after each.
 
-- [ ] 1. The three requests of section 9 run on today's skill and kept.
+- [x] 1. The three requests of section 9 run on today's skill and kept. 2026-11-14: each
+      checked clean (no error, no warning) on its first round; each read
+      `story_structures.md` and not `script_conversion.md`. What each found said twice or
+      against itself is in its report, and is section 1's and 2's list again with a few
+      more: the proxy for the default delivery (896×512 in one row, 960×544 at 8 steps in
+      another and in the example), `extras:` "on every shot" against "never the same line
+      twice", Look's "no good default" against "just start", grid padding said to be warned
+      about and only reported.
 - [ ] 2. The contradictions fixed (section 1), each read against the code.
 - [ ] 3. Each rule said once (section 2); the misfiled text moved.
 - [ ] 4. The markers and the generator (section 3); the site's page unchanged; the tests
@@ -272,7 +279,10 @@ alters it; `.venv\Scripts\python -m pytest tests/test_docs.py -n 0` after each.
 - [ ] 5. The four references marked out and the core's kept lines written (section 4).
 - [ ] 6. The preamble, the one-file instructions' own, the links (section 5).
 - [ ] 7. The references as MCP resources (section 6).
-- [ ] 8. The check as one file, no zip (section 7).
+- [x] 8. The check as one file, no zip (section 7). As built: the skill is 4 files (it
+      was 188); `scripts/check.py` is 2.1 MB with the build's 184 files inside it, and the
+      skill's zip 717 KB. Not yet uploaded to claude.ai to see that it takes a file that
+      size.
 - [x] 9. The demo checks clean; the test that both examples do (section 7a). As built:
       nine crops (two each for `roof_edge_back` and `lower_roof`, one for each of the other
       five), the twelve shots named onto them, the two negations reworded. The crops' parts

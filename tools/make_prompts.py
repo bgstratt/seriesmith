@@ -14,9 +14,9 @@ assistant expects, so the copies cannot drift from the document:
                                              worked through to shots)
         references/story_structures.md       docs/STORY_STRUCTURES.md (story structures,
                                              for outlining an episode written fresh)
-        scripts/check.py, scripts/seriesmith/ (build.py, core/, targets/)
-                                             the build, to validate a script with --check
-                                             where seriesmith isn't installed
+        scripts/check.py                     the build (build.py, core/, targets/) carried
+                                             inside one file, to validate a script with
+                                             --check where seriesmith isn't installed
     build/skill/seriesmith-episode-script.zip
                                              the folder zipped, to upload on claude.ai
                                              (Settings > Skills > Upload a skill)
@@ -39,7 +39,9 @@ Stdlib only.
 from __future__ import annotations
 
 import argparse
+import base64
 import fnmatch
+import hashlib
 import os
 import re
 import shutil
@@ -111,29 +113,73 @@ BUNDLE_NOTE = """## Files in this skill
   offer, each one's beats with their share of the runtime and how each is scored, and how
   beats become shots. Read it when outlining an
   episode written fresh.
-- `scripts/check.py` (with `scripts/seriesmith/`: the build, its core and the targets): the
-  build, bundled so a script can be validated anywhere:
+- `scripts/check.py`: the build itself (its core and the targets), carried inside one
+  file so a script can be validated anywhere. Run it; don't open it (it is the build's
+  files as text, about 2 MB, and reading it tells you nothing):
 
   ```
   python <this skill>/scripts/check.py series.json ep01.md --check
   python <this skill>/scripts/check.py series.json ep01.md --pace
   ```
 
-  It needs Python 3.10+ and nothing else, and writes nothing with `--check` / `--pace`. If
-  the user has seriesmith installed, use its `seriesmith check` (or
-  `seriesmith check <episode folder>`): it is the source of truth, and this copy is
-  `{version}`."""
+  It needs Python 3.10+ and nothing else. The first run writes the build's files to a
+  folder under the system's temporary folder and uses them from there; `--check` and
+  `--pace` write nothing else. If the user has seriesmith installed, use its
+  `seriesmith check` (or `seriesmith check <episode folder>`): it is the source of truth,
+  and this copy is `{version}`."""
 
-# the launcher scripts/ carries: the bundled package on the path, then the build
-CHECK_PY = '''"""Check an episode script against its series config with the build bundled
-beside this file (seriesmith/build.py): python check.py series.json ep01.md --check"""
+# scripts/check.py: the build's files carried inside it as text (claude.ai takes a skill of
+# 200 files at most and refuses an archive in one, so not a folder of them and not a zip),
+# written to a temporary folder when it runs, then the build itself. `{files}` is the table.
+CHECK_PY = '''"""Check an episode script against its series config:
+
+    python check.py series.json ep01.md --check
+    python check.py series.json ep01.md --pace
+
+This file carries seriesmith's build inside it (build.py, core/, targets/: the table
+below, each file's bytes as base64). Run it; there is nothing to read here. The first run
+writes those files to a folder under the system's temporary folder and uses them there.
+"""
+import base64
 import os
 import sys
+import tempfile
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from seriesmith import build  # noqa: E402
+STAMP = "{stamp}"
 
-raise SystemExit(build.main(sys.argv[1:], prog="check.py"))
+
+def unpack() -> str:
+    """The folder holding the build's package, written on the first run."""
+    root = os.path.join(tempfile.gettempdir(), "seriesmith-check-" + STAMP)
+    done = os.path.join(root, ".unpacked")
+    if os.path.isfile(done):
+        return root
+    for name, data in FILES.items():
+        path = os.path.join(root, *name.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as fh:
+            fh.write(base64.b64decode(data))
+    with open(done, "w") as fh:
+        fh.write(STAMP)
+    return root
+
+
+FILES = {
+{files}}
+
+if __name__ == "__main__":
+    try:
+        where = unpack()
+    except OSError as e:
+        sys.exit(f"check.py needs a folder it can write the build to, and the temporary "
+                 f"folder isn't one ({e}). With seriesmith installed, run "
+                 f"`seriesmith check <episode folder>` instead.")
+    if sys.argv[1:] == ["--where"]:      # for a test: where the build was written
+        print(where)
+        raise SystemExit(0)
+    sys.path.insert(0, where)
+    from seriesmith import build
+    raise SystemExit(build.main(sys.argv[1:], prog="check.py"))
 '''
 
 # What scripts/seriesmith/ carries: the build and what a check imports (all stdlib):
@@ -143,9 +189,11 @@ raise SystemExit(build.main(sys.argv[1:], prog="check.py"))
 BUNDLE_FILES = ["__init__.py", "build.py", "settings.py"]
 BUNDLE_DIRS = ["core", "targets"]
 BUNDLE_SKIP = ["__pycache__", "*.pyc", "workflow.json"]
-# claude.ai takes a skill of 200 files at most, and refuses a zip inside it. A model's
-# folder (targets/<kind>/<id>/) needs no __init__.py when it holds only a docstring: its
-# code is imported by module path, which Python 3 finds without one (a namespace package).
+# claude.ai takes a skill of 200 files at most, and refuses a zip inside it: the build is
+# carried inside scripts/check.py (CHECK_PY), so the skill is a handful of files whatever
+# the models number. A model's folder (targets/<kind>/<id>/) goes without its __init__.py
+# when that holds only a docstring: its code is imported by module path, which Python 3
+# finds without one (a namespace package).
 MAX_FILES = 200
 
 
@@ -220,6 +268,41 @@ def left_out(folder: str, names: list[str]) -> list[str]:
     return out
 
 
+def carried() -> list[tuple[str, bytes]]:
+    """The build's files a check runs, as (path inside the package's parent, bytes), sorted:
+    BUNDLE_FILES and BUNDLE_DIRS of seriesmith/, less what `left_out` leaves out."""
+    src = os.path.join(ROOT, "seriesmith")
+    out = []
+    for f in BUNDLE_FILES:
+        out.append(f"seriesmith/{f}")
+    for d in BUNDLE_DIRS:
+        for dirpath, dirnames, filenames in os.walk(os.path.join(src, d)):
+            drop = set(left_out(dirpath, dirnames + filenames))
+            dirnames[:] = [n for n in dirnames if n not in drop]
+            for n in filenames:
+                if n not in drop:
+                    rel = os.path.relpath(os.path.join(dirpath, n), src).replace(os.sep, "/")
+                    out.append(f"seriesmith/{rel}")
+    files = []
+    for name in sorted(out):
+        with open(os.path.join(ROOT, *name.split("/")), "rb") as fh:
+            # as git has them: a checkout with CRLF gives the same file
+            files.append((name, fh.read().replace(b"\r\n", b"\n")))
+    return files
+
+
+def check_py() -> str:
+    """scripts/check.py: CHECK_PY with the build's files written in."""
+    files = carried()
+    stamp = hashlib.sha256(b"\0".join(n.encode() + b"\0" + d for n, d in files)).hexdigest()[:16]
+    rows = []
+    for name, data in files:
+        b64 = base64.b64encode(data).decode("ascii")
+        lines = [b64[i:i + 100] for i in range(0, len(b64), 100)] or [""]
+        rows.append(f'    "{name}": (\n' + "".join(f'        "{ln}"\n' for ln in lines) + "    ),\n")
+    return CHECK_PY.replace("{stamp}", stamp).replace("{files}", "".join(rows))
+
+
 def bundle_skill(text: str) -> str:
     """The bundled skill's SKILL.md: the skill's text and what the folder holds."""
     return skill_text(text, BUNDLE_NOTE.replace("{version}", version()))
@@ -255,18 +338,12 @@ def bundle(text: str, out: str | None = None) -> str:
     write(os.path.join(folder, "references", "story_structures.md"), bundle_structures())
 
     scripts = os.path.join(folder, "scripts")
-    pkg = os.path.join(scripts, "seriesmith")
-    os.makedirs(pkg)
-    with open(os.path.join(scripts, "check.py"), "w", encoding="utf-8", newline="\n") as fh:
-        fh.write(CHECK_PY)
-    src = os.path.join(ROOT, "seriesmith")
-    for f in BUNDLE_FILES:
-        shutil.copy2(os.path.join(src, f), os.path.join(pkg, f))
-    for d in BUNDLE_DIRS:
-        shutil.copytree(os.path.join(src, d), os.path.join(pkg, d),
-                        ignore=left_out)
-    print(f"  -> {os.path.relpath(scripts, ROOT)}{os.sep} (check.py, seriesmith/: "
-          f"{', '.join(BUNDLE_FILES + [d + '/' for d in BUNDLE_DIRS])})")
+    os.makedirs(scripts)
+    check = os.path.join(scripts, "check.py")
+    with open(check, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(check_py())
+    print(f"  -> {os.path.relpath(check, ROOT)} ({len(carried())} files of the build inside it: "
+          f"{', '.join(BUNDLE_FILES + [d + '/' for d in BUNDLE_DIRS])}; {os.path.getsize(check) // 1024} KB)")
 
     # The zip holds the folder itself, as claude.ai's skill upload expects.
     # Fixed timestamps and sorted entries: the same sources give the same zip.
