@@ -411,6 +411,8 @@
   content: ""; position: absolute; top: 0; left: -4px; border: 5px solid transparent; border-top-color: #ff3b3b;
 }
 .h3-root button.h3-badge-btn { background: none; cursor: pointer; font: inherit; font-size: 10px; }
+/* a wrong-level badge that is a button keeps its fill (its words are white) */
+.h3-root button.h3-badge-btn.h3-b-missing-refs, .h3-root button.h3-badge-btn.h3-b-failed { background: var(--h3-failed); }
 .h3-missing-list { margin: 3px 0; padding-left: 16px; font-size: 11px; max-height: 160px; overflow: auto; }
 .h3-missing-list li { overflow-wrap: anywhere; }
 .h3-menu-sep { border-top: 1px solid var(--h3-border); margin: 3px 0; }

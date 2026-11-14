@@ -260,4 +260,7 @@ Each line is a commit on this branch. After the last one on a day: `npm run type
       keeps the take in A in view; a ref's candidates (the stills viewer) stay a row under
       the picture.
 - [ ] 9. Looked at live in both themes on the standalone page and in ComfyUI, at 1600×1000
-      and at a narrow window, on an episode of 280 shots.
+      and at a narrow window, on an episode of 280 shots. Done 2026-11-14: the standalone
+      page in both themes at 1600×1000 and 1000×760, and the panels at ComfyUI's widths on
+      the dev page, on episodes of 11 and 49 shots. Still to look at: a running ComfyUI,
+      and an episode of 280 shots.
