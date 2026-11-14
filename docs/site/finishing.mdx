@@ -23,14 +23,15 @@ and delivery**); this page is the why and the how behind them. The commands are 
 | **Render at size** (the default) | 1344×768 | 896×512 | 7:4 | ~53 s | not needed | 1344×768 as rendered |
 | **Render small, upscale to 1080p** | 960×544 | 864×480 | ≈7:4 | ~20 s | re-sample 2x → 1920×1088, ~25–35 s | 1920×1080 (8 rows cropped) |
 | **Render 16:9, upscale to 1080p or 4K** | 1024×576 | 512×288 | 16:9 | ~23–24 s (est.) | re-sample 2x → 2048×1152 (scaled down to 1080p; for 4K, then an upscale model) | 1920×1080 or 3840×2160, exactly |
-| **Render at size, master 1440p** | 1344×768 | 960×544 (8 steps) | 7:4 | ~53 s | re-sample 2x → 2688×1536, ~75 s | 2560×1440 (scaled down, 23 rows cropped) |
+| **Render at size, master 1440p** | 1344×768 | 896×512 (8 steps) | 7:4 | ~53 s | re-sample 2x → 2688×1536, ~75 s | 2560×1440 (scaled down, 23 rows cropped) |
 
 (Measured on an RTX 5090 with the 8-step turbo LoRA; the 1024×576 time is estimated from
 its 13% more pixels than 960×544, since attention grows a little faster than the pixel
 count.)
 
 **A proxy smaller than 480p is too small to judge a shot by**: faces, hands and small props
-blur into each other. 896×512 is the default for a new series: the same 7:4 shape as
+blur into each other. 896×512 is the default for a new series, and what an H3 model renders
+when the series config has no `proxy` block: the same 7:4 shape as
 1344×768 exactly, so a proxy take can stand in for a final one in a cut (a proxy of
 another shape is scaled to fit there). 448×256 renders quicker, for a rough check of timing
 only.
@@ -266,7 +267,7 @@ upscale to reach 1080p. With about 4 takes a shot, a 100-shot episode is roughly
 this way against about 7 at 1344×768 (extrapolated from 3–5 s shots: master one real
 episode before planning a season on it).
 
-- **960×544** (proxy 448×256) when the shots are mostly H3: the re-sample makes 1920×1088,
+- **960×544** (proxy 864×480) when the shots are mostly H3: the re-sample makes 1920×1088,
   cropped by 8 rows (0.7%, invisible).
 - **1024×576** (proxy 512×288) when many shots are on LTX, or for a touch more crispness:
   it's on both H3's 32 grid and LTX's 64 (LTX snaps 960×544 to 960×512, whose 2x is
@@ -306,10 +307,10 @@ supersampled. Measured on an RTX 5090: **about 75 s a shot**, and cleaner than r
 1440p is the slow part). Uploaded to YouTube at 1440p, it also streams better to viewers
 watching at 1080p than a 1080p upload does.
 
-- **Proxy at 960×544, on the 8-step LoRA at 8 steps** (`"proxy": {"width": 960, "height":   544, "steps": 8, "lora": "minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors"}`):
-  a proxy then looks like a final, so a good one can stand in. Its 2x is only 1920×1088,
-  stretched to 1440p: give such a shot its own recipe at `"scale": 2.75` (960→2640), on a
-  short shot only.
+- **Proxy at 896×512, on the 8-step LoRA at 8 steps** (`"proxy": {"width": 896, "height":   512, "steps": 8, "lora": "minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors"}`):
+  the default proxy size, the final's own 7:4 shape, and a proxy then looks like a final, so
+  a good one can stand in. Its 2x is only 1792×1024, stretched to 1440p: give such a shot its
+  own recipe at `"scale": 3` (896→2688, the size a final's 2x makes), on a short shot only.
 - **Long shots:** a 2x re-sample of 1344×768 is heavy. Up to about 6–7 s it fits a 32 GB
   card; a 10 s shot at 2x ran out of VRAM and stalled. Give long shots their own recipe at
   `"scale": 1.5` with `"then": "RealESRGAN_x2.pth"`.

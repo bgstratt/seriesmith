@@ -48,8 +48,8 @@ series config format.
 | **[docs/DESIGN.md](docs/DESIGN.md)**, **[docs/RELEASES.md](docs/RELEASES.md)** | How seriesmith is built (backends, the queue, the two hosts) and what each release brought; [docs/PLAN.md](docs/PLAN.md) is the retired work list, kept as a record | Changing seriesmith |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | House rules: the golden tests, how the generated docs are regenerated | Sending a change |
 
-`prompts/SKILL.md` and `prompts/seriesmith-script.instructions.md` are **generated**
-from `docs/AUTHORING.md` by `python tools/make_prompts.py`, so an assistant drafting
+`prompts/SKILL.md`, the references beside it (`prompts/references/`) and
+`prompts/seriesmith-script.instructions.md` are **generated** from `docs/AUTHORING.md` by `python tools/make_prompts.py`, so an assistant drafting
 a script reads exactly what you do; the same command builds the installable
 script-writing skill (`prompts/seriesmith-episode-script.zip`, committed, to upload in
 Claude or unzip into `.claude/skills/`). Edit the guide, never the copies — a test fails
@@ -196,9 +196,9 @@ ffmpeg comes with it (imageio-ffmpeg and PyAV), and your own wins if you have on
 `seriesmith serve` (or `seriesmith serve --root Shows`) serves the editor at
 http://127.0.0.1:8190:
 
-- **Shots** (sidebar): the project folders (roots) and the episode, the pass
-  (final / proxy) and the episode's model; build; every shot with its takes, status
-  and stale marks; render, redo, cancel, pick the take the cut uses, discard a take.
+- **Shots** (sidebar): the episode's model; build; every shot with its takes, status
+  and stale marks; the project folders (roots), the episode and the pass (final / proxy)
+  are picked in the top bar (in ComfyUI, at the head of the Shots tab); render, redo, cancel, pick the take the cut uses, discard a take.
   **Import…** (Project folders) asks which: **An edit (FCP7 XML)…**, a cut from
   Premiere, Resolve or Final Cut 7 as a new show ([docs/IMPORT_XML.md](docs/IMPORT_XML.md)),
   or a seriesmith series, which brings in a whole season's scripts at once, with one

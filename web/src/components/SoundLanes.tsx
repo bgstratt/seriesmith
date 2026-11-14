@@ -33,7 +33,7 @@
 
 import {
   Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState,
-  type DragEvent, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type RefObject,
+  type DragEvent, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type RefObject, createContext, useContext
 } from "react";
 import { seekCutAt } from "../cutActions";
 import { framesLabel } from "../lib/cutEdit";
@@ -72,15 +72,18 @@ import { PeaksCanvas, WaveLane, usePeaks, useSeen } from "./Waveform";
 
 /** the hits lane */
 export const HITS_H = 16;
-/** each track's lane */
-export const LANE_H = 22;
+/** each track's lane: as it comes, and how short and tall the timeline's splitter makes it */
+export const LANE_DEFAULT = 22;
+export const LANE_MIN = 18;
+export const LANE_MAX = 72;
 /** the lanes' heads (sticky, on the left) */
 export const HEAD_W = 184;
-/** all of it, gaps included, for a mix of `tracks` tracks (four by default) */
-export const lanesH = (tracks = 4) => HITS_H + tracks * (LANE_H + 1) + 1;
-export const LANES_H = lanesH();
-/** a block's inside, where its waveform and gain line are drawn */
-const BLOCK_H = LANE_H - 6;
+/** all of it, gaps included, for a mix of `tracks` tracks (four by default) at a lane's height */
+export const lanesH = (tracks = 4, lane = LANE_DEFAULT) => HITS_H + tracks * (lane + 1) + 1;
+/** A lane's height, set by the timeline (its splitter trades it against the clips'). A
+ * block's inside, where its waveform and gain line are drawn, is 6 px less. */
+export const LaneHeight = createContext(LANE_DEFAULT);
+const useLaneH = () => useContext(LaneHeight);
 /** px from a volume point that pick it up; from the gain line that a double-click adds one */
 const POINT_HIT = 5;
 const LINE_HIT = 4;
@@ -150,6 +153,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
   /** changes whenever the clips may have moved (zoom, the cut, a trim preview) */
   measureKey: unknown;
 }) {
+  const LANE_H = useLaneH();
   const res = useApp((s) => currentMix(s));
   const err = useApp((s) => s.mixError[statusKey(ep, s.pass)]);
   // the music's beats (GET /seriesmith/mix/beats, fetched when its files change): faint ticks on the Music lane
@@ -518,7 +522,7 @@ export const SoundLanes = memo(function SoundLanes({ ep, st, other, items, inner
   const regionOn = (i: number) => regionPop?.i === i || ((drag?.what === "regfrom" || drag?.what === "regto") && drag.id === String(i));
 
   return (
-    <div className="h3-snd" style={{ height: lanesH(lanes.length) }}>
+    <div className="h3-snd" style={{ height: lanesH(lanes.length, LANE_H) }}>
       <div className="h3-snd-lane h3-snd-hits" style={{ height: HITS_H }} onClick={onLaneClick} onDoubleClick={(e) => void onHitsDouble(e)}
         onPointerDown={onHitsDown}
         onContextMenu={(e) => onLaneMenu(e, null)}
@@ -701,6 +705,7 @@ const TICK_GAP = 5;
  * zoomed out: the beats go first, then the downbeats.
  */
 const BeatTicks = memo(function BeatTicks({ beats, lay }: { beats: Beat[]; lay: Lay[] }) {
+  const LANE_H = useLaneH();
   const xs = beats.map((b) => ({ x: timeX(lay, b.t), down: b.down }));
   const gap = (list: { x: number }[]) => {
     let m = Infinity;
@@ -962,6 +967,7 @@ function GainLine({ width, x0, x1, pts, points, onPointDown, onPointMenu }: {
   onPointDown: (e: RPointerEvent<Element>, i: number) => void;
   onPointMenu: (i: number) => void;
 }) {
+  const BLOCK_H = useLaneH() - 6;
   return (
     <svg className="h3-snd-gain" width={width} height={BLOCK_H}>
       <line className="h3-snd-zero" x1={0} x2={width} y1={dbY(0, BLOCK_H)} y2={dbY(0, BLOCK_H)} />
@@ -1008,6 +1014,8 @@ const Block = memo(function Block({ ep, it, lay, items, fps, cue, dragging, onDo
   /** a right-click on a point: delete it */
   onPointMenu: (i: number) => void;
 }) {
+  const LANE_H = useLaneH();
+  const BLOCK_H = LANE_H - 6;
   const box = useRef<HTMLDivElement>(null);
   const seen = useSeen(box);
   // the file's length first (one bin), then its waveform over what plays
@@ -1084,6 +1092,7 @@ const BedBlock = memo(function BedBlock({ ep, bed, mix, lay, items, fps, onMenu 
   ep: string; bed: MixBed; mix: Mix; lay: Lay[]; items: PlayItem[]; fps: number;
   onMenu: (e: RMouseEvent<HTMLElement>) => void;
 }) {
+  const LANE_H = useLaneH();
   const box = useRef<HTMLDivElement>(null);
   const seen = useSeen(box);
   const { start: t0, end: t1 } = bedSpan(items, bed, fps);
@@ -1211,6 +1220,8 @@ const FxBlock = memo(function FxBlock({ ep, fx, mix, lay, items, fps, onMenu, on
   onAddPoint: (e: RMouseEvent<HTMLElement>, fx: MixFx) => void;
   onPointMenu: (fx: MixFx, i: number) => void;
 }) {
+  const LANE_H = useLaneH();
+  const BLOCK_H = LANE_H - 6;
   const box = useRef<HTMLDivElement>(null);
   const seen = useSeen(box);
   const { start: t0, end: t1 } = fxSpan(items, fx, fps);
@@ -1773,6 +1784,7 @@ function FadeHandles({ name, x0, x1, wIn, wOut, fadeIn, fadeOut, fps, active, on
   fps: number; active: "in" | "out" | null;
   onDown: (e: RPointerEvent<Element>, side: "in" | "out") => void;
 }) {
+  const BLOCK_H = useLaneH() - 6;
   if (x1 - x0 < FADE_MIN_W) return null;
   const h = BLOCK_H + 1;
   const half = FADE_SQ / 2;

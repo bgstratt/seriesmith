@@ -1280,13 +1280,13 @@ function RefRow({ ep, r }: { ep: string; r: Ref }) {
                 <span className="h3-warn" title={`${r.continuity[pass]!.why}. The next render of ${kf.shot} cuts it again from that take.`}>· out of date</span>
               )}
               {r.target && <span title={`${targetLabel(list, r.target)} reads this keyframe`}>· read by {targetShort(list, r.target)}</span>}
-              <span>· {all.length} cand.</span>
+              <span>· {all.length} take{all.length === 1 ? "" : "s"}</span>
               {live != null && <span>· live {tn(live)}</span>}
             </div>
           ) : (
             <div className="h3-row h3-small h3-muted">
               <span title={used.join(", ")}>used by {used.length} shot{used.length === 1 ? "" : "s"}</span>
-              <span>· {all.length} cand.</span>
+              <span>· {all.length} take{all.length === 1 ? "" : "s"}</span>
               {picks != null && <span>· {picks}/4 views</span>}
               {live != null && <span>· live {tn(live)}</span>}
             </div>
@@ -1491,7 +1491,7 @@ export function RefsTab() {
         {refs && <span className="h3-muted h3-small h3-nowrap">{refs.length} refs</span>}
         <span className="h3-grow" />
         {loading && <i className="pi pi-spin pi-spinner h3-muted" />}
-        <PassToggle />
+        {!host().topBar && <PassToggle />}
         <AddRefButton disabled={!ep} />
         <button className="h3-btn" title="The series' settings: title, size, look, sound, models, finishing" disabled={!ep}
           onClick={() => openSeriesForm()}><i className="pi pi-cog" /> Series</button>

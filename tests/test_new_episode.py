@@ -29,6 +29,7 @@ from seriesmith import edit as E  # noqa: E402
 from seriesmith import source as S  # noqa: E402
 
 STARTER = os.path.join(ROOT, "examples", "starter")
+DEMO = os.path.join(ROOT, "examples", "demo")
 
 
 def read(path: str) -> str:
@@ -72,6 +73,22 @@ class TestStarter(unittest.TestCase):
         paths += [loc["plate"] for loc in cfg["locations"].values() if not loc.get("crop")]   # a crop's is beside its place's
         for p in paths:
             self.assertTrue(p.startswith("../refs/"), p)
+
+
+class TestExamplesCheckClean(unittest.TestCase):
+    """The script-writing skill says a script is finished when the check is clean, so the
+    examples it points at are: no error, and no warning line (`    ! ...`)."""
+
+    def test_no_warnings(self):
+        for folder in (STARTER, DEMO):
+            with self.subTest(example=os.path.basename(folder)):
+                out = subprocess.run(
+                    [sys.executable, "-m", "seriesmith.build",
+                     os.path.join(folder, "series.json"), os.path.join(folder, "ep01.md"), "--check"],
+                    capture_output=True, text=True, cwd=ROOT)
+                self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+                warned = [ln for ln in out.stdout.splitlines() if ln.lstrip().startswith("! ")]
+                self.assertEqual(warned, [])
 
 
 class NewEpisodeCase(unittest.TestCase):

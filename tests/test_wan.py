@@ -172,8 +172,8 @@ class TargetTest(unittest.TestCase):
 
     def test_presets_and_sizes(self):
         # not the series target: the H3 series' 448x256 proxy lends no size
-        for tid, final, proxy in ((I2V, "832x480", "640x352"), (TI2V, "1280x704", "640x352"),
-                                  (VACE, "832x480", "640x352")):
+        for tid, final, proxy in ((I2V, "1280x720", "832x480"), (TI2V, "1280x704", "832x480"),
+                                  (VACE, "1280x720", "832x480")):
             t = TG.load_target(tid)
             for ps, want in (("final", final), ("proxy", proxy)):
                 doc, rep = t.compile_episode(self.story, self.cfg, ps)
@@ -377,7 +377,7 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(list(got), ["first"])
         g = self.graph(job, take)
         i2v = g[J.node_of(g, "WanImageToVideo")]["inputs"]
-        self.assertEqual((i2v["width"], i2v["height"], i2v["length"]), (640, 352, 61))
+        self.assertEqual((i2v["width"], i2v["height"], i2v["length"]), (832, 480, 61))
         self.assertEqual(g[i2v["start_image"][0]]["inputs"]["image"], got["first"])
         self.assertNotIn("end_image", i2v)
         # two stages: each model with its own LoRA and shift, samplers split 2/2
@@ -423,7 +423,7 @@ class RenderTest(unittest.TestCase):
         fl = g[J.node_of(g, "WanFirstLastFrameToVideo")]["inputs"]
         self.assertEqual(g[fl["start_image"][0]]["inputs"]["image"], got["first"])
         self.assertEqual(g[fl["end_image"][0]]["inputs"]["image"], got["last"])
-        self.assertEqual((fl["width"], fl["height"]), (832, 480))
+        self.assertEqual((fl["width"], fl["height"]), (1280, 720))
 
     def test_i2v_lora_chains_by_stage(self):
         self.keyframe("sh010", "first")
@@ -471,7 +471,7 @@ class RenderTest(unittest.TestCase):
         self.assertFalse(of(g, "LoadImage"))
         lat = g[J.node_of(g, "Wan22ImageToVideoLatent")]["inputs"]
         self.assertNotIn("start_image", lat)
-        self.assertEqual((lat["width"], lat["height"], lat["length"]), (640, 352, 89))
+        self.assertEqual((lat["width"], lat["height"], lat["length"]), (832, 480, 89))
         ks = g[J.node_of(g, "KSampler")]["inputs"]
         self.assertEqual((ks["steps"], ks["cfg"], ks["sampler_name"], ks["seed"]),
                          (12, 5.0, "uni_pc", job.seed))
@@ -528,10 +528,10 @@ class RenderTest(unittest.TestCase):
         kept = os.path.join(take.paths.dir, take.paths.stem + "_reference.png")
         self.assertEqual(comfy.uploads[got["reference"]], open(kept, "rb").read())
         img = Image.open(kept).convert("RGB")
-        self.assertEqual(img.size, (640, 352))
+        self.assertEqual(img.size, (832, 480))
         # on white: two body panels (red, the strip's first), then the kettle
         self.assertEqual(img.getpixel((0, 0)), (255, 255, 255))
-        colors = {c for _, c in img.getcolors(640 * 352)}
+        colors = {c for _, c in img.getcolors(832 * 480)}
         self.assertIn((255, 0, 0), colors)
         self.assertIn((20, 20, 20), colors)
         self.assertNotIn((0, 255, 0), colors)                    # one view per character
@@ -544,7 +544,7 @@ class RenderTest(unittest.TestCase):
         vace = g[J.node_of(g, "WanVaceToVideo")]["inputs"]
         self.assertEqual(g[vace["reference_image"][0]]["inputs"]["image"], got["reference"])
         self.assertEqual((vace["width"], vace["height"], vace["length"], vace["strength"]),
-                         (640, 352, 89, 1.0))
+                         (832, 480, 89, 1.0))
         self.assertNotIn("control_video", vace)
         trim = g[J.node_of(g, "TrimVideoLatent")]["inputs"]
         self.assertEqual(trim["trim_amount"], [J.node_of(g, "WanVaceToVideo"), 3])

@@ -235,7 +235,7 @@ it found in the settings file (`detected_targets`) and logs them
 
 Then `seriesmith serve` (add `--root C:\Shows` to name your project folders) and open
 http://127.0.0.1:8190. Set your **project roots** — the folders holding your episodes —
-in the Shots tab if you didn't pass `--root`; every episode the editor touches has to
+from the episode's dropdown in the top bar (**Browse and add new…**) if you didn't pass `--root`; every episode the editor touches has to
 live inside one of them. They are kept in seriesmith's folder beside its settings file
 (`%APPDATA%\seriesmith\default\seriesmith\config.json`; `~/.config/seriesmith/...`
 on Linux/macOS), else read from `SERIESMITH_ROOTS` (`;`-separated, `:` on Linux/macOS).
@@ -1147,8 +1147,8 @@ editor would fall back to the parent folder's). Copy it in, or run
 
 **The animatic renders at a size you did not ask for.**
 With no `proxy` block in the series config, the proxy pass falls back to the *target's*
-own proxy preset — 512×288 for MiniMax H3 — rather than a scaled-down copy of your final
-size. That is fine until your final size is not 16:9, at which point the proxy and the
+own proxy preset — 896×512 for MiniMax H3, 1344×768's shape — rather than a scaled-down copy
+of your final size. That is fine until your final size is another shape, at which point the proxy and the
 final have different aspect ratios and proxy placeholders in a final cut get scaled
 oddly. Add a `proxy` block (the Series settings form's **Size (proxy)**): a new series gets
 896×512, exactly 1344×768's shape, both axes on H3's /32 grid.

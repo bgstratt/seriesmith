@@ -96,10 +96,10 @@
   },
 
   "presets": {
-    "_note": "The 14B fp8 pair with lightx2v's 4-step LoRA pair (strength 1), 4 steps split 2/2, cfg 1, euler / simple, shift 5: the template's 4-step branch. Final 832x480 (Wan's 480p; the template itself says 640x640), proxy 640x352. Another target's series config block lends no size: Wan was trained at 480p/720p. The negative prompt is Wan's standard one from ComfyUI's Wan templates (it is ignored at cfg 1, used when a profile drops the LoRAs for cfg > 1). `base` (the lightx2v pair not installed): no LoRA, 20 steps split 10 / 10 (high / low), cfg 3.5, euler / simple, shift 5: the non-LoRA branch of ComfyUI's Wan 2.2 14B i2v template (video_wan2_2_14B_i2v.json: 'Int (Steps)' 20, 'Int (split_step)' 10, 'Float (CFG)' 3.5 behind the 'Enable 4steps LoRA?' switches; both ModelSamplingSD3 at 5).",
+    "_note": "The 14B fp8 pair with lightx2v's 4-step LoRA pair (strength 1), 4 steps split 2/2, cfg 1, euler / simple, shift 5: the template's 4-step branch. Final 1280x720 (Wan's 720p; the template itself says 640x640), proxy 832x480 (Wan's 480p). Until 2026-11-14 they were 832x480 and 640x352. Another target's series config block lends no size: Wan was trained at 480p/720p. The negative prompt is Wan's standard one from ComfyUI's Wan templates (it is ignored at cfg 1, used when a profile drops the LoRAs for cfg > 1). `base` (the lightx2v pair not installed): no LoRA, 20 steps split 10 / 10 (high / low), cfg 3.5, euler / simple, shift 5: the non-LoRA branch of ComfyUI's Wan 2.2 14B i2v template (video_wan2_2_14B_i2v.json: 'Int (Steps)' 20, 'Int (split_step)' 10, 'Float (CFG)' 3.5 behind the 'Enable 4steps LoRA?' switches; both ModelSamplingSD3 at 5).",
     "final": {
       "model": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
-      "lora": null, "steps": 4, "width": 832, "height": 480,
+      "lora": null, "steps": 4, "width": 1280, "height": 720,
       "model_low": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
       "loras": [{"name": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors", "strength": 1.0, "stage": "high"},
                 {"name": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors", "strength": 1.0, "stage": "low"}],
@@ -110,7 +110,7 @@
       "base": {"loras": [], "steps": 20, "cfg": 3.5, "split": 0.5}
     },
     "proxy": {
-      "lora": null, "steps": 4, "width": 640, "height": 352,
+      "lora": null, "steps": 4, "width": 832, "height": 480,
       "model_low": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
       "loras": [{"name": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors", "strength": 1.0, "stage": "high"},
                 {"name": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors", "strength": 1.0, "stage": "low"}],

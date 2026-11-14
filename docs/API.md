@@ -2581,7 +2581,7 @@ ones now show:
   `short` "LTX+refs". `capabilities` gains `reference_sheet` (true only here), and
   `subject_refs` is true for it. `template`: `fps: 24`, `frames: {step: 8, base: 121, max:
   121}` (every shot is 121 frames), `size_multiple: 32`. Presets: final 768×448, proxy
-  512×288, both `ltx-2.3-22b-distilled-fp8.safetensors` + `ltx-2.3-22b-ic-lora-ingredients-0.9`
+  768×448, both `ltx-2.3-22b-distilled-fp8.safetensors` + `ltx-2.3-22b-ic-lora-ingredients-0.9`
   at 1.0, 8 steps, text encoder `gemma_3_12B_it_fp4_mixed`. Its widgets include `steps`
   (the template's KSampler), and `model` is patched into all three loaders that read the
   checkpoint.
@@ -2620,7 +2620,7 @@ Nothing new in the routes; what the existing ones now show:
   `template` is H3's (`fps: 24`, `frames: {step: 17, base: 5, max: 3592}`,
   `size_multiple: 32`); the build warns past the model's trained 362 frames. Presets: final
   1344×768, `minimax_h3_fl2va_pruned_int8_convrot` + `minimax_h3_fl2v_turbo_8step_v1.0` at
-  8 steps (`res_multistep`); proxy 448×256, the 4-step lightx2v v0.1 LoRA at 4 steps
+  8 steps (`res_multistep`); proxy 896×512, the 4-step lightx2v v0.1 LoRA at 4 steps
   (`euler`). `widgets` add `sampler` (KSamplerSelect) and have `steps` (BasicScheduler).
 - **Shotlist entries** are like `ltx2`'s: `keyframes` `{first, last}` (the conventional
   paths), no `panels`, no `negative`; `audio_intent` / `audio_note` on a clone shot. The
@@ -2734,9 +2734,9 @@ existing routes now show:
   `negative_prompt: true`, `keyframes` `["first", "last"]` (I2V, VACE) or `["first"]` (5B),
   `subject_refs` true only for VACE. `template`: 14B `fps: 16.0`, `frames: {step: 4, base: 5,
   max: 161}`, `size_multiple: 16`; 5B `fps: 24.0`, `max: 241`, `size_multiple: 32`; all
-  `size_fit: "snap"` under 720p. Presets: I2V final 832×480 / proxy 640×352, 4 steps with
-  the lightx2v LoRA pair; 5B final 1280×704 / proxy 640×352, 20 / 12 steps; VACE final
-  832×480 / proxy 640×352, 20 / 10 steps at cfg 3.5. `widgets` add `model_low` (the 14B's
+  `size_fit: "snap"` under 720p. Presets: I2V final 1280×720 / proxy 832×480, 4 steps with
+  the lightx2v LoRA pair; 5B final 1280×704 / proxy 832×480, 20 / 12 steps; VACE final
+  1280×720 / proxy 832×480, 20 / 10 steps at cfg 3.5. `widgets` add `model_low` (the 14B's
   low noise model), `cfg`, `sampler`, `shift` (and VACE's `vace_strength`); `loras` is the
   high noise stage's spec (a 14B binding has one LoRA chain per stage: `stage` routes a
   LoRA, else its name's `high_noise` / `low_noise`, else both).

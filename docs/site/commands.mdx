@@ -101,12 +101,14 @@ and `design` unless they are only ever a voice), and `locations` with a `descrip
 `plate` each. `--check` names whichever is missing.
 
 Drafting with an AI assistant: the guide comes as a skill, `seriesmith-episode-script`.
-`prompts/seriesmith-episode-script.zip` is the whole skill (the guide, a worked screenplay
-conversion from `docs/SCRIPT_CONVERSION.md`, the story structures from
-`docs/STORY_STRUCTURES.md`, and a copy of `build` to validate with): upload it
+`prompts/seriesmith-episode-script.zip` is the whole skill: the guide's core (`SKILL.md`), six
+references it reads when a script needs them (the series config, the models, continuity,
+people, a worked screenplay conversion from `docs/SCRIPT_CONVERSION.md`, the story structures
+from `docs/STORY_STRUCTURES.md`), and `scripts/check.py`, one file carrying `build` to validate
+with. Upload it
 in Claude (Settings → Skills → Upload a skill), or unzip it into `.claude/skills/` for Claude
-Code. `python tools/make_prompts.py` rebuilds it. `prompts/SKILL.md` is the skill's
-text alone, and `prompts/seriesmith-script.instructions.md` the same guide for Cursor, Copilot or
+Code. `python tools/make_prompts.py` rebuilds it. `prompts/SKILL.md` and
+`prompts/references/` are the skill's text alone, and `prompts/seriesmith-script.instructions.md` the same guide for Cursor, Copilot or
 any system prompt. Edit the docs, not the copies. Whatever writes the script, `--check`
 and `--pace` are what say it is correct.
 
@@ -145,7 +147,7 @@ target H3's model, LoRA or steps.
 
 A distilled LoRA is trained on a fixed set of timesteps, so it does its best work at its own
 step count: the 8-step v1.0 was distilled at 768p for 8 steps, and the proxy keeps the 4-step
-v0.1 both for speed and because its 544p training is closer to the animatic's 512×288.
+v0.1 both for speed and because its 544p training is closer to the animatic's 896×512.
 
 Override per pass in the series config (`series` for the final, `proxy` for the animatic):
 
@@ -609,7 +611,9 @@ Every step goes through the same routes the editor uses, so an open editor shows
 happens. The model is the client's; seriesmith needs no key for it. Tools that queue jobs on
 the GPU or spend Comfy credits say so, and the server asks the model to confirm with you
 first. The script format is a resource (`seriesmith://script-format`), for a client without
-the script-writing skill.
+the script-writing skill; the parts it reads only when needed (the series config's blocks,
+the models, continuity, wardrobe and groups, converting a screenplay, story structures) are
+resources beside it (`seriesmith://script-format/references/<name>`).
 
 **Nothing to switch on, nothing left running.** seriesmith never starts it. Your LLM client
 starts `seriesmith mcp` when it needs it and stops it when it closes; it listens on no port

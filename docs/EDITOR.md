@@ -36,7 +36,8 @@ you to write into:
    starts it again under the .bat launchers, and the page reloads), `seriesmith stop
    [--restart]`, or Ctrl+C. A stop closes the page's connection and writes the queue's
    journal first, so it's quick, and jobs on Router are picked up on the next start.
-3. **Open Shots → the episode's name at the top → Browse and add new…** and add the
+3. **Open the episode's name in the top bar (in ComfyUI, at the head of the Shots tab) →
+   Browse and add new…** and add the
    folder that *contains* your episode folders (the root), then pick the episode from the
    same dropdown.
 4. **No episode yet? New episode…** in that same window writes the two files for you — see
@@ -115,41 +116,60 @@ starts the series wizard.
 
 ### The toolbar
 
-The Shots and Refs tabs open as Simple mode does: the episode is the panel's title (its
-series above it), its name a dropdown of every episode, whose last choice, **Browse and
-add new…**, opens **Project folders** (add or remove roots, open an episode, New episode…,
-New series/project…, Import…). Beside it on the Shots tab, **Rescan the project roots**
-(after adding an episode folder outside the editor) and **Simple / Advanced**. The
-timeline keeps a small dropdown of its own, with the same choices.
+The open episode is named once, with its series before it: its name is a dropdown of every
+episode, whose last choice, **Browse and add new…**, opens **Project folders** (add or
+remove roots, open an episode, New episode…, New series/project…, Import…). Beside it,
+**proxy / final**: which pass you are looking at and rendering, in every panel.
+
+- On seriesmith's own page (`seriesmith serve`), both are in the top bar, after the name
+  seriesmith, and the panels and the timeline don't repeat them.
+- In ComfyUI, where each panel can be open alone, the episode is the title of the Shots and
+  Refs tabs, on a line of its own under the series, and the timeline keeps a small dropdown
+  with the same choices; proxy / final is in the episode's card, the Refs tab's bar and
+  the timeline's bar.
+
+At the head of the Shots tab, **Rescan the project roots** (after adding an episode folder
+outside the editor) and **Simple / Advanced**.
 
 The **refresh** beside the head reads the episode again from disk and rescans the project
-folders. Under it, the Shots toolbar, its buttons in groups, left to right:
+folders. Under it, the Shots toolbar:
 
-| Icon | What it does |
+| Button | What it does |
 |---|---|
 | **+ Shot** | **Add a shot** after the selected one, as a form (below) |
-| pencil | **Edit the selected shot** as a form |
-| sliders | **Inspect the selected shot** |
-| file-edit | **Edit the episode's script** — opens the Script window |
-| cog | **Series settings** — the series config as a form; a section with a guide has a **Docs ↗** link to its page on the docs site |
-| book | **Edit the series config** (`series.json`) as text |
-| volume-up | **Recording** — attach a dialogue recording and time the script against it (`align`). Lit when the episode has one. For a song, its **Vocal stem** part (optional, off by default) makes the singing's stem on local ComfyUI, aligns **from the vocal stem**, and lets **dub shots hear the vocal stem** (RECORDED_DIALOGUE.md) |
-| play | **Play all** — the cut, played from its takes, no export needed |
-| film | **Open the timeline** |
-| speech bubble | **Issues** — the pass's notes (below), with how many are open |
-| images | **Open the Refs tab** |
+| **Script** | **Edit the episode's script** — opens the Script window |
+| **Series** | **Series settings** — the series config as a form; a section with a guide has a **Docs ↗** link to its page on the docs site |
+| **Issues** | The pass's notes (below), with how many are open |
+| play, **Timeline** | In ComfyUI only, where the timeline is a bottom panel: **Play all** (the cut, played from its takes, no export needed) and **Open the timeline**. On seriesmith's own page the timeline is always in view, with Play all in its bar |
+| **⋯** (More) | The rest, each by its name: **Edit the selected shot** as a form, **Inspect the selected shot**, **series.json as text**, **Recording** — attach a dialogue recording and time the script against it (`align`); for a song, its **Vocal stem** part (optional, off by default) makes the singing's stem on local ComfyUI, aligns **from the vocal stem**, and lets **dub shots hear the vocal stem** (RECORDED_DIALOGUE.md) — and, in ComfyUI, **Open the Refs tab** |
 
 Under it, the episode's card: **Model:**, the episode's video model (below), the row
-that works on the pass: **proxy / final** (which pass you are looking at and rendering),
-**Build** (runs `build` for both passes from the script and series config), **Re-render
-stale** and, in proxy, **Finals from drafts**; then **Generate missing**, and how far
-through the pass it is (done of total, failed, how long a shot takes, how long is left).
+that works on the pass: **Build** (runs `build` for both passes from the script and series config), **Re-render
+stale** and, in proxy, **Finals from drafts**; then **Generate missing**, when a shot has no
+take yet. The card's first line says how far through the pass it is (done of total, failed,
+how long a shot takes, how long is left), with a bar under the card's contents.
+
+The arrow at the start of that line folds the card to the line alone, and gives the room to
+the shots; the browser remembers it. Folded, the line still says what needs doing, as
+buttons: **N missing** queues them as Generate missing does, **N stale** as Re-render stale
+does. A build that fails opens the card.
 
 Beside the filter, **List / Board** (remembered in this browser): the list has a row per
 shot, its takes under it; the board shows each sequence as a grid of its shots'
 pictures (hover scrubs one, click selects, double-click plays, right-click as a row).
 **Gallery** opens every take of the episode, large ([The gallery](#the-gallery)); a
 sequence's header, double-clicked, opens it on that sequence.
+
+**A row's badges** come in three looks, by how much they ask of you. Filled red is
+something wrong: a take failed, the cut's pick can't be used, references are missing.
+Outlined orange needs a look: stale, no takes, a placeholder, an override written for an
+older build. Outlined grey is a fact: left out, moved, trimmed, an override, an upscale, a
+model other than the episode's. A job on its way (queued, rendering) has its own colour. A
+row shows its two most serious and a count (`+2`); hover the count for the rest and their
+reasons, or open the row to see them all. A **lock** before the shot's id is its approved
+take, locked in the cut; it is a mark of its own, on the timeline's clip as well. A clip too
+narrow for a badge's words wears its level as a coloured left edge, and the words are in
+its tooltip. A take's seed, and whether it was the same or a new one, are in **Details**.
 
 ### The episode's model
 
@@ -358,7 +378,7 @@ under the shot.
 - **Use** puts that take in the cut. A take has to be finished and have video before it can
   go in.
 - **The ⋯ button, or right-click anywhere on a shot or take**, opens the context menu. It is
-  the same menu in the bin, the timeline and the viewer strip.
+  the same menu in the bin, the timeline and the viewer's column of takes.
 - **Import video…** (under a shot's takes, or in its context menu), or a video file dropped on
   the shot's row: a clip from anywhere (your phone, another tool) as the shot's next take,
   in the cut. See [Takes from outside](#takes-from-outside).
@@ -453,7 +473,7 @@ groups that open beside the menu when you hover them.
 
 ### Editing a shot
 
-**+ Shot** in the Shots toolbar adds a shot after the selected one; the pencil (or
+**+ Shot** in the Shots toolbar adds a shot after the selected one; **Edit** in the toolbar's **⋯** (or
 **Edit shot…** in the context menu) opens the selected one. The form is the shot's lines
 in the script as fields, in cards; each field's help is on its label (point at the ⓘ):
 
@@ -576,7 +596,7 @@ lines, smears), action, camera, count, cut, lipsync, text, performance (the acti
 reactions, how people play off each other) or other. Leaving it at **(none)** is fine. `i` and `o` are still trim-in and trim-out at the playhead, as
 in any NLE, which is why the note key is `n`.
 
-**The note button** (a speech bubble) in the Shots toolbar shows how many are open and opens
+**Issues** in the Shots toolbar shows how many are open and opens
 the list, where
 **Copy export** puts the whole document on the clipboard for an assistant, **✕** resolves one,
 and **Clear addressed** empties the ones whose shots you have already fixed. Once the notes
@@ -1351,7 +1371,17 @@ wins and shows as such. On the standalone page opened on the PC that runs the se
 Docked in the middle of the page: the selected shot's takes (step with `←` `→`, compare two
 **side by side** or under a **wipe**, **Play all** for the cut), a ref's candidates, a
 location's tour (keep any frame as a hold), and a 360 in its own viewer. Drag its tab out to
-float it, or dock another window beside it. **Click the picture** to play or pause it (as
+float it, or dock another window beside it. It follows the selection: an episode opens on its
+first shot's take, and a shot clicked in the list or on the timeline shows its take in the
+cut, waiting on its first frame (a take row clicked shows that take). Double-click, or the
+play button, plays it. Play all, a ref's pictures and a cue's window stay as they are when a
+shot is clicked. In ComfyUI the viewer is a window: a selection moves it only when it is
+already open on a shot. The shot's **takes are a column on the picture's left** (the one
+in the cut ticked, the one playing outlined, a take's badge only when something about it is
+unusual): click one to load it, Ctrl/⌘-click to load it as B, right-click for its menu; the
+column scrolls when there are many. Under the picture, **Details**, **New take from…**,
+**Re-render part of…** and **Use** (which reads **In the cut** on the cut's take).
+**Click the picture** to play or pause it (as
 `Space` does): a take, two side by side (they play together), Play all, the gallery, a clip's
 Replace audio preview. **Scroll on the picture** to zoom in about the pointer (up to 10x),
 **drag** to look round while zoomed, and **double-click** for the whole picture again: a take
@@ -1575,7 +1605,10 @@ next shot starts where this one ended.
 
 **Sound** in the timeline's header unfolds the lanes under the clips (remembered; it is also
 where the waveforms are): a thin **hits** lane, then a lane per track: **Dialogue**, **Effects**,
-**Ambience** and **Music** by default, and any you add.
+**Ambience** and **Music** by default, and any you add. **Drag the line between the clips
+and the lanes** to trade the clips' height for the lanes' (remembered in this browser;
+double-click it for the height they came with). In a panel too short for a clip and every
+lane, the lanes shrink first and then the track scrolls down to the last one.
 They scroll with the clips; each lane's head stays on the left with its **fader** (dB, -60 to
 +12), **M** (mute) and **S** (solo: hear only the soloed lanes). A fader nothing sets sits at its
 default, shown greyed: 0 dB, but **-12 dB on Music**, so the score sits under the lines. A level

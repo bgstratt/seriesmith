@@ -57,13 +57,37 @@ WAIT_MAX = 1800
 FORMAT_URI = "seriesmith://script-format"
 FORMAT_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                            "prompts", "SKILL.md")
+# the parts of the format SKILL.md leaves to references (docs/SKILL_SPLIT.md): each a
+# resource of its own, named in SKILL.md as `references/<name>.md`
+REFERENCES_DIR = os.path.join(os.path.dirname(FORMAT_FILE), "references")
+REFERENCE_URI = FORMAT_URI + "/references/"
+
+
+def references() -> list[dict]:
+    """The format's references as resources: [{uri, name, description, file}], by name.
+    A reference's description is its own lede (what it covers and when to read it)."""
+    out = []
+    if not os.path.isfile(FORMAT_FILE) or not os.path.isdir(REFERENCES_DIR):
+        return out
+    for fn in sorted(os.listdir(REFERENCES_DIR)):
+        if not fn.endswith(".md"):
+            continue
+        path = os.path.join(REFERENCES_DIR, fn)
+        with open(path, encoding="utf-8") as fh:
+            parts = fh.read().split("\n\n", 2)
+        lede = " ".join(parts[1].split()) if len(parts) > 1 else ""
+        out.append({"uri": REFERENCE_URI + fn[:-3], "name": f"seriesmith script format: references/{fn}",
+                    "description": lede, "file": path})
+    return out
 
 INSTRUCTIONS = """\
 seriesmith turns a series config (series.json) and episode scripts (epNN.md) into
 rendered episodes. Paths are absolute folders on the machine seriesmith runs on.
 
 A new show: write series.json and ep01.md in seriesmith's script format (the
-seriesmith://script-format resource, or the seriesmith-episode-script skill), check them
+seriesmith://script-format resource, or the seriesmith-episode-script skill; where it says
+to read `references/<name>.md`, that is the resource seriesmith://script-format/references/<name>),
+check them
 with check_pair until it answers ok, then new_episode (or import_series for several
 scripts) in a folder list_episodes' roots allow, then build.
 An existing episode: read_source, edit, check_source, save_source (with the hash
@@ -724,14 +748,20 @@ class Server:
         if method == "resources/list":
             return {"resources": [{"uri": FORMAT_URI, "name": "seriesmith script format",
                                    "description": "How to write series.json and epNN.md "
-                                   "(the script-writing skill's text)",
-                                   "mimeType": "text/markdown"}]
+                                   "(the script-writing skill's text). It names its "
+                                   "references as `references/<name>.md`: each is the "
+                                   f"resource {REFERENCE_URI}<name>",
+                                   "mimeType": "text/markdown"},
+                                  *({"uri": r["uri"], "name": r["name"], "description": r["description"],
+                                     "mimeType": "text/markdown"} for r in references())]
                     if os.path.isfile(FORMAT_FILE) else []}
         if method == "resources/read":
-            if params.get("uri") != FORMAT_URI or not os.path.isfile(FORMAT_FILE):
-                raise RpcError(-32002, f"no resource {params.get('uri')!r}")
-            with open(FORMAT_FILE, encoding="utf-8") as fh:
-                return {"contents": [{"uri": FORMAT_URI, "mimeType": "text/markdown",
+            uri = params.get("uri")
+            files = {FORMAT_URI: FORMAT_FILE, **{r["uri"]: r["file"] for r in references()}}
+            if uri not in files or not os.path.isfile(files[uri]):
+                raise RpcError(-32002, f"no resource {uri!r}")
+            with open(files[uri], encoding="utf-8") as fh:
+                return {"contents": [{"uri": uri, "mimeType": "text/markdown",
                                       "text": fh.read()}]}
         if method == "resources/templates/list":
             return {"resourceTemplates": []}

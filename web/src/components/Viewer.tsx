@@ -291,10 +291,17 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
     }
   }, [aEl, fps]));
 
+  // the column scrolls: the take in A is kept in view (another shot selected, a take stepped to)
+  const stripRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = stripRef.current?.querySelector<HTMLElement>(`[data-take="${v.a}"]`);
+    if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
+  }, [v.shot, v.a]);
   const load = (t: TakeSummary, toB: boolean) => {
     if (!t.mp4) return;
-    if (toB) updateViewer({ b: t.take, mode: mode === "single" ? "side" : mode });
-    else updateViewer({ a: t.take });
+    // a take asked for plays, where one a selection showed waits
+    if (toB) updateViewer({ b: t.take, mode: mode === "single" ? "side" : mode, paused: false });
+    else updateViewer({ a: t.take, paused: false });
   };
 
   // Phase 13: show a take's fresh upscale instead of the take (remembered, shared with Play all)
@@ -331,7 +338,7 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
           src={url(t)}
           preload="auto"
           playsInline
-          autoPlay={which === "a"}
+          autoPlay={which === "a" && !v.paused}
           loop
           style={colorFilter ? { filter: colorFilter } : undefined}
           // a click plays or pauses, as space does: A leads, B follows it
@@ -349,7 +356,7 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
         />
       ) : (
         <div className="h3-empty-state" style={{ color: "#aaa" }}>
-          {t ? `${tn(t.take)} has no video (${t.status})` : which === "b" ? "Ctrl/⌘-click a take below to load B" : "Click a take below"}
+          {t ? `${tn(t.take)} has no video (${t.status})` : which === "b" ? "Ctrl/⌘-click a take on the left to load B" : "Click a take on the left"}
         </div>
       )}
     </div>
@@ -377,22 +384,17 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
 
   return (
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultViewerRect} head={head} winRef={winRef} float={!!v.floating}>
-      <CompareStage
-        mode={mode}
-        hasB={!!takeB}
-        emptyB="Ctrl/⌘-click a take below to load B"
-        paneA={(style) => pane("a", takeA, style)}
-        paneB={(style) => pane("b", takeB, style)}
-      />
-      <Transport a={aEl} fps={fps} audio={audio} setAudio={setAudio} hasB={!!takeB} />
-      <div className="h3-vstrip">
+      {/* the picture and its transport, the shot's takes in a column on their left: the
+          picture keeps the window's height */}
+      <div className="h3-vbody">
+      <div className="h3-vstrip h3-vcol" ref={stripRef}>
         {takes.map((t) => {
           const isA = t.take === v.a;
           const isB = !!takeB && t.take === v.b;
           const stale = realStale(t);
           const tb = takeTargetBadge(t, shotCurrent, targets);
           return (
-            <div key={t.take} className={`h3-vtake${isA ? " h3-a" : ""}${isB ? " h3-b" : ""}`}>
+            <div key={t.take} data-take={t.take} className={`h3-vtake${isA ? " h3-a" : ""}${isB ? " h3-b" : ""}`}>
               <Thumb
                 ep={ep}
                 pass={v.pass}
@@ -410,7 +412,7 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
               <span className="h3-row" style={{ gap: 3 }}>
                 {isA && <span className="h3-ab h3-a">A</span>}
                 {isB && <span className="h3-ab h3-b">B</span>}
-                <span className={t.status === "ok" ? "h3-muted" : t.status === "failed" ? "h3-err" : ""}>{t.status}</span>
+                {t.status !== "ok" && <span className={t.status === "failed" ? "h3-err" : ""}>{t.status}</span>}
                 {stale.length > 0 && <span className="h3-badge h3-b-stale" title={stale.join(", ")}>stale</span>}
                 {tb && <span className="h3-badge h3-b-target" title={tb.title}>{tb.label}</span>}
               </span>
@@ -418,6 +420,17 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
           );
         })}
         {!takes.length && <div className="h3-muted">No takes.</div>}
+      </div>
+      <div className="h3-vmain">
+      <CompareStage
+        mode={mode}
+        hasB={!!takeB}
+        emptyB="Ctrl/⌘-click a take on the left to load B"
+        paneA={(style) => pane("a", takeA, style)}
+        paneB={(style) => pane("b", takeB, style)}
+      />
+      <Transport a={aEl} fps={fps} audio={audio} setAudio={setAudio} hasB={!!takeB} />
+      </div>
       </div>
       <div className="h3-transport" style={{ justifyContent: "flex-end", flexWrap: "wrap" }}>
         <span className="h3-muted h3-small h3-grow">
@@ -441,7 +454,8 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
           <i className="pi pi-pencil" /> Re-render part of {takeA ? tn(takeA.take) : "A"}…
         </button>
         <button
-          className="h3-btn h3-primary"
+          // "In the cut" is how A stands, not something to press: the state's look, not the primary's
+          className={`h3-btn ${takeA && isCutTake(takeA.take) ? "h3-state" : "h3-primary"}`}
           disabled={!takeA || takeA.status !== "ok" || !takeA.has_video || isCutTake(takeA.take) || !!locked}
           onClick={() => takeA && void pickTake(v.shot, takeA.take, v.pass)}
           title={takeA && isCutTake(takeA.take) ? "The cut already uses A" : locked ?? "Put A in the cut"}
@@ -1211,7 +1225,7 @@ function StillsView({ ep, v }: { ep: string; v: ViewerState }) {
                   <span className="h3-row" style={{ gap: 3 }}>
                     {isA && <span className="h3-ab h3-a">A</span>}
                     {isB && <span className="h3-ab h3-b">B</span>}
-                    <span className={t.status === "ok" ? "h3-muted" : t.status === "failed" ? "h3-err" : ""}>{t.status}</span>
+                    {t.status !== "ok" && <span className={t.status === "failed" ? "h3-err" : ""}>{t.status}</span>}
                   </span>
                 </div>
               );

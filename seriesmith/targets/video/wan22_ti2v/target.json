@@ -82,7 +82,7 @@
   },
 
   "presets": {
-    "_note": "wan2.2_ti2v_5B_fp16, KSampler uni_pc / simple, cfg 5, shift 8 (ComfyUI's Wan 2.2 5B template; the user's saved copy has 30 steps and shift ~5). Final 1280x704 at 20 steps (the model's optimal size); proxy 640x352 at 12 steps, the cheap preview. Another target's series config block lends no size. The negative prompt is Wan's standard one from ComfyUI's Wan templates.",
+    "_note": "wan2.2_ti2v_5B_fp16, KSampler uni_pc / simple, cfg 5, shift 8 (ComfyUI's Wan 2.2 5B template; the user's saved copy has 30 steps and shift ~5). Final 1280x704 at 20 steps (the model's optimal size); proxy 832x480 at 12 steps, the cheap preview (640x352 until 2026-11-14). Another target's series config block lends no size. The negative prompt is Wan's standard one from ComfyUI's Wan templates.",
     "final": {
       "model": "wan2.2_ti2v_5B_fp16.safetensors",
       "lora": null, "steps": 20, "width": 1280, "height": 704,
@@ -92,7 +92,7 @@
       "vae": "wan2.2_vae.safetensors"
     },
     "proxy": {
-      "lora": null, "steps": 12, "width": 640, "height": 352,
+      "lora": null, "steps": 12, "width": 832, "height": 480,
       "cfg": 5.0, "sampler": "uni_pc", "shift": 8.0,
       "negative": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
       "text_encoder": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",

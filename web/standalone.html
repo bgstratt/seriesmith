@@ -56,7 +56,9 @@
       #sm-top .sm-mark.on-light, :root.light #sm-top .sm-mark.on-dark { display: none; }
       :root.light #sm-top .sm-mark.on-light { display: block; }
       #sm-top .spacer { flex: 1 1 auto; }
-      #sm-top button {
+      /* the open episode and the pass (TopEpisode): the title whole, cut only when the bar is full */
+      #sm-episode { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 0 1 auto; margin-left: 8px; }
+      #sm-top > button, #sm-queue button {
         background: transparent; color: var(--fg-color); border: 1px solid var(--border-color);
         border-radius: 8px; padding: 4px 12px; cursor: pointer; font: inherit; font-size: 12px;
       }
@@ -98,6 +100,7 @@
     <div id="sm">
       <header id="sm-top">
         <b><img class="sm-mark on-dark" src="./src/brand/mark-light.png" alt="" /><img class="sm-mark on-light" src="./src/brand/mark.png" alt="" />seriesmith</b>
+        <span id="sm-episode" class="h3-root"></span>
         <span class="spacer"></span>
         <span id="sm-queue"></span>
         <span id="sm-conn" title="connection to the seriesmith server"></span>
@@ -113,7 +116,7 @@
         <div id="sm-refs" hidden></div>
       </aside>
       <main id="sm-view">
-        <div class="empty">Open an episode, then double-click a take<br />(or select a shot and press the play icon) to view it here.</div>
+        <div class="empty">Open an episode from the top bar.<br />The shot you select shows here, once it has a take.</div>
         <div id="sm-viewer"></div>
       </main>
       <section id="sm-time"><div id="sm-timeline"></div></section>

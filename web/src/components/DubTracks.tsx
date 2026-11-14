@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { generateDubTracks, openSound } from "../actions";
+import { soundWord } from "../lib/format";
 import { dubTrackBlock } from "../lib/readiness";
 import { useApp } from "../store";
 import type { EpisodeStatus, ShotStatus } from "../types";
@@ -19,8 +20,8 @@ export function dubShots(st: EpisodeStatus | undefined): ShotStatus[] {
 
 function soundLabel(s: ShotStatus): string {
   const set = s.sound;
-  if (!set) return s.audio_policy ? `${s.audio_policy} (default)` : "default";
-  return set.mode === "dub" ? `dub · ${set.label ?? "?"}` : set.mode;
+  if (!set) return s.audio_policy ? `${soundWord(s.audio_policy)} (default)` : "default";
+  return set.mode === "dub" ? `dub · ${set.label ?? "?"}` : soundWord(set.mode);
 }
 
 export function DubTracksSection({ st }: { st: EpisodeStatus | undefined }) {
@@ -49,7 +50,7 @@ export function DubTracksSection({ st }: { st: EpisodeStatus | undefined }) {
               <b>{s.shot}</b>
               <span className={n ? "" : "h3-muted"}>{n ? `${n} dub track${n > 1 ? "s" : ""}` : "dubbed to the recording"}</span>
               <span className="h3-grow" />
-              <span className={`h3-badge${s.sound ? " h3-b-voice" : ""}`}>{soundLabel(s)}</span>
+              <span className={`h3-badge${s.sound ? " h3-b-voice" : ""}`} title={s.sound?.mode ?? s.audio_policy ?? undefined}>{soundLabel(s)}</span>
               <button className="h3-btn" title={noModel ?? "Queue a dub track of this shot now (H3 Ref2VA, 64x64)"}
                 onClick={(e) => { e.stopPropagation(); generateDubTracks([s.shot]); }}>
                 <i className={noModel ? "pi pi-exclamation-triangle" : "pi pi-microphone"} /> Generate

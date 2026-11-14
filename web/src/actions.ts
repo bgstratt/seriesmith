@@ -31,7 +31,7 @@ import {
 import type {
   AlignEvent, VocalsEvent, AlignJob, AlignMissing, AlignRequest, AlignResult, AssembleOptions, BuildResult, CutAudioSource, EpisodeStatus, ImportSeriesResult, Lora, NewEpisodeResult, SourceFile, OverrideFields, Pass,
   Limits, ProgressEvent, PromptEvent, Ref, RefEvent, RefGenerateRequest, RefTake, RenderRequest, RenderResult, RenderSkip, Seed,
-  Issue, MasterJob, SeedMode, ShotDetail, TakeEvent, TakeRef, TargetProposal, TrackResult,
+  Issue, MasterJob, SeedMode, ShotDetail, ShotStatus, TakeEvent, TakeRef, TargetProposal, TrackResult,
   UpscaleEvent, UpscaleRequest, VoiceFromTakeRequest, WorkflowFile, PostRequest, RelightRequest, RelightResult,
   OwnPresetRequest, PresetPictureSource,
   ShotSound,
@@ -636,6 +636,11 @@ export function selectEpisode(ep: string | null) {
  * shots with no takes.)
  */
 async function openOnTakes(ep: string) {
+  await passWithTakes(ep);
+  showFirst(ep);
+}
+
+async function passWithTakes(ep: string) {
   const pass = get().pass;
   const st = await refreshEpisode(ep, pass);
   if (!st || get().ep !== ep || get().pass !== pass) return;
@@ -645,6 +650,52 @@ async function openOnTakes(ep: string) {
   if (!ot || get().ep !== ep || get().pass !== pass || !ot.shots.some((x) => x.takes.length)) return;
   setPass(other);
   host().toast("info", `Showing ${other}`, `This episode's takes are all ${other}: ${pass} has none yet.`);
+}
+
+/** The take a shot shows by default: the cut's, else its newest that plays. */
+function shownTake(x: ShotStatus): number | null {
+  if (!x.cut.placeholder && x.cut.take != null && x.takes.some((t) => t.take === x.cut.take)) return x.cut.take;
+  return [...x.takes].reverse().find((t) => t.status === "ok" && t.has_video)?.take ?? null;
+}
+
+/** Whether the take viewer has a place of its own in the page (the standalone page docks
+ * it in the middle); elsewhere it is a window, open only when asked for. */
+function viewerDocked(): boolean {
+  return !!host().topBar;
+}
+
+/**
+ * A selected shot in the take viewer, paused on its take in the cut: where the viewer
+ * is docked, always (it is never empty with an episode open); where it is a window,
+ * only when it is open on a shot's takes already. Play all, a ref's pictures, a cue's
+ * window and a viewer floated over the storyboard are left as they are.
+ */
+function showSelected(shot: string | null) {
+  const s = get();
+  if (!shot || !s.ep) return;
+  const v = s.viewer;
+  if (v ? v.kind !== "takes" || v.floating : !viewerDocked() || s.simple) return;
+  const x = s.status[statusKey(s.ep, s.pass)]?.shots.find((y) => y.shot === shot);
+  if (!x) return;
+  if (v && v.shot === shot && v.pass === s.pass) {
+    // the shot it has: another of its takes picked in the list, shown alone
+    if (v.mode === "single" && s.take != null && s.take !== v.a && x.takes.some((t) => t.take === s.take && t.mp4)) {
+      set({ viewer: { ...v, a: s.take, paused: true } });
+    }
+    return;
+  }
+  const a = s.take != null && x.takes.some((t) => t.take === s.take) ? s.take : shownTake(x);
+  // nothing of it to show: a docked viewer goes back to what it had only when that was nothing
+  if (a == null && !v) return;
+  set({ viewer: { kind: "takes", shot, pass: s.pass, a, b: null, mode: "single", target: "a", paused: true } });
+}
+
+/** An episode just opened where the viewer is docked: its first shot with a take, shown. */
+function showFirst(ep: string) {
+  const s = get();
+  if (!viewerDocked() || s.simple || s.ep !== ep || s.viewer || s.shot) return;
+  const first = s.status[statusKey(ep, s.pass)]?.shots.find((x) => !x.orphan && !x.cut.out && shownTake(x) != null);
+  if (first) select(first.shot, shownTake(first));
 }
 
 export function setPass(pass: Pass) {
@@ -857,6 +908,7 @@ export function select(shot: string | null, take: number | null = null) {
   // a shot outside the selection (a key, a link) leaves it
   set((s) => ({ shot, take, ...(shot && s.multi.includes(shot) ? {} : { multi: [], anchor: shot }) }));
   if (shot) void loadDetail(shot);
+  showSelected(shot);
 }
 
 /** A click on a shot's row, tile or clip: alone, or with Ctrl/⌘ and Shift several (lib/multiSelect). */
@@ -868,6 +920,8 @@ export function clickShot(shot: string, take: number | null, mods: Mods) {
   const same = next.shot === s.shot;
   set({ ...next, take: next.shot === shot ? take : same ? s.take : null });
   if (next.shot) void loadDetail(next.shot);
+  // one shot clicked alone: several picked with Ctrl or Shift leave the viewer where it is
+  if (next.shot === shot && !next.multi.length) showSelected(shot);
 }
 
 export function clearMulti() {

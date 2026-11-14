@@ -95,7 +95,7 @@
   },
 
   "presets": {
-    "_note": "LTX-2.3 22B distilled (fp8) with the ingredients IC-LoRA at the template's 1.0, one stage of 8 steps (KSampler euler_ancestral / linear_quadratic, cfg 1), as the template runs it. The final is the trained bucket, 768x448; the proxy is the bucket scaled by 2/3 and snapped to the grid, 512x288. The model card's settings for the dev model (LoRA 1.4, 30 steps, guidance 4) are not the distilled template's; a dev final (dev checkpoint + the distilled LoRA at 0.75 + ingredients) is a profile away. Sizes come from here, not from another target's series config block: the IC-LoRA only knows its bucket. The negative prompt is the model card's suggestion plus the artefacts a review cut can't use. `base` (no distilled LTX 2.3 checkpoint installed): the model card's settings for the dev model it was trained on, as ComfyUI's ingredients template quotes them in its 'Note: IC-LoRA' (LoRA strength 1.4, 30 steps, guidance 4.0), on ltx-2.3-22b-dev-fp8 (the dev checkpoint ComfyUI's LTX-2.3 i2v / t2v templates load); the template's sampler (euler_ancestral / linear_quadratic) stays. ComfyUI's own LTX-2.3 templates have no undistilled path (their dev checkpoint runs with the distilled LoRA at cfg 1), so these numbers are the model card's, not a template's.",
+    "_note": "LTX-2.3 22B distilled (fp8) with the ingredients IC-LoRA at the template's 1.0, one stage of 8 steps (KSampler euler_ancestral / linear_quadratic, cfg 1), as the template runs it. The final is the trained bucket, 768x448; the proxy is the same bucket (512x288 until 2026-11-14: too small to judge a shot by). The model card's settings for the dev model (LoRA 1.4, 30 steps, guidance 4) are not the distilled template's; a dev final (dev checkpoint + the distilled LoRA at 0.75 + ingredients) is a profile away. Sizes come from here, not from another target's series config block: the IC-LoRA only knows its bucket. The negative prompt is the model card's suggestion plus the artefacts a review cut can't use. `base` (no distilled LTX 2.3 checkpoint installed): the model card's settings for the dev model it was trained on, as ComfyUI's ingredients template quotes them in its 'Note: IC-LoRA' (LoRA strength 1.4, 30 steps, guidance 4.0), on ltx-2.3-22b-dev-fp8 (the dev checkpoint ComfyUI's LTX-2.3 i2v / t2v templates load); the template's sampler (euler_ancestral / linear_quadratic) stays. ComfyUI's own LTX-2.3 templates have no undistilled path (their dev checkpoint runs with the distilled LoRA at cfg 1), so these numbers are the model card's, not a template's.",
     "final": {
       "model": "ltx-2.3-22b-distilled-fp8.safetensors",
       "lora": "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
@@ -108,7 +108,7 @@
     },
     "proxy": {
       "lora": "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
-      "steps": 8, "width": 512, "height": 288,
+      "steps": 8, "width": 768, "height": 448,
       "negative": "worst quality, inconsistent motion, blurry, jittery, distorted, flickering, morphing, extra limbs, watermark, subtitles",
       "text_encoder": "gemma_3_12B_it_fp4_mixed.safetensors",
       "base": {"model": "ltx-2.3-22b-dev-fp8.safetensors",

@@ -13,6 +13,7 @@ import { createHttpApi, xhrUpload } from "./api";
 import { Boundary } from "./components/ErrorBoundary";
 import { dockWindow } from "./components/FloatingWindow";
 import { BackendChoice, JobsButton, JobsWindow } from "./components/Jobs";
+import { TopEpisode } from "./components/ShotsTab";
 import { VIEWER_RECT_KEY } from "./components/Viewer";
 import { api, setApi, setHost, type Host, type HostEvent, type Surface } from "./host";
 import { store, type BackendInfo } from "./store";
@@ -64,6 +65,7 @@ function showTab(tab: Tab) {
 }
 
 const host: Host = {
+  topBar: true,
   on(event: HostEvent, cb) {
     if (!listeners.has(event)) listeners.set(event, new Set());
     listeners.get(event)!.add(cb);
@@ -145,6 +147,13 @@ function boot() {
   // the top bar's queue controls (their Jobs and Settings windows are in the
   // floating layer, above)
   injectStyles();
+  createRoot(document.getElementById("sm-episode")!).render(
+    <StrictMode>
+      <Boundary name="Episode">
+        <TopEpisode />
+      </Boundary>
+    </StrictMode>,
+  );
   createRoot(document.getElementById("sm-queue")!).render(
     <StrictMode>
       <Boundary name="Queue">

@@ -57,6 +57,10 @@ export interface Host {
   toast(severity: Severity, summary: string, detail?: string, action?: ToastAction): void;
   /** Bring a surface into view (open its sidebar tab / bottom panel). */
   show(surface: Surface): void;
+  /** The page has a top bar of its own that names the episode and the pass (the
+   * standalone page): the panels then don't repeat them. ComfyUI has none, and
+   * each panel there can be open alone, so each keeps its own. */
+  topBar?: boolean;
 }
 
 const noopHost: Host = {

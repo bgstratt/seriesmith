@@ -72,7 +72,13 @@
   border-bottom: 1px solid var(--h3-border); flex: 0 0 auto; min-width: 0; flex-wrap: wrap;
 }
 
-/* controls */
+/* controls. One set, and which to reach for:
+   - a button (.h3-btn; .h3-btn-sm in a row's head) does something: renders, saves, opens a dialog.
+   - a text link (.h3-link) goes somewhere or opens a list: another tab, a file, a panel's section.
+   - the filled primary (.h3-primary; .h3-paid when it spends money) is the one thing its surface
+     is for (Generate missing, Save, Export): one to a surface.
+   - a state (.h3-state) says how a thing stands ("In the cut"): never the primary's look.
+   - every select, number and text field takes .h3-in. */
 .h3-root button.h3-btn, .h3-root .h3-btn {
   font: inherit; color: var(--h3-fg); background: var(--h3-bg2);
   border: 1px solid var(--h3-border); border-radius: var(--h3-radius); padding: 2px 9px;
@@ -87,6 +93,10 @@
 .h3-root .h3-btn.h3-paid:hover:not(:disabled) { filter: brightness(1.1); background: var(--h3-paid); }
 .h3-root .h3-btn.h3-primary:hover:not(:disabled) { filter: brightness(1.1); background: var(--h3-primary); }
 .h3-root .h3-btn.h3-danger { color: var(--h3-failed); }
+.h3-root .h3-btn.h3-btn-sm { min-height: 20px; padding: 0 7px; font-size: 11px; font-weight: 400; }
+.h3-root .h3-btn.h3-state, .h3-root .h3-btn.h3-state:disabled {
+  background: none; border-color: transparent; color: var(--h3-ok); opacity: 1; cursor: default; font-weight: 600;
+}
 .h3-root .h3-btn.h3-icon { padding: 2px 5px; min-width: 22px; justify-content: center; }
 .h3-root .h3-btn.h3-on { border-color: var(--h3-accent); color: var(--h3-accent); }
 .h3-root .h3-btn.h3-primary.h3-on { color: var(--h3-primary-fg); }
@@ -134,25 +144,30 @@
   border: 1px solid color-mix(in srgb, currentColor 35%, transparent); white-space: nowrap; color: var(--h3-muted);
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
-.h3-b-stale { color: var(--h3-stale); }
-.h3-b-check { color: var(--h3-failed); }
-.h3-b-checked { color: var(--h3-muted); }
-.h3-b-paid { color: var(--h3-paid); }
-.h3-b-override { color: var(--h3-override); }
-.h3-b-override-stale { color: var(--h3-stale); border-style: dashed; }
+/* Three looks, by how much a badge asks (lib/format.ts, badgeLevel), not a colour per kind:
+   wrong: filled, the error colour. A render can't run, or the cut can't use its pick. */
+.h3-b-failed, .h3-b-unusable, .h3-b-missing-refs, .h3-b-check {
+  color: #fff; background: var(--h3-failed); border-color: var(--h3-failed);
+}
+/* needs a look: outlined, the warning colour */
+.h3-b-stale, .h3-b-override-stale, .h3-b-placeholder, .h3-b-none, .h3-b-orphan {
+  color: var(--h3-stale); background: none; border-color: color-mix(in srgb, var(--h3-stale) 70%, transparent);
+}
+/* a fact: outlined, grey */
+.h3-b-out, .h3-b-moved, .h3-b-trimmed, .h3-b-locked, .h3-b-override, .h3-b-upscaled, .h3-b-target,
+.h3-b-continuous, .h3-b-imported, .h3-b-checked, .h3-b-more {
+  color: var(--h3-muted); background: none;
+}
+/* working: a job on its way keeps its own colour, since it moves */
 .h3-b-queued { color: var(--h3-queued); }
 .h3-b-rendering { color: var(--h3-rendering); }
-.h3-b-placeholder { color: var(--h3-muted); border-style: dashed; }
-.h3-b-none { color: var(--h3-muted); }
-.h3-b-orphan { color: var(--h3-failed); border-style: dashed; }
-.h3-b-out { opacity: 0.7; border-style: dashed; }
-.h3-b-failed, .h3-b-unusable { color: var(--h3-failed); }
+/* a model that bills someone, as its Generate buttons are; a fact all the same */
+.h3-b-paid { color: var(--h3-paid); background: none; }
+/* a state, not a level: what the cut or the mix uses */
 .h3-b-cut { color: var(--h3-accent); }
-.h3-b-upscaled { color: var(--h3-ok); font-weight: 600; }
 .h3-b-ok { color: var(--h3-ok); }
-.h3-b-target { color: var(--h3-target); font-weight: 600; letter-spacing: 0.02em; }
-.h3-b-continuous { color: var(--h3-target); border-style: dashed; }
-.h3-b-imported { color: var(--h3-muted); border: 1px dashed currentColor; }
+/* the shot's approved take: a mark at the row's head, never a pill */
+.h3-root .pi.h3-lock { font-size: 10px; color: var(--h3-muted); flex: none; }
 .h3-b-voice { color: var(--h3-accent, #5fb8ae); border: 1px dotted currentColor; }
 .h3-pane-label .h3-b-target { color: #6fe0da; }
 .h3-target-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -203,6 +218,12 @@
 
 /* timeline */
 .h3-track-wrap { flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; min-height: 0; position: relative; }
+/* too short for a clip and every sound lane: it scrolls down to the last one */
+.h3-track-wrap.h3-track-short { overflow-y: auto; }
+/* the line between the clips and the sound lanes: dragged, it trades one's height for the other's */
+.h3-tl-split { position: absolute; left: 0; right: 0; height: 7px; z-index: 5; cursor: row-resize; }
+.h3-tl-split::after { content: ""; position: absolute; left: 0; right: 0; top: 3px; height: 1px; background: var(--h3-border); }
+.h3-tl-split:hover::after, .h3-tl-split:active::after { top: 2px; height: 3px; background: var(--h3-accent); }
 .h3-track { display: flex; align-items: stretch; height: 100%; padding: 4px 6px 2px; gap: 2px; width: max-content; }
 .h3-tl-seq { display: flex; flex-direction: column; min-width: 0; height: 100%; }
 .h3-tl-seq-label { font-size: 10px; color: var(--h3-muted); padding: 0 2px 2px; white-space: nowrap; overflow: hidden; height: 14px; flex: 0 0 14px; }
@@ -217,6 +238,12 @@
 .h3-clip-top { position: absolute; top: 2px; left: 2px; right: 2px; display: flex; gap: 2px; flex-wrap: wrap; pointer-events: none; }
 .h3-clip-top { --h3-muted: #d8d8d8; }
 .h3-clip-top .h3-badge { background: rgba(0, 0, 0, 0.6); }
+.h3-clip-top .h3-b-failed, .h3-clip-top .h3-b-unusable, .h3-clip-top .h3-b-missing-refs { background: var(--h3-failed); }
+/* a clip too narrow for a badge's words: its level down its left edge */
+.h3-clip-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; z-index: 1; pointer-events: none; }
+.h3-clip-edge.h3-lv-wrong { background: var(--h3-failed); }
+.h3-clip-edge.h3-lv-look { background: var(--h3-stale); }
+.h3-clip-edge.h3-lv-working { background: var(--h3-rendering); }
 .h3-clip-bottom {
   position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 3px; font-size: 10px; line-height: 13px;
   color: #fff; background: linear-gradient(transparent, rgba(0, 0, 0, 0.75)); display: flex; gap: 4px;
@@ -310,6 +337,15 @@
 .h3-transport { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-top: 1px solid var(--h3-border); flex: 0 0 auto; }
 .h3-transport input[type="range"] { flex: 1 1 auto; min-width: 60px; }
 .h3-vstrip { display: flex; gap: 4px; overflow-x: auto; padding: 6px 8px; border-top: 1px solid var(--h3-border); flex: 0 0 auto; }
+/* a shot's takes beside its picture: a column on the left, a thumbnail and its line wide */
+.h3-vbody { display: flex; flex: 1 1 auto; min-height: 0; min-width: 0; }
+.h3-vmain { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; min-height: 0; }
+.h3-vstrip.h3-vcol {
+  flex-direction: column; overflow-x: hidden; overflow-y: auto; border-top: 0; border-right: 1px solid var(--h3-border);
+  padding: 6px; gap: 6px; min-width: 76px; align-items: stretch;
+}
+.h3-vcol .h3-vtake { align-items: flex-start; }
+.h3-vcol .h3-vtake > .h3-row { flex-wrap: wrap; min-height: 15px; }
 .h3-vtake { display: flex; flex-direction: column; gap: 2px; align-items: stretch; font-size: 10px; flex: 0 0 auto; }
 .h3-vtake .h3-thumb { border: 2px solid transparent; }
 .h3-vtake.h3-a .h3-thumb { border-color: var(--h3-accent); }
@@ -374,8 +410,9 @@
 .h3-playhead::before {
   content: ""; position: absolute; top: 0; left: -4px; border: 5px solid transparent; border-top-color: #ff3b3b;
 }
-.h3-b-missing-refs { color: var(--h3-failed); border-style: dashed; }
 .h3-root button.h3-badge-btn { background: none; cursor: pointer; font: inherit; font-size: 10px; }
+/* a wrong-level badge that is a button keeps its fill (its words are white) */
+.h3-root button.h3-badge-btn.h3-b-missing-refs, .h3-root button.h3-badge-btn.h3-b-failed { background: var(--h3-failed); }
 .h3-missing-list { margin: 3px 0; padding-left: 16px; font-size: 11px; max-height: 160px; overflow: auto; }
 .h3-missing-list li { overflow-wrap: anywhere; }
 .h3-menu-sep { border-top: 1px solid var(--h3-border); margin: 3px 0; }
@@ -690,7 +727,6 @@
 .h3-wave canvas { display: block; }
 .h3-wave-rec { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--h3-accent) 45%, transparent); }
 .h3-wave-note { position: absolute; left: 3px; top: 50%; transform: translateY(-50%); font-size: 9px; color: var(--h3-muted); pointer-events: none; }
-.h3-b-moved { color: var(--h3-queued); border-style: dashed; }
 /* the sound lanes (the episode's mix, docs/SOUND.md): under the clips, inside the track */
 .h3-snd { position: absolute; left: 0; right: 0; bottom: 2px; display: flex; flex-direction: column; gap: 1px; z-index: 2; }
 .h3-snd-lane { position: relative; flex: 0 0 auto; background: color-mix(in srgb, var(--h3-bg2) 70%, transparent); border-radius: 2px; }
@@ -928,7 +964,6 @@
 }
 .h3-cue-fixes { position: sticky; left: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 8px 6px; border-top: 1px dashed var(--h3-border); }
 .h3-cue-comp { color: var(--h3-accent); }
-.h3-b-locked, .h3-b-trimmed { color: var(--h3-muted); }
 .h3-b-drift { color: var(--h3-stale); border-color: var(--h3-stale); cursor: help; }
 .h3-cut-strip {
   position: relative; height: 34px; border-radius: 3px; background-color: #000; background-size: 100% 100%;
@@ -1006,8 +1041,19 @@
 .h3-root .sm-head {
   display: flex; align-items: flex-start; gap: 10px; padding: 14px 14px 10px; flex: 0 0 auto; min-width: 0;
 }
-.sm-head-main { flex: 1 1 auto; min-width: 0; }
-.sm-head-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
+/* the kicker and the side's buttons share the first line; the title has the second to
+   itself, the panel's whole width, so a long one isn't cut by the buttons */
+.h3-root .sm-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 10px; row-gap: 4px; }
+.sm-head-main { display: contents; }
+.sm-head-main > .sm-kicker { grid-column: 1; grid-row: 1; }
+.sm-head-main > .sm-project, .sm-head-main > .sm-project-name { grid-column: 1 / -1; grid-row: 2; }
+.sm-head-side { display: flex; align-items: center; gap: 6px; grid-column: 2; grid-row: 1; }
+/* a page with a top bar of its own names the episode there: the head is its buttons */
+.h3-root .sm-head.sm-head-bare { display: flex; justify-content: flex-end; padding: 8px 14px 6px; }
+/* the top bar's episode (TopEpisode): the show, then the title, on one line */
+.sm-top-ep { min-width: 0; gap: 8px; }
+.sm-top-ep .sm-top-series { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--descrip-text); white-space: nowrap; flex: none; }
+.sm-top-ep .sm-project-name { font-family: var(--sm-serif, var(--h3-serif)); font-size: 16px; text-overflow: ellipsis; }
 .sm-kicker { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--h3-muted); }
 /* the project's name, a dropdown over it: one line, cut off at the edge (no ellipsis) */
 .sm-project { position: relative; display: flex; align-items: center; gap: 6px; max-width: 100%; cursor: pointer; border-radius: var(--h3-radius); }
@@ -1094,6 +1140,11 @@
 }
 .h3-epcard > .h3-pad { padding: 0; }
 .h3-root .h3-btn.h3-wide-btn { justify-content: center; padding: 8px; border-radius: 10px; min-height: 36px; font-size: 13px; }
+/* the episode card's own line (the fold, how far the pass is, what needs doing); folded,
+   it and the meter are the whole card */
+.h3-epcard-line { gap: 6px; min-height: 24px; flex-wrap: nowrap; }
+.h3-root .h3-btn.h3-fold { border-color: transparent; background: transparent; padding: 2px 4px; }
+.h3-root .h3-btn.h3-fold:hover { background: var(--h3-hover); }
 .h3-meter { height: 5px; border-radius: 3px; background: var(--h3-bg3); overflow: hidden; }
 .h3-meter > span { display: block; height: 100%; background: var(--h3-primary); transition: width .3s; }
 .h3-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding: 10px 12px 14px; }

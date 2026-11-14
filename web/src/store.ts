@@ -97,6 +97,8 @@ export interface ViewerState {
   spot?: boolean;
   /** floats instead of taking the page's dock: opened from the storyboard, which would cover the dock */
   floating?: boolean;
+  /** takes: shown by a selection, not asked to play: its take waits on its first frame */
+  paused?: boolean;
   /** cue mode: opened from the spotting sheet (its head goes back there) */
   back?: "spot";
   /** cue mode: the scoring window's tab it opens on (Score when none) */

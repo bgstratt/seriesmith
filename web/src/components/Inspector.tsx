@@ -24,7 +24,6 @@ import { useDetail, useDetailError, useRefs, useShotStatus, useStatus } from "./
 import { MissingRefsNote } from "./MissingRefs";
 import { OverrideFields } from "./OverrideFields";
 import { ResolvedNotes, TargetReadinessNote } from "./Readiness";
-import { PassToggle } from "./ShotsTab";
 import { ModelsButton, TargetSelect, useTargetPickers, useTargets } from "./Targets";
 import { Badges } from "./Thumb";
 import { CutSection } from "./CutSection";
@@ -501,7 +500,7 @@ export function Inspector() {
     return [...targetBadges(s, targets, seriesDefault, cutTake(s)), ...shotBadges(s)];
   }, [s, targets, seriesDefault]);
 
-  if (!ep) return <div className="h3-empty-state">Pick an episode in the Shots tab.</div>;
+  if (!ep) return <div className="h3-empty-state">{host().topBar ? "Open an episode from the top bar." : "Pick an episode in the Shots tab."}</div>;
   if (!shot) return <div className="h3-empty-state">Select a shot in the Shots tab or the timeline.</div>;
   const ct = s ? cutTake(s) : undefined;
   const hasUsable = !!s?.takes.some((t) => t.status === "ok" && t.has_video);
@@ -601,7 +600,6 @@ export function Inspector() {
 /** The floating inspector window (drag by the head, resize from the corner). */
 export function InspectorWindow() {
   const open = useApp((s) => s.inspector);
-  const ep = useApp((s) => s.ep);
   const shot = useApp((s) => s.shot);
   const s = useShotStatus(shot);
   if (!open) return null;
@@ -618,7 +616,6 @@ export function InspectorWindow() {
           )}
         </div>
       </div>
-      {ep && <PassToggle />}
       <button className="h3-btn h3-icon" title="Close" onClick={closeInspector}><i className="pi pi-times" /></button>
     </>
   );

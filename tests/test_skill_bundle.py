@@ -1,11 +1,11 @@
 """
 The script-writing skill's bundled checker runs on its own.
 
-The skill carries a copy of the build (scripts/check.py, scripts/seriesmith/) so
-an assistant can validate a script where seriesmith isn't installed (Claude's
-sandbox). These build that bundle into a temporary folder and run it there, its
-own package first on the path as it is in the skill: a check that reaches for a
-module the bundle doesn't carry fails here, not in a user's chat.
+The skill carries a copy of the build inside one file (scripts/check.py: the build's
+files as text, written to a temporary folder when it runs) so an assistant can validate
+a script where seriesmith isn't installed (Claude's sandbox). These build that bundle
+into a temporary folder and run it there with no site-packages: a check that reaches for
+a module the file doesn't carry fails here, not in a user's chat.
 """
 from __future__ import annotations
 
@@ -32,16 +32,21 @@ class SkillBundleTest(unittest.TestCase):
         cls.tmp = tempfile.mkdtemp(prefix="sm-skill-")
         P.bundle(P.body(), out=cls.tmp)
         cls.check = os.path.join(cls.tmp, P.NAME, "scripts", "check.py")
+        # the build is written under the temporary folder: this run's own, so nothing is left behind
+        cls.env = {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")}
+        cls.env["TMP"] = cls.env["TEMP"] = cls.env["TMPDIR"] = os.path.join(cls.tmp, "t")
+        os.makedirs(cls.env["TMP"])
+        cls.pkg_parent = subprocess.run([sys.executable, "-I", "-S", cls.check, "--where"], capture_output=True,
+                                        text=True, env=cls.env, cwd=cls.tmp, timeout=120).stdout.strip()
 
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def run_check(self, series: str, script: str) -> subprocess.CompletedProcess:
-        env = {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")}
         # -I -S: no site-packages, so not this venv's seriesmith either (as in an assistant's sandbox)
         return subprocess.run([sys.executable, "-I", "-S", self.check, series, script, "--check"],
-                              capture_output=True, text=True, encoding="utf-8", env=env,
+                              capture_output=True, text=True, encoding="utf-8", env=self.env,
                               cwd=self.tmp, timeout=120)
 
     def test_claude_ai_takes_its_front_matter(self):
@@ -53,20 +58,33 @@ class SkillBundleTest(unittest.TestCase):
         self.assertIn(f"name: {P.NAME}", head)
 
     def test_the_bundle_carries_what_a_check_imports(self):
-        pkg = os.path.join(self.tmp, P.NAME, "scripts", "seriesmith")
+        self.assertTrue(os.path.isdir(self.pkg_parent), self.pkg_parent)
+        pkg = os.path.join(self.pkg_parent, "seriesmith")
         for f in P.BUNDLE_FILES:
             self.assertTrue(os.path.isfile(os.path.join(pkg, f)), f)
         self.assertFalse(os.path.exists(os.path.join(pkg, "upscale.py")))
+        # a model's folder goes without its docstring-only __init__.py (a namespace package)
+        self.assertFalse(os.path.exists(os.path.join(pkg, "targets", "video", "minimax_h3_ref2va", "__init__.py")))
+        self.assertTrue(os.path.isfile(os.path.join(pkg, "targets", "video", "__init__.py")))
+
+    def test_it_carries_the_build_as_it_is(self):
+        """What check.py writes out is the repo's own files (line ends as git has them): the
+        check is the build, not a copy kept by hand."""
+        for name, data in P.carried():
+            with open(os.path.join(self.pkg_parent, *name.split("/")), "rb") as fh:
+                self.assertEqual(fh.read(), data, name)
 
     def test_claude_ai_takes_its_file_count(self):
-        """claude.ai refuses a skill of over 200 files (and a zip inside one): a model's
-        folder goes without its docstring-only __init__.py, imported as a namespace package."""
+        """claude.ai refuses a skill of over 200 files, and an archive inside one: the build
+        is inside check.py as text, so the skill is a handful of files and none is a zip, by
+        name or by what it holds."""
         with zipfile.ZipFile(os.path.join(self.tmp, f"{P.NAME}.zip")) as zf:
             names = zf.namelist()
-        self.assertLessEqual(len(names), P.MAX_FILES)
+            heads = {n: zf.read(n)[:4] for n in names}
+        self.assertLessEqual(len(names), 12)
+        self.assertEqual([n for n in names if n.startswith(f"{P.NAME}/scripts/")], [f"{P.NAME}/scripts/check.py"])
         self.assertFalse(any(n.endswith(".zip") for n in names))
-        self.assertNotIn(f"{P.NAME}/scripts/seriesmith/targets/video/minimax_h3_ref2va/__init__.py", names)
-        self.assertIn(f"{P.NAME}/scripts/seriesmith/targets/video/__init__.py", names)
+        self.assertFalse([n for n, h in heads.items() if h[:2] in (b"PK", b"\x1f\x8b")])
 
     def test_every_model_compiles_from_the_bundle(self):
         """Each shipped model's code imports from the bundle, with no __init__.py beside it."""
@@ -78,9 +96,8 @@ class SkillBundleTest(unittest.TestCase):
                 "        try: t.module\n"
                 "        except Exception as e: bad.append(f'{kind}/{t.id}: {e}')\n"
                 "print('\\n'.join(bad)); sys.exit(1 if bad else 0)\n")
-        env = {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")}
-        r = subprocess.run([sys.executable, "-I", "-S", "-c", code, os.path.join(self.tmp, P.NAME, "scripts")],
-                           capture_output=True, text=True, encoding="utf-8", env=env, cwd=self.tmp, timeout=120)
+        r = subprocess.run([sys.executable, "-I", "-S", "-c", code, self.pkg_parent],
+                           capture_output=True, text=True, encoding="utf-8", env=self.env, cwd=self.tmp, timeout=120)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
 
     def test_the_demo_checks_with_its_recipes_passed_over(self):

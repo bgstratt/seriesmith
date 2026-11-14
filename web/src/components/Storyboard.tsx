@@ -504,7 +504,7 @@ function Beat({ beat, biggest, picked, pick, busy, edit, thumbs, onShotMenu, onR
             onDrop={(e) => land(e, [])}>Drag pictures or videos here for a shot each</div>
         )}
         {named && left > 0 && (
-          <button className="h3-link h3-small" disabled={busy} title={`Make the ${left} shots this beat is short of its target`}
+          <button className="h3-btn h3-btn-sm" disabled={busy} title={`Make the ${left} shots this beat is short of its target`}
             onClick={() => edit({ op: "fill", beats: [named] })}>Fill {left}</button>
         )}
       </div>
@@ -525,7 +525,7 @@ function EditBar({ choices, picked, busy, edit, close }: {
       {choices && (
         <>
           <label className="h3-row">Place
-            <select value={picked.place} disabled={busy}
+            <select className="h3-in" value={picked.place} disabled={busy}
               onChange={(e) => edit({ op: "place", block: picked.block, place: e.target.value })}>
               {!choices.places.includes(picked.place) && <option value={picked.place}>{placeName(picked.place)}</option>}
               {choices.places.map((id) => <option key={id} value={id}>{placeName(id)}</option>)}
@@ -581,7 +581,7 @@ function ActRow({ act, label, biggest, shut, toggle, picked, pick, busy, edit, f
           <span className="h3-small h3-muted">{act.target_shots ? `${act.shots} of ${act.target_shots} shots` : `${act.shots} shots`}</span>
         </button>
         {left > 0 && (
-          <button className="h3-link h3-small" disabled={busy} onClick={() => fill(act.beats)}>Fill act ({left})</button>
+          <button className="h3-btn h3-btn-sm" disabled={busy} onClick={() => fill(act.beats)}>Fill act ({left})</button>
         )}
       </div>
       {!shut && act.beats.map((b, i) => (
@@ -980,7 +980,7 @@ function Storyboard({ ep }: { ep: string }) {
           <label className="h3-row" title={scriptStructure
             ? `Changes the script's // structure: line. Beats keep their names: the ones that match this structure take its acts and targets, the rest stay as the script has them.${data?.plan.structure_known ? "" : " A show's own format has no targets."}`
             : "Written to the script with the first edit"}>Structure
-            <select value={chosen} disabled={busy} onChange={(e) => {
+            <select className="h3-in" value={chosen} disabled={busy} onChange={(e) => {
               if (scriptStructure) void edit({ op: "structure", name: e.target.value });
               else setStructure(e.target.value);
             }}>
@@ -992,11 +992,11 @@ function Storyboard({ ep }: { ep: string }) {
           <button className="h3-btn h3-icon" aria-label="Save as structure" disabled={!allBeats.some((b) => b.plain !== null && b.in_script)}
             title="Save this episode's beats as a structure of your own, to start other episodes from" onClick={() => setSaving(true)}><i className="pi pi-bookmark" /></button>
           <label className="h3-row" title="The length it's aiming at. It sets every beat's target, and only that.">Minutes
-            <input className="h3-sb-num" type="number" min="0.1" step="any" value={minutes}
+            <input className="h3-in h3-sb-num" type="number" min="0.1" step="any" value={minutes}
               onChange={(e) => setMinutes(e.target.value)} />
           </label>
           <label className="h3-row" title="A typical shot, in seconds: what a new shot is made at.">Shot length
-            <input className="h3-sb-num" type="number" min="0.1" step="0.1" value={shot}
+            <input className="h3-in h3-sb-num" type="number" min="0.1" step="0.1" value={shot}
               onChange={(e) => setShot(e.target.value)} />
           </label>
           {plan && (

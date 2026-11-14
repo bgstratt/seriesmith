@@ -36,6 +36,6 @@
   "presets": {
     "_note": "Only the size matters, and the series config's pass blocks give it: a held picture is made at the size its pass renders every shot at. No model, no steps.",
     "final": {"width": 1344, "height": 768, "steps": 0},
-    "proxy": {"width": 448, "height": 256, "steps": 0}
+    "proxy": {"width": 896, "height": 512, "steps": 0}
   }
 }

@@ -29,6 +29,46 @@ export interface Badge {
   title: string;
 }
 
+/**
+ * How much a badge asks of whoever reads the row. Three looks, not a colour per kind:
+ * `wrong` (a render can't run, or the cut can't use what it picked), `look` (it works,
+ * and something about it is out of date or missing), `fact` (how the shot is set).
+ * `working` is a job on its way, and keeps a look of its own since it moves.
+ */
+export type BadgeLevel = "wrong" | "working" | "look" | "fact";
+
+const LEVEL: Record<BadgeKind, BadgeLevel> = {
+  failed: "wrong", unusable: "wrong", "missing-refs": "wrong",
+  rendering: "working", queued: "working",
+  stale: "look", "override-stale": "look", placeholder: "look", none: "look", orphan: "look",
+  out: "fact", moved: "fact", trimmed: "fact", locked: "fact", override: "fact",
+  upscaled: "fact", target: "fact", paid: "fact", continuous: "fact",
+};
+const LEVEL_ORDER: BadgeLevel[] = ["wrong", "working", "look", "fact"];
+
+export function badgeLevel(kind: BadgeKind): BadgeLevel {
+  return LEVEL[kind];
+}
+
+/** Badges with the most serious first (what's wrong, what's on its way, what needs a
+ * look, the facts), each level in the order it came. */
+export function rankBadges(badges: Badge[]): Badge[] {
+  return LEVEL_ORDER.flatMap((l) => badges.filter((b) => LEVEL[b.kind] === l));
+}
+
+/** The most serious level among badges that ask for something (a fact asks nothing). */
+export function worstLevel(badges: Badge[]): Exclude<BadgeLevel, "fact"> | null {
+  for (const l of LEVEL_ORDER) {
+    if (l !== "fact" && badges.some((b) => LEVEL[b.kind] === l)) return l;
+  }
+  return null;
+}
+
+/** A sound policy as a row says it: the script's and the API's name is the tooltip's. */
+export function soundWord(mode: string): string {
+  return mode === "dub_keep_foley" ? "dub + foley" : mode;
+}
+
 /** Phase 13: a take's upscale as a badge (null: it has none). */
 export function upscaleBadge(t: TakeSummary | undefined): Badge | null {
   const u = t?.upscale;

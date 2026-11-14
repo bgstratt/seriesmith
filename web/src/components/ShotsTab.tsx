@@ -1,15 +1,15 @@
-import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import {
-  build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openFilmPath, openStoryboard, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
+  build, openTrackPanel, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openFilmPath, openStoryboard, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
   clickShot, openSound, renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
 import { api, host } from "../host";
 import {
-  ESTIMATE_TITLE, checkBadges, cutTake, fmtSeconds, fmtWhen, groupBySequence, lengthEstimated, realStale, shotBadges, staleTitle, tn,
+  ESTIMATE_TITLE, checkBadges, cutTake, fmtSeconds, fmtWhen, groupBySequence, lengthEstimated, realStale, shotBadges, soundWord, staleTitle, tn,
   upscaleBadge,
 } from "../lib/format";
 import { missingShots, passProgress, progressLine, progressTitle, staleReasons, staleShots } from "../lib/progress";
-import { findTarget, isHosted, listDefaultTarget, shotTarget, takeTargetBadge, targetBadges } from "../lib/targets";
+import { findTarget, isHosted, listDefaultTarget, seriesDefaultTarget, shotTarget, takeTargetBadge, targetBadges, targetLabel } from "../lib/targets";
 
 import { renderingTakes, statusKey, store, useApp } from "../store";
 import { ModeSwitch, SimplePanel } from "./SimplePanel";
@@ -23,7 +23,7 @@ import { MultiBar } from "./MultiBar";
 import { EpisodeTarget } from "./Readiness";
 import { useTargets } from "./Targets";
 import { Badges, Progress, Thumb, statusClass } from "./Thumb";
-import { TrackButton, TrackLine } from "./Track";
+import { TrackLine } from "./Track";
 import { QueueBar } from "./Jobs";
 import { dragHasFiles, uploadText } from "../lib/lookback";
 import { TAKE_MIME, decodeTakeDrag, dragHasTake } from "../lib/takeDrop";
@@ -84,12 +84,8 @@ function episodeLabel(e: EpisodeSummary): string {
     + (!e.built.proxy && !e.built.final ? " (not built)" : "");
 }
 
-/**
- * The Shots and Refs tabs' head, as Simple mode's: the open episode as the
- * panel's title (its series above it), every episode in a dropdown over it,
- * and Browse and add new… (the project folders: open, New episode, New series).
- */
-export function EpisodeHead({ side }: { side?: React.ReactNode }) {
+/** The open episode among the ones found, and its title as a head shows it. */
+function useOpenEpisode() {
   const episodes = useApp((s) => s.episodes);
   const episodesError = useApp((s) => s.episodesError);
   const ep = useApp((s) => s.ep);
@@ -99,6 +95,47 @@ export function EpisodeHead({ side }: { side?: React.ReactNode }) {
   const cur = episodes?.find((e) => e.ep === ep);
   const name = cur ? `${cur.name}${cur.title && cur.title !== cur.series ? ` — ${cur.title}` : ""}`
     : episodes?.length ? "Pick an episode" : episodes ? "No episodes yet" : "Loading…";
+  return { episodes, ep, cur, name };
+}
+
+/**
+ * The standalone page's top bar: the open episode, its title whole, every
+ * episode in a dropdown over it, and the pass. The one place the page names
+ * either (the Shots and Refs tabs and the timeline follow it). Simple mode has
+ * its own project in its panel's head, and no pass.
+ */
+export function TopEpisode() {
+  const { episodes, ep, cur, name } = useOpenEpisode();
+  const simple = useApp((s) => s.simple);
+  if (simple) return null;
+  return (
+    <>
+      <span className="sm-project sm-top-ep" title={ep ? `${ep}
+Switch episode (the Shots tab, Refs and the timeline follow it)` : undefined}>
+        {cur?.series && <span className="sm-top-series">{cur.series}</span>}
+        <span className="sm-project-name">{name}</span>
+        <i className="pi pi-chevron-down sm-caret" />
+        <select aria-label="Episode" className="sm-project-select" value={ep ?? ""}
+          onChange={(e) => (e.target.value === ADD_NEW ? openBrowse({ purpose: "roots" }) : selectEpisode(e.target.value || null))}>
+          {!(episodes ?? []).some((e) => e.ep === ep) && <option value={ep ?? ""}>{name}</option>}
+          {(episodes ?? []).map((e) => <option key={e.ep} value={e.ep} title={e.ep}>{episodeLabel(e)}</option>)}
+          <option value={ADD_NEW}>Browse and add new…</option>
+        </select>
+      </span>
+      {ep && <PassToggle />}
+    </>
+  );
+}
+
+/**
+ * The Shots and Refs tabs' head, as Simple mode's: the open episode as the
+ * panel's title (its series above it), every episode in a dropdown over it,
+ * and Browse and add new… (the project folders: open, New episode, New series).
+ */
+export function EpisodeHead({ side }: { side?: React.ReactNode }) {
+  const { episodes, ep, cur, name } = useOpenEpisode();
+  // the page's top bar names the episode (TopEpisode): the head is its buttons only
+  if (host().topBar) return side ? <div className="sm-head sm-head-bare">{side}</div> : null;
   return (
     <PanelHead side={side}>
       <TitleSelect kicker={cur?.series || "Episode"} label="Episode" name={name} value={ep ?? ""}
@@ -153,6 +190,28 @@ function EpisodeHeader() {
   );
 }
 
+const CARD_KEY = "seriesmith.card";
+
+/** The episode's card folded to its one line, as this browser left it. */
+function useCardFolded(): [boolean, (on: boolean) => void] {
+  const [folded, setFolded] = useState(() => {
+    try {
+      return localStorage.getItem(CARD_KEY) === "folded";
+    } catch {
+      return false;
+    }
+  });
+  const set = (on: boolean) => {
+    setFolded(on);
+    try {
+      localStorage.setItem(CARD_KEY, on ? "folded" : "open");
+    } catch {
+      /* not remembered: fine */
+    }
+  };
+  return [folded, set];
+}
+
 function BuildBar() {
   const ep = useApp((s) => s.ep);
   const b = useApp((s) => s.build);
@@ -161,6 +220,13 @@ function BuildBar() {
   const renderBusy = useApp((s) => Object.keys(s.busy).some((k) => k.startsWith("render|")));
   const [open, setOpen] = useState(true);
   const { list: models } = useTargets();
+  const [folded, setFolded] = useCardFolded();
+  // a build that failed says why under the card: open it
+  const buildWrong = !!b.error || (!!b.result && !b.result.ok);
+  useEffect(() => {
+    if (buildWrong) setFolded(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildWrong]);
   if (!ep) return null;
   const missing = missingShots(st?.shots);
   // a model that bills someone: this button doesn't look like the free one
@@ -176,12 +242,45 @@ function BuildBar() {
   const drafted = pass === "proxy"
     ? (st?.shots ?? []).filter((x) => x.takes.find((t) => t.take === x.cut?.take)?.draft).length : 0;
   const prog = passProgress(st?.shots);
+  const model = st && models ? targetLabel(models, seriesDefaultTarget(models, st)) : "";
+  const missingTitle = missing.length ? `Queue a ${pass} take for each shot without one: ${missing.join(", ")}` : "Every shot has a take";
   return (
     <div className="h3-pad h3-col" style={{ gap: 8, paddingTop: 0 }}>
-      <div className="h3-epcard">
-      <EpisodeTarget />
-      <div className="h3-row h3-wrap">
-        <PassToggle />
+      <div className={`h3-epcard${folded ? " h3-epcard-folded" : ""}`}>
+      {/* the card's own line: it stays when the card is folded, with what needs doing */}
+      <div className="h3-row h3-epcard-line">
+        <button className="h3-btn h3-icon h3-fold" aria-expanded={!folded}
+          aria-label={folded ? "Open the episode's card" : "Fold the episode's card"}
+          title={folded ? "Open the episode's card: its model, Build, Storyboard, Guide" : "Fold the card to this line, and give the room to the shots"}
+          onClick={() => setFolded(!folded)}>
+          <i className={`pi pi-chevron-${folded ? "right" : "down"}`} />
+        </button>
+        {folded && model && host().topBar && <span className="h3-ell h3-small" style={{ minWidth: 0 }} title={`The episode's model: ${model}`}>{model}</span>}
+        {st && prog.total > 0 && (
+          <span className="h3-small h3-muted h3-nowrap" title={progressTitle(prog)}>
+            {folded ? `${prog.done}/${prog.total}${prog.queued ? ` · ${prog.queued}q` : ""}${prog.failed ? ` · ${prog.failed} failed` : ""}` : progressLine(prog)}
+          </span>
+        )}
+        <span className="h3-grow" />
+        {folded && missing.length > 0 && (
+          <button className={`h3-btn ${paidMissing ? "h3-paid" : "h3-primary"}`} disabled={renderBusy} title={missingTitle}
+            onClick={() => requestRender(missing, false, "Generate missing")}>
+            {missing.length} missing
+          </button>
+        )}
+        {folded && stale.length > 0 && (
+          <button className="h3-btn" disabled={renderBusy}
+            title={`Re-render the shots whose newest take is out of date (`
+              + Object.entries(why).map(([r, n]) => `${n} ${r}`).join(", ")
+              + `), each at its built seed so only the change shows: ${stale.join(", ")}`}
+            onClick={() => renderStale()}>
+            {stale.length} stale
+          </button>
+        )}
+        {!host().topBar && <PassToggle />}
+      </div>
+      {!folded && <EpisodeTarget />}
+      {!folded && <div className="h3-row h3-wrap">
         <button className="h3-btn" disabled={b.busy} onClick={() => void build()} title="Run build for both passes from the script and series config">
           <i className={b.busy ? "pi pi-spin pi-spinner" : "pi pi-cog"} /> {b.busy ? "Building…" : "Build"}
         </button>
@@ -209,25 +308,25 @@ function BuildBar() {
             <i className="pi pi-forward" /> Finals from drafts ({drafted})…
           </button>
         )}
-      </div>
-      <button
-        className={`h3-btn ${paidMissing ? "h3-paid" : "h3-primary"} h3-wide-btn`}
-        disabled={!missing.length || renderBusy}
-        title={missing.length ? `Queue a ${pass} take for each shot without one: ${missing.join(", ")}` : "Every shot has a take"}
-        onClick={() => requestRender(missing, false, "Generate missing")}
-      >
-        Generate missing{missing.length ? ` (${missing.length})` : ""}
-      </button>
+      </div>}
+      {/* the big button is for when there is something to make */}
+      {!folded && missing.length > 0 && (
+        <button
+          className={`h3-btn ${paidMissing ? "h3-paid" : "h3-primary"} h3-wide-btn`}
+          disabled={renderBusy}
+          title={missingTitle}
+          onClick={() => requestRender(missing, false, "Generate missing")}
+        >
+          Generate missing ({missing.length})
+        </button>
+      )}
       <MultiBar />
       {st && prog.total > 0 && (
-        <div className="h3-col" style={{ gap: 3 }} title={progressTitle(prog)}>
-          <span className="h3-small h3-muted">{progressLine(prog)}</span>
-          <div className="h3-meter"><span style={{ width: `${Math.round((prog.done / prog.total) * 100)}%` }} /></div>
-        </div>
+        <div className="h3-meter" title={progressTitle(prog)}><span style={{ width: `${Math.round((prog.done / prog.total) * 100)}%` }} /></div>
       )}
       </div>
       {st && <MissingRefsSummary shots={st.shots} />}
-      <TrackLine />
+      {!folded && <TrackLine />}
       {(b.result || b.error) && (
         <div className={`h3-note ${failed || b.error ? "h3-note-err" : "h3-note-info"}`}>
           <div className="h3-row">
@@ -258,8 +357,11 @@ function BuildBar() {
 function SoundChip({ s }: { s: ShotStatus }) {
   const ep = useApp((st) => st.ep);
   const set = s.sound;
-  const label = set ? (set.mode === "dub" ? `dub · ${set.label ?? "?"}` : set.mode) : s.audio_policy ?? "";
+  const name = set ? set.mode : s.audio_policy ?? "";
+  const label = set?.mode === "dub" ? `dub · ${set.label ?? "?"}` : soundWord(name);
   if (!label) return null;
+  // the script's own name for it, where the chip says it in other words
+  const full = label !== name && set?.mode !== "dub" ? ` (${name})` : "";
   const play = (e: MouseEvent) => {
     e.stopPropagation();
     if (ep && set?.file) void new Audio(api().fileUrl(ep, set.file)).play();
@@ -270,7 +372,7 @@ function SoundChip({ s }: { s: ShotStatus }) {
         <button className="h3-btn h3-icon" title={`Play ${set.label}`} onClick={play}><i className="pi pi-volume-up" /></button>
       )}
       <button className={`h3-badge h3-badge-btn${set ? " h3-b-voice" : ""}`}
-        title={set ? `Sound set here: ${label}. Click: change it` : `Sound as the script says (${label}). Click: generate, clone, or dub a track`}
+        title={set ? `Sound set here: ${label}${full}. Click: change it` : `Sound as the script says (${name}). Click: generate, clone, or dub a track`}
         onClick={(e) => { e.stopPropagation(); openSound([s.shot]); }}>
         {label}
       </button>
@@ -323,17 +425,19 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
           <button className="h3-btn h3-icon" title="More" onClick={(e) => { e.stopPropagation(); onMenu(e); }}>⋯</button>
         </div>
         {rendering && progress && <Progress value={progress.value} max={progress.max} />}
-        <div className="h3-row h3-small">
-          <span className="h3-mono h3-ell" title={t.seed ?? (t.source === "imported" ? originTitle(t) : "no sidecar")}>
-            {t.seed != null ? `seed ${t.seed}` : t.source === "imported" ? (t.original_name ?? (t.copied_from ? `a copy of ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "a file")) : "no sidecar"}
-          </span>
-          {t.seed_source && <span className="h3-muted">{t.seed_source}</span>}
-        </div>
+        {/* its seed, and how it was chosen, are in Details with the rest of its record */}
+        {t.seed == null && (
+          <div className="h3-row h3-small">
+            <span className="h3-mono h3-ell" title={t.source === "imported" ? originTitle(t) : "no sidecar"}>
+              {t.source === "imported" ? (t.original_name ?? (t.copied_from ? `a copy of ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "a file")) : "no sidecar"}
+            </span>
+          </div>
+        )}
         {(stale.length > 0 || t.overrides.length > 0 || checks.length > 0) && (
           <div className="h3-badges">
             {checks.map((c) => <span key={c.label} className={`h3-badge ${c.ok ? "h3-b-checked" : "h3-b-check"}`} title={c.title}>{c.ok ? "✓ " : ""}{c.label}</span>)}
             {stale.map((r) => <span key={r} className="h3-badge h3-b-stale" title={staleTitle([r])}>stale: {r}</span>)}
-            {t.overrides.length > 0 && <span className="h3-badge h3-b-override" title={`Rendered with an override of: ${t.overrides.join(", ")}`}>ovr: {t.overrides.join(",")}</span>}
+            {t.overrides.length > 0 && <span className="h3-badge h3-b-override" title={`Rendered with an override of: ${t.overrides.join(", ")}`}>{t.overrides.join(", ")} edited</span>}
           </div>
         )}
         {t.note && <div className="h3-small h3-ell" title={t.note}>“{t.note}”</div>}
@@ -406,6 +510,7 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
         <Thumb ep={ep} pass={pass} shot={s.shot} take={ct} height={36} aspect={aspect} />
         <div className="h3-col h3-grow" style={{ gap: 1 }}>
           <div className="h3-row">
+            {s.cut?.locked && <i className="pi pi-lock h3-lock" title="Locked in the cut: its approved take. It can't be moved, trimmed or given another take until unlocked" />}
             <b>{s.shot}</b>
             <span className="h3-muted h3-small" title={lengthEstimated(s) ? ESTIMATE_TITLE : undefined}>
               {lengthEstimated(s) ? <span className="h3-est">≈</span> : null}{fmtSeconds(s.seconds)}{s.size ? ` · ${s.size}` : ""}
@@ -416,7 +521,7 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
               {n ? `${n} take${n > 1 ? "s" : ""}` : ""}{ct ? ` · ${tn(ct.take)}` : ""}
             </span>
           </div>
-          {badges.length > 0 && <Badges badges={badges} />}
+          {badges.length > 0 && <Badges badges={badges} max={expanded ? undefined : 2} />}
           {prog && <Progress value={prog.value} max={prog.max} />}
           <TakeUploadLine shot={s.shot} />
         </div>
@@ -512,6 +617,7 @@ function ShotTile({ ep, pass, s, aspect, targets, seriesDefault }: {
       </Thumb>
       <div className="h3-row" style={{ gap: 5 }}>
         <span className={`h3-dot ${statusClass(newest?.status ?? "none", rendering.size > 0)}`} />
+        {s.cut?.locked && <i className="pi pi-lock h3-lock" title="Locked in the cut: its approved take" />}
         <b>{s.shot}</b>
         {s.size && <span className="h3-muted h3-small h3-ell">{s.size}</span>}
       </div>
@@ -521,7 +627,7 @@ function ShotTile({ ep, pass, s, aspect, targets, seriesDefault }: {
         </span>
       )}
       {s.action && <span className="h3-tile-action" title={s.action}>{s.action}</span>}
-      {badges.length > 0 && <Badges badges={badges} />}
+      {badges.length > 0 && <Badges badges={badges} max={2} />}
       {prog && <Progress value={prog.value} max={prog.max} />}
     </div>
   );
@@ -600,12 +706,12 @@ function ShotBin() {
                 <span className="h3-chev">{isCollapsed ? "▶" : "▼"}</span>
                 <b>{g.sequence}</b>
                 <span className="h3-muted h3-small">{g.shots.length} shot{g.shots.length > 1 ? "s" : ""} · {fmtSeconds(g.seconds)}</span>
-                <button className="h3-link h3-small" style={{ marginLeft: "auto" }}
+                <button className="h3-btn h3-btn-sm" style={{ marginLeft: "auto" }}
                   title="Render this sequence's shots again, as new takes with the same seeds (after a relight or a character change): only what changed differs. The takes you have stay."
                   onClick={(e) => { e.stopPropagation(); renderSequence(g.sequence, g.shots.map((s) => s.shot)); }}>
                   Re-render…
                 </button>
-                <button className="h3-link h3-small"
+                <button className="h3-btn h3-btn-sm"
                   title="Relight: every plate this sequence uses at another time, in other weather or light (a flashback, a night version)"
                   onClick={(e) => { e.stopPropagation(); openRelight(g.sequence); }}>
                   Relight…
@@ -629,6 +735,57 @@ function ShotBin() {
  * P10: the pass's issue notepad. The count is the open ones — an issue whose
  * shot has been rebuilt or re-rendered reads "addressed" and isn't counted.
  */
+/** The toolbar's rest, each by its name: the selected shot as a form and in the
+ * Inspector, the series config as text, the recording; in ComfyUI the Refs tab too
+ * (a page with a top bar has that tab above the panel). */
+function MoreMenu({ selShot }: { selShot: string | null }) {
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!at) return;
+    const down = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!box.current?.contains(t) && !btn.current?.contains(t)) setAt(null);
+    };
+    const key = (e: KeyboardEvent) => e.key === "Escape" && setAt(null);
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("keydown", key);
+    };
+  }, [at]);
+  const item = (icon: string, label: string, title: string, run: () => void, disabled = false) => (
+    <button role="menuitem" disabled={disabled} title={title} onClick={() => { setAt(null); run(); }}>
+      <i className={icon} /> {label}
+    </button>
+  );
+  return (
+    <>
+      <button ref={btn} className={`h3-btn h3-icon${at ? " h3-on" : ""}`} aria-label="More" aria-haspopup="menu" aria-expanded={!!at}
+        title="More: the selected shot as a form or in the Inspector, series.json as text, the recording"
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setAt(at ? null : { x: r.left, y: r.bottom + 2 });
+        }}>
+        <i className="pi pi-ellipsis-h" />
+      </button>
+      {at && (
+        <div ref={box} className="h3-menu" role="menu" style={{ left: at.x, top: at.y }}>
+          {item("pi pi-pencil", selShot ? `Edit ${selShot}…` : "Edit the selected shot…", "Edit the selected shot as a form",
+            () => selShot && openShotForm({ shot: selShot, after: null }), !selShot)}
+          {item("pi pi-sliders-h", selShot ? `Inspect ${selShot}` : "Inspect the selected shot", "The Inspector: the selected shot's prompt, refs, overrides and takes",
+            () => openInspector())}
+          {item("pi pi-book", "series.json as text…", "Edit the series config (series.json) as text", () => openSource("series"))}
+          {item("pi pi-volume-up", "Recording…", "The dialogue recording: attach one, align the script to it, or clear it", () => openTrackPanel())}
+          {!host().topBar && item("h3-ico-images", "Open the Refs tab", "Open the Refs tab", () => host().show("refs"))}
+        </div>
+      )}
+    </>
+  );
+}
+
 function IssuesButton() {
   const n = useIssueCount();
   const ep = useApp((s) => s.ep);
@@ -638,13 +795,13 @@ function IssuesButton() {
   }, [ep, pass]);
   return (
     <button
-      className={`h3-btn h3-icon${n ? " h3-on" : ""}`}
+      className={`h3-btn${n ? " h3-on" : ""}`}
       title={n
         ? `${n} issue${n === 1 ? "" : "s"} noted for this pass — open the list, or copy the export`
         : "Issues: what is wrong with this pass (select a clip and press n while you watch)"}
       onClick={() => openIssues(true)}
     >
-      <i className="pi pi-comment" />{n ? <span className="h3-small">&nbsp;{n}</span> : null}
+      <i className="pi pi-comment" /> Issues{n ? <span className="h3-small">&nbsp;{n}</span> : null}
     </button>
   );
 }
@@ -680,24 +837,25 @@ function ShotsBody() {
       )} />
       {ep && (
         <div className="h3-toolbar">
-          <span className="h3-group" title="The shots">
+          <span className="h3-group">
             <button className="h3-btn" title="Add a shot after the selected one (a form: who, size, length, action, dialogue, camera, sound)"
               onClick={() => openShotForm({ shot: null, after: selShot })}><i className="pi pi-plus" /> Shot</button>
-            <button className="h3-btn h3-icon" aria-label="Edit the selected shot" title="Edit the selected shot as a form" disabled={!selShot}
-              onClick={() => selShot && openShotForm({ shot: selShot, after: null })}><i className="pi pi-pencil" /></button>
-            <button className="h3-btn h3-icon" aria-label="Inspect the selected shot" title="Inspect the selected shot" onClick={() => openInspector()}><i className="pi pi-sliders-h" /></button>
           </span>
-          <span className="h3-group" title="The episode's text">
-            <button className="h3-btn h3-icon" aria-label="Edit the script" title="Edit the episode's script" onClick={() => openSource("script")}><i className="pi pi-file-edit" /></button>
-            <button className="h3-btn h3-icon" aria-label="Series settings" title="Series settings: the series config as a form" onClick={() => openSeriesForm()}><i className="pi pi-cog" /></button>
-            <button className="h3-btn h3-icon" aria-label="Edit series.json" title="Edit the series config (series.json) as text" onClick={() => openSource("series")}><i className="pi pi-book" /></button>
-            <TrackButton />
-          </span>
-          <span className="h3-group" title="Watching it">
-            <button className="h3-btn h3-icon" aria-label="Play all" title="Play all: the cut from its takes" onClick={() => playAll()}><i className="pi pi-play" /></button>
-            <button className="h3-btn h3-icon" aria-label="Open the timeline" title="Open the timeline" onClick={() => host().show("timeline")}><i className="h3-ico-film" /></button>
+          <span className="h3-group" title="The episode's text, and what is wrong with the pass">
+            <button className="h3-btn" title="Edit the episode's script" onClick={() => openSource("script")}><i className="pi pi-file-edit" /> Script</button>
+            <button className="h3-btn" title="Series settings: the series config as a form" onClick={() => openSeriesForm()}><i className="pi pi-cog" /> Series</button>
             <IssuesButton />
-            <button className="h3-btn h3-icon" aria-label="Open the Refs tab" title="Open the Refs tab" onClick={() => host().show("refs")}><i className="h3-ico-images" /></button>
+          </span>
+          {/* ComfyUI: the timeline is a bottom panel, opened from here. A page with a top
+              bar of its own has the timeline, and Play all in its bar, always in view */}
+          {!host().topBar && (
+            <span className="h3-group" title="Watching it">
+              <button className="h3-btn h3-icon" aria-label="Play all" title="Play all: the cut from its takes" onClick={() => playAll()}><i className="pi pi-play" /></button>
+              <button className="h3-btn" title="Open the timeline" onClick={() => host().show("timeline")}><i className="h3-ico-film" /> Timeline</button>
+            </span>
+          )}
+          <span className="h3-group">
+            <MoreMenu selShot={selShot} />
           </span>
         </div>
       )}

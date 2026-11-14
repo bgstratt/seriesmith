@@ -24,7 +24,7 @@
       "name": "Voss",
       "design": "a tall, pale man in his forties with close-cropped grey hair and a clean-shaven hard jaw, a long charcoal-grey longcoat with the collar turned up, black leather gloves, and a wraparound mirrored silver visor covering his eyes",
       "sheet": "refs/voss/voss_sheet_4panel.png",
-      "voice": "a man in his forties, deep, calm and quiet, never raised"
+      "voice": "a man in his forties, deep, calm and quiet, level and even"
     },
     "case": {
       "kind": "prop",
@@ -58,10 +58,22 @@
       "description": "the same tar rooftop looking toward its stairwell: a rusted steel door in a brick bulkhead under a caged yellow bulb, rusted water towers on steel legs to either side, rain slanting through the bulb's light, magenta neon glow from the left",
       "plate": "refs/_bg/water_towers_door.png"
     },
+    "water_towers_door_close": {
+      "of": "water_towers_door",
+      "crop": "center",
+      "zoom": 2.2,
+      "description": "the rusted steel stairwell door in its brick bulkhead under a caged yellow bulb, rain slanting through the bulb's light"
+    },
     "water_towers_run": {
       "of": "water_towers",
       "description": "the same tar rooftop seen down a long aisle between two rows of rusted water towers on steel legs, the brick stairwell bulkhead and its caged yellow bulb small at the far end of the aisle, puddles reflecting magenta neon, rain",
       "plate": "refs/_bg/water_towers_run.png"
+    },
+    "water_towers_run_aisle": {
+      "of": "water_towers_run",
+      "crop": "center",
+      "zoom": 1.5,
+      "description": "the aisle between two rows of rusted water towers on steel legs, the stairwell's caged yellow bulb at its far end, puddles reflecting magenta neon, rain"
     },
     "roof_edge": {
       "description": "the end of a tar rooftop at night in heavy rain seen from behind, a low concrete ledge, then a ten-foot gap over a sheer sixty-storey drop to a neon-lit street, and across the gap a neighbouring flat roof crowded with grey satellite dishes, cyan neon signs on the towers around it",
@@ -77,9 +89,27 @@
       "description": "the same low concrete ledge seen from out over the gap, looking back at the tar rooftop: rusted water towers on steel legs behind the ledge, the stairwell's caged yellow bulb far back, rain lit magenta by the neon sign to the right",
       "plate": "refs/_bg/roof_edge_back.png"
     },
+    "roof_edge_back_ledge": {
+      "of": "roof_edge_back",
+      "crop": "center",
+      "zoom": 1.5,
+      "description": "the low concrete ledge of the tar rooftop seen from out over the gap, rusted water towers on steel legs behind it, rain lit magenta by neon"
+    },
+    "roof_edge_back_ledge_close": {
+      "of": "roof_edge_back",
+      "crop": "center",
+      "zoom": 2.2,
+      "description": "the low concrete ledge of the tar rooftop close, a rusted water tower's steel legs behind it, rain lit magenta by neon"
+    },
     "dish_roof": {
       "description": "a flat gravel rooftop at night in heavy rain crowded with grey satellite dishes on steel mounts tilted at every angle, cyan neon from the surrounding towers glinting on the wet dishes, a red aircraft-warning light blinking on a mast at the centre",
       "plate": "refs/_bg/dish_roof.png"
+    },
+    "dish_roof_dishes": {
+      "of": "dish_roof",
+      "crop": "center",
+      "zoom": 1.5,
+      "description": "grey satellite dishes on steel mounts tilted at every angle on wet gravel, the mast with its red warning light behind them, cyan neon glinting on the wet dishes"
     },
     "dish_roof_landing": {
       "of": "dish_roof",
@@ -91,13 +121,37 @@
       "description": "the far corner of the satellite-dish roof: a waist-high concrete parapet with a steel anchor bracket, a thick black power cable running off the bracket and sagging away across a neon-lit street toward a lower building, satellite dishes behind, the red mast light blinking",
       "plate": "refs/_bg/dish_roof_corner.png"
     },
+    "dish_roof_corner_parapet": {
+      "of": "dish_roof_corner",
+      "crop": "center",
+      "zoom": 1.4,
+      "description": "the waist-high concrete parapet with its steel anchor bracket, the thick black power cable running off it and out over the neon-lit street"
+    },
     "cable_span": {
       "description": "a thick black power cable sagging steeply across a street canyon at night in heavy rain, from a high rooftop corner down to a low flat gravel roof, sixty storeys of lit windows on either side and the street glowing with neon far below",
       "plate": "refs/_bg/cable_span.png"
     },
+    "cable_span_cable": {
+      "of": "cable_span",
+      "crop": "center",
+      "zoom": 1.5,
+      "description": "the thick black power cable sagging across the street canyon in heavy rain, lit windows on either side, the street's neon glow far below"
+    },
     "lower_roof": {
       "description": "a low flat gravel rooftop at night in heavy rain, a squat rooftop vent and a dark access hatch, the neon-lit street close below its knee-high parapet, glass towers soaring above lit magenta and cyan",
       "plate": "refs/_bg/lower_roof.png"
+    },
+    "lower_roof_vent": {
+      "of": "lower_roof",
+      "crop": "center",
+      "zoom": 1.5,
+      "description": "the squat rooftop vent and the dark access hatch on wet gravel, the knee-high parapet behind them, neon glow rising from the street below"
+    },
+    "lower_roof_vent_close": {
+      "of": "lower_roof",
+      "crop": "center",
+      "zoom": 2.2,
+      "description": "wet gravel beside the squat rooftop vent, rain falling through the magenta and cyan glow of the signs"
     },
     "lower_roof_edge": {
       "of": "lower_roof",

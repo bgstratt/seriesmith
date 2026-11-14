@@ -207,8 +207,8 @@
     "proxy": {
       "lora": null,
       "steps": 12,
-      "width": 640,
-      "height": 352,
+      "width": 832,
+      "height": 480,
       "cfg": 5.0,
       "sampler": "uni_pc",
       "shift": 8.0,

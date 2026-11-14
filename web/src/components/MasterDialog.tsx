@@ -194,7 +194,7 @@ function MasterBody() {
             </label>
             <label className="h3-col" style={{ gap: 2 }} title="In cut order: what's finished is the cut up to a point, so you can stop at the first shot that's off and keep everything before it. Grouped by target: each model loads once, faster for a batch left to run">
               <span className="h3-small h3-muted">Queue</span>
-              <select value={order} onChange={(e) => setOrder(e.target.value as "cut" | "target")}>
+              <select className="h3-in" value={order} onChange={(e) => setOrder(e.target.value as "cut" | "target")}>
                 <option value="cut">In cut order</option>
                 <option value="target">Grouped by target</option>
               </select>
@@ -202,7 +202,7 @@ function MasterBody() {
             <label className="h3-col" style={{ gap: 2 }}
                    title={"Off: the master from the upscales.\nWhere present: each shot's fresh post where it has one (made from the take menu's Post-process…), its upscale otherwise; nothing is post-processed.\nAll by recipe: every shot finished by the series config's post.master (SeedVR2 clean-up, motion blur); a shot that still needs its upscale gets its post queued right behind it."}>
               <span className="h3-small h3-muted">Post-process</span>
-              <select value={opt.post} onChange={(e) => setOpt({ ...opt, post: e.target.value as PostMode })}>
+              <select className="h3-in" value={opt.post} onChange={(e) => setOpt({ ...opt, post: e.target.value as PostMode })}>
                 <option value="off">Off: upscales only</option>
                 <option value="present">Where present</option>
                 <option value="recipe">All by recipe</option>
