@@ -148,6 +148,21 @@ door Voss comes out of, and the aisle Mara runs down.
 `of: water_towers` marks it as an angle of the same place. The sequence header names the
 main location; a shot picks an angle with `plate:`.
 
+A medium or close shot in front of a wide plate comes out as wide as the plate, so it gets
+a **crop**: a location that is one part of another's plate, closer. Voss's close-up plays
+on the middle of the door's plate:
+
+```json series.json
+    "water_towers_door_close": {
+      "of": "water_towers_door",
+      "crop": "center",
+      "zoom": 2.2,
+      "description": "the rusted steel stairwell door in its brick bulkhead under a caged yellow bulb, rain slanting through the bulb's light"
+    },
+```
+
+The crop's picture is cut from its master's plate when the episode is built.
+
 ## 5. A scene becomes shots
 
 The screenplay's water-towers scene:
@@ -183,7 +198,7 @@ sound: a steel door slamming against brick, rain hammering, the heavy rustle of 
 
 ## sh050
 who: voss
-plate: water_towers_door
+plate: water_towers_door_close
 size: mcu
 dur: auto
 Voss walks slowly forward through the rain, unhurried, his mirrored visor turned past camera toward frame left where she runs.
@@ -203,6 +218,8 @@ What changed on the way:
 - **The line gets its shot and its delivery.** Voss speaks in a medium close-up (`mcu`, so
   his face reads), `dur: auto` makes the shot as long as the line takes, and `(calm,
   carrying easily over the rain)` is how he says it.
+- **The close shot has a closer place.** sh040 is a full shot on the door's whole plate;
+  sh050, a medium close-up, names the crop of it.
 - **Every shot has a camera and a sound.** The screenplay leaves both to the crew; the
   model needs them said.
 

@@ -273,6 +273,10 @@ alters it; `.venv\Scripts\python -m pytest tests/test_docs.py -n 0` after each.
 - [ ] 6. The preamble, the one-file instructions' own, the links (section 5).
 - [ ] 7. The references as MCP resources (section 6).
 - [ ] 8. The check as one file, no zip (section 7).
-- [ ] 9. The demo checks clean; the test that both examples do (section 7a).
+- [x] 9. The demo checks clean; the test that both examples do (section 7a). As built:
+      nine crops (two each for `roof_edge_back` and `lower_roof`, one for each of the other
+      five), the twelve shots named onto them, the two negations reworded. The crops' parts
+      were chosen from the descriptions, without the plates: they want a look once the
+      plates are made.
 - [ ] 10. The word limit on the core (section 8).
 - [ ] 11. The three requests run again and compared (section 9).
