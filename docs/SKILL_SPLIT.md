@@ -321,4 +321,17 @@ alters it; `.venv\Scripts\python -m pytest tests/test_docs.py -n 0` after each.
       planned as the limit, so the limit is 9,500. Getting to 9,000 would mean dropping the
       script's second example or moving the file and folder rules out of the first episode,
       and both are what a writer uses on every script.
-- [ ] 11. The three requests run again and compared (section 9).
+- [x] 11. The three requests run again and compared (section 9). 2026-11-14, on the
+      shorter skill: all three check clean. Request 1 read `series_config.md` and
+      `story_structures.md`, and had one warning on its first round (two singles on one
+      crop; it gave one an angle) where the baseline had none. Request 2 read those and
+      `people.md`, and wrote the variant, the cut round the change and the group as the
+      baseline did, clean on the first round. Request 3 read `series_config.md`,
+      `models.md`, `continuity.md` and `story_structures.md`, and chose `continuous: first`
+      for both pairs on `ltx2`, clean on the first round. None needed a reference it wasn't
+      sent to. What they found was fixed after: "below" and "above" for a section now in
+      another file, the bundled documents' pointers into the guide, and "just start" not
+      saying whether to read the structures. Still as the baseline found them: the 1440p
+      example's proxy against the default's, Look's "no good default", lengths between
+      5.17 and 8.00 s not in the grid's table, and what an LTX series should write for its
+      lengths and proxy.

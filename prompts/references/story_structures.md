@@ -32,7 +32,7 @@ runtime to estimate each beat's screen time, and so how many shots it gets.
 ## Asking the user (menu)
 
 When someone starts an episode from scratch and hasn't named a structure, offer a short
-menu like this one, in the same message as the questions in SKILL.md's **Starting a
+menu like this one, in the same message as the questions in `references/series_config.md`, **Starting a
 series** (when the series is new). Describe the *shape* of each option and give one familiar
 example. Then ask the two follow-ups at the end.
 
@@ -127,7 +127,7 @@ turn them into shots. Going from one to the other:
 - **A beat is not a sequence.** A `#` sequence is a place; a beat can run across several of
   them, or share one with the next beat.
 - **Every beat has to be on screen.** Each shot is rendered by a model with no memory of the
-  others (SKILL.md's **The one thing that shapes every decision**), and an audience sees
+  others (SKILL.md, **The one thing that shapes every decision**), and an audience sees
   only what's in the picture and the sound. Inner beats (the Debate, the Dark Night of the
   Soul, Recognition, Power Within) need an action, a look held long enough to read, or a
   line: write "Mara puts the letter face down and stares at the wall", not "Mara realizes
@@ -316,7 +316,7 @@ World), is caught by his father (Caught Shining), goes through the strike-torn f
 - Turning it into a Hero's Journey by adding a big external enemy. The opposition is the
   pressure to conform.
 - Dresses the Part (4) is a wardrobe change: a variant of the character in `series.json`
-  (SKILL.md's **A wardrobe change is a new subject**), so plan it with the cast.
+  (`references/people.md`, **A wardrobe change is a new subject**), so plan it with the cast.
 
 ---
 
@@ -423,7 +423,7 @@ shouldn't change much between episodes.
 | Tag | sting (at its end) | the end titles: a button (3) | show, statement | — |
 
 The **Cold Open / Teaser** beat is a cold open: it plays before the opening titles. Mark its sequences
-`cold_open: true` (SKILL.md, "A cold open"), and a master puts the series intro in after them.
+`cold_open: true` (`references/series_config.md`, **A cold open**), and a master puts the series intro in after them.
 
 A sitcom plays its scenes dry; its music is the show's theme between them. So besides the
 beats above, a short `show` echo (a bumper) plays at each change of scene, a new place or a
@@ -443,7 +443,7 @@ and collide in one absurd climax, and nobody grows.
 - Characters who are dumb rather than flawed. Their bad decisions should come from
   consistent traits.
 - Peak Chaos with the whole cast in one shot can run past a model's picture slots: check how
-  many people the shot's model takes (SKILL.md's **Choosing a video target**), or cover the
+  many people the shot's model takes (`references/models.md`, **Choosing a video target**), or cover the
   collision in several shots.
 
 ---
@@ -486,7 +486,7 @@ episode, and any drama series with a season-long thread.
 | Tag / Stinger | score | the aftermath, then a cold edge (2→3) | show, echo; then runner, statement | a sting at its end |
 
 The **Teaser / Cold Open** beat is a cold open: it plays before the opening titles. Mark its sequences
-`cold_open: true` (SKILL.md, "A cold open"), and a master puts the series intro in after them.
+`cold_open: true` (`references/series_config.md`, **A cold open**), and a master puts the series intro in after them.
 
 The act-outs are what this format adds to a score: a hit at the end of every act, which is
 what keeps it sounding like television rather than a film. A show with its own names for

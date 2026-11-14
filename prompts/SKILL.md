@@ -22,7 +22,8 @@ the person would rather you just start.
 Converting an existing screenplay, keep its story and dialogue and break it into shots
 (`references/script_conversion.md` works a scene through). Writing fresh, outline the story
 before the shots: if the person hasn't given it a shape, offer the menu in
-`references/story_structures.md` (with the questions about the series, in the same message).
+`references/story_structures.md` (with the questions about the series, in the same message;
+if they'd rather you just start, pick one from it and say which and why in a line).
 Either way, mark the structure and each beat in the script (`// structure:` near the top,
 `// beat:` above each beat's first shot; the structure that fits a converted screenplay
 best), so the score can be drafted from them (that file's **From beats to shots**).
@@ -200,7 +201,7 @@ shot 93. So:
   For a song as the recording, `audio.dub_from: "vocals"` sends each dub shot's window from
   the song's vocal stem instead of the whole mix (optional; off by default; see
   seriesmith's recorded dialogue guide).
-- `series.width` / `height` and the `proxy` block: **Render size and delivery** below.
+- `series.width` / `height` and the `proxy` block: see **Render size and delivery**.
 - `steps`, `lora` and `model` are optional per pass (the model's own otherwise). `lora`
   takes one LoRA or a chain, as the script's `lora:` line does
   (`"lora": "turbo_8step.safetensors, soft_light.safetensors:0.6"`).
@@ -496,7 +497,7 @@ sound: running footsteps on grass, fabric movement
 | `sla: off` | H3's sparse attention (PlagueKind's `H3SLAAttention`) left out: about 40% slower, a little smoother frame to frame. Also under a `#` header, in a profile (`"sla": "off"`) or for the series (`"sla": "off"` in its `series` block); `on` is the default |
 | `lens: shallow` | the lens the shot is shot on: `spherical`, `anamorphic`, `vintage`, `wide`, `long`, `shallow`, `tilt_shift` or `deep` (the look builder's Lens row). The action opens with its words ("Shallow depth of field: the subject sharp, the background falling into soft bokeh."), so every model reads it. Also under a `#` header, for its shots. Shallow focus shows the most; with a plate as the reference, the plate keeps its own geometry and the rest show less |
 | `profile: dialogue_close` | a render profile from the series config; also valid under a `#` header |
-| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`, `h3_hybrid`, `ltx2`, `ltx2_ingredients`, `ltx2_msr`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, `hold` for a picture held still, or a show's own); see below |
+| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`, `h3_hybrid`, `ltx2`, `ltx2_ingredients`, `ltx2_msr`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, `hold` for a picture held still, or a show's own); see **Choosing a video target** |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |
 | `continuous: first` | this shot carries straight on from the previous one in the cut: `first` (open on its last frame) or `latent` (hold the previous take's last frames and carry on from them); `multishot` renders it in one generation with the shot before (see **Several shots in one generation**); under a `#` header, every shot after the sequence's first; `none` breaks the chain; see **Continuous shots** |
 | `cold_open: true` | it plays before the opening titles: a master puts the series intro in right after the cold open's last shot. Under a `#` header, every shot of the sequence; on a shot, that shot (`cold_open: false` takes one out of its sequence's). The cold open is the cut's first shots, one after another: see **A cold open** |

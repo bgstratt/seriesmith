@@ -148,7 +148,7 @@ Build it with `seriesmith check Shows\ep01` and then `seriesmith build Shows\ep0
 
 ## Starting a series: what to settle first
 
-The first episode above is the smallest series config that builds. A series that will be
+The first episode (**Your first episode**) is the smallest series config that builds. A series that will be
 finished (upscaled, mastered and published) needs a few more decisions. They're made once,
 and they all live in the series config. Settle them before the first script: changing the
 size later only changes the takes rendered after the change, and a master needs its
@@ -167,7 +167,7 @@ recipe before it can run.
 Ask these in **one message**, only the ones the brief doesn't already answer ("for
 YouTube at 4K", "the voices are recorded" answer two). If the person would rather you
 just start, use the defaults and say which ones you used. Then write the whole config:
-the blocks below, not only the cast and the places.
+its other blocks, not only the cast and the places.
 
 A series rendered at size and mastered at 1440p, with generated voices, the finishing
 pass, and the intro and outro picked up from `_titles/`:
@@ -253,7 +253,7 @@ shot 93. So:
 - A keyframe is a picture: plan `first:` / `last:` lines (see **Keyframes**) for the
   targets that read them.
 
-Details per target are under **Rendering a shot on …** below. A show can have models of
+Details per target are under **Rendering a shot on …**. A show can have models of
 its own too (another hosted model, or a workflow saved in ComfyUI), named in `target:` like
 any other.
 
@@ -288,7 +288,7 @@ any other.
   For a song as the recording, `audio.dub_from: "vocals"` sends each dub shot's window from
   the song's vocal stem instead of the whole mix (optional; off by default; see
   seriesmith's recorded dialogue guide).
-- `series.width` / `height` and the `proxy` block: **Render size and delivery** below.
+- `series.width` / `height` and the `proxy` block: see **Render size and delivery**.
 - `steps`, `lora` and `model` are optional per pass (the model's own otherwise). `lora`
   takes one LoRA or a chain, as the script's `lora:` line does
   (`"lora": "turbo_8step.safetensors, soft_light.safetensors:0.6"`).
@@ -1046,7 +1046,7 @@ sound: running footsteps on grass, fabric movement
 | `sla: off` | H3's sparse attention (PlagueKind's `H3SLAAttention`) left out: about 40% slower, a little smoother frame to frame. Also under a `#` header, in a profile (`"sla": "off"`) or for the series (`"sla": "off"` in its `series` block); `on` is the default |
 | `lens: shallow` | the lens the shot is shot on: `spherical`, `anamorphic`, `vintage`, `wide`, `long`, `shallow`, `tilt_shift` or `deep` (the look builder's Lens row). The action opens with its words ("Shallow depth of field: the subject sharp, the background falling into soft bokeh."), so every model reads it. Also under a `#` header, for its shots. Shallow focus shows the most; with a plate as the reference, the plate keeps its own geometry and the rest show less |
 | `profile: dialogue_close` | a render profile from the series config; also valid under a `#` header |
-| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`, `h3_hybrid`, `ltx2`, `ltx2_ingredients`, `ltx2_msr`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, `hold` for a picture held still, or a show's own); see below |
+| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`, `h3_hybrid`, `ltx2`, `ltx2_ingredients`, `ltx2_msr`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, `hold` for a picture held still, or a show's own); see **Choosing a video target** |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |
 | `continuous: first` | this shot carries straight on from the previous one in the cut: `first` (open on its last frame) or `latent` (hold the previous take's last frames and carry on from them); `multishot` renders it in one generation with the shot before (see **Several shots in one generation**); under a `#` header, every shot after the sequence's first; `none` breaks the chain; see **Continuous shots** |
 | `cold_open: true` | it plays before the opening titles: a master puts the series intro in right after the cold open's last shot. Under a `#` header, every shot of the sequence; on a shot, that shot (`cold_open: false` takes one out of its sequence's). The cold open is the cut's first shots, one after another: see **A cold open** |

@@ -4,7 +4,7 @@ A reference for SKILL.md: starting a series and what to settle first, render siz
 
 ## Starting a series: what to settle first
 
-The first episode above is the smallest series config that builds. A series that will be
+The first episode (**Your first episode**) is the smallest series config that builds. A series that will be
 finished (upscaled, mastered and published) needs a few more decisions. They're made once,
 and they all live in the series config. Settle them before the first script: changing the
 size later only changes the takes rendered after the change, and a master needs its
@@ -23,7 +23,7 @@ recipe before it can run.
 Ask these in **one message**, only the ones the brief doesn't already answer ("for
 YouTube at 4K", "the voices are recorded" answer two). If the person would rather you
 just start, use the defaults and say which ones you used. Then write the whole config:
-the blocks below, not only the cast and the places.
+its other blocks, not only the cast and the places.
 
 A series rendered at size and mastered at 1440p, with generated voices, the finishing
 pass, and the intro and outro picked up from `_titles/`:

@@ -38,7 +38,7 @@ A reference for SKILL.md: the targets and what each takes, a section per model, 
 - A keyframe is a picture: plan `first:` / `last:` lines (see **Keyframes**) for the
   targets that read them.
 
-Details per target are under **Rendering a shot on …** below. A show can have models of
+Details per target are under **Rendering a shot on …**. A show can have models of
 its own too (another hosted model, or a workflow saved in ComfyUI), named in `target:` like
 any other.
 

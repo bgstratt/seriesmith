@@ -104,7 +104,8 @@ the person would rather you just start.
 Converting an existing screenplay, keep its story and dialogue and break it into shots
 (`references/script_conversion.md` works a scene through). Writing fresh, outline the story
 before the shots: if the person hasn't given it a shape, offer the menu in
-`references/story_structures.md` (with the questions about the series, in the same message).
+`references/story_structures.md` (with the questions about the series, in the same message;
+if they'd rather you just start, pick one from it and say which and why in a line).
 Either way, mark the structure and each beat in the script (`// structure:` near the top,
 `// beat:` above each beat's first shot; the structure that fits a converted screenplay
 best), so the score can be drafted from them (that file's **From beats to shots**).
@@ -520,6 +521,18 @@ def bundle_skill(text: str) -> str:
     return skill_text(text, BUNDLE_NOTE.replace("{version}", version()).replace("{references}", reference_list()))
 
 
+def homed(text: str) -> str:
+    """A bundled document's pointers into the guide ("SKILL.md's **A cold open**"), said for
+    where that heading is now: a reference's, when the markers moved it there."""
+    home = {h: name for name, blocks in split(source())[1].items() for b in blocks for h in headings(b)}
+
+    def point(m):
+        said = m.group(1)
+        at = next((ref for h, ref in home.items() if h.startswith(" ".join(said.split()))), None)
+        return f"`references/{at}.md`, **{said}**" if at else f"SKILL.md, **{said}**"
+    return re.sub(r"SKILL\.md(?:'s|,) (?:\*\*|\")([^*\"]+)(?:\*\*|\")", point, text)
+
+
 def bundle_breakdown() -> str:
     """references/script_conversion.md: the breakdown, its lede pointing at SKILL.md
     rather than into the repo."""
@@ -527,7 +540,7 @@ def bundle_breakdown() -> str:
     return (f"{title}\n\n"
             "A worked example for SKILL.md. The input is ordinary spec-format script pages;\n"
             "the output is the shot list. The interesting part is not the syntax, it's where\n"
-            f"the cuts land and why. Read it when {DOC_REFS[0][2]}.\n\n{outside_repo(rest)}")
+            f"the cuts land and why. Read it when {DOC_REFS[0][2]}.\n\n{homed(outside_repo(rest))}")
 
 
 def bundle_structures() -> str:
@@ -536,7 +549,7 @@ def bundle_structures() -> str:
     title, _lede, rest = read(STRUCTURES).split("\n\n", 2)
     return (f"{title}\n\n"
             "A reference for SKILL.md: the major story structures, for outlining an episode\n"
-            f"written from scratch. Read it when {DOC_REFS[1][2]}.\n\n{outside_repo(rest)}")
+            f"written from scratch. Read it when {DOC_REFS[1][2]}.\n\n{homed(outside_repo(rest))}")
 
 
 def bundle(text: str, out: str | None = None) -> str:

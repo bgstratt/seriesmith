@@ -39,7 +39,7 @@ mid-phone call with Filbert's Mom, TRACY.
 
 A screenplay that starts a series also starts its series config. Before the cast, settle
 how the show will be delivered: the look, 1080p, 1440p or 4K, the voices, the finishing
-pass and the titles (SKILL.md, **Starting a series: what to settle first**). A page
+pass and the titles (`references/series_config.md`, **Starting a series: what to settle first**). A page
 of screenplay answers none of those, and the render size and the master recipe have to be
 right before the first take.
 
@@ -201,8 +201,8 @@ there, not in the action.
 A TV script marks its teaser with a heading of its own: `COLD OPEN` or `TEASER` before the
 first scene, and `MAIN TITLES` or `END OF COLD OPEN` (or `ACT ONE`) after it. The heading
 isn't a scene and becomes no shot: the sequences under it get `cold_open: true` under their
-`#` line, and a master puts the series intro in after the last of them (SKILL.md, "A cold
-open"). The `MAIN TITLES` line disappears too: the titles are a clip of their own, not
+`#` line, and a master puts the series intro in after the last of them (`references/series_config.md`, **A cold
+open**). The `MAIN TITLES` line disappears too: the titles are a clip of their own, not
 a shot.
 
 ## Shot IDs
