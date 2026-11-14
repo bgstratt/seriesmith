@@ -1491,7 +1491,7 @@ export function RefsTab() {
         {refs && <span className="h3-muted h3-small h3-nowrap">{refs.length} refs</span>}
         <span className="h3-grow" />
         {loading && <i className="pi pi-spin pi-spinner h3-muted" />}
-        <PassToggle />
+        {!host().topBar && <PassToggle />}
         <AddRefButton disabled={!ep} />
         <button className="h3-btn" title="The series' settings: title, size, look, sound, models, finishing" disabled={!ep}
           onClick={() => openSeriesForm()}><i className="pi pi-cog" /> Series</button>

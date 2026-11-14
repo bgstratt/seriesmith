@@ -84,12 +84,8 @@ function episodeLabel(e: EpisodeSummary): string {
     + (!e.built.proxy && !e.built.final ? " (not built)" : "");
 }
 
-/**
- * The Shots and Refs tabs' head, as Simple mode's: the open episode as the
- * panel's title (its series above it), every episode in a dropdown over it,
- * and Browse and add new… (the project folders: open, New episode, New series).
- */
-export function EpisodeHead({ side }: { side?: React.ReactNode }) {
+/** The open episode among the ones found, and its title as a head shows it. */
+function useOpenEpisode() {
   const episodes = useApp((s) => s.episodes);
   const episodesError = useApp((s) => s.episodesError);
   const ep = useApp((s) => s.ep);
@@ -99,6 +95,47 @@ export function EpisodeHead({ side }: { side?: React.ReactNode }) {
   const cur = episodes?.find((e) => e.ep === ep);
   const name = cur ? `${cur.name}${cur.title && cur.title !== cur.series ? ` — ${cur.title}` : ""}`
     : episodes?.length ? "Pick an episode" : episodes ? "No episodes yet" : "Loading…";
+  return { episodes, ep, cur, name };
+}
+
+/**
+ * The standalone page's top bar: the open episode, its title whole, every
+ * episode in a dropdown over it, and the pass. The one place the page names
+ * either (the Shots and Refs tabs and the timeline follow it). Simple mode has
+ * its own project in its panel's head, and no pass.
+ */
+export function TopEpisode() {
+  const { episodes, ep, cur, name } = useOpenEpisode();
+  const simple = useApp((s) => s.simple);
+  if (simple) return null;
+  return (
+    <>
+      <span className="sm-project sm-top-ep" title={ep ? `${ep}
+Switch episode (the Shots tab, Refs and the timeline follow it)` : undefined}>
+        {cur?.series && <span className="sm-top-series">{cur.series}</span>}
+        <span className="sm-project-name">{name}</span>
+        <i className="pi pi-chevron-down sm-caret" />
+        <select aria-label="Episode" className="sm-project-select" value={ep ?? ""}
+          onChange={(e) => (e.target.value === ADD_NEW ? openBrowse({ purpose: "roots" }) : selectEpisode(e.target.value || null))}>
+          {!(episodes ?? []).some((e) => e.ep === ep) && <option value={ep ?? ""}>{name}</option>}
+          {(episodes ?? []).map((e) => <option key={e.ep} value={e.ep} title={e.ep}>{episodeLabel(e)}</option>)}
+          <option value={ADD_NEW}>Browse and add new…</option>
+        </select>
+      </span>
+      {ep && <PassToggle />}
+    </>
+  );
+}
+
+/**
+ * The Shots and Refs tabs' head, as Simple mode's: the open episode as the
+ * panel's title (its series above it), every episode in a dropdown over it,
+ * and Browse and add new… (the project folders: open, New episode, New series).
+ */
+export function EpisodeHead({ side }: { side?: React.ReactNode }) {
+  const { episodes, ep, cur, name } = useOpenEpisode();
+  // the page's top bar names the episode (TopEpisode): the head is its buttons only
+  if (host().topBar) return side ? <div className="sm-head sm-head-bare">{side}</div> : null;
   return (
     <PanelHead side={side}>
       <TitleSelect kicker={cur?.series || "Episode"} label="Episode" name={name} value={ep ?? ""}
@@ -181,7 +218,7 @@ function BuildBar() {
       <div className="h3-epcard">
       <EpisodeTarget />
       <div className="h3-row h3-wrap">
-        <PassToggle />
+        {!host().topBar && <PassToggle />}
         <button className="h3-btn" disabled={b.busy} onClick={() => void build()} title="Run build for both passes from the script and series config">
           <i className={b.busy ? "pi pi-spin pi-spinner" : "pi pi-cog"} /> {b.busy ? "Building…" : "Build"}
         </button>

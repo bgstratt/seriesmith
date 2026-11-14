@@ -115,12 +115,20 @@ starts the series wizard.
 
 ### The toolbar
 
-The Shots and Refs tabs open as Simple mode does: the episode is the panel's title (its
-series above it), its name a dropdown of every episode, whose last choice, **Browse and
-add new…**, opens **Project folders** (add or remove roots, open an episode, New episode…,
-New series/project…, Import…). Beside it on the Shots tab, **Rescan the project roots**
-(after adding an episode folder outside the editor) and **Simple / Advanced**. The
-timeline keeps a small dropdown of its own, with the same choices.
+The open episode is named once, with its series before it: its name is a dropdown of every
+episode, whose last choice, **Browse and add new…**, opens **Project folders** (add or
+remove roots, open an episode, New episode…, New series/project…, Import…). Beside it,
+**proxy / final**: which pass you are looking at and rendering, in every panel.
+
+- On seriesmith's own page (`seriesmith serve`), both are in the top bar, after the name
+  seriesmith, and the panels and the timeline don't repeat them.
+- In ComfyUI, where each panel can be open alone, the episode is the title of the Shots and
+  Refs tabs, on a line of its own under the series, and the timeline keeps a small dropdown
+  with the same choices; proxy / final is in the episode's card, the Refs tab's bar and
+  the timeline's bar.
+
+At the head of the Shots tab, **Rescan the project roots** (after adding an episode folder
+outside the editor) and **Simple / Advanced**.
 
 The **refresh** beside the head reads the episode again from disk and rescans the project
 folders. Under it, the Shots toolbar, its buttons in groups, left to right:
@@ -140,8 +148,7 @@ folders. Under it, the Shots toolbar, its buttons in groups, left to right:
 | images | **Open the Refs tab** |
 
 Under it, the episode's card: **Model:**, the episode's video model (below), the row
-that works on the pass: **proxy / final** (which pass you are looking at and rendering),
-**Build** (runs `build` for both passes from the script and series config), **Re-render
+that works on the pass: **Build** (runs `build` for both passes from the script and series config), **Re-render
 stale** and, in proxy, **Finals from drafts**; then **Generate missing**, and how far
 through the pass it is (done of total, failed, how long a shot takes, how long is left).
 

@@ -640,7 +640,7 @@ export function Timeline() {
   return (
     <div className="h3-surface h3-timeline" tabIndex={-1} ref={surfaceRef} onKeyDown={onKeyDown} style={{ outline: "none" }}>
       <div className="h3-bar">
-        <EpisodeSelect compact />
+        {!host().topBar && <EpisodeSelect compact />}
         {st && <span className="h3-muted h3-small">{st.shots.length} shots · {fmtSeconds(total)}</span>}
         {st && prog.queued > 0 && (
           // P1: watching a pass is what this window is for, so the rate and the
@@ -668,7 +668,7 @@ export function Timeline() {
           </button>
         </span>
         {pos != null && <span className="h3-mono h3-muted">{fmtClock(pos)}</span>}
-        <PassToggle />
+        {!host().topBar && <PassToggle />}
         <span className="h3-group">
           <CutMenuButton />
           <button className="h3-btn h3-icon" aria-label="Undo" disabled={!undo?.undo} title={undo?.undo ? `Undo: ${undo.undo} (Ctrl+Z)` : "Nothing to undo (Ctrl+Z)"} onClick={() => void undoCut()}><i className="pi pi-undo" /></button>

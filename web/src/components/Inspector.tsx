@@ -24,7 +24,6 @@ import { useDetail, useDetailError, useRefs, useShotStatus, useStatus } from "./
 import { MissingRefsNote } from "./MissingRefs";
 import { OverrideFields } from "./OverrideFields";
 import { ResolvedNotes, TargetReadinessNote } from "./Readiness";
-import { PassToggle } from "./ShotsTab";
 import { ModelsButton, TargetSelect, useTargetPickers, useTargets } from "./Targets";
 import { Badges } from "./Thumb";
 import { CutSection } from "./CutSection";
@@ -601,7 +600,6 @@ export function Inspector() {
 /** The floating inspector window (drag by the head, resize from the corner). */
 export function InspectorWindow() {
   const open = useApp((s) => s.inspector);
-  const ep = useApp((s) => s.ep);
   const shot = useApp((s) => s.shot);
   const s = useShotStatus(shot);
   if (!open) return null;
@@ -618,7 +616,6 @@ export function InspectorWindow() {
           )}
         </div>
       </div>
-      {ep && <PassToggle />}
       <button className="h3-btn h3-icon" title="Close" onClick={closeInspector}><i className="pi pi-times" /></button>
     </>
   );

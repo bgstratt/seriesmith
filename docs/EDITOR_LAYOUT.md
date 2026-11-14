@@ -28,7 +28,9 @@ The same components run in three places, and the plan has to hold in each:
 - **ComfyUI** (`web/src/comfy.ts`): the Shots and Refs panels are sidebar tabs and the
   timeline a bottom panel tab. There is no top bar of ours, and the timeline can be open
   with the sidebar closed.
-- **The dev page** (`web/src/dev.tsx`): follows the standalone page.
+- **The dev page** (`web/src/dev.tsx`, `npm run dev`, `/dev.html`): the panels side by side
+  at ComfyUI's widths on the mock API, with no top bar. It is where the ComfyUI side of
+  each step is looked at.
 
 So "moves to the top bar" below means the standalone page. In ComfyUI the same control
 stays at the head of the panel it is in, on one line.
@@ -72,8 +74,8 @@ Change:
   the episode's title has the line under it to itself, the panel's whole width (a tooltip
   with all of it when it is still too long). It opens the same list of episodes as now.
   The timeline's bar keeps its select, since that panel can be open alone.
-- The storyboard and the gallery keep theirs: each can show another episode than the one
-  open.
+- The storyboard and the gallery keep theirs: each is a window over the page, and covers
+  the top bar on a small screen.
 
 ## 3. Proxy / final, once
 
@@ -84,8 +86,9 @@ Today `PassToggle` is drawn in `BuildBar` (`ShotsTab.tsx:184`), the Refs tab
 Change:
 
 - **Standalone:** one toggle in the top bar, beside the episode. The other four go.
-- **ComfyUI:** one at the head of each panel that can be open alone (the Shots panel's
-  head, the Refs panel's, the timeline's bar); the card's and the Inspector's go.
+- **ComfyUI:** one in each panel that can be open alone: the Shots panel's episode card
+  (on the line that stays when the card is folded, section 1), the Refs panel's bar, the
+  timeline's bar. The Inspector's goes.
 
 ## 4. The toolbar
 
@@ -228,7 +231,7 @@ Each line is a commit on this branch. After the last one on a day: `npm run type
 `npm test`, then `npm run build:standalone` and `npm run build`, both built pages committed.
 `docs/EDITOR.md` is corrected in the same commit as the screen it describes.
 
-- [ ] 1. The episode and pass in the standalone top bar (sections 2 and 3); the panel's
+- [x] 1. The episode and pass in the standalone top bar (sections 2 and 3); the panel's
       head and the timeline's bar lose theirs there; ComfyUI's heads as described.
 - [ ] 2. The episode card folds (section 1): the chevron, the one line, the remembered
       state, Generate missing as the big button only when something is missing.

@@ -1006,8 +1006,19 @@
 .h3-root .sm-head {
   display: flex; align-items: flex-start; gap: 10px; padding: 14px 14px 10px; flex: 0 0 auto; min-width: 0;
 }
-.sm-head-main { flex: 1 1 auto; min-width: 0; }
-.sm-head-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
+/* the kicker and the side's buttons share the first line; the title has the second to
+   itself, the panel's whole width, so a long one isn't cut by the buttons */
+.h3-root .sm-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 10px; row-gap: 4px; }
+.sm-head-main { display: contents; }
+.sm-head-main > .sm-kicker { grid-column: 1; grid-row: 1; }
+.sm-head-main > .sm-project, .sm-head-main > .sm-project-name { grid-column: 1 / -1; grid-row: 2; }
+.sm-head-side { display: flex; align-items: center; gap: 6px; grid-column: 2; grid-row: 1; }
+/* a page with a top bar of its own names the episode there: the head is its buttons */
+.h3-root .sm-head.sm-head-bare { display: flex; justify-content: flex-end; padding: 8px 14px 6px; }
+/* the top bar's episode (TopEpisode): the show, then the title, on one line */
+.sm-top-ep { min-width: 0; gap: 8px; }
+.sm-top-ep .sm-top-series { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--descrip-text); white-space: nowrap; flex: none; }
+.sm-top-ep .sm-project-name { font-family: var(--sm-serif, var(--h3-serif)); font-size: 16px; text-overflow: ellipsis; }
 .sm-kicker { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--h3-muted); }
 /* the project's name, a dropdown over it: one line, cut off at the edge (no ellipsis) */
 .sm-project { position: relative; display: flex; align-items: center; gap: 6px; max-width: 100%; cursor: pointer; border-radius: var(--h3-radius); }
