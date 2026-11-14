@@ -98,4 +98,12 @@ recommendation in the user docs (the user judges the look).
 - [x] Docs: FINISHING, COMMANDS, API, FULL_SETUP, INSTALL (generated); site regenerated.
 - [x] Live, from the command line: sh030 t03 of the scratch copy to 4K (`--method ltx --deliver
       4k`), 6.1 min, 3840×2160, its 39 frames, its audio copied, the int8 files chosen.
-- [ ] Live (you): from the Upscale dialog, and from a recipe with `"method": "ltx"`.
+- [x] Live (the user, 2026-11-13): from the Upscale dialog, and from a recipe.
+- [x] LTX's hosted upscale beside it (one paid run, the user's go-ahead, 2026-11-13): Comfy's
+      partner node `LtxApiVideoUpscale` (the API's `POST /v2/video-upscale`: `video_uri` and
+      `resolution` 1080p / 4k / 8k only; no prompt, strength or seed; H.264 or HEVC in, H.264
+      MP4 out; $0.08 / $0.30 / $1.20 a second of input; 601 frames at most to 4K, 241 to 8K).
+      sh060 t01 to 4K in 100 s, 3780×2160 (fit inside, aspect kept), 73 frames, audio kept.
+      Face sharpness 1.58 (local Refine 1.56, H3 latent + SeedVR2 2.79), drift 2.65 (the
+      least of the generative methods), shimmer the source's (1.00x): as soft as ours on the
+      face, the same family of result, ten times quicker. Nothing to add to seriesmith for it.

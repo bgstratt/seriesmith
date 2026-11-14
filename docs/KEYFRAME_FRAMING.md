@@ -123,7 +123,8 @@ drew sh1115 roughly medium already), so the gain is smaller.
 
 - [ ] **A head-and-shoulders reference for MCU and CU:** a crop of the character's sheet, or a
       close-up reference made once per character (Ballroom's workaround, done for you), passed
-      in place of the full-body sheet. Untested.
+      in place of the full-body sheet. Decided (the user, 2026-11-13): medium and close
+      keyframes take the character's face reference, not the full figure. Not built yet.
 - [ ] **A case that shows the problem:** Ballroom's Charming and Cindy, medium and close shots,
       before and after the crop. Porchlights mostly framed right already.
 - [ ] **Sheet panels at 1024 px rather than the target's `view_size`:** less detail per face,

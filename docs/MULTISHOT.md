@@ -266,7 +266,7 @@ dur: 1.62
       identity on Kling, the storyboard only timing. router_video sends an overridden prompt
       as one prompt (as ltx2's), which is how this was tried. The voices were good too, so
       Kling v3 Omni now builds that layout itself (the `brief` form; open question 6).
-- [ ] (d'') Seedance and Kling once more, for a second sample each (paid: asked first): Seedance 2.5 on the ep04 beat, and
+- Dropped (the user, 2026-11-13): (d'') Seedance and Kling once more, for a second sample each: Seedance 2.5 on the ep04 beat, and
       whether writing each shot's seconds into its paragraph moves Seedance's cuts (open
       question 5); Kling v3 Omni's `brief` form as built from the script (6).
 - [x] (e) Upscale and master of a group take (2026-10-26, the ep04 group on local Omni).
