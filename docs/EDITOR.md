@@ -1370,7 +1370,12 @@ wins and shows as such. On the standalone page opened on the PC that runs the se
 Docked in the middle of the page: the selected shot's takes (step with `←` `→`, compare two
 **side by side** or under a **wipe**, **Play all** for the cut), a ref's candidates, a
 location's tour (keep any frame as a hold), and a 360 in its own viewer. Drag its tab out to
-float it, or dock another window beside it. **Click the picture** to play or pause it (as
+float it, or dock another window beside it. It follows the selection: an episode opens on its
+first shot's take, and a shot clicked in the list or on the timeline shows its take in the
+cut, waiting on its first frame (a take row clicked shows that take). Double-click, or the
+play button, plays it. Play all, a ref's pictures and a cue's window stay as they are when a
+shot is clicked. In ComfyUI the viewer is a window: a selection moves it only when it is
+already open on a shot. **Click the picture** to play or pause it (as
 `Space` does): a take, two side by side (they play together), Play all, the gallery, a clip's
 Replace audio preview. **Scroll on the picture** to zoom in about the pointer (up to 10x),
 **drag** to look round while zoomed, and **double-click** for the whole picture again: a take

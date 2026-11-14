@@ -243,7 +243,10 @@ Each line is a commit on this branch. After the last one on a day: `npm run type
       working, needs a look, fact; a hosted model's badge keeps the paid colour, outlined;
       a clip under 90 px wide shows the edge, a wider one one badge, from 150 px two. The
       take rows' seed (section 9) went in with this.
-- [ ] 5. The viewer shows the selected shot's take (section 6).
+- [x] 5. The viewer shows the selected shot's take (section 6). As built: a shot with no
+      take in the cut shows its newest take that plays; a take row clicked shows that take;
+      Play all, a ref's pictures, a cue's window and a viewer over the storyboard are left
+      alone; several shots picked with Ctrl or Shift don't move it.
 - [ ] 6. The timeline's splitter and the lanes' scroll (section 7).
 - [ ] 7. The controls: the fields' sweep, links and buttons, one primary (section 8).
 - [ ] 8. The take strip as a column beside the video; the take rows' seed in Details

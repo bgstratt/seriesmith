@@ -293,8 +293,9 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
 
   const load = (t: TakeSummary, toB: boolean) => {
     if (!t.mp4) return;
-    if (toB) updateViewer({ b: t.take, mode: mode === "single" ? "side" : mode });
-    else updateViewer({ a: t.take });
+    // a take asked for plays, where one a selection showed waits
+    if (toB) updateViewer({ b: t.take, mode: mode === "single" ? "side" : mode, paused: false });
+    else updateViewer({ a: t.take, paused: false });
   };
 
   // Phase 13: show a take's fresh upscale instead of the take (remembered, shared with Play all)
@@ -331,7 +332,7 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
           src={url(t)}
           preload="auto"
           playsInline
-          autoPlay={which === "a"}
+          autoPlay={which === "a" && !v.paused}
           loop
           style={colorFilter ? { filter: colorFilter } : undefined}
           // a click plays or pauses, as space does: A leads, B follows it
