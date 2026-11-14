@@ -45,8 +45,9 @@ refs line and the recording's line (`TrackLine`).
 Change:
 
 - **The episode card collapses.** A chevron on the card (`h3-epcard`) folds it to one line:
-  the model, the pass, the progress ("11/11"), and counts that need something ("3 missing ·
-  7 stale"). Open or folded is remembered in the browser (the editor's own
+  the model (on the standalone page; ComfyUI's narrower line has the pass toggle there
+  and no room for it), the progress ("11/11"), and counts that need something ("3 missing",
+  "7 stale"). Open or folded is remembered in the browser (the editor's own
   `seriesmith.editor.v1` state), per host. The recording's line folds with it.
 - **Folded, what needs doing still shows.** The one line's counts are buttons: "3 missing"
   queues them as Generate missing does, "7 stale" as Re-render stale does (the same paid
@@ -233,7 +234,7 @@ Each line is a commit on this branch. After the last one on a day: `npm run type
 
 - [x] 1. The episode and pass in the standalone top bar (sections 2 and 3); the panel's
       head and the timeline's bar lose theirs there; ComfyUI's heads as described.
-- [ ] 2. The episode card folds (section 1): the chevron, the one line, the remembered
+- [x] 2. The episode card folds (section 1): the chevron, the one line, the remembered
       state, Generate missing as the big button only when something is missing.
 - [ ] 3. The toolbar: four labelled, the rest in `More`; in ComfyUI Timeline labelled
       and Play all beside it (section 4).

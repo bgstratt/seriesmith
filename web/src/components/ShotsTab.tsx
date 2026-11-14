@@ -9,7 +9,7 @@ import {
   upscaleBadge,
 } from "../lib/format";
 import { missingShots, passProgress, progressLine, progressTitle, staleReasons, staleShots } from "../lib/progress";
-import { findTarget, isHosted, listDefaultTarget, shotTarget, takeTargetBadge, targetBadges } from "../lib/targets";
+import { findTarget, isHosted, listDefaultTarget, seriesDefaultTarget, shotTarget, takeTargetBadge, targetBadges, targetLabel } from "../lib/targets";
 
 import { renderingTakes, statusKey, store, useApp } from "../store";
 import { ModeSwitch, SimplePanel } from "./SimplePanel";
@@ -190,6 +190,28 @@ function EpisodeHeader() {
   );
 }
 
+const CARD_KEY = "seriesmith.card";
+
+/** The episode's card folded to its one line, as this browser left it. */
+function useCardFolded(): [boolean, (on: boolean) => void] {
+  const [folded, setFolded] = useState(() => {
+    try {
+      return localStorage.getItem(CARD_KEY) === "folded";
+    } catch {
+      return false;
+    }
+  });
+  const set = (on: boolean) => {
+    setFolded(on);
+    try {
+      localStorage.setItem(CARD_KEY, on ? "folded" : "open");
+    } catch {
+      /* not remembered: fine */
+    }
+  };
+  return [folded, set];
+}
+
 function BuildBar() {
   const ep = useApp((s) => s.ep);
   const b = useApp((s) => s.build);
@@ -198,6 +220,13 @@ function BuildBar() {
   const renderBusy = useApp((s) => Object.keys(s.busy).some((k) => k.startsWith("render|")));
   const [open, setOpen] = useState(true);
   const { list: models } = useTargets();
+  const [folded, setFolded] = useCardFolded();
+  // a build that failed says why under the card: open it
+  const buildWrong = !!b.error || (!!b.result && !b.result.ok);
+  useEffect(() => {
+    if (buildWrong) setFolded(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildWrong]);
   if (!ep) return null;
   const missing = missingShots(st?.shots);
   // a model that bills someone: this button doesn't look like the free one
@@ -213,12 +242,45 @@ function BuildBar() {
   const drafted = pass === "proxy"
     ? (st?.shots ?? []).filter((x) => x.takes.find((t) => t.take === x.cut?.take)?.draft).length : 0;
   const prog = passProgress(st?.shots);
+  const model = st && models ? targetLabel(models, seriesDefaultTarget(models, st)) : "";
+  const missingTitle = missing.length ? `Queue a ${pass} take for each shot without one: ${missing.join(", ")}` : "Every shot has a take";
   return (
     <div className="h3-pad h3-col" style={{ gap: 8, paddingTop: 0 }}>
-      <div className="h3-epcard">
-      <EpisodeTarget />
-      <div className="h3-row h3-wrap">
+      <div className={`h3-epcard${folded ? " h3-epcard-folded" : ""}`}>
+      {/* the card's own line: it stays when the card is folded, with what needs doing */}
+      <div className="h3-row h3-epcard-line">
+        <button className="h3-btn h3-icon h3-fold" aria-expanded={!folded}
+          aria-label={folded ? "Open the episode's card" : "Fold the episode's card"}
+          title={folded ? "Open the episode's card: its model, Build, Storyboard, Guide" : "Fold the card to this line, and give the room to the shots"}
+          onClick={() => setFolded(!folded)}>
+          <i className={`pi pi-chevron-${folded ? "right" : "down"}`} />
+        </button>
+        {folded && model && host().topBar && <span className="h3-ell h3-small" style={{ minWidth: 0 }} title={`The episode's model: ${model}`}>{model}</span>}
+        {st && prog.total > 0 && (
+          <span className="h3-small h3-muted h3-nowrap" title={progressTitle(prog)}>
+            {folded ? `${prog.done}/${prog.total}${prog.queued ? ` · ${prog.queued}q` : ""}${prog.failed ? ` · ${prog.failed} failed` : ""}` : progressLine(prog)}
+          </span>
+        )}
+        <span className="h3-grow" />
+        {folded && missing.length > 0 && (
+          <button className={`h3-btn ${paidMissing ? "h3-paid" : "h3-primary"}`} disabled={renderBusy} title={missingTitle}
+            onClick={() => requestRender(missing, false, "Generate missing")}>
+            {missing.length} missing
+          </button>
+        )}
+        {folded && stale.length > 0 && (
+          <button className="h3-btn" disabled={renderBusy}
+            title={`Re-render the shots whose newest take is out of date (`
+              + Object.entries(why).map(([r, n]) => `${n} ${r}`).join(", ")
+              + `), each at its built seed so only the change shows: ${stale.join(", ")}`}
+            onClick={() => renderStale()}>
+            {stale.length} stale
+          </button>
+        )}
         {!host().topBar && <PassToggle />}
+      </div>
+      {!folded && <EpisodeTarget />}
+      {!folded && <div className="h3-row h3-wrap">
         <button className="h3-btn" disabled={b.busy} onClick={() => void build()} title="Run build for both passes from the script and series config">
           <i className={b.busy ? "pi pi-spin pi-spinner" : "pi pi-cog"} /> {b.busy ? "Building…" : "Build"}
         </button>
@@ -246,25 +308,25 @@ function BuildBar() {
             <i className="pi pi-forward" /> Finals from drafts ({drafted})…
           </button>
         )}
-      </div>
-      <button
-        className={`h3-btn ${paidMissing ? "h3-paid" : "h3-primary"} h3-wide-btn`}
-        disabled={!missing.length || renderBusy}
-        title={missing.length ? `Queue a ${pass} take for each shot without one: ${missing.join(", ")}` : "Every shot has a take"}
-        onClick={() => requestRender(missing, false, "Generate missing")}
-      >
-        Generate missing{missing.length ? ` (${missing.length})` : ""}
-      </button>
+      </div>}
+      {/* the big button is for when there is something to make */}
+      {!folded && missing.length > 0 && (
+        <button
+          className={`h3-btn ${paidMissing ? "h3-paid" : "h3-primary"} h3-wide-btn`}
+          disabled={renderBusy}
+          title={missingTitle}
+          onClick={() => requestRender(missing, false, "Generate missing")}
+        >
+          Generate missing ({missing.length})
+        </button>
+      )}
       <MultiBar />
       {st && prog.total > 0 && (
-        <div className="h3-col" style={{ gap: 3 }} title={progressTitle(prog)}>
-          <span className="h3-small h3-muted">{progressLine(prog)}</span>
-          <div className="h3-meter"><span style={{ width: `${Math.round((prog.done / prog.total) * 100)}%` }} /></div>
-        </div>
+        <div className="h3-meter" title={progressTitle(prog)}><span style={{ width: `${Math.round((prog.done / prog.total) * 100)}%` }} /></div>
       )}
       </div>
       {st && <MissingRefsSummary shots={st.shots} />}
-      <TrackLine />
+      {!folded && <TrackLine />}
       {(b.result || b.error) && (
         <div className={`h3-note ${failed || b.error ? "h3-note-err" : "h3-note-info"}`}>
           <div className="h3-row">

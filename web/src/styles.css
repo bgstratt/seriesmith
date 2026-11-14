@@ -1105,6 +1105,11 @@
 }
 .h3-epcard > .h3-pad { padding: 0; }
 .h3-root .h3-btn.h3-wide-btn { justify-content: center; padding: 8px; border-radius: 10px; min-height: 36px; font-size: 13px; }
+/* the episode card's own line (the fold, how far the pass is, what needs doing); folded,
+   it and the meter are the whole card */
+.h3-epcard-line { gap: 6px; min-height: 24px; flex-wrap: nowrap; }
+.h3-root .h3-btn.h3-fold { border-color: transparent; background: transparent; padding: 2px 4px; }
+.h3-root .h3-btn.h3-fold:hover { background: var(--h3-hover); }
 .h3-meter { height: 5px; border-radius: 3px; background: var(--h3-bg3); overflow: hidden; }
 .h3-meter > span { display: block; height: 100%; background: var(--h3-primary); transition: width .3s; }
 .h3-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding: 10px 12px 14px; }

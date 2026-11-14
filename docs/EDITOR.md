@@ -149,8 +149,14 @@ folders. Under it, the Shots toolbar, its buttons in groups, left to right:
 
 Under it, the episode's card: **Model:**, the episode's video model (below), the row
 that works on the pass: **Build** (runs `build` for both passes from the script and series config), **Re-render
-stale** and, in proxy, **Finals from drafts**; then **Generate missing**, and how far
-through the pass it is (done of total, failed, how long a shot takes, how long is left).
+stale** and, in proxy, **Finals from drafts**; then **Generate missing**, when a shot has no
+take yet. The card's first line says how far through the pass it is (done of total, failed,
+how long a shot takes, how long is left), with a bar under the card's contents.
+
+The arrow at the start of that line folds the card to the line alone, and gives the room to
+the shots; the browser remembers it. Folded, the line still says what needs doing, as
+buttons: **N missing** queues them as Generate missing does, **N stale** as Re-render stale
+does. A build that fails opens the card.
 
 Beside the filter, **List / Board** (remembered in this browser): the list has a row per
 shot, its takes under it; the board shows each sequence as a grid of its shots'
