@@ -55,7 +55,7 @@ Most specific first:
 
 So leave `target:` out of a script and `series.target` out of a config unless the choice is
 the film's: the episode then follows whatever the person renders on. Which models are
-installed, and what each still needs, is `seriesmith targets` (`docs/FULL_SETUP.md`).
+installed, and what each still needs, is `seriesmith targets` (seriesmith's full setup guide).
 
 ### Rendering a shot on LTX-2
 

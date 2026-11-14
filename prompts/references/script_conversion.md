@@ -2,7 +2,7 @@
 
 A worked example for SKILL.md. The input is ordinary spec-format script pages;
 the output is the shot list. The interesting part is not the syntax, it's where
-the cuts land and why.
+the cuts land and why. Read it when adapting existing script pages rather than writing shots directly.
 
 ## The source
 

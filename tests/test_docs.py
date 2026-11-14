@@ -88,7 +88,15 @@ class TestScriptSkill(unittest.TestCase):
             with self.subTest(file=name):
                 self.assertEqual(re.findall(r"\]\((?!https?:|#)[^)]*\)", got), [])
                 self.assertNotIn("AUTHORING", got)
-                self.assertEqual(re.findall(r"`[A-Z_]+\.md`", got.replace("`INSTALL.md`", "")), [])
+                # no document of the repo by its file's name: its reader can't open one
+                self.assertEqual(re.findall(r"\b[A-Z][A-Z_]+\.md\b", got.replace("SKILL.md", "")), [])
+
+    def test_the_one_file_instructions_name_no_file_they_lack(self):
+        """They are one file: no reference to read, no bundled check to run."""
+        text = P.instructions_text()
+        self.assertNotIn("references/", text)
+        self.assertNotIn("scripts/check.py", text)
+        self.assertIn("## Starting a series: what to settle first", text)
 
 
 class TestSkillSplit(unittest.TestCase):

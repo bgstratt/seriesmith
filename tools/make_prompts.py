@@ -83,37 +83,63 @@ DESCRIPTION = (
     "seriesmith check rejected, even if they never name seriesmith or the file formats."
 )
 
-PREAMBLE = """You are writing for seriesmith. Follow this format exactly: the output is compiled
+# What both preambles open with.
+OPENING = """You are writing for seriesmith. Follow this format exactly: the output is compiled
 by `seriesmith build`, and anything that does not match is a build error, not a style
 preference.
 
 Before writing anything, ask for the series config (`series.json`) if the series has one.
 Adding a character means adding to that file, not inventing a new one: if you write `riley`
-when the series config already has `riley_freeman`, every reference path breaks. With no
-series config yet you are starting a series: write both files.
+when the series config already has `riley_freeman`, every reference path breaks. An existing
+series config is the show's: add what the episode needs and change nothing else unasked (if
+it has no `upscale.master` block, say once that it can't be mastered by recipe until it has
+one)."""
 
-Starting a series, settle what **Starting a series: what to settle first** lists before the
-first shot: the look, the delivery (1080p, 1440p or 4K, which sets the render size, the
-proxy and the master recipe), the voices, the finishing pass and the titles. Ask what the
-brief doesn't already say, in one message, then write the whole config: `upscale.master`
-and `post` as well as the cast and the places. If the person would rather you just start,
-use that section's defaults and list what you assumed. An existing series config is the
-show's: add what the episode needs and change nothing else unasked, but if it has no
-`upscale.master` block, say once that it can't be mastered by recipe until it has one.
+# SKILL.md's: it has the references and, in the bundle, the check.
+PREAMBLE = OPENING + """ With no series config yet you are starting a series: write both files,
+and read `references/series_config.md` first. It says what to settle before the first shot
+(ask what the brief doesn't say, in one message) and the defaults to use, and to list, when
+the person would rather you just start.
 
 Converting an existing screenplay, keep its story and dialogue and break it into shots
 (`references/script_conversion.md` works a scene through). Writing fresh, outline the story
 before the shots: if the person hasn't given it a shape, offer the menu in
-`references/story_structures.md` (with the questions above, in the same message). Either
-way, mark the structure and each beat in the script (`// structure:` near the top, `// beat:`
-above each beat's first shot; the structure that fits a converted screenplay best), so the
-score can be drafted from them (that file's **From beats to shots**). Write the film, not
-the model. Leave `target:` lines out unless a shot
-needs something only one model does (see **Choosing a video target**); advice that holds for
-one target only is marked with that target's name. Validate with `seriesmith check
-<episode folder>` before calling a script finished. Rendering, upscaling
-and mastering are the person's to run, not part of writing: point to `docs/FINISHING.md`
-and `docs/COMMANDS.md` for those."""
+`references/story_structures.md` (with the questions about the series, in the same message).
+Either way, mark the structure and each beat in the script (`// structure:` near the top,
+`// beat:` above each beat's first shot; the structure that fits a converted screenplay
+best), so the score can be drafted from them (that file's **From beats to shots**).
+
+Write the film, not the model. Leave `target:` lines out unless a shot needs something only
+one model does (`references/models.md`); advice that holds for one target only is marked
+with that target's name.
+
+Validate before calling a script finished, with the first of these you have: seriesmith's MCP
+tools (`check_pair` for a series config and a script not on disk yet, `check_source` for an
+episode's, `preview_shot` for what one shot would render); the command `seriesmith check
+<episode folder>`; this skill's `scripts/check.py`. Fix what it reports and check again until
+it is clean. Rendering, upscaling and mastering are the person's to run, not part of
+writing."""
+
+# The one-file instructions': the whole guide follows, with no references and no check.
+PREAMBLE_ONE_FILE = OPENING + """ With no series config yet you are starting a series: write both
+files, and settle what **Starting a series: what to settle first** lists before the first
+shot. Ask what the brief doesn't say, in one message; if the person would rather you just
+start, use that section's defaults and list what you assumed.
+
+Converting an existing screenplay, keep its story and dialogue and break it into shots.
+Writing fresh, outline the story before the shots, and offer a story structure if the
+person hasn't given it a shape. Either way, mark the structure and each beat in the script
+(`// structure:` near the top, `// beat:` above each beat's first shot), so the score can be
+drafted from them.
+
+Write the film, not the model. Leave `target:` lines out unless a shot needs something only
+one model does (see **Choosing a video target**); advice that holds for one target only is
+marked with that target's name.
+
+Validate before calling a script finished: seriesmith's MCP tools when you have them
+(`check_pair`, `check_source`, `preview_shot`), else ask the person to run `seriesmith check
+<episode folder>` and send what it prints. Fix what it reports and check again until it is
+clean. Rendering, upscaling and mastering are the person's to run, not part of writing."""
 
 BUNDLE_NOTE = """## Files in this skill
 
@@ -243,23 +269,35 @@ def read(path: str) -> str:
         return fh.read()
 
 
-def outside_repo(text: str) -> str:
-    """The skill is read away from the repo, where the docs' relative links point at
-    nothing: name each document by its path in the repo instead (`docs/FINISHING.md`,
-    `INSTALL.md`), and AUTHORING, which the skill is, as SKILL.md."""
-    def path(name: str) -> str:
-        return name if name == "INSTALL.md" else f"docs/{name}"
-    text = re.sub(r"\[[^\]]+\]\((?:\.\./)?([A-Z_]+\.md)\)", lambda m: f"`{path(m.group(1))}`", text)
-    text = re.sub(r"`([A-Z_]+\.md)`", lambda m: f"`{path(m.group(1))}`", text)
+# the two documents the skill bundles whole
+BUNDLED_DOCS = {"SCRIPT_CONVERSION.md": "references/script_conversion.md",
+                "STORY_STRUCTURES.md": "references/story_structures.md"}
+
+
+def outside_repo(text: str, bundled: bool = True) -> str:
+    """The skill is read away from the repo, where the docs' links point at nothing. A
+    document the skill bundles is named as its reference (`references/story_structures.md`;
+    with `bundled` off, for the one-file instructions, it is words like the rest); any other
+    becomes plain words ("seriesmith's finishing guide"), since its reader can't open it;
+    and AUTHORING, which the skill is, is SKILL.md."""
+    def said(name: str) -> str:
+        if bundled and name in BUNDLED_DOCS:
+            return f"`{BUNDLED_DOCS[name]}`"
+        return f"seriesmith's {name[:-3].lower().replace('_', ' ')} guide"
+    doc = r"(?!AUTHORING\.md)([A-Z_]+\.md)"
+    text = re.sub(r"\[[^\]]+\]\((?:\.\./)?(?:docs/)?" + doc + r"(?:#[^)]*)?\)", lambda m: said(m.group(1)), text)
+    text = re.sub(r"`(?:docs/)?" + doc + "`", lambda m: said(m.group(1)), text)
+    text = re.sub(r"\bdocs/" + doc, lambda m: said(m.group(1)), text)
+    text = re.sub(r"(?<![\w/`.])(?!SKILL\.md)" + doc + r"\b", lambda m: said(m.group(1)), text)
     return re.sub(r"\bAUTHORING(?:\.md)?", "SKILL.md", text)
 
 
-def source() -> str:
+def source(bundled: bool = True) -> str:
     """AUTHORING.md less its own title and lede (the wrappers supply their own), its links
-    turned for a reader away from the repo."""
+    turned for a reader away from the repo (`bundled`: one who has the references)."""
     text = read(SOURCE)
     parts = text.split("\n## ", 1)
-    return outside_repo("## " + parts[1] if len(parts) == 2 else text)
+    return outside_repo("## " + parts[1] if len(parts) == 2 else text, bundled)
 
 
 def headings(block: str) -> list[str]:
@@ -349,8 +387,9 @@ def body() -> str:
 
 
 def whole() -> str:
-    """The whole guide in the document's order: the one-file instructions' text."""
-    return split(source())[2]
+    """The whole guide in the document's order: the one-file instructions' text, which
+    has no references to point at."""
+    return split(source(bundled=False))[2]
 
 
 def references() -> dict[str, str]:
@@ -397,7 +436,7 @@ def instructions_text() -> str:
     return ("# seriesmith episode script — assistant instructions\n\n"
             "Paste this into Cursor rules, Copilot instructions, a custom GPT, or any\n"
             "system prompt. Generated from docs/AUTHORING.md by tools/make_prompts.py.\n\n"
-            f"{PREAMBLE}\n\n{whole()}")
+            f"{PREAMBLE_ONE_FILE}\n\n{whole()}")
 
 
 def version() -> str:
@@ -482,7 +521,7 @@ def bundle_breakdown() -> str:
     return (f"{title}\n\n"
             "A worked example for SKILL.md. The input is ordinary spec-format script pages;\n"
             "the output is the shot list. The interesting part is not the syntax, it's where\n"
-            f"the cuts land and why.\n\n{outside_repo(rest)}")
+            f"the cuts land and why. Read it when {DOC_REFS[0][2]}.\n\n{outside_repo(rest)}")
 
 
 def bundle_structures() -> str:
@@ -491,7 +530,7 @@ def bundle_structures() -> str:
     title, _lede, rest = read(STRUCTURES).split("\n\n", 2)
     return (f"{title}\n\n"
             "A reference for SKILL.md: the major story structures, for outlining an episode\n"
-            f"written from scratch.\n\n{outside_repo(rest)}")
+            f"written from scratch. Read it when {DOC_REFS[1][2]}.\n\n{outside_repo(rest)}")
 
 
 def bundle(text: str, out: str | None = None) -> str:

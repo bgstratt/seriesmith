@@ -217,10 +217,28 @@ class ProtocolTest(unittest.TestCase):
     def test_the_script_format_is_a_resource(self):
         s = M.Server(Recorder())
         listed = rpc(s, "resources/list")["result"]["resources"]
-        self.assertEqual([r["uri"] for r in listed], [M.FORMAT_URI])
+        self.assertEqual(listed[0]["uri"], M.FORMAT_URI)
         text = rpc(s, "resources/read", {"uri": M.FORMAT_URI})["result"]["contents"][0]["text"]
         self.assertIn("series.json", text)
         self.assertEqual(rpc(s, "resources/read", {"uri": "x://y"})["error"]["code"], -32002)
+
+    def test_the_formats_references_are_resources_too(self):
+        """SKILL.md leaves parts of the format to references: every one it names can be
+        read, and says of itself when to read it."""
+        import re
+        s = M.Server(Recorder())
+        listed = {r["uri"]: r for r in rpc(s, "resources/list")["result"]["resources"]}
+        text = rpc(s, "resources/read", {"uri": M.FORMAT_URI})["result"]["contents"][0]["text"]
+        named = set(re.findall(r"`references/([a-z_]+)\.md`", text))
+        self.assertGreaterEqual(len(named), 6)
+        for name in named:
+            with self.subTest(reference=name):
+                uri = M.REFERENCE_URI + name
+                self.assertIn(uri, listed)
+                self.assertIn("Read it when", listed[uri]["description"])
+                body = rpc(s, "resources/read", {"uri": uri})["result"]["contents"][0]["text"]
+                self.assertTrue(body.startswith("# "))
+        self.assertEqual(rpc(s, "resources/read", {"uri": M.REFERENCE_URI + "nope"})["error"]["code"], -32002)
 
     def test_stdio_one_message_per_line(self):
         inp = io.BytesIO(b"\n".join([

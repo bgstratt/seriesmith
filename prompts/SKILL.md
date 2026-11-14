@@ -11,31 +11,32 @@ preference.
 
 Before writing anything, ask for the series config (`series.json`) if the series has one.
 Adding a character means adding to that file, not inventing a new one: if you write `riley`
-when the series config already has `riley_freeman`, every reference path breaks. With no
-series config yet you are starting a series: write both files.
-
-Starting a series, settle what **Starting a series: what to settle first** lists before the
-first shot: the look, the delivery (1080p, 1440p or 4K, which sets the render size, the
-proxy and the master recipe), the voices, the finishing pass and the titles. Ask what the
-brief doesn't already say, in one message, then write the whole config: `upscale.master`
-and `post` as well as the cast and the places. If the person would rather you just start,
-use that section's defaults and list what you assumed. An existing series config is the
-show's: add what the episode needs and change nothing else unasked, but if it has no
-`upscale.master` block, say once that it can't be mastered by recipe until it has one.
+when the series config already has `riley_freeman`, every reference path breaks. An existing
+series config is the show's: add what the episode needs and change nothing else unasked (if
+it has no `upscale.master` block, say once that it can't be mastered by recipe until it has
+one). With no series config yet you are starting a series: write both files,
+and read `references/series_config.md` first. It says what to settle before the first shot
+(ask what the brief doesn't say, in one message) and the defaults to use, and to list, when
+the person would rather you just start.
 
 Converting an existing screenplay, keep its story and dialogue and break it into shots
 (`references/script_conversion.md` works a scene through). Writing fresh, outline the story
 before the shots: if the person hasn't given it a shape, offer the menu in
-`references/story_structures.md` (with the questions above, in the same message). Either
-way, mark the structure and each beat in the script (`// structure:` near the top, `// beat:`
-above each beat's first shot; the structure that fits a converted screenplay best), so the
-score can be drafted from them (that file's **From beats to shots**). Write the film, not
-the model. Leave `target:` lines out unless a shot
-needs something only one model does (see **Choosing a video target**); advice that holds for
-one target only is marked with that target's name. Validate with `seriesmith check
-<episode folder>` before calling a script finished. Rendering, upscaling
-and mastering are the person's to run, not part of writing: point to `docs/FINISHING.md`
-and `docs/COMMANDS.md` for those.
+`references/story_structures.md` (with the questions about the series, in the same message).
+Either way, mark the structure and each beat in the script (`// structure:` near the top,
+`// beat:` above each beat's first shot; the structure that fits a converted screenplay
+best), so the score can be drafted from them (that file's **From beats to shots**).
+
+Write the film, not the model. Leave `target:` lines out unless a shot needs something only
+one model does (`references/models.md`); advice that holds for one target only is marked
+with that target's name.
+
+Validate before calling a script finished, with the first of these you have: seriesmith's MCP
+tools (`check_pair` for a series config and a script not on disk yet, `check_source` for an
+episode's, `preview_shot` for what one shot would render); the command `seriesmith check
+<episode folder>`; this skill's `scripts/check.py`. Fix what it reports and check again until
+it is clean. Rendering, upscaling and mastering are the person's to run, not part of
+writing.
 
 ## Your first episode
 
@@ -149,12 +150,7 @@ ADA: It rained all night and nobody saw it but me.
 sound: rustling raincoat, dripping water, distant birds
 ```
 
-Build it with `seriesmith check Shows\ep01` and then `seriesmith build
-Shows\ep01`; `INSTALL.md` has the rest of the commands, and
-`docs/SCRIPT_CONVERSION.md` works a real screenplay scene through to
-shots if you are starting from one (the script-writing skill bundles it as
-`references/script_conversion.md`); `docs/STORY_STRUCTURES.md` has the story structures
-for outlining one from scratch (`references/story_structures.md`).
+Build it with `seriesmith check Shows\ep01` and then `seriesmith build Shows\ep01`.
 
 > **Read `references/series_config.md`** when writing a new `series.json`, or any block of one besides `subjects` and `locations`. It holds **Starting a series: what to settle first**, **Render size and delivery**, **The master recipe: `upscale.master`**, **Post-process: the `post` block**, **Series intro and outro: the `publish` block**, **Render profiles**, **Reference images and voices: the `refs` block**, **The episode's sound: the `sound` block**, **Negative prompts**, **Writing the `look` line**, **What a place sounds like: `ambience`**.
 
@@ -229,14 +225,14 @@ shot 93. So:
   subject**.
 - `audio.mode` sets how dialogue shots sound: `clone` (the model speaks the written lines in
   each character's sampled voice), `source_track` (you supply a recorded mix, `audio.track`,
-  and shots dub to it; see `docs/RECORDED_DIALOGUE.md`) or `generate` (the default: the model
+  and shots dub to it; see seriesmith's recorded dialogue guide) or `generate` (the default: the model
   invents the voices from each `voice` line; no recordings or samples needed).
   `proxy.audio_mode` can use another mode for the animatic (`generate` is the usual one),
   `audio.default_policy` forces one policy for every dialogue shot, and `audio.retention`
   sets the dub `retention:` default. A target that can't do a mode says so and generates.
   For a song as the recording, `audio.dub_from: "vocals"` sends each dub shot's window from
   the song's vocal stem instead of the whole mix (optional; off by default; see
-  `docs/RECORDED_DIALOGUE.md`).
+  seriesmith's recorded dialogue guide).
 - `series.width` / `height` and the `proxy` block: **Render size and delivery** below.
 - `steps`, `lora` and `model` are optional per pass (the model's own otherwise). `lora`
   takes one LoRA or a chain, as the script's `lora:` line does
@@ -571,9 +567,9 @@ sound: running footsteps on grass, fabric movement
 | `NAME (O.S.): line` | off-screen: in the space, outside the frame |
 | `NAME (V.O., on the truck radio): line` | a voice marker and a delivery together; the note describes the voice and is never spoken |
 | `// text` | comment |
-| `// structure: Pixar Story Spine` | the episode's story structure (`docs/STORY_STRUCTURES.md`), near the top: the first-pass score reads it. A comment: nothing renders from it |
+| `// structure: Pixar Story Spine` | the episode's story structure (`references/story_structures.md`), near the top: the first-pass score reads it. A comment: nothing renders from it |
 | `// beat: Until one day…` | above the first shot of a beat (or its sequence's `#` header), the beat's name as its structure writes it: the score's sections and turns. A **Cold Open** or **Teaser** beat's sequences also get `cold_open: true` |
-| `// duration: 22:00` | near the top: the length the episode is aiming at, which sets the storyboard's targets (`docs/STORYBOARD.md`). Nothing else reads it |
+| `// duration: 22:00` | near the top: the length the episode is aiming at, which sets the storyboard's targets (seriesmith's storyboard guide). Nothing else reads it |
 | `// act: My Own Act` | above a beat: an act of your own on the storyboard, for a beat its structure doesn't place. Nothing else reads it |
 | `// theme: show, tender` | above a shot: a theme on that moment, held low to the end of its scene (`sting` in the words: a sting on the shot). The theme is `story`, `show`, `runner` or one the series config names |
 | `// flashback` | above a sequence that's a flashback: its music an echo, thinner and further away |
@@ -604,7 +600,7 @@ cold_open: true
 - Export and the mix are the cut as it is, with no titles; Play all's **Titles** plays the
   intro and outro where a master puts them.
 - **Writing one:** a structure's **Cold Open** or **Teaser** beat is a cold open, and so is a
-  screenplay's `COLD OPEN` or `TEASER` heading (SCRIPT_CONVERSION.md): mark those
+  screenplay's `COLD OPEN` or `TEASER` heading (`references/script_conversion.md`): mark those
   sequences, and only those.
 
 ## Durations land on a grid

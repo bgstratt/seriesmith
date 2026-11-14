@@ -81,7 +81,7 @@ grid. The four setups, and the master each delivers:
   the proxy is the model's own (512×288 on H3), so write one.
 - Changing the size later changes only the takes rendered after it; never change an
   existing series' size unasked.
-- Why each setup, its timings, and the upscale methods are in `docs/FINISHING.md`.
+- Why each setup, its timings, and the upscale methods are in seriesmith's finishing guide.
 
 ```json
 "series": { "id": "porchlight", "title": "Porchlight", "fps": 24, "width": 960, "height": 544 },
@@ -240,7 +240,7 @@ voice samples stay on `ltx2_voice`. Three voice models clone a character's sampl
 continue it: `drama3` and `qwen3_tts` on your GPU, `fishaudio_drama3` hosted and paid; each
 is sent the words alone, and without a sample makes the voice from the `voice` line.)
 
-The picture models, and what each needs installed, are in `docs/FULL_SETUP.md`
+The picture models, and what each needs installed, are in seriesmith's full setup guide
 (**Pictures**). Two things matter when writing:
 
 - A **variant**'s pictures (a subject with `of:`) are edits of its original's, on a model
@@ -291,7 +291,7 @@ optional; leave the block out for the defaults:
 - `format` is a show's own first-pass score, for a show whose episodes share a shape of their
   own (Porch Lights' Cold Open, The Read, The Cost...): what the draft (**Draft…** on the
   spotting sheet, `seriesmith score-draft`) does with each of its `// beat:` names, in place
-  of a structure's Music table (STORY_STRUCTURES.md). `{"like": "episodic drama", "beats":
+  of a structure's Music table (`references/story_structures.md`). `{"like": "episodic drama", "beats":
   {"Cold Open": {"music": "score", "words": "felt piano, a low pulse", "energy": [2, 3],
   "theme": "mark", "hits": ["turn"]}}, "other": {...}, "marks": {"glance": "sting"}}`:
   `music` is `score`, `under`, `gaps` (only where no one speaks), `sting` or `dry`; `theme`
@@ -301,8 +301,8 @@ optional; leave the block out for the defaults:
   `// theme:` mark of that theme plays. A show that follows one of the structures needs none.
 
 The place's ambience bed is the location's `ambience` (below) and its model
-`refs.ambience_target` (above). How to score an episode is in `docs/SCORING.md`; a
-music video, with the song as the recording, in `docs/MUSIC_VIDEO.md`.
+`refs.ambience_target` (above). How to score an episode is in seriesmith's scoring guide; a
+music video, with the song as the recording, in seriesmith's music video guide.
 
 ### Negative prompts
 
@@ -385,4 +385,4 @@ hum runs across its cuts instead of starting and stopping with each take:
   A recording of your own can be named there with no `ambience` words.
 - Nothing is automatic: a location with no `ambience` (and whose place has none) gets no
   bed. `seriesmith refs` makes the beds refs_todo lists; the editor's Refs tab has them under
-  **Ambience**. Its level is the mix's (the Ambience lane, `docs/EDITOR.md`).
+  **Ambience**. Its level is the mix's (the Ambience lane, seriesmith's editor guide).

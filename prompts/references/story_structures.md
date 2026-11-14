@@ -1,7 +1,7 @@
 # Story structures
 
 A reference for SKILL.md: the major story structures, for outlining an episode
-written from scratch.
+written from scratch. Read it when outlining an episode written fresh.
 
 The beat percentages are guides for timing, not rules. Multiply them by the episode's
 runtime to estimate each beat's screen time, and so how many shots it gets.

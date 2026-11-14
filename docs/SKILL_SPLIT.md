@@ -282,11 +282,21 @@ alters it; `.venv\Scripts\python -m pytest tests/test_docs.py -n 0` after each.
       Left as it is: the 1440p example's own proxy (960×544 at 8 steps), which is the
       **At size, master 1440p** setup's.
 - [ ] 3. Each rule said once (section 2); the misfiled text moved.
-- [ ] 4. The markers and the generator (section 3); the site's page unchanged; the tests
-      of section 8.
-- [ ] 5. The four references marked out and the core's kept lines written (section 4).
-- [ ] 6. The preamble, the one-file instructions' own, the links (section 5).
-- [ ] 7. The references as MCP resources (section 6).
+- [x] 4. The markers and the generator (section 3); the site's page unchanged; the tests
+      of section 8. As built: where a reference's first part was, `SKILL.md` has one quoted
+      line, "Read `references/<name>.md` when …", with the headings that reference holds;
+      `prompts/references/` holds all six and is committed.
+- [x] 5. The four references marked out and the core's kept lines written (section 4). As
+      built, in words: `series_config.md` 3,800, `models.md` 3,500, `people.md` 1,800,
+      `continuity.md` 1,100; the core 10,400 before section 2's pass. The cold open's section
+      stayed in the core whole (it is short); **Negative prompts** went with the series
+      config. Two kept lines were written (clothes are fixed within a shot; dialogue needs a
+      model with sound); the other four were in the core already.
+- [x] 6. The preamble, the one-file instructions' own, the links (section 5). As built: a
+      repo document the skill doesn't bundle is said in words ("seriesmith's finishing
+      guide"); the two it bundles are named as their references.
+- [x] 7. The references as MCP resources (section 6):
+      `seriesmith://script-format/references/<name>`, each described by its own first lines.
 - [x] 8. The check as one file, no zip (section 7). As built: the skill is 4 files (it
       was 188); `scripts/check.py` is 2.1 MB with the build's 184 files inside it, and the
       skill's zip 717 KB. Not yet uploaded to claude.ai to see that it takes a file that

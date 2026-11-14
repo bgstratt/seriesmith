@@ -608,7 +608,9 @@ Every step goes through the same routes the editor uses, so an open editor shows
 happens. The model is the client's; seriesmith needs no key for it. Tools that queue jobs on
 the GPU or spend Comfy credits say so, and the server asks the model to confirm with you
 first. The script format is a resource (`seriesmith://script-format`), for a client without
-the script-writing skill.
+the script-writing skill; the parts it reads only when needed (the series config's blocks,
+the models, continuity, wardrobe and groups, converting a screenplay, story structures) are
+resources beside it (`seriesmith://script-format/references/<name>`).
 
 **Nothing to switch on, nothing left running.** seriesmith never starts it. Your LLM client
 starts `seriesmith mcp` when it needs it and stops it when it closes; it listens on no port

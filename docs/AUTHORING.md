@@ -122,12 +122,14 @@ ADA: It rained all night and nobody saw it but me.
 sound: rustling raincoat, dripping water, distant birds
 ```
 
-Build it with `seriesmith check Shows\ep01` and then `seriesmith build
-Shows\ep01`; [INSTALL.md](../INSTALL.md) has the rest of the commands, and
-`docs/SCRIPT_CONVERSION.md` works a real screenplay scene through to
-shots if you are starting from one (the script-writing skill bundles it as
-`references/script_conversion.md`); `docs/STORY_STRUCTURES.md` has the story structures
-for outlining one from scratch (`references/story_structures.md`).
+Build it with `seriesmith check Shows\ep01` and then `seriesmith build Shows\ep01`.
+
+<!-- skill:omit -->
+[INSTALL.md](../INSTALL.md) has the rest of the commands. `docs/SCRIPT_CONVERSION.md` works a
+real screenplay scene through to shots if you are starting from one, and
+`docs/STORY_STRUCTURES.md` has the story structures for outlining one from scratch (the
+script-writing skill bundles both as references).
+<!-- /skill:omit -->
 
 <!-- skill:ref series_config -->
 ## Starting a series: what to settle first
