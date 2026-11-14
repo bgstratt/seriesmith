@@ -5,7 +5,7 @@ import {
 } from "../actions";
 import { api, host } from "../host";
 import {
-  ESTIMATE_TITLE, checkBadges, cutTake, fmtSeconds, fmtWhen, groupBySequence, lengthEstimated, realStale, shotBadges, staleTitle, tn,
+  ESTIMATE_TITLE, checkBadges, cutTake, fmtSeconds, fmtWhen, groupBySequence, lengthEstimated, realStale, shotBadges, soundWord, staleTitle, tn,
   upscaleBadge,
 } from "../lib/format";
 import { missingShots, passProgress, progressLine, progressTitle, staleReasons, staleShots } from "../lib/progress";
@@ -357,8 +357,11 @@ function BuildBar() {
 function SoundChip({ s }: { s: ShotStatus }) {
   const ep = useApp((st) => st.ep);
   const set = s.sound;
-  const label = set ? (set.mode === "dub" ? `dub · ${set.label ?? "?"}` : set.mode) : s.audio_policy ?? "";
+  const name = set ? set.mode : s.audio_policy ?? "";
+  const label = set?.mode === "dub" ? `dub · ${set.label ?? "?"}` : soundWord(name);
   if (!label) return null;
+  // the script's own name for it, where the chip says it in other words
+  const full = label !== name && set?.mode !== "dub" ? ` (${name})` : "";
   const play = (e: MouseEvent) => {
     e.stopPropagation();
     if (ep && set?.file) void new Audio(api().fileUrl(ep, set.file)).play();
@@ -369,7 +372,7 @@ function SoundChip({ s }: { s: ShotStatus }) {
         <button className="h3-btn h3-icon" title={`Play ${set.label}`} onClick={play}><i className="pi pi-volume-up" /></button>
       )}
       <button className={`h3-badge h3-badge-btn${set ? " h3-b-voice" : ""}`}
-        title={set ? `Sound set here: ${label}. Click: change it` : `Sound as the script says (${label}). Click: generate, clone, or dub a track`}
+        title={set ? `Sound set here: ${label}${full}. Click: change it` : `Sound as the script says (${name}). Click: generate, clone, or dub a track`}
         onClick={(e) => { e.stopPropagation(); openSound([s.shot]); }}>
         {label}
       </button>
@@ -422,17 +425,19 @@ const TakeRow = memo(function TakeRow({ ep, pass, s, t, aspect, selected, render
           <button className="h3-btn h3-icon" title="More" onClick={(e) => { e.stopPropagation(); onMenu(e); }}>⋯</button>
         </div>
         {rendering && progress && <Progress value={progress.value} max={progress.max} />}
-        <div className="h3-row h3-small">
-          <span className="h3-mono h3-ell" title={t.seed ?? (t.source === "imported" ? originTitle(t) : "no sidecar")}>
-            {t.seed != null ? `seed ${t.seed}` : t.source === "imported" ? (t.original_name ?? (t.copied_from ? `a copy of ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "a file")) : "no sidecar"}
-          </span>
-          {t.seed_source && <span className="h3-muted">{t.seed_source}</span>}
-        </div>
+        {/* its seed, and how it was chosen, are in Details with the rest of its record */}
+        {t.seed == null && (
+          <div className="h3-row h3-small">
+            <span className="h3-mono h3-ell" title={t.source === "imported" ? originTitle(t) : "no sidecar"}>
+              {t.source === "imported" ? (t.original_name ?? (t.copied_from ? `a copy of ${t.copied_from.shot} ${tn(t.copied_from.take)}` : "a file")) : "no sidecar"}
+            </span>
+          </div>
+        )}
         {(stale.length > 0 || t.overrides.length > 0 || checks.length > 0) && (
           <div className="h3-badges">
             {checks.map((c) => <span key={c.label} className={`h3-badge ${c.ok ? "h3-b-checked" : "h3-b-check"}`} title={c.title}>{c.ok ? "✓ " : ""}{c.label}</span>)}
             {stale.map((r) => <span key={r} className="h3-badge h3-b-stale" title={staleTitle([r])}>stale: {r}</span>)}
-            {t.overrides.length > 0 && <span className="h3-badge h3-b-override" title={`Rendered with an override of: ${t.overrides.join(", ")}`}>ovr: {t.overrides.join(",")}</span>}
+            {t.overrides.length > 0 && <span className="h3-badge h3-b-override" title={`Rendered with an override of: ${t.overrides.join(", ")}`}>{t.overrides.join(", ")} edited</span>}
           </div>
         )}
         {t.note && <div className="h3-small h3-ell" title={t.note}>“{t.note}”</div>}
@@ -505,6 +510,7 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
         <Thumb ep={ep} pass={pass} shot={s.shot} take={ct} height={36} aspect={aspect} />
         <div className="h3-col h3-grow" style={{ gap: 1 }}>
           <div className="h3-row">
+            {s.cut?.locked && <i className="pi pi-lock h3-lock" title="Locked in the cut: its approved take. It can't be moved, trimmed or given another take until unlocked" />}
             <b>{s.shot}</b>
             <span className="h3-muted h3-small" title={lengthEstimated(s) ? ESTIMATE_TITLE : undefined}>
               {lengthEstimated(s) ? <span className="h3-est">≈</span> : null}{fmtSeconds(s.seconds)}{s.size ? ` · ${s.size}` : ""}
@@ -515,7 +521,7 @@ function ShotRow({ ep, pass, s, aspect, targets, seriesDefault }: {
               {n ? `${n} take${n > 1 ? "s" : ""}` : ""}{ct ? ` · ${tn(ct.take)}` : ""}
             </span>
           </div>
-          {badges.length > 0 && <Badges badges={badges} />}
+          {badges.length > 0 && <Badges badges={badges} max={expanded ? undefined : 2} />}
           {prog && <Progress value={prog.value} max={prog.max} />}
           <TakeUploadLine shot={s.shot} />
         </div>
@@ -611,6 +617,7 @@ function ShotTile({ ep, pass, s, aspect, targets, seriesDefault }: {
       </Thumb>
       <div className="h3-row" style={{ gap: 5 }}>
         <span className={`h3-dot ${statusClass(newest?.status ?? "none", rendering.size > 0)}`} />
+        {s.cut?.locked && <i className="pi pi-lock h3-lock" title="Locked in the cut: its approved take" />}
         <b>{s.shot}</b>
         {s.size && <span className="h3-muted h3-small h3-ell">{s.size}</span>}
       </div>
@@ -620,7 +627,7 @@ function ShotTile({ ep, pass, s, aspect, targets, seriesDefault }: {
         </span>
       )}
       {s.action && <span className="h3-tile-action" title={s.action}>{s.action}</span>}
-      {badges.length > 0 && <Badges badges={badges} />}
+      {badges.length > 0 && <Badges badges={badges} max={2} />}
       {prog && <Progress value={prog.value} max={prog.max} />}
     </div>
   );

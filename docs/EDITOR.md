@@ -159,6 +159,17 @@ pictures (hover scrubs one, click selects, double-click plays, right-click as a 
 **Gallery** opens every take of the episode, large ([The gallery](#the-gallery)); a
 sequence's header, double-clicked, opens it on that sequence.
 
+**A row's badges** come in three looks, by how much they ask of you. Filled red is
+something wrong: a take failed, the cut's pick can't be used, references are missing.
+Outlined orange needs a look: stale, no takes, a placeholder, an override written for an
+older build. Outlined grey is a fact: left out, moved, trimmed, an override, an upscale, a
+model other than the episode's. A job on its way (queued, rendering) has its own colour. A
+row shows its two most serious and a count (`+2`); hover the count for the rest and their
+reasons, or open the row to see them all. A **lock** before the shot's id is its approved
+take, locked in the cut; it is a mark of its own, on the timeline's clip as well. A clip too
+narrow for a badge's words wears its level as a coloured left edge, and the words are in
+its tooltip. A take's seed, and whether it was the same or a new one, are in **Details**.
+
 ### The episode's model
 
 **Model:** is the model every shot without one of its own renders on, with whether it is

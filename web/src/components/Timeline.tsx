@@ -10,7 +10,7 @@ import { cutKey, faceMarkedShots, flaggedShots, gotoFaceMarked, gotoFlagged, loa
 import { api, host } from "../host";
 import { JOIN_MAX, clampTrim, dropIndex, framesLabel, pxToFrames } from "../lib/cutEdit";
 import {
-  ESTIMATE_TITLE, fmtClock, fmtSeconds, fmtShotSeconds, groupBySequence, lengthEstimated, shotBadges, shotSeconds, tn,
+  ESTIMATE_TITLE, fmtClock, fmtSeconds, fmtShotSeconds, groupBySequence, lengthEstimated, shotBadges, shotSeconds, tn, worstLevel,
 } from "../lib/format";
 import { missingRefsSummary } from "../lib/missingRefs";
 import { baseIn, clipTake, locate, totalDuration, type PlayItem } from "../lib/playlist";
@@ -199,6 +199,9 @@ const Clip = memo(function Clip({
     () => [...targetBadges(s, targets, seriesDefault, take), ...shotBadges(s, rendering)].filter((b) => b.kind !== "locked" && b.kind !== "trimmed"),
     [s, rendering, targets, seriesDefault, take],
   );
+  // too narrow for a badge's words: its level as the clip's edge, the words in the tooltip
+  const narrow = width < 90;
+  const edge = narrow || height <= 36 ? worstLevel(badges) : null;
   const cls = [
     "h3-clip", selected && "h3-sel", s.cut.placeholder && "h3-placeholder", s.orphan && "h3-orphan", locked && "h3-locked",
     s.cut.out && "h3-out", flagged && "h3-flagged",
@@ -260,9 +263,10 @@ const Clip = memo(function Clip({
       {trimIn > 0 && <div className="h3-trimmed-mark h3-l" title={`${framesLabel(trimIn, fps)} trimmed off the head`} />}
       {trimOut > 0 && <div className="h3-trimmed-mark h3-r" title={`${framesLabel(trimOut, fps)} trimmed off the tail`} />}
       {cuts.map((c) => <div key={c.id} className="h3-ms-cut" style={{ left: `${c.at * 100}%` }} title={`${c.id} starts here (as the script times it)`} />)}
-      {height > 36 && badges.length > 0 && (
+      {edge && <div className={`h3-clip-edge h3-lv-${edge}`} />}
+      {height > 36 && !narrow && badges.length > 0 && (
         <div className="h3-clip-top">
-          <Badges badges={badges} max={width < 90 ? 1 : 3} />
+          <Badges badges={badges} max={width < 150 ? 1 : 2} />
         </div>
       )}
       {flagged && <i className="pi pi-flag-fill h3-flag-mark" />}

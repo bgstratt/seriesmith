@@ -238,8 +238,11 @@ Each line is a commit on this branch. After the last one on a day: `npm run type
       state, Generate missing as the big button only when something is missing.
 - [x] 3. The toolbar: four labelled, the rest in `More`; in ComfyUI Timeline labelled
       and Play all beside it (section 4).
-- [ ] 4. Badges: the three levels, two and a count, the lock mark, the words, the viewer's
-      takes, the timeline's narrow clips (section 5).
+- [x] 4. Badges: the three levels, two and a count, the lock mark, the words, the viewer's
+      takes, the timeline's narrow clips (section 5). As built: a row's order is wrong,
+      working, needs a look, fact; a hosted model's badge keeps the paid colour, outlined;
+      a clip under 90 px wide shows the edge, a wider one one badge, from 150 px two. The
+      take rows' seed (section 9) went in with this.
 - [ ] 5. The viewer shows the selected shot's take (section 6).
 - [ ] 6. The timeline's splitter and the lanes' scroll (section 7).
 - [ ] 7. The controls: the fields' sweep, links and buttons, one primary (section 8).

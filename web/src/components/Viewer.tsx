@@ -410,7 +410,7 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
               <span className="h3-row" style={{ gap: 3 }}>
                 {isA && <span className="h3-ab h3-a">A</span>}
                 {isB && <span className="h3-ab h3-b">B</span>}
-                <span className={t.status === "ok" ? "h3-muted" : t.status === "failed" ? "h3-err" : ""}>{t.status}</span>
+                {t.status !== "ok" && <span className={t.status === "failed" ? "h3-err" : ""}>{t.status}</span>}
                 {stale.length > 0 && <span className="h3-badge h3-b-stale" title={stale.join(", ")}>stale</span>}
                 {tb && <span className="h3-badge h3-b-target" title={tb.title}>{tb.label}</span>}
               </span>
@@ -1211,7 +1211,7 @@ function StillsView({ ep, v }: { ep: string; v: ViewerState }) {
                   <span className="h3-row" style={{ gap: 3 }}>
                     {isA && <span className="h3-ab h3-a">A</span>}
                     {isB && <span className="h3-ab h3-b">B</span>}
-                    <span className={t.status === "ok" ? "h3-muted" : t.status === "failed" ? "h3-err" : ""}>{t.status}</span>
+                    {t.status !== "ok" && <span className={t.status === "failed" ? "h3-err" : ""}>{t.status}</span>}
                   </span>
                 </div>
               );

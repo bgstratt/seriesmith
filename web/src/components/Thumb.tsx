@@ -2,7 +2,7 @@ import { useCallback, useState, type CSSProperties, type MouseEvent, type Pointe
 import { openMenu, openViewer } from "../actions";
 import { api } from "../host";
 import type { Badge } from "../lib/format";
-import { tn } from "../lib/format";
+import { rankBadges, tn } from "../lib/format";
 import { stripCell, stripStyle } from "../lib/strip";
 import type { Pass, TakeSummary } from "../types";
 
@@ -82,10 +82,16 @@ export function Thumb(p: ThumbProps) {
   );
 }
 
+/**
+ * A shot's badges, the most serious first; with `max`, that many and a count whose
+ * tooltip says the rest with their reasons. Locked is never among them: it's the
+ * shot's approved take, a mark of its own at the row's head and on the clip.
+ */
 export function Badges({ badges, max }: { badges: Badge[]; max?: number }) {
-  const shown = max != null ? badges.slice(0, max) : badges;
-  const rest = max != null ? badges.length - shown.length : 0;
-  if (!badges.length) return null;
+  const all = rankBadges(badges.filter((b) => b.kind !== "locked"));
+  const shown = max != null ? all.slice(0, max) : all;
+  const rest = all.slice(shown.length);
+  if (!all.length) return null;
   return (
     <span className="h3-badges">
       {shown.map((b, i) => (
@@ -93,7 +99,7 @@ export function Badges({ badges, max }: { badges: Badge[]; max?: number }) {
           {b.label}
         </span>
       ))}
-      {rest > 0 && <span className="h3-badge" title={badges.slice(shown.length).map((b) => b.label).join(", ")}>+{rest}</span>}
+      {rest.length > 0 && <span className="h3-badge h3-b-more" title={rest.map((b) => `${b.label}: ${b.title}`).join("\n")}>+{rest.length}</span>}
     </span>
   );
 }

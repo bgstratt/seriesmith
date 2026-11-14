@@ -134,25 +134,30 @@
   border: 1px solid color-mix(in srgb, currentColor 35%, transparent); white-space: nowrap; color: var(--h3-muted);
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
-.h3-b-stale { color: var(--h3-stale); }
-.h3-b-check { color: var(--h3-failed); }
-.h3-b-checked { color: var(--h3-muted); }
-.h3-b-paid { color: var(--h3-paid); }
-.h3-b-override { color: var(--h3-override); }
-.h3-b-override-stale { color: var(--h3-stale); border-style: dashed; }
+/* Three looks, by how much a badge asks (lib/format.ts, badgeLevel), not a colour per kind:
+   wrong: filled, the error colour. A render can't run, or the cut can't use its pick. */
+.h3-b-failed, .h3-b-unusable, .h3-b-missing-refs, .h3-b-check {
+  color: #fff; background: var(--h3-failed); border-color: var(--h3-failed);
+}
+/* needs a look: outlined, the warning colour */
+.h3-b-stale, .h3-b-override-stale, .h3-b-placeholder, .h3-b-none, .h3-b-orphan {
+  color: var(--h3-stale); background: none; border-color: color-mix(in srgb, var(--h3-stale) 70%, transparent);
+}
+/* a fact: outlined, grey */
+.h3-b-out, .h3-b-moved, .h3-b-trimmed, .h3-b-locked, .h3-b-override, .h3-b-upscaled, .h3-b-target,
+.h3-b-continuous, .h3-b-imported, .h3-b-checked, .h3-b-more {
+  color: var(--h3-muted); background: none;
+}
+/* working: a job on its way keeps its own colour, since it moves */
 .h3-b-queued { color: var(--h3-queued); }
 .h3-b-rendering { color: var(--h3-rendering); }
-.h3-b-placeholder { color: var(--h3-muted); border-style: dashed; }
-.h3-b-none { color: var(--h3-muted); }
-.h3-b-orphan { color: var(--h3-failed); border-style: dashed; }
-.h3-b-out { opacity: 0.7; border-style: dashed; }
-.h3-b-failed, .h3-b-unusable { color: var(--h3-failed); }
+/* a model that bills someone, as its Generate buttons are; a fact all the same */
+.h3-b-paid { color: var(--h3-paid); background: none; }
+/* a state, not a level: what the cut or the mix uses */
 .h3-b-cut { color: var(--h3-accent); }
-.h3-b-upscaled { color: var(--h3-ok); font-weight: 600; }
 .h3-b-ok { color: var(--h3-ok); }
-.h3-b-target { color: var(--h3-target); font-weight: 600; letter-spacing: 0.02em; }
-.h3-b-continuous { color: var(--h3-target); border-style: dashed; }
-.h3-b-imported { color: var(--h3-muted); border: 1px dashed currentColor; }
+/* the shot's approved take: a mark at the row's head, never a pill */
+.h3-root .pi.h3-lock { font-size: 10px; color: var(--h3-muted); flex: none; }
 .h3-b-voice { color: var(--h3-accent, #5fb8ae); border: 1px dotted currentColor; }
 .h3-pane-label .h3-b-target { color: #6fe0da; }
 .h3-target-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -217,6 +222,12 @@
 .h3-clip-top { position: absolute; top: 2px; left: 2px; right: 2px; display: flex; gap: 2px; flex-wrap: wrap; pointer-events: none; }
 .h3-clip-top { --h3-muted: #d8d8d8; }
 .h3-clip-top .h3-badge { background: rgba(0, 0, 0, 0.6); }
+.h3-clip-top .h3-b-failed, .h3-clip-top .h3-b-unusable, .h3-clip-top .h3-b-missing-refs { background: var(--h3-failed); }
+/* a clip too narrow for a badge's words: its level down its left edge */
+.h3-clip-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; z-index: 1; pointer-events: none; }
+.h3-clip-edge.h3-lv-wrong { background: var(--h3-failed); }
+.h3-clip-edge.h3-lv-look { background: var(--h3-stale); }
+.h3-clip-edge.h3-lv-working { background: var(--h3-rendering); }
 .h3-clip-bottom {
   position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 3px; font-size: 10px; line-height: 13px;
   color: #fff; background: linear-gradient(transparent, rgba(0, 0, 0, 0.75)); display: flex; gap: 4px;
@@ -374,7 +385,6 @@
 .h3-playhead::before {
   content: ""; position: absolute; top: 0; left: -4px; border: 5px solid transparent; border-top-color: #ff3b3b;
 }
-.h3-b-missing-refs { color: var(--h3-failed); border-style: dashed; }
 .h3-root button.h3-badge-btn { background: none; cursor: pointer; font: inherit; font-size: 10px; }
 .h3-missing-list { margin: 3px 0; padding-left: 16px; font-size: 11px; max-height: 160px; overflow: auto; }
 .h3-missing-list li { overflow-wrap: anywhere; }
@@ -690,7 +700,6 @@
 .h3-wave canvas { display: block; }
 .h3-wave-rec { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--h3-accent) 45%, transparent); }
 .h3-wave-note { position: absolute; left: 3px; top: 50%; transform: translateY(-50%); font-size: 9px; color: var(--h3-muted); pointer-events: none; }
-.h3-b-moved { color: var(--h3-queued); border-style: dashed; }
 /* the sound lanes (the episode's mix, docs/SOUND.md): under the clips, inside the track */
 .h3-snd { position: absolute; left: 0; right: 0; bottom: 2px; display: flex; flex-direction: column; gap: 1px; z-index: 2; }
 .h3-snd-lane { position: relative; flex: 0 0 auto; background: color-mix(in srgb, var(--h3-bg2) 70%, transparent); border-radius: 2px; }
@@ -928,7 +937,6 @@
 }
 .h3-cue-fixes { position: sticky; left: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 8px 6px; border-top: 1px dashed var(--h3-border); }
 .h3-cue-comp { color: var(--h3-accent); }
-.h3-b-locked, .h3-b-trimmed { color: var(--h3-muted); }
 .h3-b-drift { color: var(--h3-stale); border-color: var(--h3-stale); cursor: help; }
 .h3-cut-strip {
   position: relative; height: 34px; border-radius: 3px; background-color: #000; background-size: 100% 100%;
