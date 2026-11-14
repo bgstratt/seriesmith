@@ -159,3 +159,15 @@ they moved here when PLAN.md was retired (2026-11-11).
       on the PC (it becomes a project folder) and say where they'll make things. SECURITY.md
       says what seriesmith reaches and what bounds it, and releases publish from a pinned job
       with these notes (#118). Published by the merge's version bump.
+- [x] **0.1.24** (2026-11-13, `release-0.1.24`): medium and close shots now get a crop of
+      their place's plate, so they stop coming out as wide as the plate: Crop and Zoom on a
+      location card, Upscale on the crop's row for detail, and `seriesmith check` warns where
+      one still plays on a wide plate. Takes are checked as they land (a cut you didn't ask
+      for, the words against the script's lines, more people than the shot has) and one that
+      fails is rendered again. Finishing can refine faces on every shot or only the clips
+      marked R, and upscaling has a fourth method, the LTX-2.5 detail pass. Play all plays
+      the lines levelled as the export levels them, and the export writes the lines as SRT
+      and VTT subtitles. New models: H3 Hybrid for video and MiniMax-H3-Image for pictures.
+      Jobs: Cancel all, and a finished job opens what it made. A camera tour now saves when
+      the project is on a different drive from the system's temp folder (#120 to #123).
+      Published by the merge's version bump.
