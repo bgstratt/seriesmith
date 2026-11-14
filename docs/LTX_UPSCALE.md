@@ -34,6 +34,21 @@ H3's VAE route starts where LTX does (the take's frames, no kept latent) and sti
 face cleanly, at a tenth of LTX's time: what keeps a face is H3 re-sampling the shot under its
 own prompt and references, not the latent.
 
+Then SeedVR2's clean-up after it (post's production tier, 7B at the same size, on the LTX
+upscales without our colour finish), 2026-11-13:
+
+| | sh010 shimmer | sh030 shimmer | sh060 shimmer | sh060 face | clean-up time |
+|---|---|---|---|---|---|
+| LTX Refine + SeedVR2 | 1.74x | 1.77x | 1.23x | still soft, a comb of dots along the hair | 3–9 min |
+| LTX Restore + SeedVR2 | 1.60x | 1.67x | 1.32x | still soft, the same | 3–9 min |
+| (H3 latent + SeedVR2) | 1.36x | 1.44x | 1.20x | clean | |
+
+The clean-up sharpens what LTX drew (the spray in sh030 is the crispest of every method, the
+bokeh in sh010 clean), but it can't draw a face LTX didn't, and it takes away LTX's one lead:
+the shimmer ends up above H3 + SeedVR2's. So LTX's place is the soft parts of a frame, with
+the characters left to H3: a composite (a matte per character, H3 inside it, LTX outside) is
+the open idea, not a chain of the two.
+
 So it is offered as a method beside SeedVR2, for takes with no latent to re-sample (imported
 footage, other models' takes) and for wides where steadiness matters more than faces. No
 recommendation in the user docs (the user judges the look).
