@@ -685,8 +685,9 @@ Each phase is tested live on local ComfyUI before the next starts.
          AAC encode); ep01 with `--audio master` (the mastered song under the cut, no mix)
          -10.5 LUFS, 13.2 LU, +1.1 dBTP: "5.5 LU over the -16 target ... over the -1 ceiling;
          the cut's own sound, as it came"
-   - [ ] looked at in a browser: the snapping and the ticks on CupsMV ep02 (the song) and
-         ep01 (the cue m03)
+   - [x] looked at in a browser: the snapping and the ticks on CupsMV ep02 (the song) and
+         ep01 (the cue m03): all snapping and ticks on the song, fine as they are (the user,
+         2026-11-13)
 6. **Tracks of your own.** Dialogue, effects, ambience and music become the default tracks
    rather than the only ones: add, rename and delete tracks (a second music track for a song
    under the score, a walla track), each with its kind (what it ducks under, which stem it

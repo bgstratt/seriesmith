@@ -650,6 +650,123 @@ class MasterTest(ApiTest):
         with self.assertRaises(M.MasterError):
             M.plan_master(self.ep, post="sometimes")
 
+    def face_ready(self):
+        """This fake ComfyUI can run the face pass; one character, Ada, in every shot."""
+        from seriesmith import post as P
+        self.comfy.nodes |= set(P.FACES_NODES) | set(P.FACES_CORE_NODES)
+        self.comfy.info["H3FaceTrackCrop"] = {"input": {"required": {"detector": [["face_yolov8m.pt"], {}]},
+                                                       "optional": {"fallback_detector": [["none"], {}]}}}
+        for node, fld, names in (("UNETLoader", "unet_name", [P.FACES_UNET]),
+                                 ("LoraLoaderModelOnly", "lora_name", [P.FACES_LORA]),
+                                 ("CLIPLoader", "clip_name", [P.FACES_CLIP]),
+                                 ("VAELoader", "vae_name", [P.FACES_VAE, P.FACES_AUDIO_VAE])):
+            req = self.comfy.info.setdefault(node, {"input": {"required": {}}})["input"]["required"]
+            have = list((req.get(fld) or [[]])[0])
+            req[fld] = [have + [x for x in names if x not in have], {}]
+        os.makedirs(os.path.join(self.ep, "refs"), exist_ok=True)
+        with open(os.path.join(self.ep, "refs", "ada.png"), "wb") as fh:
+            fh.write(b"png")
+        return mock.patch("seriesmith.post.face_passes", return_value=(
+            [{"subject": "ada", "name": "Ada", "sheet": "refs/ada.png", "prompt": "Ada's face"}], []))
+
+    def test_marked_for_faces_without_post(self):
+        """A clip marked for faces (R) is upscaled and refined by master without
+        Post-process, and that clip alone plays its post."""
+        from seriesmith import edit as E
+        rendered = self.render_all()
+        self.set_recipe(RECIPE)
+        a, b = rendered[0], rendered[-1]
+        E.set_cut_entry(self.ep, "final", a, refine_faces=True)
+        with self.face_ready():
+            plan = M.plan_master(self.ep)
+            rows = self.by_shot(plan)
+            self.assertEqual(plan.face_shots, [a])
+            self.assertEqual(rows[a].status, "upscale")
+            self.assertEqual([p["subject"] for p in rows[a].post_job.face_passes], ["ada"])
+            self.assertIn("post: faces (marked)", rows[a].recipe)
+            self.assertIsNone(rows[b].post_job)
+            queued, errors = self.queue_master(plan)
+            self.assertEqual(errors, [])
+        ta = T.get_take(self.ep, "final", a, 1)
+        self.assertTrue(T.post_of(ta)["fresh"])
+        self.assertEqual(T.post_of(ta)["recipe"]["faces"]["subjects"], ["ada"])
+        self.assertIsNone(T.post_of(T.get_take(self.ep, "final", b, 1)))
+        # the assembly plays that clip's post and no other's
+        calls = []
+
+        def fake_tool(script, args, cwd, timeout, progress=None, stop=None):
+            calls.append(args)
+            return 1, "", "stop here"
+        with mock.patch("seriesmith.edit.run_tool", fake_tool):
+            M._assemble(plan, [], False, 60, None)
+        i = calls[0].index("--post-shots")
+        self.assertEqual(calls[0][i + 1], a)
+        self.assertIn("--post", calls[0])
+
+    def test_marked_for_faces_with_the_recipe(self):
+        """With Post-process by the recipe, a marked clip's post adds faces to it."""
+        from seriesmith import edit as E
+        rendered = self.render_all()
+        self.set_recipe(RECIPE)
+        self.set_post({"enhance": "draft"})
+        E.set_cut_entry(self.ep, "final", rendered[0], refine_faces=True)
+        with self.face_ready():
+            rows = self.by_shot(M.plan_master(self.ep, post=True))
+        a, b = rows[rendered[0]], rows[rendered[-1]]
+        self.assertTrue(a.post_job.face_passes and a.post_job.enhance)
+        self.assertIn("faces (marked)", a.recipe)
+        self.assertEqual((b.post_job.face_passes, b.post_job.enhance["method"]), ([], "pixel"))
+
+    def test_upscale_queues_a_marked_clips_faces(self):
+        """The cut menu's upscale queues a marked clip's face pass right behind its upscale."""
+        from seriesmith import edit as E
+        rendered = self.render_all()
+        a, b = rendered[0], rendered[-1]
+        E.set_cut_entry(self.ep, "final", a, refine_faces=True)
+        with self.face_ready():
+            res = self.ok(A.post_upscale(self.ctx, {"ep": self.ep, "shots": [a, b], "method": "pixel"}))
+            self.settle()
+        by = {q["shot"]: q for q in res["queued"]}
+        self.assertIn("faces_prompt_id", by[a])
+        self.assertNotIn("faces_prompt_id", by[b])
+        self.assertEqual(res["errors"], [])
+        self.assertTrue(T.post_of(T.get_take(self.ep, "final", a, 1))["fresh"])
+        # no face pass here: the upscales still go, and why the faces didn't is said
+        from seriesmith import post as P
+        self.comfy.nodes -= set(P.FACES_NODES)
+        self.comfy.info.pop("H3FaceTrackCrop", None)
+        A.forget_comfy()                                  # the API keeps what ComfyUI said
+        res = self.ok(A.post_upscale(self.ctx, {"ep": self.ep, "shots": [a], "method": "pixel", "redo": True}))
+        self.assertEqual(len(res["queued"]), 1)
+        self.assertNotIn("faces_prompt_id", res["queued"][0])
+        self.assertIn("weren't queued", res["errors"][0]["error"])
+
+    def test_every_shot_for_faces(self):
+        """Series settings' "every shot": master refines every clip without Post-process,
+        and the upscale queues each one's face pass, no mark needed."""
+        rendered = self.render_all()
+        self.set_recipe(RECIPE)
+        self.set_post({"faces": True})
+        with self.face_ready():
+            plan = M.plan_master(self.ep)
+            rows = self.by_shot(plan)
+            self.assertEqual(sorted(plan.face_shots), sorted(rendered))
+            self.assertIn("post: faces (every shot)", rows[rendered[0]].recipe)
+            res = self.ok(A.post_upscale(self.ctx, {"ep": self.ep, "shots": rendered[:2], "method": "pixel",
+                                                    "redo": True}))
+            self.settle()
+        self.assertTrue(all("faces_prompt_id" in q for q in res["queued"]), res)
+        self.assertEqual(res["errors"], [])
+        # kept out with R: the clip's own word, over "every shot"
+        from seriesmith import edit as E
+        before = M.plan_master(self.ep).face_shots
+        k = before[-1]
+        E.set_cut_entry(self.ep, "final", k, refine_faces=False)
+        with self.face_ready():
+            plan = M.plan_master(self.ep)
+        self.assertEqual(plan.face_shots, before[:-1])
+        self.assertIsNone(self.by_shot(plan)[k].post_job)
+
     def test_queue_order(self):
         """In cut order by default; grouped by what ComfyUI loads on request, each
         group where its first shot is, cut order within it."""

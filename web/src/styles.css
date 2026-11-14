@@ -22,6 +22,7 @@
   --h3-override: #9b6bdf;
   --h3-target: #1fa5a0;
   --h3-flag: #ec4899;
+  --h3-faces: #a3e635;
   --h3-mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
   /* seriesmith's own (the standalone page sets them; inside ComfyUI, its theme's) */
   --h3-serif: var(--sm-serif, inherit);
@@ -233,6 +234,14 @@
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); pointer-events: none;
 }
 .h3-clip.h3-out > .h3-flag-mark { visibility: visible; right: 1px; }
+.h3-clip .h3-face-mark {
+  position: absolute; top: 1px; right: 2px; z-index: 1; font-size: 10px; color: var(--h3-faces);
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9)); pointer-events: none;
+}
+.h3-clip .h3-face-mark.h3-with-flag { right: 15px; }
+.h3-clip .h3-face-mark.h3-face-out { color: var(--h3-muted, #9ca3af); }
+.h3-b-faces { color: var(--h3-faces); border-color: color-mix(in srgb, var(--h3-faces) 60%, transparent); }
+.h3-b-faces .pi { font-size: 9px; }
 .h3-b-flag { color: var(--h3-flag); border-color: color-mix(in srgb, var(--h3-flag) 60%, transparent); }
 .h3-b-flag .pi { font-size: 9px; }
 .h3-clip-bottom .pi-comment { font-size: 9px; line-height: 13px; }

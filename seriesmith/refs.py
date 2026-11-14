@@ -4617,22 +4617,35 @@ def shared_takes(ep: str, ref: Ref, episodes: list[str]) -> list[dict]:
     return out
 
 
-_UNCROPPED: dict = {}
+_PLACE_CHECKS: dict = {}
+
+
+def _place_checks(s: Series) -> tuple[dict, dict]:
+    """(build.uncropped, build.undescribed) of the built episode, as lists: ({}, {}) before a
+    build. Once per built story and locations."""
+    story = episode_story(s.ep)
+    if story is None:
+        return {}, {}
+    key = (id(story), json.dumps(s.series_cfg.get("locations") or {}, sort_keys=True, default=str))
+    if key not in _PLACE_CHECKS:
+        from seriesmith import build as B
+        if len(_PLACE_CHECKS) > 8:
+            _PLACE_CHECKS.clear()
+        _PLACE_CHECKS[key] = tuple({k: [list(x) for x in v] for k, v in f(story, s.series_cfg).items()}
+                                   for f in (B.uncropped, B.undescribed))
+    return _PLACE_CHECKS[key]
 
 
 def uncropped_shots(s: Series) -> dict[str, list[list[str]]]:
     """{location id: [[shot, size]]}: the medium and close shots on a wide location's whole
-    plate (build.uncropped), from the built episode; {} before a build. Once per built story."""
-    story = episode_story(s.ep)
-    if story is None:
-        return {}
-    key = (id(story), json.dumps(s.series_cfg.get("locations") or {}, sort_keys=True, default=str))
-    if key not in _UNCROPPED:
-        from seriesmith import build as B
-        if len(_UNCROPPED) > 8:
-            _UNCROPPED.clear()
-        _UNCROPPED[key] = {k: [list(x) for x in v] for k, v in B.uncropped(story, s.series_cfg).items()}
-    return _UNCROPPED[key]
+    plate (build.uncropped), from the built episode; {} before a build."""
+    return _place_checks(s)[0]
+
+
+def undescribed_shots(s: Series) -> dict[str, list[list[str]]]:
+    """{crop id: [[shot, size]]}: the close shots with no one named on a crop with no
+    description of its own (build.undescribed), from the built episode; {} before a build."""
+    return _place_checks(s)[1]
 
 
 def _crop_upscaled(path: str | None) -> str | None:
@@ -4669,7 +4682,9 @@ def ref_json(s: Series, ref: Ref, usage: dict | None = None,
         "relight": ref.entry.get("relight") or None,
         # a crop of its place's plate (docs/PLATE_VARIANTS.md): which part, how much closer
         **({"crop": ref.entry["crop"], "zoom": float(ref.entry.get("zoom") or SC.ZOOM),
-            "upscaled": _crop_upscaled(live)}
+            "upscaled": _crop_upscaled(live),
+            # its inserts, when it has no description of its own (build.undescribed)
+            "undescribed": undescribed_shots(s).get(ref.subject or ref.id.split(":", 1)[1], [])}
            if ref.kind == "location" and ref.entry.get("crop") else {}),
         # a wide place's medium and close shots on its whole plate (build.uncropped): crop them
         **({"uncropped": uncropped_shots(s).get(ref.subject or ref.id.split(":", 1)[1], [])}

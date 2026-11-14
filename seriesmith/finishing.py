@@ -36,6 +36,9 @@ SAVER = "SeriesmithSaveUpscale"
 H3_SAVER = "H3SaveUpscale"
 RECORD_SUFFIX = ".record.json"
 EVENTS = {"upscale": "seriesmith.upscale", "post": "seriesmith.post"}
+# classes post.py / upscale.py write that are no node anywhere: `portable` makes each
+# a ComfyUI one (H3LoadImageFile, a picture of the show's: LoadImage on its upload)
+STAND_INS = frozenset({"H3LoadImageFile"})
 
 
 @dataclass
@@ -147,6 +150,12 @@ def portable(fin: Finish) -> tuple[dict, dict]:
                                         f"keyframe can't be found to start from instead")
                 fin.notes.append("the previous upscale's last frame isn't there: starts from "
                                  "the take's keyframe")
+            v["class_type"], v["inputs"] = "LoadImage", {"image": File(path)}
+        elif ct == "H3LoadImageFile":
+            # a picture of the show's (a character's sheet, for the face pass)
+            path = _abs(root, ins["image_file"])
+            if not os.path.isfile(path):
+                raise J.NotPortable(f"{ins['image_file']} isn't there")
             v["class_type"], v["inputs"] = "LoadImage", {"image": File(path)}
         elif ct == "H3ShotListLoader":
             doc = T.read_json(_abs(root, ins["shotlist_file"]))

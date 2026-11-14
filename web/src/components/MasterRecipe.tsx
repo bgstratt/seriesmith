@@ -1,7 +1,7 @@
 // The master recipe's per-model sections (upscale.master.targets), as rows:
 // which video model (or family) a row is for, and how its takes are upscaled —
 // re-sampled with their own model or through another (and optionally a pixel
-// model or SeedVR2 after), a pixel upscale model, or SeedVR2 — with the models this ComfyUI has
+// model or SeedVR2 after), a pixel upscale model, SeedVR2, or the LTX-2.5 detail pass — with the models this ComfyUI has
 // (GET /seriesmith/upscale/options). The standard settings are one button.
 // Keys a row doesn't show (keep_soft, grain, window, ...) are kept as they are.
 
@@ -95,15 +95,19 @@ export function MasterRecipe({ ep, raw, onChange }: { ep: string; raw: Raw; onCh
               <span className="h3-small">by</span>
               <select className="h3-in" value={through ? `through:${through}` : method} onChange={(e) => {
                 const m = e.target.value;
-                if (m.startsWith("through:")) { set({ method: "latent", through: m.slice(8), pixel_model: undefined, seedvr2_model: undefined }); return; }
-                set(m === "latent" ? { method: m, through: undefined, pixel_model: undefined, seedvr2_model: undefined }
-                  : m === "pixel" ? { method: m, through: undefined, scale: undefined, then: undefined, then_scale: undefined, detail: undefined, pixel_model: (sec.pixel_model as string) || opts?.pixel.default || "RealESRGAN_x2.pth" }
-                    : { method: m, through: undefined, scale: undefined, then: undefined, then_scale: undefined, detail: undefined, seedvr2_model: (sec.seedvr2_model as string) || "7b" });
+                const clear = { through: undefined, scale: undefined, then: undefined, then_scale: undefined, detail: undefined,
+                                pixel_model: undefined, seedvr2_model: undefined, ltx_lora: undefined };
+                if (m.startsWith("through:")) { set({ method: "latent", through: m.slice(8), pixel_model: undefined, seedvr2_model: undefined, ltx_lora: undefined }); return; }
+                set(m === "latent" ? { method: m, through: undefined, pixel_model: undefined, seedvr2_model: undefined, ltx_lora: undefined }
+                  : m === "pixel" ? { ...clear, method: m, pixel_model: (sec.pixel_model as string) || opts?.pixel.default || "RealESRGAN_x2.pth" }
+                    : m === "ltx" ? { ...clear, method: m, ltx_lora: (sec.ltx_lora as string) || "refine" }
+                      : { ...clear, method: m, seedvr2_model: (sec.seedvr2_model as string) || "7b" });
               }}>
                 <option value="latent" disabled={!canResample}>re-sampling with its own model{canResample ? "" : " (it can't)"}</option>
                 {throughs.map((c) => <option key={c.id} value={`through:${c.id}`} disabled={c.status === "not_ready"}>re-sampling through {c.label}{c.status === "not_ready" ? " (not ready)" : ""}</option>)}
                 <option value="pixel">an upscale model</option>
                 <option value="seedvr2">SeedVR2</option>
+                <option value="ltx">the LTX-2.5 detail pass</option>
               </select>
               <span className="h3-grow" />
               <button className="h3-link" title="Remove this row" onClick={() => write(Object.fromEntries(keys.filter((k) => k !== key).map((k) => [k, secs[k]])))}>×</button>
@@ -145,6 +149,15 @@ export function MasterRecipe({ ep, raw, onChange }: { ep: string; raw: Raw; onCh
                 <select className="h3-in" value={(sec.seedvr2_model as string) ?? "7b"} onChange={(e) => set({ seedvr2_model: e.target.value })}>
                   <option value="7b">7B (better, slower)</option>
                   <option value="3b">3B (quicker)</option>
+                </select>
+              </div>
+            )}
+            {method === "ltx" && (
+              <div className="h3-row h3-wrap" style={{ gap: 6 }}>
+                <span className="h3-small">LoRA</span>
+                <select className="h3-in" value={(sec.ltx_lora as string) ?? "refine"} onChange={(e) => set({ ltx_lora: e.target.value })}>
+                  <option value="refine">Refine Details</option>
+                  <option value="restore">Restore</option>
                 </select>
               </div>
             )}

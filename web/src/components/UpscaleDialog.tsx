@@ -8,7 +8,7 @@ import { errText } from "../api";
 import { api } from "../host";
 import { closeUpscale, upscale, upscaleRequestOf, type UpscaleForm } from "../actions";
 import { statusKey, useApp } from "../store";
-import { DELIVERS, SCALES, fitSize, fitWords, isVsr, methodFor, modelLabel, parseDeliver, thenSize, upscaleSize, type SizeCheck } from "../lib/upscale";
+import { DELIVERS, SCALES, fitSize, fitWords, isVsr, ltxGrid, methodFor, modelLabel, parseDeliver, thenSize, upscaleSize, type SizeCheck, type UpscaleMethod } from "../lib/upscale";
 import type { TakeSummary, UpscaleOptions } from "../types";
 import { Dialog } from "./Dialogs";
 
@@ -103,6 +103,8 @@ function UpscaleBody() {
   const windowings = targets.map((id) => latentOf(id)?.windowings ?? []).find((c) => c.length > 1) ?? [];
   const pixelReady = opts?.pixel.status === "ready";
   const sv2Ready = opts?.seedvr2?.status === "ready";
+  const ltxReady = opts?.ltx?.status === "ready";
+  const ltxLora = f.ltxLora ?? opts?.ltx?.default ?? "refine";
   // Wan's re-sample starts by running the frames through an upscale model
   const refineModel = targets.some((id) => latentOf(id)?.mode === "pixel_refine");
   const count = ask.takes ? ask.takes.length : takes.filter(Boolean).length;
@@ -112,8 +114,10 @@ function UpscaleBody() {
   const real = takes.filter(Boolean) as TakeSummary[];
   const parsed = parseDeliver(f.deliver);
   const D = parsed === "bad" ? null : parsed;
-  const pixelish = f.method === "pixel" || f.method === "seedvr2";
-  const plan = (t: TakeSummary, scale: number, withThen: boolean): { method: "latent" | "pixel" | "seedvr2"; first: SizeCheck; out: SizeCheck } => {
+  // a method that sizes to the output itself (any scale), and the controls only a re-sample has
+  const pixelish = f.method === "pixel" || f.method === "seedvr2" || f.method === "ltx";
+  const latentish = f.method === "auto" || f.method === "latent";
+  const plan = (t: TakeSummary, scale: number, withThen: boolean): { method: UpscaleMethod; first: SizeCheck; out: SizeCheck } => {
     const li = latentOf(t.target || "minimax_h3_ref2va");
     const m = methodFor(f.method, li);
     // on top of its upscale: that upscale's size is what gets scaled
@@ -132,12 +136,13 @@ function UpscaleBody() {
     }
     // a delivery size: the last step that can make any size covers (crop) or fits in it
     const fit = f.fit ?? "crop";
-    if (m === "pixel" || m === "seedvr2") {
+    if (m === "pixel" || m === "seedvr2" || m === "ltx") {
       const w = base.width ?? 0, h = base.height ?? 0;
       if (!w || !h || !first.ok && first.why?.includes("fresh upscale")) return { method: m, first, out: first };
       const [iw, ih] = fitSize(w, h, D.w, D.h, fit);
       const s = iw / w;
-      const sized: SizeCheck = s > 1 && s <= maxScale ? { ok: true, w: iw, h: ih }
+      const made = m === "ltx" ? ltxGrid(iw, ih) : { w: iw, h: ih };
+      const sized: SizeCheck = s > 1 && s <= maxScale ? { ok: true, ...made }
         : { ok: false, why: `${D.w}×${D.h} from ${w}×${h} is ${s.toFixed(2)}x (more than 1, up to ${maxScale})` };
       return { method: m, first: sized, out: sized };
     }
@@ -163,7 +168,7 @@ function UpscaleBody() {
   const one = real.length === 1 ? now[0] : null;
   const summary = one
     ? (one.out.ok
-      ? `${(f.method === "pixel" || f.method === "seedvr2") && f.fromUpscale ? `its upscale ${real[0].upscale?.width}×${real[0].upscale?.height}` : `${real[0].width}×${real[0].height}`} → ${one.first.w}×${one.first.h} ${one.method === "pixel" ? `(${f.pixelModel})` : one.method === "seedvr2" ? `(SeedVR2 ${f.seedvr2Model ?? opts?.seedvr2?.default ?? ""})` : goesThrough(real[0].target || "minimax_h3_ref2va") ? `(re-sample through ${through!.label})` : "(re-sample)"}`
+      ? `${(f.method === "pixel" || f.method === "seedvr2") && f.fromUpscale ? `its upscale ${real[0].upscale?.width}×${real[0].upscale?.height}` : `${real[0].width}×${real[0].height}`} → ${one.first.w}×${one.first.h} ${one.method === "pixel" ? `(${f.pixelModel})` : one.method === "seedvr2" ? `(SeedVR2 ${f.seedvr2Model ?? opts?.seedvr2?.default ?? ""})` : one.method === "ltx" ? `(LTX-2.5 detail pass, ${ltxLora})` : goesThrough(real[0].target || "minimax_h3_ref2va") ? `(re-sample through ${through!.label})` : "(re-sample)"}`
         + (one.method === "latent" && f.thenModel ? ` → ${one.out.w}×${one.out.h} (${thenLabel})` : "")
         + (D && one.out.w && one.out.h && (one.out.w !== D.w || one.out.h !== D.h)
           ? ` → ${D.w}×${D.h} (${fitWords(one.out.w, one.out.h, D.w, D.h, f.fit ?? "crop")})` : "")
@@ -197,11 +202,11 @@ function UpscaleBody() {
   const canQueue = byRecipe ? !!ep && count > 0 && recipeTargets.some(([, v]) => !!v)
     : !!ep && !!opts && count > 0 && bad.length < real.length && parsed !== "bad"
     && (f.method === "latent" ? latentSome : f.method === "pixel" ? pixelReady && !!f.pixelModel
-      : f.method === "seedvr2" ? sv2Ready : latentSome || pixelReady);
+      : f.method === "seedvr2" ? sv2Ready : f.method === "ltx" ? ltxReady : latentSome || pixelReady);
 
   return (
     <Dialog
-      title={<>{ask.title} <span className="h3-muted h3-small">{ask.pass} · {byRecipe ? "series recipe" : <>{D && pixelish ? "" : `${f.scale}x`}{f.method !== "pixel" && f.method !== "seedvr2" && f.thenModel ? (D ? " then a model" : ` then ${f.thenScale}x`) : ""}{D ? ` → ${D.w}×${D.h}` : ""}</>}</span></>}
+      title={<>{ask.title} <span className="h3-muted h3-small">{ask.pass} · {byRecipe ? "series recipe" : <>{D && pixelish ? "" : `${f.scale}x`}{latentish && f.thenModel ? (D ? " then a model" : ` then ${f.thenScale}x`) : ""}{D ? ` → ${D.w}×${D.h}` : ""}</>}</span></>}
       onClose={closeUpscale}
       footer={
         <>
@@ -266,6 +271,13 @@ function UpscaleBody() {
               <input type="radio" name="up-method" disabled={!sv2Ready} checked={f.method === "seedvr2"} onChange={() => set({ method: "seedvr2" })} />
               SeedVR2 (restore){!sv2Ready ? " — not ready" : ""}
             </label>
+            <label className="h3-check" title="LTX-2.5 redraws the take at the new size with Lightricks' Refine Details or Restore IC-LoRA, from its frames (any take, no prompt of its own), in tiles that share one canvas: steady frame to frame, slow">
+              <input type="radio" name="up-method" disabled={!ltxReady} checked={f.method === "ltx"} onChange={() => set({ method: "ltx" })} />
+              LTX-2.5 detail pass{!ltxReady ? " — not ready" : ""}
+            </label>
+            {!ltxReady && (opts.ltx?.missing.length ?? 0) > 0 && (
+              <div className="h3-muted h3-small">The LTX detail pass needs: {opts.ltx!.missing.join("; ")}</div>
+            )}
             {!sv2Ready && (opts.seedvr2?.missing.length ?? 0) > 0 && (
               <div className="h3-muted h3-small">SeedVR2 needs: {opts.seedvr2!.missing.join("; ")}</div>
             )}
@@ -273,7 +285,7 @@ function UpscaleBody() {
               <div className="h3-muted h3-small">Pixel needs: {opts.pixel.missing.join("; ")}</div>
             )}
           </div>
-          {f.method !== "pixel" && f.method !== "seedvr2" && (opts.through?.length ?? 0) > 0 && (
+          {latentish && (opts.through?.length ?? 0) > 0 && (
             <label className="h3-col" style={{ gap: 2 }} title="Takes from other models go through this model: their frames through its VAEs, then its sampler from late in its schedule, with its prompt built from the script and the characters' references. Faces can move toward the references. The take's own sound is kept. Takes this model's family made keep their own re-sample">
               <span className="h3-h">Re-sample through</span>
               <select value={f.through ?? ""} onChange={(e) => set({ through: e.target.value || null })}>
@@ -290,7 +302,19 @@ function UpscaleBody() {
               </select>
             </label>
           )}
-          {f.method !== "seedvr2" && (f.method !== "latent" || refineModel) && pixelReady && (
+          {f.method === "ltx" && ltxReady && (
+            <label className="h3-col" style={{ gap: 2 }} title="Refine Details adds detail and keeps the look; Restore also cleans up compression and softness, and moves the colour more (the colour finish below takes it back)">
+              <span className="h3-h">LTX LoRA</span>
+              <select value={ltxLora} onChange={(e) => set({ ltxLora: e.target.value })}>
+                {(["refine", "restore"] as const).map((m) => (
+                  <option key={m} value={m} disabled={!opts.ltx!.loras.includes(m)}>
+                    {m === "refine" ? "Refine Details" : "Restore"}{m === opts.ltx!.default ? " (default)" : ""}{!opts.ltx!.loras.includes(m) ? " — not installed" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {f.method !== "seedvr2" && f.method !== "ltx" && (f.method !== "latent" || refineModel) && pixelReady && (
             <label className="h3-col" style={{ gap: 2 }}>
               <span className="h3-h">Upscale model{f.method === "pixel" ? "" : refineModel ? " (pixel takes, and Wan's re-sample starts with it)" : " (for takes without a re-sample)"}</span>
               <select value={f.pixelModel ?? ""} onChange={(e) => set({ pixelModel: e.target.value })}>
@@ -298,7 +322,7 @@ function UpscaleBody() {
               </select>
             </label>
           )}
-          {f.method !== "pixel" && f.method !== "seedvr2" && latentSome && (
+          {latentish && latentSome && (
             <label className="h3-col" style={{ gap: 2 }}>
               <span className="h3-h">Detail (re-sample)</span>
               <select value={f.detail} onChange={(e) => set({ detail: Number(e.target.value) as 0 | 1 | 2 })}>
@@ -306,7 +330,7 @@ function UpscaleBody() {
               </select>
             </label>
           )}
-          {f.method !== "pixel" && f.method !== "seedvr2" && latentSome && upscalers.length > 1 && (
+          {latentish && latentSome && upscalers.length > 1 && (
             <label className="h3-col" style={{ gap: 2 }} title="The nodes that upscale the take's latent before the re-sample">
               <span className="h3-h">Latent upscaler</span>
               <select value={f.upscaler ?? ""} onChange={(e) => set({ upscaler: e.target.value })}>
@@ -314,7 +338,7 @@ function UpscaleBody() {
               </select>
             </label>
           )}
-          {f.method !== "pixel" && f.method !== "seedvr2" && latentSome && windowings.length > 1 && (
+          {latentish && latentSome && windowings.length > 1 && (
             <label className="h3-col" style={{ gap: 2 }} title="The nodes that sample a take longer than one window (5.5 s) in overlapping windows, so it fits the card. Shorter takes don't use them">
               <span className="h3-h">Context windows (long takes)</span>
               <select value={f.windowing ?? ""} onChange={(e) => set({ windowing: e.target.value })}>
@@ -364,7 +388,7 @@ function UpscaleBody() {
               <ScaleSelect value={f.scale} max={maxScale} labelOf={scaleLabel} onChange={(n) => set({ scale: n })} />
             </label>
           )}
-          {f.method !== "pixel" && f.method !== "seedvr2" && latentSome && (pixelReady || sv2Ready) && (
+          {latentish && latentSome && (pixelReady || sv2Ready) && (
             <div className="h3-col" style={{ gap: 3 }}>
               <label className="h3-col" style={{ gap: 2 }} title="After the re-sample, a second step takes the frames further in the same job: an upscale model (re-sample 2x then RealESRGAN_x2 = 4x; steadiest frame to frame) or SeedVR2 (sharpest stills, a little more shimmer, which the colour finish halves). The re-sample's generated detail comes first either way">
                 <span className="h3-h">Then (re-sampled takes)</span>
@@ -416,7 +440,7 @@ function UpscaleBody() {
                 <option value="master">Master</option>
               </select>
             </label>
-            {f.method !== "seedvr2" && (f.method === "latent" ? !!f.thenModel && !thenSv2 && !isVsr(f.thenModel) : !isVsr(f.pixelModel)) && (
+            {f.method !== "seedvr2" && f.method !== "ltx" && (f.method === "latent" ? !!f.thenModel && !thenSv2 && !isVsr(f.thenModel) : !isVsr(f.pixelModel)) && (
               <label className="h3-col" style={{ gap: 2 }} title="The upscale model's precision: 16-bit is about twice as fast and looks the same; 32-bit is how ComfyUI's own node runs it">
                 <span className="h3-h">Model precision</span>
                 <select value={f.precision} onChange={(e) => set({ precision: e.target.value as UpscaleForm["precision"] })}>
@@ -426,9 +450,9 @@ function UpscaleBody() {
               </label>
             )}
           </div>
-          {(f.method === "seedvr2" || thenSv2 ? sv2Ready : (f.method !== "latent" || !!f.thenModel || refineModel) && pixelReady) && (
+          {(f.method === "ltx" ? ltxReady : f.method === "seedvr2" || thenSv2 ? sv2Ready : (f.method !== "latent" || !!f.thenModel || refineModel) && pixelReady) && (
             <div className="h3-col" style={{ gap: 3 }}>
-              <span className="h3-h">Finish ({f.method === "seedvr2" || thenSv2 ? "SeedVR2" : "upscale model"})</span>
+              <span className="h3-h">Finish ({f.method === "ltx" ? "LTX" : f.method === "seedvr2" || thenSv2 ? "SeedVR2" : "upscale model"})</span>
               <label className="h3-check" title="Colour and tone from the original frames, only the fine detail from the model: upscale models shift colour a little, and this keeps an upscaled clip matching its neighbours in the cut">
                 <input type="checkbox" checked={f.frequencySplit} onChange={(e) => set({ frequencySplit: e.target.checked })} />
                 Keep the original's colour
@@ -458,7 +482,7 @@ function UpscaleBody() {
             <input type="checkbox" checked={f.redo} onChange={(e) => set({ redo: e.target.checked })} />
             Again, where already upscaled
           </label>
-          {f.method !== "pixel" && f.method !== "seedvr2" && latentSome && (
+          {latentish && latentSome && (
             <label className="h3-check" title="Re-encode the take's video instead of starting from its saved latent (the only way for a take that kept none)">
               <input type="checkbox" checked={f.vae} onChange={(e) => set({ vae: e.target.checked })} />
               From the video, not the saved latent

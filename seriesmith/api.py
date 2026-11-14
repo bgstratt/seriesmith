@@ -1918,10 +1918,13 @@ def post_upscale(ctx: Context, body):
         raise ApiError(400, "start_step must be a whole number or null")
     method = body.get("method")
     if method is not None and method not in U.METHODS:
-        raise ApiError(400, "method must be latent, pixel, seedvr2 or null (each take's default)")
+        raise ApiError(400, "method must be latent, pixel, seedvr2, ltx or null (each take's default)")
     seedvr2_model = body.get("seedvr2_model")
     if seedvr2_model is not None and (not isinstance(seedvr2_model, str) or not seedvr2_model):
         raise ApiError(400, "seedvr2_model must be 7b, 3b or a model file name, or null")
+    ltx_lora = body.get("ltx_lora")
+    if ltx_lora is not None and (not isinstance(ltx_lora, str) or not ltx_lora):
+        raise ApiError(400, "ltx_lora must be refine, restore or a LoRA file name, or null")
     pixel_model = body.get("pixel_model")
     if pixel_model is not None and (not isinstance(pixel_model, str) or not pixel_model):
         raise ApiError(400, "pixel_model must be an upscale model's file name (or rtx_vsr), or null")
@@ -2004,8 +2007,8 @@ def post_upscale(ctx: Context, body):
                                 then_method=then_method,
                                 from_upscale=from_upscale, encoder=encoder, precision=precision,
                                 frequency_split=frequency_split, keep_soft=keep_soft, grain=grain,
-                                seedvr2_model=seedvr2_model, deliver=deliver, fit=fit,
-                                quality=quality, upscaler=body.get("upscaler"),
+                                seedvr2_model=seedvr2_model, ltx_lora=ltx_lora,
+                                deliver=deliver, fit=fit, quality=quality, upscaler=body.get("upscaler"),
                                 windowing=body.get("windowing"), through=body.get("through") or None)
         if up.action == "skip":
             skipped.append({"shot": shot, "take": t.take, "reason": up.why})
@@ -2019,9 +2022,28 @@ def post_upscale(ctx: Context, body):
         if missing:
             raise ApiError(409, "this ComfyUI can't run these upscales: " + "; ".join(missing))
         from seriesmith import finishing as F
+        from seriesmith import post as P
         bases: dict = {}
         backend = finish_backend(ctx, body)
         ids: dict = {}
+        # a clip marked for faces (R), or every clip when the series says so, gets its
+        # face pass queued behind its upscale; without the face pass here, the
+        # upscales go ahead and the reason is said
+        marks, series_post, own_post = P.face_marks(ep, pass_), P.master_recipe(ep), P.shot_recipes(ep)
+        faced = ({up.shot for up in jobs if P.faces_of(ep, pass_, up.shot, marks, series_post,
+                                                      own_post)[0] is not None}
+                 if body.get("marked_faces", True) is not False else set())
+        faces = {up.shot: P.plan_post(ep, up.take, after_upscale=tuple(up.out_size),
+                                      quality=up.quality if up.quality in U.QUALITIES else None)
+                 for up in jobs if up.shot in faced}
+        faces = {s: j for s, j in faces.items() if j.action == "post"}
+        if faces:
+            not_here = missing_on_comfy(ctx, lambda info: P.not_ready(list(faces.values()), info))
+            if not_here:
+                errors += [{"shot": s, "take": j.take.take,
+                            "error": "its faces (marked) weren't queued: " + "; ".join(not_here)}
+                           for s, j in faces.items()]
+                faces = {}
         for up in jobs:
             try:
                 g = U.graph_of(up, bases, ctx.comfy_url)
@@ -2033,12 +2055,25 @@ def post_upscale(ctx: Context, body):
                     U.mark_failed(up, str(e)[:800])
                 errors.append({"shot": up.shot, "take": up.take.take, "error": str(e)})
                 continue
-            queued.append({"shot": up.shot, "take": up.take.take, "route": up.route,
-                           "method": up.method, "pixel_model": up.pixel_model or None,
-                           "seedvr2_model": up.seedvr2_model or None,
-                           "scale": up.scale, "start_step": up.start_step,
-                           "then_pixel_model": up.then_model or None,
-                           "width": up.out_size[0], "height": up.out_size[1], "prompt_id": pid})
+            row = {"shot": up.shot, "take": up.take.take, "route": up.route,
+                   "method": up.method, "pixel_model": up.pixel_model or None,
+                   "seedvr2_model": up.seedvr2_model or None, "ltx_lora": up.ltx_lora or None,
+                   "scale": up.scale, "start_step": up.start_step,
+                   "then_pixel_model": up.then_model or None,
+                   "width": up.out_size[0], "height": up.out_size[1], "prompt_id": pid}
+            fj = faces.get(up.shot)
+            if fj is not None:
+                try:
+                    P.start(fj)
+                    row["faces_prompt_id"] = ctx.runner.enqueue_finish(
+                        F.of_post(fj, P.post_graph(fj)), backend, after=pid)
+                    post_event(ctx, ep, up.shot, up.take.take, "queued")
+                except Exception as e:
+                    if os.path.isfile(fj.take.paths.post_sidecar):
+                        P.mark_failed(fj, str(e)[:800])
+                    errors.append({"shot": up.shot, "take": up.take.take,
+                                   "error": f"its faces (marked): {e}"})
+            queued.append(row)
             upscale_event(ctx, ep, up.shot, up.take.take, "queued")
     return 200, {"queued": queued, "skipped": skipped, "errors": errors}
 
@@ -2093,13 +2128,15 @@ def queue_post(ctx: Context, body):
     redo = body.get("redo", False)
     if not isinstance(redo, bool):
         raise ApiError(400, "redo must be true or false")
-    enhance, blur = body.get("enhance"), body.get("blur")
+    enhance, blur, faces = body.get("enhance"), body.get("blur"), body.get("faces")
     if blur is not None and (isinstance(blur, bool) or not isinstance(blur, (int, float))):
         raise ApiError(400, "blur must be a number from 0 to 1, or null")
+    if faces is not None and not isinstance(faces, (bool, dict)):
+        raise ApiError(400, "faces must be true, false, an object (denoise, subjects) or null")
     quality = body.get("quality")
     if quality is not None and quality not in U.QUALITIES:
         raise ApiError(400, "quality must be review or master, or null (as each upscale was)")
-    use_recipe = body.get("recipe", enhance is None and blur is None)
+    use_recipe = body.get("recipe", enhance is None and blur is None and faces is None)
     if not isinstance(use_recipe, bool):
         raise ApiError(400, "recipe must be true or false")
     recipe = shot_rs = None
@@ -2122,7 +2159,9 @@ def queue_post(ctx: Context, body):
             skipped.append({"shot": shot, "reason": why})
             continue
         kw = (P.recipe_for(ep, shot, recipe, shot_rs) if use_recipe
-              else {"enhance": enhance, "blur": blur or 0.0})
+              else {"enhance": enhance, "blur": blur or 0.0, "faces": faces})
+        if use_recipe and faces is not None:
+            kw["faces"] = faces                 # the dialog's answer for the clip, over its mark
         if quality is not None:
             kw["quality"] = quality
         job = P.plan_post(ep, t, redo=redo, **kw)
@@ -2149,7 +2188,8 @@ def queue_post(ctx: Context, body):
                 errors.append({"shot": job.shot, "take": job.take.take, "error": str(e)})
                 continue
             queued.append({"shot": job.shot, "take": job.take.take, "what": P.describe(job),
-                           "width": job.width, "height": job.height, "prompt_id": pid})
+                           "width": job.width, "height": job.height, "prompt_id": pid,
+                           **({"notes": job.notes} if job.notes else {})})
             post_event(ctx, ep, job.shot, job.take.take, "queued")
     return 200, {"queued": queued, "skipped": skipped, "errors": errors}
 
@@ -2178,8 +2218,9 @@ def get_post_options(ctx: Context, query: dict):
     except Exception:
         info = None
 
-    def ready(enhance=None, blur=0.0):
-        job = P.PostJob(root="", take=None, enhance=P.resolve_enhance(enhance), blur=blur)
+    def ready(enhance=None, blur=0.0, faces=None):
+        job = P.PostJob(root="", take=None, enhance=P.resolve_enhance(enhance), blur=blur,
+                        faces=P.resolve_faces(faces))
         if info is None:
             return {"status": "unknown", "missing": []}
         missing = P.not_ready([job], info)
@@ -2192,6 +2233,9 @@ def get_post_options(ctx: Context, query: dict):
                  "blur": {"min": P.BLUR[0], "max": P.BLUR[1], "default": 0.3,
                           "readiness": ready(None, 0.3)},
                  "strength": {"min": P.STRENGTH[0], "max": P.STRENGTH[1], "default": 0.2},
+                 "faces": {"denoise": {"min": P.FACES_DENOISE[0], "max": P.FACES_DENOISE[1],
+                                       "default": P.FACES_DEFAULT["denoise"]},
+                           "readiness": ready(None, 0.0, True)},
                  "recipe": post_recipe_view(ep) if ep else None}
 
 
@@ -2534,6 +2578,7 @@ def get_upscale_options(ctx: Context, query: dict):
         info = None
     px = U.pixel_readiness(info)
     sv2 = U.seedvr2_readiness(info)
+    ltx = U.ltx_readiness(info)
     latent = {}
     for t in TG.list_targets("video"):
         r = U.upscale_readiness(t, info)
@@ -2545,7 +2590,7 @@ def get_upscale_options(ctx: Context, query: dict):
                      fixed_scale=U.fixed_scale(spec), family=U.family(spec), **U.node_choices(spec, info))
         latent[t.id] = r
     ep = check_ep(ctx, query["ep"]) if query.get("ep") else None
-    return 200, {"pixel": px, "seedvr2": sv2, "latent": latent, "through": U.through_choices(info),
+    return 200, {"pixel": px, "seedvr2": sv2, "ltx": ltx, "latent": latent, "through": U.through_choices(info),
                  "details": list(U.DETAILS),
                  "recipe": recipe_view(ep) if ep else None,
                  "max_scale": U.MAX_SCALE, "encoders": list(U.ENCODERS),
@@ -2751,6 +2796,10 @@ def _cut_entry(raw) -> dict:
             raise ApiError(400, f"{raw['shot']}: flag must be true or false")
         if raw["flag"]:
             e["flag"] = True
+    if raw.get("refine_faces") is not None:
+        if not isinstance(raw["refine_faces"], bool):
+            raise ApiError(400, f"{raw['shot']}: refine_faces must be true, false or null")
+        e["refine_faces"] = raw["refine_faces"]       # false: kept out, over "every shot"
     if raw.get("color") is not None:
         from seriesmith import color as COL
         try:

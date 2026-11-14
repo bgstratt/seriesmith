@@ -20,7 +20,7 @@ graph (`upscale` in its target.json says how), with the sampler's latent
 replaced by the take's latent (<stem>.latent.safetensors, Phase 13a) or, for
 a take without one, its frames and audio through the VAE (`--vae` forces it).
 
-Three methods. `latent` (the targets with an `upscale` block: every built-in
+Four methods. `latent` (the targets with an `upscale` block: every built-in
 video target) re-samples as above; Wan's, with no latent upscaler, from its
 frames through a pixel model. `pixel` (any target, the default for the rest) runs an
 upscale model from ComfyUI's models/upscale_models (RealESRGAN, UltraSharp...)
@@ -28,7 +28,9 @@ over the take's frames and copies its audio on: fast, adds no generated detail.
 `--method pixel --pixel-model RealESRGAN_x4.pth` picks it for any take;
 `--pixel-model rtx_vsr` runs NVIDIA RTX Video Super Resolution instead (an RTX
 card and Comfy-Org's RTX nodes; no model file), wherever a pixel model goes.
-`seedvr2` (any target) restores the frames with SeedVR2.
+`seedvr2` (any target) restores the frames with SeedVR2. `ltx` (any target) is the
+LTX-2.5 detail pass: the frames as an IC-LoRA's guide, redrawn at the new size in
+tiles (docs/LTX_UPSCALE.md).
 
 Stdlib only.
 """
@@ -68,7 +70,7 @@ class UpscaleJob:
     width: int
     height: int
     action: str = "upscale"             # upscale | skip | error
-    method: str = "latent"              # latent | pixel | seedvr2
+    method: str = "latent"              # latent | pixel | seedvr2 | ltx
     # a re-sample through another model than the take's (`through`): that shot's
     # shotlist compiled for it, the size its frames are fitted to, and how many to
     # keep of the frames it samples
@@ -77,6 +79,10 @@ class UpscaleJob:
     keep_frames: int = 0
     pixel_model: str = ""
     seedvr2_model: str = ""             # the SeedVR2 method's model file
+    # the LTX detail pass: its IC-LoRA file, and the base files this ComfyUI has
+    # (not_ready chooses them; the ltx2 target's int8 ones until it has)
+    ltx_lora: str = ""
+    ltx_files: dict = field(default_factory=dict)
     # "then pixel": after a re-sample, an upscale model takes width x height on
     # to out_width x out_height in the same job ("" / 1.0: no second step)
     then_model: str = ""
@@ -323,7 +329,7 @@ UPSCALE_NODES = ("SeriesmithLoadTakeLatent", "SeriesmithLoadTakeVideo", "Seriesm
                  "VAEEncodeAudio")
 AUDIO_ENCODE = {"class_type": "VAEEncodeAudio", "audio": "audio", "vae": "vae"}
 
-METHODS = ("latent", "pixel", "seedvr2")
+METHODS = ("latent", "pixel", "seedvr2", "ltx")
 PIXEL_NODES = ("SeriesmithLoadTakeVideo", "SeriesmithPixelUpscale", "UpscaleModelLoader", "SeriesmithSaveUpscale")
 
 # SeedVR2 (ByteDance, Apache 2.0), native in ComfyUI core: a one-step video
@@ -369,6 +375,103 @@ def seedvr2_readiness(object_info: dict | None, want: str | None = None) -> dict
     default = seedvr2_file(None) if seedvr2_file(None) in models else (models or [seedvr2_file(None)])[0]
     return {"status": "not_ready" if missing else "ready", "missing": missing,
             "models": models, "default": default}
+
+
+# The LTX-2.5 detail pass (docs/LTX_UPSCALE.md): the take's frames as the guide of
+# one of Lightricks' detail IC-LoRAs, sampled at the new size in overlapping tiles
+# that share one canvas (ComfyUI-LTXVideo's Tiled Fusion). The base files are the
+# ltx2 target's (the int8 ones it ships with, or the bf16 ones), whichever is there.
+LTX_LORAS = {"refine": "ltx-2.5-22b-ic-lora-refine-details-1.0.safetensors",
+             "restore": "ltx-2.5-22b-ic-lora-restore-1.0.safetensors"}
+LTX_LORA_DEFAULT = "refine"
+LTX_DOWNLOADS = {
+    "ltx-2.5-22b-ic-lora-refine-details-1.0.safetensors": ("loras", "https://huggingface.co/Lightricks/LTX-2.5-22b-IC-LoRA-Refine-Details/resolve/main/ltx-2.5-22b-ic-lora-refine-details-1.0.safetensors"),
+    "ltx-2.5-22b-ic-lora-restore-1.0.safetensors": ("loras", "https://huggingface.co/Lightricks/LTX-2.5-22b-IC-LoRA-Restore/resolve/main/ltx-2.5-22b-ic-lora-restore-1.0.safetensors"),
+}
+LTX_SOURCE = "ComfyUI-LTXVideo example_workflows/2.5/LTX-2.5_V2V_TiledFusion_Upscale.json (properties.models)"
+LTX_UNETS = ("ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
+             "ltx-2.5-22b-distilled-transformer-bf16.safetensors")
+LTX_TEXT = ("gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",
+            "gemma4-12b-with-proj-ltx-2.5-bf16.safetensors")
+LTX_VAE = "ltx-2.5-video-vae-bf16.safetensors"
+LTX_NODES = ("SeriesmithLoadTakeVideo", "UNETLoader", "LTXICLoRALoaderModelOnly", "CLIPLoader",
+             "CLIPTextEncode", "VAELoader", "LTXVConditioning", "ImageScale", "EmptyLTXVLatentVideo",
+             "LTXAddVideoICLoRAGuide", "KSamplerSelect", "ManualSigmas", "LTXVTiledFusionSampler",
+             "VAEDecodeTiled", "ImageFromBatch", "SeriesmithFinishUpscale", "SeriesmithSaveUpscale")
+# the example's 8 distilled steps, and its advice: the look, never a named thing
+# (a named thing can stamp into every tile)
+LTX_SIGMAS = "1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
+LTX_PROMPT = ("Cinematic live-action film footage, crisp natural fine detail and texture, "
+              "clean sharp focus, subtle film grain, faithful original lighting, palette and grade.")
+LTX_GRID = 32
+LTX_TILE_EDGE, LTX_TILE_SLACK = 1280, 200      # the HD tile: tiled_fusion_sizes.py
+LTX_WINDOW, LTX_WINDOW_MAX = 97, 121
+
+
+def ltx_lora_file(name: str | None) -> str:
+    """An LTX detail LoRA: "refine" / "restore", or a file name as it is."""
+    name = name or LTX_LORA_DEFAULT
+    return LTX_LORAS.get(name, name)
+
+
+def ltx_frames(n: int) -> int:
+    """The frames LTX samples for n: the next 8k+1."""
+    return ((max(1, int(n)) - 1 + 7) // 8) * 8 + 1
+
+
+def ltx_tiling(width: int, height: int, frames: int) -> dict:
+    """The tile and temporal window for a w x h take of `frames` (8k+1), by the
+    rules of ComfyUI-LTXVideo's tiled_fusion_sizes.py (2026-11-12): the HD tile, the
+    take's shape at a 1280 long edge on the 32 grid (its own size when within 200
+    px of that), overlap 0.5; the window 97 frames, or the clip itself up to 121."""
+    s = LTX_TILE_EDGE / max(width, height)
+    tw, th = width * s, height * s
+    if abs(width - tw) <= LTX_TILE_SLACK and abs(height - th) <= LTX_TILE_SLACK:
+        tw, th = float(width), float(height)
+
+    def snap(v: float) -> int:
+        return max(LTX_GRID, int(math.floor(max(float(LTX_GRID), v) / LTX_GRID + 0.5) * LTX_GRID))
+    n = ltx_frames(frames)
+    window = n if n <= LTX_WINDOW_MAX else LTX_WINDOW
+    return {"tile_width": snap(tw), "tile_height": snap(th), "overlap": 0.5, "frames": n,
+            "window": window}
+
+
+def ltx_files(object_info: dict | None) -> dict:
+    """The base files this ComfyUI has for the detail pass: {"unet", "text", "vae"}
+    (None for one it hasn't)."""
+    unets = J.choices_in(object_info, "UNETLoader", "unet_name") or []
+    texts = J.choices_in(object_info, "CLIPLoader", "clip_name") or []
+    vaes = J.choices_in(object_info, "VAELoader", "vae_name") or []
+    return {"unet": next((f for f in LTX_UNETS if f in unets), None),
+            "text": next((f for f in LTX_TEXT if f in texts), None),
+            "vae": LTX_VAE if LTX_VAE in vaes else None}
+
+
+def ltx_readiness(object_info: dict | None, want: str | None = None) -> dict:
+    """Whether this ComfyUI can run the LTX-2.5 detail pass (ComfyUI-LTXVideo's
+    Tiled Fusion nodes, the ltx2 target's base files, the LoRA, our finish).
+    {"status", "missing", "loras", "default"}."""
+    if object_info is None:
+        return {"status": "unknown", "missing": [], "loras": [], "default": LTX_LORA_DEFAULT}
+    missing = [f"node {c} (install or update ComfyUI-LTXVideo, and seriesmith's node pack, "
+               f"and restart ComfyUI)" for c in LTX_NODES if c not in object_info]
+    files = ltx_files(object_info)
+    if not files["unet"]:
+        missing.append(f"{LTX_UNETS[0]} in models/diffusion_models/")
+    if not files["text"]:
+        missing.append(f"{LTX_TEXT[0]} in models/text_encoders/")
+    if not files["vae"]:
+        missing.append(f"{LTX_VAE} in models/vae/")
+    have = J.choices_in(object_info, "LTXICLoRALoaderModelOnly", "lora_name") or []
+    loras = [k for k, f in LTX_LORAS.items() if f in have]
+    want = ltx_lora_file(want)
+    if want not in have:
+        missing.append(f"{want} in models/loras/")
+    return {"status": "not_ready" if missing else "ready", "missing": missing,
+            "loras": loras, "default": LTX_LORA_DEFAULT}
+
+
 DEFAULT_PIXEL_MODEL = "RealESRGAN_x2.pth"
 # where the Features installer gets the pixel models (ai-forever's copies of
 # xinntao's Real-ESRGAN weights, checked 2026-10-18), into models/upscale_models/
@@ -634,7 +737,7 @@ def upscale_readiness(target: "TG.Target", object_info: dict | None,
 RECIPE_GLOBAL = ("deliver", "fit", "quality", "encoder")
 # a target section's, or a shot's
 RECIPE_FIELDS = ("method", "through", "scale", "detail", "start_step", "vae", "pixel_model",
-                 "seedvr2_model", "then", "then_scale", "precision",
+                 "seedvr2_model", "ltx_lora", "then", "then_scale", "precision",
                  "frequency_split", "keep_soft", "grain", "window", "upscaler", "windowing")
 WINDOW_RANGE = (2.0, 30.0)          # a re-sample window, seconds (0: off)
 QUALITIES = ("review", "master")
@@ -709,7 +812,7 @@ def recipe_kwargs(fields: dict, recipe: dict | None = None) -> dict:
     """RECIPE_FIELDS (and the master's RECIPE_GLOBAL) as plan_upscale's kwargs."""
     g = recipe or {}
     kw = {k: fields[k] for k in ("method", "through", "scale", "detail", "start_step", "pixel_model",
-                                 "seedvr2_model", "then_scale", "precision",
+                                 "seedvr2_model", "ltx_lora", "then_scale", "precision",
                                  "frequency_split", "keep_soft", "grain", "window",
                                  "upscaler", "windowing")
           if k in fields}
@@ -731,7 +834,7 @@ def recipe_from_request(body: dict) -> dict:
     per-shot recipe (RECIPE_FIELDS): what the dialog saves for one shot."""
     out = {}
     for k in ("method", "through", "scale", "detail", "start_step", "pixel_model", "seedvr2_model",
-              "then_scale", "precision", "frequency_split", "keep_soft", "grain", "window",
+              "ltx_lora", "then_scale", "precision", "frequency_split", "keep_soft", "grain", "window",
               "upscaler", "windowing"):
         if body.get(k) is not None:
             out[k] = body[k]
@@ -760,6 +863,8 @@ def describe_recipe(fields: dict, recipe: dict | None = None) -> str:
             s += f", then {'SeedVR2 ' + str(fields.get('seedvr2_model') or SEEDVR2_DEFAULT) if then == 'seedvr2' else then}"
     elif m == "seedvr2":
         s = f"SeedVR2 {fields.get('seedvr2_model') or SEEDVR2_DEFAULT}"
+    elif m == "ltx":
+        s = f"LTX-2.5 detail pass ({fields.get('ltx_lora') or LTX_LORA_DEFAULT})"
     else:
         s = f"pixel {fields.get('pixel_model') or DEFAULT_PIXEL_MODEL}"
     g = recipe or {}
@@ -837,6 +942,8 @@ def check_fields(sec: dict) -> list[str]:
         out.append("through: only for a re-sample (method latent)")
     if sec.get("then") and sec.get("method", "latent") != "latent":
         out.append("then: only after a re-sample (method latent)")
+    if sec.get("ltx_lora") is not None and (not isinstance(sec["ltx_lora"], str) or not sec["ltx_lora"]):
+        out.append(f"ltx_lora {sec['ltx_lora']!r}: refine, restore or a LoRA file name")
     w = sec.get("window")
     if w is not None and (isinstance(w, bool) or not isinstance(w, (int, float))
                           or not (w == 0 or WINDOW_RANGE[0] <= w <= WINDOW_RANGE[1])):
@@ -1172,7 +1279,7 @@ def _plan(root: str, take: T.Take, *, scale: float | None = None,
                  then_model: str | None = None, then_scale: float | None = None,
                  then_method: str | None = None,
                  from_upscale: bool = False, seedvr2_model: str | None = None,
-                 through: str | None = None) -> UpscaleJob:
+                 ltx_lora: str | None = None, through: str | None = None) -> UpscaleJob:
     """What upscaling `take` would do. action "error" (with `why`) when it
     can't: not final, not usable, a latent upscale on a target without
     `upscale`, a size that doesn't scale evenly; "skip" when it already has a
@@ -1201,6 +1308,9 @@ def _plan(root: str, take: T.Take, *, scale: float | None = None,
         return UpscaleJob(root, take, target, spec, "vae", float(scale or 2), None, w, h,
                           action="error", why=str(e))
     m = method or ("pixel" if from_upscale or not spec else "latent")
+    if m == "ltx":
+        return _plan_ltx(root, take, target, spec, float(scale or 2), w, h, ltx_lora,
+                         redo, from_upscale)
     if m in ("pixel", "seedvr2"):
         job = UpscaleJob(root, take, target, spec, m, float(scale or 2), None, w, h,
                          method=m, pixel_model=pixel_model or DEFAULT_PIXEL_MODEL)
@@ -1305,6 +1415,44 @@ def _plan(root: str, take: T.Take, *, scale: float | None = None,
     return job
 
 
+def ltx_take_frames(take: T.Take) -> int:
+    """How many frames a take has, by its sidecar (0: it doesn't say)."""
+    sc = take.sidecar or {}
+    return int(sc.get("frames") or sc.get("length") or 0)
+
+
+def ltx_size(w: int, h: int, scale: float) -> tuple[int, int]:
+    """w x h at `scale`, up onto LTX's 32 grid (so it still covers what was asked)."""
+    return (LTX_GRID * math.ceil(w * scale / LTX_GRID - 1e-9),
+            LTX_GRID * math.ceil(h * scale / LTX_GRID - 1e-9))
+
+
+def _plan_ltx(root: str, take: T.Take, target: "TG.Target", spec: dict, scale: float,
+              w: int, h: int, lora: str | None, redo: bool, from_upscale: bool) -> UpscaleJob:
+    """The LTX-2.5 detail pass on a take: any target's, from its frames."""
+    job = UpscaleJob(root, take, target, spec, "ltx", scale, None, w, h, method="ltx",
+                     ltx_lora=ltx_lora_file(lora))
+    try:
+        if from_upscale:
+            raise UpscaleError("the LTX detail pass runs on the take, not on an earlier upscale")
+        if not take.usable:
+            raise UpscaleError(f"{job.label} isn't a finished take ({take.status})")
+        if not w or not h:
+            raise UpscaleError(f"{job.label}'s sidecar doesn't say its size")
+        if not ltx_take_frames(take):
+            raise UpscaleError(f"{job.label}'s sidecar doesn't say how many frames it has")
+        if not 1 < scale <= MAX_SCALE:
+            raise UpscaleError(f"scale {scale:g}: it's more than 1, up to {MAX_SCALE:g}")
+        job.width, job.height = ltx_size(w, h, scale)
+    except UpscaleError as e:
+        job.action, job.why = "error", str(e)
+        return job
+    up = T.upscale_of(take)
+    if up and up["fresh"] and not redo:
+        job.action, job.why = "skip", "already upscaled"
+    return job
+
+
 def deliver_to(job: UpscaleJob, size: tuple | None, fit: str) -> None:
     """Size a planned job to deliver `size`: the last step that can make any size
     (the pixel method, SeedVR2, a then-pixel step) makes the frame that covers
@@ -1327,6 +1475,14 @@ def deliver_to(job: UpscaleJob, size: tuple | None, fit: str) -> None:
         if not 1 < s <= MAX_SCALE:
             raise UpscaleError(f"{W}x{H} from {w}x{h} is {s:g}x: it's more than 1, up to {MAX_SCALE:g}")
         job.scale, job.width, job.height = s, iw, ih
+    elif job.method == "ltx":
+        w, h = int((job.take.sidecar or {}).get("width") or 0), int((job.take.sidecar or {}).get("height") or 0)
+        iw, ih = fit_size(w, h, W, H, fit)
+        s = round(iw / w, 4)
+        if not 1 < s <= MAX_SCALE:
+            raise UpscaleError(f"{W}x{H} from {w}x{h} is {s:g}x: it's more than 1, up to {MAX_SCALE:g}")
+        job.scale = s
+        job.width, job.height = (LTX_GRID * math.ceil(iw / LTX_GRID), LTX_GRID * math.ceil(ih / LTX_GRID))
     elif job.then_model:
         iw, ih = fit_size(job.width, job.height, W, H, fit)
         s = round(iw / job.width, 4)
@@ -1785,6 +1941,70 @@ def seedvr2_chain(g: dict, images: list, model: str, width: int, height: int, se
     return [p + "finish", 0]
 
 
+def ltx_graph(up: UpscaleJob) -> dict:
+    """The LTX-2.5 detail pass (docs/LTX_UPSCALE.md): ComfyUI-LTXVideo's
+    LTX-2.5_V2V_TiledFusion_Upscale.json flattened, with the take's frames held to
+    8k+1 as the IC-LoRA's guide at the new size, 8 distilled steps over tiles that
+    share one canvas, then finished against the take's frames (their colour and
+    tone, as after SeedVR2), trimmed to its length and saved with its audio copied on."""
+    take, root = up.take, up.root
+    sc = take.sidecar or {}
+    n = ltx_take_frames(take)
+    t = ltx_tiling(int(sc.get("width") or up.width), int(sc.get("height") or up.height), n)
+    files = {"unet": LTX_UNETS[0], "text": LTX_TEXT[0], "vae": LTX_VAE, **(up.ltx_files or {})}
+    fps = float(sc.get("fps") or 24)
+    seed = int(sc.get("seed") or 0) % (1 << 50)
+    return {
+        "up_video": {"class_type": "H3LoadTakeVideo", "inputs": {
+            "project_root": root, "audio_file": "", "video_file": rel(root, take.paths.mp4),
+            "frames": t["frames"]}},
+        "up_unet": {"class_type": "UNETLoader", "inputs": {"unet_name": files["unet"],
+                                                           "weight_dtype": "default"}},
+        "up_lora": {"class_type": "LTXICLoRALoaderModelOnly", "inputs": {
+            "model": ["up_unet", 0], "lora_name": up.ltx_lora, "strength_model": 1.0}},
+        "up_clip": {"class_type": "CLIPLoader", "inputs": {"clip_name": files["text"], "type": "ltxv",
+                                                           "device": "default"}},
+        "up_vae": {"class_type": "VAELoader", "inputs": {"vae_name": files["vae"]}},
+        "up_pos": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["up_clip", 0], "text": LTX_PROMPT}},
+        "up_neg": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["up_clip", 0], "text": ""}},
+        "up_cond": {"class_type": "LTXVConditioning", "inputs": {
+            "positive": ["up_pos", 0], "negative": ["up_neg", 0], "frame_rate": fps}},
+        "up_resize": {"class_type": "ImageScale", "inputs": {
+            "image": ["up_video", 0], "upscale_method": "lanczos", "width": up.width,
+            "height": up.height, "crop": "disabled"}},
+        "up_empty": {"class_type": "EmptyLTXVLatentVideo", "inputs": {
+            "width": up.width, "height": up.height, "length": t["frames"], "batch_size": 1}},
+        # the guide encoded whole each window (a tiled encode imprints a grid);
+        # streaming: a fresh encode per temporal window, and the plan the sampler reads
+        "up_guide": {"class_type": "LTXAddVideoICLoRAGuide", "inputs": {
+            "positive": ["up_cond", 0], "negative": ["up_cond", 1], "vae": ["up_vae", 0],
+            "latent": ["up_empty", 0], "image": ["up_resize", 0], "frame_idx": 0, "strength": 1.0,
+            "latent_downscale_factor": ["up_lora", 1], "crop": "disabled",
+            "use_tiled_encode": False, "tile_size": 256, "tile_overlap": 64,
+            "use_streaming": True, "tile_frames": t["window"]}},
+        "up_ksel": {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "euler"}},
+        "up_sigmas": {"class_type": "ManualSigmas", "inputs": {"sigmas": LTX_SIGMAS}},
+        "up_fuse": {"class_type": "LTXVTiledFusionSampler", "inputs": {
+            "model": ["up_lora", 0], "positive": ["up_guide", 0], "negative": ["up_guide", 1],
+            "latents": ["up_guide", 2], "sigmas": ["up_sigmas", 0], "sampler": ["up_ksel", 0],
+            "seed": seed, "cfg": 1.0, "tile_width": t["tile_width"], "tile_height": t["tile_height"],
+            "overlap_frac": t["overlap"], "blend_var": 0.05, "grid_cycle": 1,
+            "tile_frames": t["window"], "vae": ["up_vae", 0], "canvas_device": "auto"}},
+        "up_dec": {"class_type": "VAEDecodeTiled", "inputs": {
+            "samples": ["up_fuse", 0], "vae": ["up_vae", 0], "tile_size": 512, "overlap": 64,
+            "temporal_size": 128, "temporal_overlap": 32}},
+        "up_finish": {"class_type": "SeriesmithFinishUpscale", "inputs": {
+            "images": ["up_dec", 0], "source": ["up_video", 0], "chunk": 8, **up.finish_inputs()}},
+        "up_keep": {"class_type": "ImageFromBatch", "inputs": {
+            "image": ["up_finish", 0], "batch_index": 0, "length": n}},
+        "up_save": {"class_type": "H3SaveUpscale", "inputs": {
+            "images": ["up_keep", 0], "project_root": root,
+            "source_mp4": rel(root, take.paths.mp4), "out_mp4": rel(root, take.paths.up_mp4),
+            "fps": fps, "sidecar": rel(root, take.paths.up_sidecar), "encoder": up.encoder,
+            **up.save_inputs()}},
+    }
+
+
 def pixel_graph(up: UpscaleJob) -> dict:
     """The pixel method: the take's frames through an upscale model, resized to
     the target size, saved with the take's audio copied on. No model of the
@@ -1849,6 +2069,16 @@ def not_ready(jobs: list[UpscaleJob], object_info: dict | None) -> list[str]:
         r = seedvr2_readiness(object_info, want)
         if r["status"] == "not_ready":
             out += [f"SeedVR2: {m}" for m in r["missing"]]
+    lj = [j for j in jobs if j.method == "ltx"]
+    for want in sorted({j.ltx_lora for j in lj}):
+        r = ltx_readiness(object_info, want)
+        if r["status"] == "not_ready":
+            out += [f"LTX detail pass: {m}" for m in r["missing"]]
+    if lj and object_info is not None:
+        # the base files this ComfyUI has (int8 or bf16), for the graph
+        files = {k: v for k, v in ltx_files(object_info).items() if v}
+        for j in lj:
+            j.ltx_files = files
     for want in sorted(wants):
         r = pixel_readiness(object_info, want)
         if r["status"] == "not_ready":
@@ -1863,6 +2093,8 @@ def graph_of(up: UpscaleJob, bases: dict, comfy_url: str) -> dict:
         return pixel_graph(up)
     if up.method == "seedvr2":
         return seedvr2_graph(up)
+    if up.method == "ltx":
+        return ltx_graph(up)
     if up.target.id not in bases:
         bases[up.target.id] = J.target_workflow(up.target, None, comfy_url)[0]
     return upscale_graph(bases[up.target.id], up)
@@ -1883,6 +2115,8 @@ def describe(up: UpscaleJob) -> str:
 
 
 def _describe(up: UpscaleJob) -> str:
+    if up.method == "ltx":
+        return f"LTX-2.5 detail pass ({up.ltx_lora}), {up.scale:g}x -> {up.width}x{up.height}"
     if up.method == "seedvr2":
         on = " on its upscale" if up.previous else ""
         return f"SeedVR2 ({up.seedvr2_model}){on}, {up.scale:g}x -> {up.width}x{up.height}"
@@ -1927,6 +2161,8 @@ def settings_of(up: UpscaleJob) -> dict:
         d["pixel_model"] = up.pixel_model
     if up.method == "seedvr2":
         d["seedvr2_model"] = up.seedvr2_model
+    if up.method == "ltx":
+        d["ltx_lora"] = up.ltx_lora
     if up.then_model:
         d["then"] = {"method": up.then_method, "model": up.then_model, "scale": up.then_scale}
         model = model or up.then_method == "pixel"
@@ -2013,6 +2249,20 @@ def queued_record(up: UpscaleJob) -> dict:
 
 
 def _queued_record(up: UpscaleJob) -> dict:
+    if up.method == "ltx":
+        sc = up.take.sidecar or {}
+        t = ltx_tiling(int(sc.get("width") or up.width), int(sc.get("height") or up.height),
+                       ltx_take_frames(up.take))
+        return {"shot": up.shot, "take": up.take.take, "status": "queued", "queued": T.now(),
+                "comfy_prompt_id": None, "target": up.target.id, "route": "ltx",
+                "method": "ltx", "mode": "ltx", "scale": up.scale, "start_step": None,
+                "steps": 8, "seed": sc.get("seed"),
+                "upscaler": up.ltx_lora, "ltx_lora": up.ltx_lora,
+                "ltx_files": dict(up.ltx_files) or None,
+                "tiles": [t["tile_width"], t["tile_height"]], "window": t["window"],
+                "encoder_asked": up.encoder, "finish": up.finish_record(),
+                **deliver_record(up),
+                "width": up.out_size[0], "height": up.out_size[1], **T.source_stamp(up.take.paths.mp4)}
     if up.method == "seedvr2":
         return {"shot": up.shot, "take": up.take.take, "status": "queued", "queued": T.now(),
                 "comfy_prompt_id": None, "target": up.target.id, "route": "seedvr2",
@@ -2143,8 +2393,11 @@ def main(argv=None) -> int:
                          "(default 7/8 of the way: step 7 of 8, which keeps the take's "
                          "performance; 6 or 5 of 8 add detail and change more)")
     ap.add_argument("--method", choices=METHODS,
-                    help="latent (re-sample; the default where the target has one) or pixel "
-                         "(an upscale model over the frames; any target)")
+                    help="latent (re-sample; the default where the target has one), pixel "
+                         "(an upscale model over the frames; any target), seedvr2 or ltx "
+                         "(the LTX-2.5 detail pass; any target)")
+    ap.add_argument("--ltx-lora", help="the LTX detail pass's IC-LoRA: refine (Refine Details, "
+                                       "the default) or restore, or a LoRA file name")
     ap.add_argument("--pixel-model", help=f"the pixel method's model (default {DEFAULT_PIXEL_MODEL}), "
                                           f"or {VSR} for NVIDIA RTX Video Super Resolution "
                                           f"({VSR}:HIGHBITRATE_ULTRA, say, for another level)")
@@ -2255,7 +2508,8 @@ def main(argv=None) -> int:
                               from_upscale=args.from_upscale, encoder=args.encoder,
                               precision=args.precision, frequency_split=args.frequency_split,
                               keep_soft=args.keep_soft, grain=args.grain,
-                              seedvr2_model=args.seedvr2_model, deliver=args.deliver, fit=args.fit,
+                              seedvr2_model=args.seedvr2_model, ltx_lora=args.ltx_lora,
+                              deliver=args.deliver, fit=args.fit,
                               quality=args.quality, upscaler=args.upscaler, windowing=args.windowing)
         mark = {"upscale": "..", "skip": "= ", "error": "!!"}[up.action]
         what = describe(up) if up.action == "upscale" else up.why

@@ -29,6 +29,7 @@ export interface Resolved {
   audio: CutAudioSource | null;
   out: boolean;
   flag: boolean;
+  refine_faces: boolean | null;
   /** its colour (the fields that aren't 0; null: as shot) */
   color: ShotColor | null;
   fade_in: number;
@@ -50,7 +51,7 @@ export function resolveCut(list: CutEntry[], pass: Pass, script: string[]): Reso
     out.push({
       shot: sid, pass: src, take: raw.take ?? null, trim_in: Math.floor(raw.trim_in || 0), trim_out: Math.floor(raw.trim_out || 0),
       locked: !!raw.locked, note: raw.note || "", in_cut_file: true, orphan: !inScript.has(sid), placeholder: src !== pass,
-      audio: normalizeAudio(audioOf(raw), sid), out: !!raw.out, flag: !!raw.flag,
+      audio: normalizeAudio(audioOf(raw), sid), out: !!raw.out, flag: !!raw.flag, refine_faces: typeof raw.refine_faces === "boolean" ? raw.refine_faces : null,
       color: hasColor(raw.color) ? cleanColor(raw.color) : null,
       fade_in: Math.floor(raw.fade_in || 0), fade_out: Math.floor(raw.fade_out || 0), dissolve: Math.floor(raw.dissolve || 0),
     });
@@ -67,7 +68,7 @@ export function resolveCut(list: CutEntry[], pass: Pass, script: string[]): Reso
     }
     out.splice(pos, 0, {
       shot: sid, pass, take: null, trim_in: 0, trim_out: 0, locked: false, note: "", in_cut_file: false, orphan: false,
-      placeholder: false, audio: null, out: false, flag: false, color: null, fade_in: 0, fade_out: 0, dissolve: 0,
+      placeholder: false, audio: null, out: false, flag: false, refine_faces: null, color: null, fade_in: 0, fade_out: 0, dissolve: 0,
     });
     seen.add(sid);
   });
@@ -86,6 +87,7 @@ export function toJson(e: Resolved, listPass: Pass): CutEntry {
   if (e.audio) out.audio = e.audio;
   if (e.out) out.out = true;
   if (e.flag) out.flag = true;
+  if (e.refine_faces != null) out.refine_faces = e.refine_faces;
   if (e.color) out.color = e.color;
   if (e.fade_in) out.fade_in = e.fade_in;
   if (e.fade_out) out.fade_out = e.fade_out;
@@ -270,7 +272,7 @@ export function applyCut(
     s.cut = {
       ...s.cut, take: e.take ?? chosen?.take ?? null, picked: e.take != null, pass: e.pass, placeholder: e.placeholder, usable,
       trim_in: e.trim_in, trim_out: e.trim_out, locked: e.locked, note: e.note, in_cut_file: e.in_cut_file,
-      out: e.out, flag: e.flag, color: e.color, fade_in: e.fade_in, fade_out: e.fade_out, dissolve: e.dissolve,
+      out: e.out, flag: e.flag, refine_faces: e.refine_faces, color: e.color, fade_in: e.fade_in, fade_out: e.fade_out, dissolve: e.dissolve,
       frames: usable ? chosen!.frames ?? null : null,
       order: i, script_index: sIdx.has(e.shot) ? sIdx.get(e.shot)! : null, out_of_order: ooo[i],
       // Phase 9d: as stored, plus what will play and the badge's words

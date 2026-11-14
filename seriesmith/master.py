@@ -131,6 +131,14 @@ class Plan:
     rows: list = field(default_factory=list)
     post: dict | None = None             # --post: the series config's post.master
     post_mode: str = "off"               # POST_MODES
+    # the cut's clips marked for faces (R): their posts are made and played in every
+    # mode (without Post-process: those posts alone, faces only)
+    face_shots: list = field(default_factory=list)
+
+    @property
+    def posts(self) -> bool:
+        """Posts are made or followed: Post-process, or a clip marked for faces."""
+        return self.post is not None or bool(self.face_shots)
 
     def of(self, status: str) -> list:
         return [r for r in self.rows if r.status == status]
@@ -142,6 +150,7 @@ class Plan:
 
     def view(self) -> dict:
         return {"pass": self.pass_, "post": self.post_mode != "off", "post_mode": self.post_mode,
+                "face_shots": list(self.face_shots),
                 "size": list(self.size), "fit": self.recipe.get("fit") or "crop",
                 "quality": self.recipe.get("quality") or "review",
                 "counts": {s: len(self.of(s)) for s in STATUSES}, "ready": self.ready,
@@ -176,7 +185,10 @@ def plan_master(root: str, pass_: str = "final", conform: bool = False,
             raise MasterError("the series config has no post.master recipe "
                               "(docs/POST_PROCESSING.md): master without Post-process, or add one")
         post_shots = P.shot_recipes(root)
+    from seriesmith import post as P
+    marks, series_post, own_post = P.face_marks(root, pass_), P.master_recipe(root), P.shot_recipes(root)
     for shot, t, why in U.cut_takes(root, None, None, pass_=pass_):
+        faced = P.faces_of(root, pass_, shot, marks, series_post, own_post)[0] is not None
         if t is None:
             plan.rows.append(Row(shot, None, "gap", why))
             continue
@@ -227,9 +239,13 @@ def plan_master(root: str, pass_: str = "final", conform: bool = False,
                 else:
                     row.job = job
         if mode == "recipe" and row.status != "gap":
-            plan_row_post(plan, row, post_shots, conform)
+            plan_row_post(plan, row, post_shots, conform)      # a marked clip's adds faces
+        elif faced and row.status != "gap":
+            plan_row_post(plan, row, post_shots, conform, kw={})   # faces alone, made and played
         elif mode == "present" and row.take is not None:
             note_present_post(row)
+        if faced and row.status != "gap":
+            plan.face_shots.append(shot)
         plan.rows.append(row)
     if not plan.rows:
         raise MasterError(f"the {pass_} cut is empty")
@@ -260,6 +276,8 @@ def continuity_rows(plan: Plan, recipe: dict, shots: dict, mode: str | None,
         r.status, r.why, r.job = "upscale", why, job
         if mode == "recipe":
             plan_row_post(plan, r, post_shots, conform)
+        elif r.shot in plan.face_shots:
+            plan_row_post(plan, r, post_shots, conform, kw={})
 
     for r in plan.rows:
         if r.take is None or r.status == "gap":
@@ -301,13 +319,21 @@ def chain_rows(plan: Plan, r: Row, by_take: dict, remake) -> None:
             remake(r, f"made again: it ran before {src_take.shot}'s upscaled latent was there")
 
 
-def plan_row_post(plan: Plan, row: Row, post_shots: dict, conform: bool) -> None:
+def plan_row_post(plan: Plan, row: Row, post_shots: dict, conform: bool,
+                  kw: dict | None = None) -> None:
     """--post: what the row's post is, on top of its upscale's status. An
-    `upscale` row gets its post planned behind it (at the master's size)."""
+    `upscale` row gets its post planned behind it (at the master's size).
+    `kw`: the post's arguments as given (a clip marked for faces without
+    Post-process: {}, which plan_post makes faces alone) instead of the recipe's."""
     from seriesmith import post as P
     t = row.take
-    row.post_kw = P.recipe_for(plan.root, row.shot, plan.post, post_shots)
+    row.post_kw = dict(kw) if kw is not None else P.recipe_for(plan.root, row.shot, plan.post, post_shots)
     words = P.describe_recipe(row.post_kw)
+    if "faces" not in row.post_kw:
+        f, why = P.faces_of(plan.root, plan.pass_, row.shot)
+        if f is not None:
+            words = ", then ".join(w for w in (words, "faces (marked)" if why.startswith("marked")
+                                               else "faces (every shot)") if w)
     row.recipe = f"{row.recipe}; post: {words or 'none'}"
     quality = plan.recipe.get("quality") or "review"
     if row.status == "upscale":
@@ -363,10 +389,14 @@ ORDERS = ("cut", "target")
 
 def load_key(job: U.UpscaleJob) -> tuple:
     """What ComfyUI loads to run an upscale: its target's model for a re-sample,
-    else the upscale model or SeedVR2 model (whatever the take's target)."""
+    else the upscale model, SeedVR2 model or LTX detail LoRA (whatever the take's target)."""
     if job.method == "latent":
         return ("latent", job.target.id, job.then_method, job.then_model)
-    return (job.method, job.seedvr2_model if job.method == "seedvr2" else job.pixel_model)
+    if job.method == "seedvr2":
+        return (job.method, job.seedvr2_model)
+    if job.method == "ltx":
+        return (job.method, job.ltx_lora)
+    return (job.method, job.pixel_model)
 
 
 def in_order(rows: list, order: str = "cut") -> list:
@@ -481,7 +511,7 @@ def wait_master(plan: Plan, runner, timeout: int = 3600) -> list:
     whose upscale or post didn't finish ok."""
     from seriesmith import runner as RN
     stages = [("upscale", T.upscale_of)]
-    if plan.post is not None:
+    if plan.posts:
         stages.append(("post", T.post_of))
     bad = []
     for r in plan.of("queued"):
@@ -687,7 +717,7 @@ def check_assemble(plan: Plan, allow_gaps: bool = False) -> None:
     or on their way, or gaps without `allow_gaps`."""
     waiting = plan.of("upscale") + plan.of("post") + plan.of("queued")
     if waiting:
-        what = "upscale or post-process" if plan.post is not None else "upscale"
+        what = "upscale or post-process" if plan.posts else "upscale"
         raise MasterError(f"{len(waiting)} shot(s) still to {what}: "
                           + ", ".join(r.shot for r in waiting[:10]))
     gaps = plan.of("gap")
@@ -711,7 +741,9 @@ def _assemble(plan: Plan, gaps: list, prores: bool, timeout: int, progress,
     from seriesmith import edit as E
     name = master_name(plan.root, plan.size)
     sub = "renders_proxy" if plan.pass_ == "proxy" else "renders"
-    args = ["-o", plan.root, "--upscaled", *(["--post"] if plan.post_mode != "off" else []),
+    args = ["-o", plan.root, "--upscaled", *(["--post"] if plan.post_mode != "off" else
+                                             ["--post", "--post-shots", ",".join(plan.face_shots)]
+                                             if plan.face_shots else []),
             "--size", f"{plan.size[0]}x{plan.size[1]}",
             "--quality", "master" if (plan.recipe.get("quality") == "master") else "review",
             "--name", name + ".mp4", "--progress"]
@@ -903,7 +935,7 @@ def master_episode(root: str, args, comfy, runner) -> int:
             except MasterError as e:
                 print(f"  !! {e}")
                 return 1
-            what = "shot(s) to upscale and post-process" if plan.post is not None else "upscale(s)"
+            what = "shot(s) to upscale and post-process" if plan.posts else "upscale(s)"
             print(f"  queued {len(queued)} {what}"
                   + (" grouped by target: " + ", ".join(r.shot for r in queued)
                      if args.order == "target" and len(queued) > 1 else ""))

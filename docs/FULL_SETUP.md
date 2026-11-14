@@ -86,8 +86,9 @@ cloning them into `custom_nodes/`, then restart ComfyUI.
 | Effects from the picture | ComfyUI-LTXVideo for LTX-2.3 Foley; ComfyUI-HunyuanVideo-Foley for Hunyuan | H3 FL2VA's 4 files (or LTX-2.3 Foley's 7, HunyuanVideo-Foley XL's 3) | |
 | Voices only (the takes' voices without their music) | seriesmith's node pack (its vocal-stem node) | Hybrid Demucs's weights (Features: Vocal stem; a copy torchaudio downloaded before counts) | |
 | Upscaling H3 takes | None on ComfyUI 0.44 or later; before that Comfyui_Minimax_h3_latent_Upscaler or its Plus version, and comfyui-obvpm-timeline for takes over 5.5 s | H3's latent upscaler | |
-| Upscaling any take | Nvidia RTX Nodes (optional) | RealESRGAN, or SeedVR2 | |
+| Upscaling any take | Nvidia RTX Nodes (optional); ComfyUI-LTXVideo (the LTX detail pass) | RealESRGAN, SeedVR2, or LTX-2.5 and its detail LoRAs | |
 | Post-processing | | RealESRGAN / SeedVR2 7B / SUPIR + SDXL; RAFT for motion blur | |
+| Refine faces (post) | ComfyUI-H3-FaceRefine | H3 Ref2VA's files (above) and `face_yolov8m.pt` | `insightface` in ComfyUI's Python |
 | Master and publish | | | a title font (ffmpeg comes with seriesmith) |
 | 360s and turned views | | 3 LoRAs | |
 | Relights, and Turn without its LoRA | | any edit picture model (FLUX.2 Klein edit by default) | |
@@ -435,6 +436,21 @@ own nodes. You need the VAE and at least one model:
 | `seedvr2_7b_int8_convrot.safetensors` | `diffusion_models` | [Comfy-Org/SeedVR2](https://huggingface.co/Comfy-Org/SeedVR2/resolve/main/diffusion_models/seedvr2_7b_int8_convrot.safetensors) |
 | `seedvr2_3b_int8_convrot.safetensors` | `diffusion_models` | [Comfy-Org/SeedVR2](https://huggingface.co/Comfy-Org/SeedVR2/resolve/main/diffusion_models/seedvr2_3b_int8_convrot.safetensors) |
 
+**Any take, with the LTX-2.5 detail pass** (slow; up to 8K): ComfyUI-LTXVideo from
+2026-11-12 or later (its Tiled Fusion sampler), LTX-2.5's distilled transformer, text encoder
+and video VAE (the same files as the `ltx2` model), and the detail LoRAs. LTX-2.5's files are
+gated: accept the licence on Hugging Face and set a token in Settings.
+
+| File | Folder | Download |
+|---|---|---|
+| `ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors` | `diffusion_models` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors) |
+| `gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors` | `text_encoders` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors) |
+| `ltx-2.5-video-vae-bf16.safetensors` | `vae` | [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors) |
+| `ltx-2.5-22b-ic-lora-refine-details-1.0.safetensors` | `loras` | [Lightricks/LTX-2.5-22b-IC-LoRA-Refine-Details](https://huggingface.co/Lightricks/LTX-2.5-22b-IC-LoRA-Refine-Details/resolve/main/ltx-2.5-22b-ic-lora-refine-details-1.0.safetensors) |
+| `ltx-2.5-22b-ic-lora-restore-1.0.safetensors` | `loras` | [Lightricks/LTX-2.5-22b-IC-LoRA-Restore](https://huggingface.co/Lightricks/LTX-2.5-22b-IC-LoRA-Restore/resolve/main/ltx-2.5-22b-ic-lora-restore-1.0.safetensors) |
+
+The bf16 transformer and text encoder work in place of the int8 ones.
+
 **Any take, on an NVIDIA RTX card, with RTX Video Super Resolution** (no model file, and
 fast):
 1. Install Comfy-Org's **Nvidia RTX Nodes** (ComfyUI-Manager: search "RTX"; it needs
@@ -445,8 +461,8 @@ fast):
 
 ## Post-processing
 
-Post-processing runs after the upscale: whole-frame enhancement, then motion blur
-([POST_PROCESSING.md](POST_PROCESSING.md)).
+Post-processing runs after the upscale: whole-frame enhancement, then each character's
+face refined (optional), then motion blur ([POST_PROCESSING.md](POST_PROCESSING.md)).
 
 | Tier | Needs |
 |---|---|
@@ -454,6 +470,7 @@ Post-processing runs after the upscale: whole-frame enhancement, then motion blu
 | Production | SeedVR2 7B and its VAE, as above |
 | Cinematic | `SUPIR-v0F_fp16.safetensors` in `models/model_patches/` ([Kijai/SUPIR_pruned](https://huggingface.co/Kijai/SUPIR_pruned/resolve/main/SUPIR-v0F_fp16.safetensors)), and the SDXL base checkpoint `sd_xl_base_1.0_0.9vae.safetensors` in `models/checkpoints/` ([stabilityai/stable-diffusion-xl-base-1.0](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)) |
 | Deblur on RTX | Nvidia RTX Nodes, as above |
+| Refine faces | [Carasibana's ComfyUI-H3-FaceRefine](https://github.com/Carasibana/ComfyUI-H3-FaceRefine) in `custom_nodes/`; H3 Ref2VA's final weights, text encoder, VAEs and 8-step turbo LoRA, as above; `face_yolov8m.pt` in `models/ultralytics/bbox/` ([Bingsu/adetailer](https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8m.pt)); `insightface` in ComfyUI's Python, which tells two characters' faces apart (if it fails to import with an onnx error, `pip install onnx==1.22.0` there). `person_yolov8m-seg.pt` is used as a body fallback where Impact Subpack has it. Restart ComfyUI after installing the pack |
 | Motion blur | `raft_large_C_T_SKHT_V2-ff5fadd5.pth` in `models/optical_flow/` ([torchvision's weights](https://download.pytorch.org/models/raft_large_C_T_SKHT_V2-ff5fadd5.pth); ComfyUI doesn't download them) |
 
 ## Master, publish and the export

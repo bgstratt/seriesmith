@@ -21,7 +21,7 @@ export interface CutEdit {
 
 const sameFields = (a: CutFields, b: CutFields) =>
   a.trim_in === b.trim_in && a.trim_out === b.trim_out && a.locked === b.locked && sameAudio(a.audio, b.audio) &&
-  a.out === b.out && a.flag === b.flag && sameColor(a.color, b.color) &&
+  a.out === b.out && a.flag === b.flag && a.refine_faces === b.refine_faces && sameColor(a.color, b.color) &&
   JOIN_KEYS.every((k) => a[k] === b[k]);
 
 /** What turned `before` into `after`, or null when nothing changed. */

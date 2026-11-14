@@ -11,7 +11,7 @@ import { newCue } from "../cueActions";
 import { currentMix, makeEffects, makeVoiceStems, pickSoundFile, setShotVoicesMix, toggleSound } from "../mixActions";
 import { firstOf, voicePlays, voicesOnly } from "../lib/mix";
 import { host } from "../host";
-import { JOIN_DEFAULT, MATCH_WAYS, clearClipAudio, matchColors, nudgeClip, setColdOpenEnd, setJoin, setTrims, toggleFlag, toggleLock, toggleOut } from "../cutActions";
+import { JOIN_DEFAULT, MATCH_WAYS, clearClipAudio, facesOn, matchColors, nudgeClip, setColdOpenEnd, setJoin, setTrims, toggleFlag, toggleLock, toggleOut, toggleRefineFaces } from "../cutActions";
 import { JOIN_KEYS } from "../lib/cutEdit";
 import { audioOf, audioWhy } from "../lib/audioSource";
 import { absPath, tn } from "../lib/format";
@@ -358,7 +358,7 @@ export function ContextMenu() {
   );
 
   const cutGroup = (
-    <Sub icon="pi-video" label="In the cut" note={[locked && "locked", cutShot?.cut.out && "left out", cutShot?.cut.flag && "flagged"].filter(Boolean).join(", ") || undefined}>
+    <Sub icon="pi-video" label="In the cut" note={[locked && "locked", cutShot?.cut.out && "left out", cutShot?.cut.flag && "flagged", cutShot?.cut.refine_faces === true && "for faces", cutShot?.cut.refine_faces === false && cutShot.cut.faces_default && "kept out of faces"].filter(Boolean).join(", ") || undefined}>
       <button
         disabled={!cutShot}
         title={cutShot?.cut.flag ? `Clear ${menu.shot}'s flag (M)` : `Flag ${menu.shot} to come back to: re-render it, change its prompt (M; Shift+M goes to the next flagged clip)`}
@@ -366,6 +366,22 @@ export function ContextMenu() {
       >
         <i className={cutShot?.cut.flag ? "pi pi-flag" : "pi pi-flag-fill"} /> {cutShot?.cut.flag ? "Unflag" : "Flag to come back to"}
       </button>
+      <button
+        disabled={!cutShot}
+        title={facesOn(cutShot) ? `Keep ${menu.shot} out of the face pass, even when the series refines every shot (R)`
+          : `Mark ${menu.shot} to refine its faces once it's upscaled: the cut menu's Refine faces on marked clips (R; Shift+R goes to the next marked clip)`}
+        onClick={run(() => void toggleRefineFaces(menu.shot))}
+      >
+        <i className={facesOn(cutShot) ? "pi pi-user-minus" : "pi pi-user"} /> {facesOn(cutShot) ? (cutShot?.cut.faces_default ? "Keep out of faces" : "Unmark for faces") : "Mark for faces"}
+      </button>
+      {cutShot?.cut.refine_faces != null && (
+        <button
+          title={`Clear ${menu.shot}'s mark: its faces as Series settings › Finishing › Post: refine faces says (${cutShot.cut.faces_default ? "refined" : "not refined"})`}
+          onClick={run(() => void toggleRefineFaces(menu.shot, null))}
+        >
+          <i className="pi pi-replay" /> Faces as the series says
+        </button>
+      )}
       <button
         disabled={!cutShot}
         title={locked ? `Let ${menu.shot} be moved, trimmed and re-picked again in the ${curPass} cut` : `Keep ${menu.shot} where it is in the ${curPass} cut: no moves, trims or re-picks until unlocked`}
@@ -596,6 +612,15 @@ export function ContextMenu() {
               onClick={run(() => void postTake({ ep, pass: menu.pass, shot: menu.shot, take: take.take }, !!take.post?.fresh))}
             >
               <i className="pi pi-sparkles" /> {take.post?.fresh ? "Post-process again…" : "Post-process…"}
+            </button>
+            <button
+              disabled={!take.upscale?.fresh || take.upscale.status !== "ok" || take.post?.status === "queued"}
+              title={take.post?.status === "queued" ? "Its post is queued"
+                : !take.upscale?.fresh || take.upscale.status !== "ok" ? "Upscale it first: faces are refined on the upscale"
+                : "Redraw each character's face from their sheet (H3 on a crop the face fills), the lips held to the take's sound: for faces too small to have eyes and a mouth. Saved as its post"}
+              onClick={run(() => void postTake({ ep, pass: menu.pass, shot: menu.shot, take: take.take }, !!take.post?.fresh, true))}
+            >
+              <i className="pi pi-user" /> Refine faces…
             </button>
             {take.post && take.post.status !== "queued" && (
               <button onClick={run(() => void removePost({ ep, pass: menu.pass, shot: menu.shot, take: take.take }))}>

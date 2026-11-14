@@ -126,7 +126,8 @@ def shipped_graph_classes() -> dict[str, set[str]]:
     `nodes`), every class_type target.json names (the upscale blocks'
     upscalers too), the Python graph builders' *_NODES tuples, and every
     "class_type": "X" written in seriesmith's Python. h3pipe's names are sent
-    as seriesmith's own (jobs.SENT_AS, finishing.portable): left out."""
+    as seriesmith's own (jobs.SENT_AS, finishing.portable), and finishing.STAND_INS
+    as core ones: left out."""
     import re
     from seriesmith import cloud as C
     from seriesmith import edit as E
@@ -136,8 +137,10 @@ def shipped_graph_classes() -> dict[str, set[str]]:
     from seriesmith import upscale as U
     out: dict[str, set[str]] = {}
 
+    from seriesmith import finishing as FIN
+
     def add(c, where):
-        if c not in SN.H3PIPE_NODES:
+        if c not in SN.H3PIPE_NODES and c not in FIN.STAND_INS:
             out.setdefault(c, set()).add(where)
 
     def walk(v, where):

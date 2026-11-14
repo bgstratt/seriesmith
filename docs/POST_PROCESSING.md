@@ -66,7 +66,7 @@ restoration, not another upscale). The tiers name the methods:
 | Tier | `enhance` | What it runs | Temporal? | Cost (5 s shot, est.) |
 |---|---|---|---|---|
 | Draft | `"draft"` / `{"method": "pixel"}` | an upscale model (RealESRGAN_x2) at 1x, colour and tone the source's: a sharpen | per frame, but it invents little, so little flickers | seconds |
-| Production | `"production"` / `{"method": "seedvr2", "seedvr2_model": "7b", "chunk": "fit", "overlap": 6}` | SeedVR2 7B at 1x in fixed chunks (`"fit"`: 61 frames at 1080p, 33 at 1440p, 13 at 4K, by pixel count) crossfaded over 6 latent frames, then the frequency-split finish | yes, a video model | 4.3 min for a 5 s shot at 1080p (sh2100); 11.2 min for a 6.6 s shot at 1440p, with blur 0.3 (measured: about 100 s per second of footage) |
+| Production | `"production"` / `{"method": "seedvr2", "seedvr2_model": "7b", "chunk": "fit", "overlap": "fit"}` | SeedVR2 7B at 1x in fixed chunks (`"fit"`: 61 frames at 1080p, 33 at 1440p, 13 at 4K, by pixel count) crossfaded over 6 latent frames at 1080p, 3 at 1440p, 2 at 4K (`"fit"`, in proportion to the chunk), then the frequency-split finish | yes, a video model | 4.3 min for a 5 s shot at 1080p (sh2100); 11.2 min for a 6.6 s shot at 1440p, with blur 0.3 (measured: about 100 s per second of footage) |
 | | `{"method": "pixel", "pixel_model": "rtx_vsr:DEBLUR_ULTRA"}` | NVIDIA RTX Video Super Resolution's deblur at 1x (`DENOISE_*` / `DEBLUR_*` levels, or `rtx_vsr` itself; an RTX card and Comfy-Org's RTX nodes, INSTALL.md), then the finish | per frame | seconds (not measured) |
 | | `{"method": "seedvr2", "seedvr2_model": "3b"}` | SeedVR2 3B | yes | 4.2–4.4 min at 1080p (measured) |
 | Cinematic | `"cinematic"` / `{"method": "supir", "strength": 0.2}` | SUPIR (ComfyUI core's `SUPIRApply`) on SDXL at denoise 0.05–0.5, two frames at a time, the same seed on every batch, then the frequency split (only its detail is kept) | **no** | to measure: about 10 SDXL steps a frame |
@@ -81,6 +81,17 @@ frame count, 0 for auto) and `overlap` (latent frames, default 2) are enhance fi
 fixed 61 needs about 29 GB of free VRAM at 1080p, so `"fit"` scales it down by the
 frame's pixel count (still fixed for a size). Give a number if a shot still runs out of
 memory.
+
+**Overlap scales with the chunk (2026-11-13).** A fixed 6 was tuned on 1080p's 16-latent-frame
+chunks. On 1440p's 9 it left each chunk 3 new frames, so a 4 s shot took 7 chunks instead of 4:
+about 50% longer (216 s against 145 s on Ballroom ep02 sh090) for no measured gain. An A/B on
+sh040 and sh090 (overlap 6, overlap 2, hard cut, and a warm-started hard cut that conditions
+each chunk on the previous one's last restored frames) found no seam spike above the shots'
+own motion, no ghosting in the crossfades, and face identity within 0.005 across all four.
+`overlap: "fit"` keeps 6 of 16: 6 at 1080p, 3 at 1440p, 2 at 4K. The warm start had 12-15%
+less flicker overall but ran slower as stock nodes; it is not built. The one face failure
+the A/B showed was the same in every variant: SeedVR2 redrawing a heavily motion-blurred
+face (sh090 f69), which chunking can't fix.
 
 **CCSR is not offered.** It isn't installed, has no node in ComfyUI core, and the only
 pack (kijai's ComfyUI-CCSR) is from 2024. If you install it, its `object_info` is enough
@@ -331,10 +342,11 @@ seriesmith post <episode> [--proxy] [--only sh040,sh050] [--take N] [--redo]
                 [--backend NAME] [--check]
 ```
 
-Planned for faces and not built: `--boxes` (a preview of each track's box), `--variant
-NAME` (a post beside the real one) and `--compare A,B` (two variants side by side, with a
-2x crop of each tracked face), and the `H3DetectFaces` / `H3FaceCrop` / `H3FacePaste`
-nodes.
+`--faces` (`--faces-denoise`) is the face pass (round 2, below). From round 1's plan, not
+built: `--boxes` (a preview of each track's box), `--variant NAME` (a post beside the real
+one) and `--compare A,B` (two variants side by side, with a 2x crop of each tracked face);
+the pack's own tracker, crop and stitch replace the planned `H3DetectFaces` / `H3FaceCrop` /
+`H3FacePaste` nodes.
 
 ## Phases
 
@@ -417,12 +429,65 @@ sharpness are ratios to the upscale, measured inside the face box.
 - Detection and matching worked (all cast found on 7 of 8 shots). That part stands
   regardless (P1).
 
-**Verdict (2026-10-06): faces are dropped.** Watching the outputs, every variant made
+**Verdict (2026-10-06): faces are dropped** (for image models; round 2, below, is H3 on the crop). Watching the outputs, every variant made
 faces worse. Z-Image looked like an improvement on a still frame, but in motion the face
 reads as an overlay the head moves through, like a watermark. The face step (P1–P2) is
 not being built. The detection and matching code stays in the bake-off harness, and the
 `H3SaveFaceTracks` / `H3LoadFaceTracks` nodes stay in h3pipe (not ported) in case a body or
 face pass ever comes back with a video model on the crop.
+
+### Faces, round 2 (2026-11-13): H3 on the crop, built
+
+Round 1 redrew faces with image models. Round 2 is the path it left open, a **video model
+on the crop**: Carasibana's ComfyUI-H3-FaceRefine (MIT) tracks one face, crops it so the
+face fills a 512-768 px canvas (crop side 3x the face height), has **H3 Ref2VA** re-generate
+the crop from the character's sheet, and stitches it back with a feathered, colour-matched
+edge. H3 draws in 16 px cells, so a 50 px face is three cells across in the frame and about
+ten in the crop: the model gets room to draw eyes and a mouth. The denoise is per frame,
+by face height: all of it under 30 px, 0.35x at 120 px, so a face that was already drawn is
+barely touched.
+
+Prototyped by hand, then through `seriesmith post --faces`:
+
+| Shot | Face (px) | Denoise (x0.4) | Time | Result |
+|---|---|---|---|---|
+| Porchlights ep01 sh1350 t03 (1080p, wide) | 43-65 | 0.75-0.91 | 57-60 s | eyes, glasses, lines and cardigan buttons where the upscale had a smear; the same woman; steady frame to frame and in motion (watched) |
+| Ballroom ep01 sh010 t06 (1440p, mws) | 113-118 | 0.37-0.40 | 50-55 s | barely changed, as it should be: the face was already there |
+
+What round 1 got wrong and this doesn't: the face is redrawn **moving**, in the shot's own
+light and pose, by the model that drew the shot, so it doesn't read as an overlay; and the
+**sound is held** (the take's `_h3.wav` in the joint latent's audio stream, noise mask 0:
+`SeriesmithHoldAudio`, in place of the pack's example's third-party NativeAudioLock), so
+the lips still follow the line.
+
+**Built** as post's middle step, `faces` (`seriesmith post --faces`, the Post dialog's
+**Refine faces**, the take menu's **Refine faces…**, the cut's mark (R), `post.master.faces`
+for every shot (Series settings → Finishing), a shot's own in overrides.json; when a post
+isn't told either way, the clip's mark (true or false) is over the shot's own, which is over the
+series': `faces_of`):
+
+- **One pass a character**, each on the one before's output: every character subject of the
+  shot with a sheet (`subjects` narrows it). A character without a sheet, a location or a
+  prop is left out with a note; a shot with no one to refine plays its upscale.
+- **Which face is whose.** One character: the largest face. Two or more: the face nearest
+  their sheet (insightface; the tracker embeds the largest face in the reference, so a sheet
+  works as it is). H3's rendered faces score ~0.15-0.2 against their own sheet and ~0.0
+  against the others', so the threshold is 0.15, not the pack's 0.28 (photographs). Below
+  it the tracker holds its subject by continuity.
+- **The prompt** is the shot's own, told as a close-up: the character's definition and
+  styling, the look (detailed_description before `[Shot 1]`), and the summary as the moment.
+- **Settings:** the pack's example's (crop 3x, gaussian smoothing over 21 frames, size over
+  51, per-frame denoise 30-120 px, face-only paste feathered 24 px, colour match 1), H3
+  Ref2VA's final weights with its 8-step turbo LoRA, 8 steps, er_sde, denoise 0.4
+  (`{"denoise": …}` 0.05-0.6: H3's schedule is shifted, so 0.25 already lands at sigma 0.8).
+- **The detectors** are read off this ComfyUI: `face_yolov8m.pt` (the pack lists
+  ultralytics/bbox plain), and `person_yolov8m-seg.pt` as the body fallback where Impact
+  Subpack registers it (sh1350's first 10 frames, before the face was found, held on the body).
+
+Known limits: a face turned fully away is left as it was (the composite fades out); a
+character whose sheet doesn't look like the render (another outfit, another age) isn't found
+by identity and falls back to the largest face, so with two or more characters check the
+first one; the pass doesn't run on a take with no upscale (it's a post).
 
 **P1: detect, track, identify, preview.** `H3DetectFaces`, the stdlib tracker and
 assignment, `--boxes`, the report. Useful on its own: it tells you which shots have

@@ -64,7 +64,13 @@ PACKS: dict[str, dict] = {
         "classes": ["LTXVAudioOnlyModel", "LTXVAudioOnlyEmptyVideoLatent",
                     "LTXICLoRALoaderModelOnly", "LTXAddVideoICLoRAGuide",
                     # ltx23_foley's guiders and mask
-                    "GuiderParameters", "MultimodalGuider", "LTXVSetAudioVideoMaskByTime"]},
+                    "GuiderParameters", "MultimodalGuider", "LTXVSetAudioVideoMaskByTime",
+                    # the LTX detail pass (2026-11-12 on; an older pack's lack of it is
+                    # what the upscale's readiness says)
+                    "LTXVTiledFusionSampler"]},
+    "ComfyUI-H3-FaceRefine": {
+        "repo": "https://github.com/Carasibana/ComfyUI-H3-FaceRefine",
+        "classes": ["H3FaceTrackCrop", "H3InjectVideoLatent", "H3PerFrameDenoise", "H3FaceStitch"]},
     "Comfyui_Minimax_h3_latent_Upscaler": {
         "repo": "https://github.com/LBH-123-AI/Comfyui_Minimax_h3_latent_Upscaler",
         "classes": ["MinimaxH3LatentUpscaler3D"]},
@@ -404,6 +410,16 @@ def catalog() -> list[Feature]:
         return [Item("model", n, folder=f, url=u) for n, (f, u) in U.SEEDVR2_DOWNLOADS.items()
                 if n == U.SEEDVR2_VAE or size in n]
 
+    def ltx_detail():
+        # ComfyUI-LTXVideo (its Tiled Fusion sampler: 2026-11-12 on), the ltx2
+        # target's distilled transformer, text encoder and video VAE, the two LoRAs
+        pack = _pack("ComfyUI-LTXVideo")
+        ltx = TG.load_target("ltx2").downloads
+        base = [Item("model", n, folder=(ltx.get(n) or {}).get("folder") or f, url=(ltx.get(n) or {}).get("url") or "")
+                for n, f in ((U.LTX_UNETS[0], "diffusion_models"), (U.LTX_TEXT[0], "text_encoders"),
+                             (U.LTX_VAE, "vae"))]
+        return [pack, *base, *(Item("model", n, folder=f, url=u) for n, (f, u) in U.LTX_DOWNLOADS.items())]
+
     h3_up = TG.load_target("minimax_h3_ref2va").downloads.get("minimax_h3_latent_upscaler_3d_fp16.safetensors") or {}
     hosted_video, hosted_image = _hosted_models("video"), _hosted_models("image")
     feats = [
@@ -633,10 +649,23 @@ def catalog() -> list[Feature]:
         Feature("upscale.seedvr2_7b", "upscale", "SeedVR2 7B",
                 "Adds real detail; slow. Also post-processing's Production tier.", seedvr("7b")),
         Feature("upscale.seedvr2_3b", "upscale", "SeedVR2 3B", "Smaller and a little faster.", seedvr("3b")),
+        Feature("upscale.ltx_detail", "upscale", "LTX-2.5 detail pass",
+                "Any take, redrawn at the new size by LTX-2.5 with Lightricks' Refine Details or "
+                "Restore IC-LoRA, in tiles that share one canvas: up to 8K. Slow. "
+                "ComfyUI-LTXVideo (2026-11-12 or later) and LTX-2.5's files. Gated, as LTX-2.5.",
+                ltx_detail(), restart=True),
         Feature("post.supir", "post", "SUPIR (Cinematic tier)",
                 "SUPIR on the SDXL base checkpoint.",
                 [Item("model", P.SUPIR_MODEL, folder="model_patches", url=P.SUPIR_URL),
                  Item("model", P.SUPIR_CHECKPOINT, folder="checkpoints", url=P.SUPIR_CHECKPOINT_URL)]),
+        Feature("post.faces", "post", "Refine faces",
+                "Each character's face redrawn by H3 Ref2VA on a crop the face fills, from their "
+                "sheet, the lips held to the take's sound: Carasibana's H3-FaceRefine node pack, "
+                "the face detector (Bingsu/adetailer) and H3 Ref2VA itself.",
+                [_pack("ComfyUI-H3-FaceRefine"),
+                 Item("model", P.FACE_DETECTOR, folder="ultralytics/bbox",
+                      url="https://huggingface.co/Bingsu/adetailer/resolve/main/face_yolov8m.pt")]
+                + _target_items("minimax_h3_ref2va"), restart=True),
         Feature("post.motion_blur", "post", "Motion blur",
                 "RAFT optical flow (torchvision's weights).",
                 [Item("model", P.RAFT_FILE, folder="optical_flow", url=P.RAFT_URL)]),

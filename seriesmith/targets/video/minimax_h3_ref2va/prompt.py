@@ -207,6 +207,9 @@ def framing_sentence(shot: dict, subjects: list[str], subj: dict, unref: list[st
     held = "" if not ext else (f" {ext}" if ext.startswith("from") else f", {ext}")
     who = _and([subj[s] for s in subjects] + [book[s].get("name", s) for s in unref])
     place = env if no_plate else f"{bg_subj}, {env}"
+    # the place by its plate and the description's first clause: what a medium names it by,
+    # and an insert's detail -- the room's whole inventory there is drawn, a wide behind the detail
+    named = env if no_plate else f"{bg_subj}, {env.split(',')[0].strip()}"
     wide = framing.family(shot["size"]) == "wide"
     if close:
         fill = "" if ext and not ext.startswith("from") else ", filling most of the frame"
@@ -221,7 +224,7 @@ def framing_sentence(shot: dict, subjects: list[str], subj: dict, unref: list[st
         where = (f"{frame} frames {who}{held}{fill}. Behind them, the frame "
                  f"is filled by {soft}; the rest of the space lies "
                  f"outside the frame." if who else
-                 f"{frame} holds on a detail of {place}; the rest of the space lies outside "
+                 f"{frame} holds on a detail of {named}; the rest of the space lies outside "
                  f"the frame.")
     elif wide:
         where = (f"{frame} takes in {place}, with {who} in it{held}." if who else
@@ -230,8 +233,7 @@ def framing_sentence(shot: dict, subjects: list[str], subj: dict, unref: list[st
         # A medium names the place by its plate alone: its definition already describes it, and
         # the description's inventory said again here ("two machines, a water fountain and a
         # trash can") is drawn, which takes a wide (docs/KEYFRAME_FRAMING.md, 2026-11-12).
-        here = env if no_plate else f"{bg_subj}, {env.split(',')[0].strip()}"
-        where = (f"{frame} frames {who}{held} in {here}, showing the part of the space directly "
+        where = (f"{frame} frames {who}{held} in {named}, showing the part of the space directly "
                  f"behind them." if who else f"{frame} frames {place}.")
     return who, where
 

@@ -103,6 +103,20 @@ class OpeningTest(unittest.TestCase):
         self.assertEqual(opening("wide"),
                          "A wide shot takes in <Subject 2>, a cramped diner kitchen, with <Subject 1> in it.")
 
+    def test_an_insert_names_its_place_by_the_first_clause(self):
+        """No one in frame: the detail is of the plate and the description's first clause, not
+        its whole inventory, which H3 draws as a wide behind the detail (ep03 sh110)."""
+        import copy
+        from unittest import mock
+        series = copy.deepcopy(SERIES)
+        series["locations"]["kitchen"]["description"] = (
+            "a cramped diner kitchen, a grill, a fryer and a steel pass-through window")
+        with mock.patch(f"{__name__}.SERIES", series):
+            for size in ("ecu", "cu", "mcu"):
+                line = opening(size, subjects=())
+                self.assertIn("a detail of <Subject 1>, a cramped diner kitchen; the rest", line)
+                self.assertNotIn("fryer", line)
+
     def test_the_in_between_sizes_say_what_the_frame_holds(self):
         self.assertTrue(opening("mcu").startswith(
             "A medium close-up frames <Subject 1> from the chest up, filling most of the frame."))

@@ -199,7 +199,8 @@ queue, with `as_of` taken *before* reading it (see below). Shots come in **cut o
    "action": "Dean steps into the clearing at dawn.",
    "cut": {"take": 1, "picked": true, "pass": "proxy", "placeholder": false,
            "usable": true, "trim_in": 0, "trim_out": 0, "locked": false, "note": "",
-           "in_cut_file": true, "frames": 107, "out": false, "flag": false},
+           "in_cut_file": true, "frames": 107, "out": false, "flag": false,
+           "refine_faces": false},
    "override": {"fields": ["prompt", "seed"], "stale": false},
    "takes": [{"take": 1, "status": "ok", "has_video": true,
               "seed": "6430499148929255544", "seed_source": "stable", "frames": 107, "note": "",
@@ -652,7 +653,7 @@ nothing changed). 400 for a shot not in the cut, a script that doesn't parse, or
 that isn't a string or null.
 
 ### `PUT /seriesmith/cut`
-Body `{"ep", "pass", "entries": [{"shot", "take"?, "pass"?, "trim_in"?, "trim_out"?, "locked"?, "note"?, "audio"?, "out"?, "flag"?, "color"?, "fade_in"?, "fade_out"?, "dissolve"?}, …]}`. Replaces that pass's list, for reordering and trims.
+Body `{"ep", "pass", "entries": [{"shot", "take"?, "pass"?, "trim_in"?, "trim_out"?, "locked"?, "note"?, "audio"?, "out"?, "flag"?, "refine_faces"?, "color"?, "fade_in"?, "fade_out"?, "dissolve"?}, …]}`. Replaces that pass's list, for reordering and trims.
 Unknown shots are allowed; they become orphans. Returns `{"cut": …}`.
 `"out": true` leaves the shot out of the cut: it stays in the script with its takes, its
 place and its pick, and the status's `cut.out` says so; assemble, Play all, the cut's
@@ -663,6 +664,16 @@ shot) skip it, and the timeline shows it as a stub. A shot named outright (an up
 `"flag": true` is a bookmark, "come back to this one" (re-render it, change its prompt): it
 changes nothing played or assembled, a locked entry takes one, and reset and copying keep each
 pass's own. The status's `cut.flag` says so; the timeline shows a marker and a count.
+`"refine_faces": true` marks the clip for the face pass (the editor's R key): kept and shown as
+a flag is, and its own (`cut.refine_faces`). A marked clip's post refines its faces whenever a
+post doesn't say `faces` either way (post.faces_of, plan_post: the mark, then the shot's own
+`post.faces`, then the series' `post.master.faces`, "every shot"); `"refine_faces": false` keeps
+the clip out, null or absent leaves it to those, and each shot's `cut.faces_default` says what
+it gets without a mark; `POST /seriesmith/upscale`
+queues its face pass right behind its upscale (`faces_prompt_id` in its `queued` entry;
+`"marked_faces": false` in the body doesn't; without the face pass on this ComfyUI the upscale
+goes ahead and `errors` says why the faces didn't); master makes and plays its post in every
+Post-process mode (`face_shots` in the plan; assemble `--post --post-shots`).
 `"color": {"exposure"?, "contrast"?, "black"?, "saturation"?, "warmth"?, "tint"?}` is the
 clip's colour (seriesmith/color.py): exposure in stops (-2..2), contrast (-1..1: a gain of
 2^contrast around mid grey), the black point (-0.25..0.25: positive lifts, negative
@@ -1361,7 +1372,7 @@ no recipe at all is 409.
 ```
 
 A section's fields: `method`, `scale`, `detail`, `start_step`, `vae`, `pixel_model`,
-`seedvr2_model`, `upscaler` and `windowing` (`"pack"`: the node pack's in place of ComfyUI's own), `then` (an upscale model file, or `"seedvr2"`), `then_scale`, `precision`,
+`seedvr2_model`, `ltx_lora`, `upscaler` and `windowing` (`"pack"`: the node pack's in place of ComfyUI's own), `then` (an upscale model file, or `"seedvr2"`), `then_scale`, `precision`,
 `frequency_split`, `keep_soft`, `grain`. `quality` (`review` | `master`) is read by Phase
 13e3. The build warns about anything else (upscale.check_recipe).
 
@@ -1462,7 +1473,13 @@ What the editor's Upscale dialog offers on this ComfyUI:
 ```
 `method: "seedvr2"` runs SeedVR2 (ComfyUI's own nodes; any take, no prompt): `seedvr2_model`
 is `"7b"` (the default), `"3b"` or a file name; it takes `scale`, `from_upscale` and the
-finish like the pixel method, and options lists it as `seedvr2: {status, missing, models, default}`. `latent[target]` is null for a target with no latent upscale; otherwise it also has `mode`
+finish like the pixel method, and options lists it as `seedvr2: {status, missing, models, default}`. `method: "ltx"` runs the LTX-2.5 detail pass (ComfyUI-LTXVideo's Tiled Fusion;
+any take, a prompt of its own about the look only): `ltx_lora` is `"refine"` (Refine Details,
+the default), `"restore"` or a LoRA file name; it takes `scale`, `deliver` and the finish like
+SeedVR2 (its size is rounded up onto a 32 grid, then cropped or padded to the delivery), not
+`from_upscale`; options lists it as `ltx: {status, missing, loras (of refine and restore, the installed ones), default}`. Its record has `ltx_lora`, `ltx_files` (the transformer, text
+encoder and VAE it loaded), `tiles` and `window` (the frames a temporal window samples).
+`latent[target]` is null for a target with no latent upscale; otherwise it also has `mode`
 (`resample` | `second_stage`), `align` and `fixed_scale` (second_stage's only scale), and
 the answer has `max_scale`, `recipe` (with `?ep=`: the episode's master recipe, null
 without one: `deliver`, `fit`, `quality`, `encoder`, `targets` (each video target's matching
@@ -1478,31 +1495,36 @@ or running.
 ## Post-process (post, 2026-10-06)
 
 A take's **post** is its fresh upscale finished: an enhance step (SeedVR2, a pixel model or
-SUPIR, at the upscale's size) then motion blur. `<stem>.post.mp4` / `.post.json` beside
+SUPIR, at the upscale's size), then each character's face refined, then motion blur. `<stem>.post.mp4` / `.post.json` beside
 it, its audio the upscale's; stale when the upscale changes. docs/POST_PROCESSING.md is
 the design record. The series config's recipe is `"post": {"master": {"enhance": "production", "motion_blur": 0.3}}`, a shot's own in overrides.json's top-level
 `"post": {"sh020": {…}}`. `enhance` is a tier (`draft`: pixel at 1x; `production`:
 SeedVR2 7B in fixed chunks; `cinematic`: SUPIR 0.2), a method (`pixel`, `seedvr2`,
-`supir`), an object (`{"tier" | "method", …fields}`) or `"none"`; `motion_blur` 0–1 of
-the frame interval (0.5 is a 180° shutter).
+`supir`), an object (`{"tier" | "method", …fields}`) or `"none"`; `faces` true, false or
+`{"denoise": 0.05–0.6 (0.4), "subjects": [ids]}` (each character of the shot with a sheet,
+by default); `motion_blur` 0–1 of the frame interval (0.5 is a 180° shutter).
 
 ### `POST /seriesmith/post`
-Body `{"ep", "pass"?, "shots"? | "takes"?, "redo"?, "recipe"?, "enhance"?, "blur"?, "quality"?}`: queue posts. `shots` (their cut takes; null: the whole cut) or `takes`
-(`[{shot, take}]`). `recipe: true`, or neither `enhance` nor `blur` given: each by the
-series' `post.master` with its shot's own over it (409 without one); else `enhance` and
-`blur` as given. `quality` (`review` | `master`; default: as each upscale was encoded).
+Body `{"ep", "pass"?, "shots"? | "takes"?, "redo"?, "recipe"?, "enhance"?, "faces"?, "blur"?, "quality"?}`: queue posts. `shots` (their cut takes; null: the whole cut) or `takes`
+(`[{shot, take}]`). `recipe: true`, or none of `enhance`, `faces`, `blur` given: each by the
+series' `post.master` with its shot's own over it (409 without one); else `enhance`, `faces`
+and `blur` as given. A take whose shot has no character to refine is an error when faces
+were all it was asked ("nothing to do"), else its post goes ahead without them and its
+`queued` entry's `notes` say so. `quality` (`review` | `master`; default: as each upscale was encoded).
 A take needs a fresh upscale (an error per take otherwise); a fresh post with the same
 settings is skipped unless `redo`. 409 when this ComfyUI can't run them (`missing`
-sentences). `{"queued": [{shot, take, what, width, height, prompt_id}], "skipped": [{shot, take?, reason}], "errors": [{shot, take, error}]}`.
+sentences). `{"queued": [{shot, take, what, width, height, prompt_id, notes?}], "skipped": [{shot, take?, reason}], "errors": [{shot, take, error}]}`.
 
 ### `GET /seriesmith/post/options[?ep=…]`
 ```json
 {"tiers": [{"id": "production", "enhance": {"method": "seedvr2", "seedvr2_model": "7b",
-            "chunk": "fit", "overlap": 6}, "text": "SeedVR2 7b",
+            "chunk": "fit", "overlap": "fit"}, "text": "SeedVR2 7b",
             "readiness": {"status": "ready", "missing": []}}, "…"],
  "methods": ["pixel", "seedvr2", "supir"],
  "blur": {"min": 0, "max": 1, "default": 0.3, "readiness": {"status": "ready", "missing": []}},
  "strength": {"min": 0.05, "max": 0.5, "default": 0.2},
+ "faces": {"denoise": {"min": 0.05, "max": 0.6, "default": 0.4},
+           "readiness": {"status": "ready", "missing": []}},
  "recipe": {"fields": {"enhance": "production", "motion_blur": 0.3},
             "text": "SeedVR2 7b, then motion blur 0.3", "shots": {}, "problems": []}}
 ```
@@ -1801,7 +1823,9 @@ you supply. Refs are the same thing whatever model consumes them. Each has a `sc
   target from the base's seed and the variant's words.
 - A **crop** (a location with `of`, `crop` and `zoom`: docs/PLATE_VARIANTS.md) carries
   `"crop"` (which part), `"zoom"` (how much closer, 1.6 when the series config leaves it
-  out) and `"upscaled"` (the upscale model its picture was made with, null when stretched)
+  out), `"upscaled"` (the upscale model its picture was made with, null when stretched) and
+  `"undescribed"` (`[[shot, size]]`: its close shots with no one named in them, when it has no
+  description of its own and so speaks with its master's, `build.undescribed`; `[]` otherwise)
   beside its `"of"`; any other ref has none of them. A series location carries `"uncropped"`:
   `[[shot, size]]`, its medium and close shots (ms, mws, cowboy, mcu, cu) on its whole plate
   when that plate is wide (not a crop, no `framing: medium` or `close`), from the built
@@ -3420,7 +3444,7 @@ waveforms, and play-through polish. Backend and UI build in parallel; the backen
   `audio_in` / `audio_out` (seconds on that track) if it doesn't already.
 - **`locked`** entries: `PUT /seriesmith/pick` answers 409 for a locked shot unless `force`;
   the UI also refuses to move, trim, leave out or put back them.
-- **CLI:** `seriesmith cut <ep> [--proxy] (--show | --order sh010,sh030,... | --move SH (--before|   --after) SH | --trim SH IN OUT | --lock SH | --unlock SH | --out SH | --in SH | --flag SH | --unflag SH |   --reset order|trims|all |   --copy-from final|proxy [order|trims|all])`.
+- **CLI:** `seriesmith cut <ep> [--proxy] (--show | --order sh010,sh030,... | --move SH (--before|   --after) SH | --trim SH IN OUT | --lock SH | --unlock SH | --out SH | --in SH | --flag SH | --unflag SH |   --mark-faces SH | --unmark-faces SH | --clear-faces SH | --reset order|trims|all |   --copy-from final|proxy [order|trims|all])`.
 
 ### Waveforms (backend)
 - **`GET /seriesmith/peaks?ep=…&path=…&bins=N[&start=S&end=E]`**: `path` is a media file relative

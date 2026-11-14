@@ -257,6 +257,36 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class UndescribedTest(unittest.TestCase):
+    """A close shot with no one named on a crop with no description of its own (build.undescribed):
+    it names the place by the master's first clause, the room, not the thing. Warned, and listed
+    on the crop's row; a crop with its own description, a shot with someone in it, or a medium
+    isn't."""
+
+    def story(self, c):
+        from seriesmith.core import ir
+        def shot(i, size, plate, cast=()):
+            return ir.Shot(id=i, cast=list(cast), size=size, plate=plate)
+        return ir.Episode(id="ep01", title="T", sequences=[ir.Sequence(id="sq01", location="alcove", shots=[
+            shot("sh010", "ecu", "alcove_left"), shot("sh020", "cu", "alcove_left", ["ada"]),
+            shot("sh030", "ms", "alcove_left"), shot("sh040", "cu", "alcove"),
+            shot("sh050", "mcu", "alcove_left")])])
+
+    def test_which_shots(self):
+        from seriesmith import build as B
+        c = SC.series_config_from(cfg())
+        self.assertEqual(B.undescribed(self.story(c), c), {"alcove_left": [("sh010", "ecu"), ("sh050", "mcu")]})
+        w = B.undescribed_warnings(self.story(c), c)
+        self.assertEqual(len(w), 1)
+        self.assertIn("location 'alcove_left': sh010 (ecu), sh050 (mcu) hold on a detail of it", w[0])
+        self.assertIn("'alcove''s first clause", w[0])
+
+    def test_its_own_description_quiets_it(self):
+        from seriesmith import build as B
+        c = SC.series_config_from(cfg(description="close on the drinks machine, its lit buttons"))
+        self.assertEqual(B.undescribed(self.story(c), c), {})
+
+
 class UncroppedTest(unittest.TestCase):
     """Medium and close shots on a wide place's whole plate (build.uncropped): warned, and
     listed on the place's row; a crop, a place marked `framing`, an insert or a wide isn't."""

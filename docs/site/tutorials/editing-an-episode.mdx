@@ -11,12 +11,13 @@ description: "Tutorial 12: the working loop on a 288-shot episode: watch it thro
 
 With hundreds of shots you never review the whole cut again. You mark what's wrong once,
 in one pass, fix the words, re-render only what changed, and come back only to what you
-marked. Two marks do it:
+marked. Two marks do it, and a third for faces:
 
 | Key | Mark | For |
 |---|---|---|
 | **n** | a **note**: a sentence about what's wrong | Things the script or series config should say differently: an assistant can rewrite them |
 | **M** | a **flag**: a pink flag on the clip | Anything else to come back to: a new take, a prompt, a trim |
+| **R** | a **mark for faces**: a person icon on the clip (or, when the series refines every shot, kept out) | A face too small or garbled to read (a wide, a full shot): the clip's upscale is followed by a face pass ([Tutorial 13](/tutorials/finishing)) |
 
 ## 1. Watch it through
 
@@ -55,7 +56,10 @@ compiled from them, and the pictures it used. Editing the script later never rew
     clip's corner, and the count in the timeline's header goes up. **M** again unflags it.
   </Step>
   <Step title="Both in one pass">
-    Keep going to the end: **n** for words to change, **M** for everything else.
+    Keep going to the end: **n** for words to change, **M** for everything else, and **R**
+    on a clip whose faces need redrawing (**Shift+R** goes to the next one; **R** again unmarks).
+    If the series refines every shot, **R** keeps a clip out instead.
+    Judge faces at render size, as the dailies play: the face pass runs after the upscale.
   </Step>
 </Steps>
 

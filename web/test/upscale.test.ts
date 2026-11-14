@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitSize, fitWords, isVsr, methodFor, modelLabel, parseDeliver, thenSize, upscaleSize } from "../src/lib/upscale";
+import { fitSize, fitWords, isVsr, ltxGrid, methodFor, modelLabel, parseDeliver, thenSize, upscaleSize } from "../src/lib/upscale";
 
 const h3 = { status: "ready" as const, missing: [], mode: "resample" as const, align: 32, fixed_scale: null };
 const ltx = { status: "ready" as const, missing: [], mode: "second_stage" as const, align: 32, fixed_scale: 2 };
@@ -11,6 +11,12 @@ describe("upscaleSize (Phase 13, the Upscale dialog)", () => {
     expect(upscaleSize(take(960, 544), "pixel", 1.5, null)).toEqual({ ok: true, w: 1440, h: 816 });
     expect(upscaleSize(take(448, 256), "pixel", 5, null).ok).toBe(false);
     expect(upscaleSize(take(448, 256), "pixel", 1, null).ok).toBe(false);
+  });
+  it("the LTX detail pass: any scale, the sides up onto its 32 grid", () => {
+    expect(upscaleSize(take(1344, 768), "ltx", 2, null)).toEqual({ ok: true, w: 2688, h: 1536 });
+    expect(upscaleSize(take(1000, 562), "ltx", 2, null)).toEqual({ ok: true, w: 2016, h: 1152 });
+    expect(upscaleSize(take(1344, 768), "ltx", 5, null).ok).toBe(false);
+    expect(ltxGrid(3840, 2196)).toEqual({ w: 3840, h: 2208 });              // 4K's covering frame
   });
   it("H3 re-sample: sides on the 32 grid", () => {
     expect(upscaleSize(take(1344, 768), "latent", 1.5, h3)).toEqual({ ok: true, w: 2016, h: 1152 });

@@ -203,7 +203,7 @@ def episode_brief(res: dict) -> dict:
         shots.append(dict(
             _pick(s, "shot", "sequence", "seconds", "target", "subjects", "action",
                   "missing_refs", "retarget_error"),
-            cut=_pick(cut, "take", "usable", "picked", "out", "flag"),
+            cut=_pick(cut, "take", "usable", "picked", "out", "flag", "refine_faces"),
             takes=[dict(_pick(t, "take", "status", "stale", "frames", "target", "note",
                               "save_notes"),
                         **({"thumb": t["thumb"]} if t.get("thumb") else {}),
@@ -278,7 +278,7 @@ def passthrough(method: str, path: str) -> Callable:
     return lambda c, a: c.call(method, path, body=dict(a))
 
 
-CUT_CHANGES = ("take", "trim_in", "trim_out", "locked", "note", "out", "flag", "audio", "color",
+CUT_CHANGES = ("take", "trim_in", "trim_out", "locked", "note", "out", "flag", "refine_faces", "audio", "color",
                "fade_in", "fade_out", "dissolve")
 
 
@@ -500,6 +500,7 @@ TOOLS: list[Tool] = [
                              "trim_in": {"type": "integer"}, "trim_out": {"type": "integer"},
                              "locked": {"type": "boolean"}, "note": _s("a note"),
                              "out": {"type": "boolean"}, "flag": {"type": "boolean"},
+                             "refine_faces": {"type": ["boolean", "null"]},
                              "audio": {"type": ["object", "null"]},
                              "color": {"type": ["object", "null"]},
                              "fade_in": {"type": "integer", "minimum": 0},
@@ -562,7 +563,7 @@ TOOLS: list[Tool] = [
 
     # finishing: upscale, post, master
     Tool("upscale_options", "What upscaling can run on this machine: pixel models, which "
-         "video models can re-sample (latent), SeedVR2, delivery sizes; with ep, the "
+         "video models can re-sample (latent), SeedVR2, the LTX detail pass, delivery sizes; with ep, the "
          "series' master recipe.", {"ep": _s("optional: an episode, for its recipe")}, (),
          route("GET", "/seriesmith/upscale/options", "ep", query=True)),
     Tool("post_options", "What post-processing can run here (enhance tiers and methods, "
@@ -624,14 +625,14 @@ TOOLS: list[Tool] = [
     Tool("upscale", "QUEUES JOBS (GPU or credits): the final cut's takes upscaled (the "
          "whole cut when shots and takes are left out; fresh ones skipped unless redo). "
          "Common fields below; every other field of POST /seriesmith/upscale passes "
-         "through (then_pixel_model, then_method, seedvr2_model, detail, encoder, ...). "
+         "through (then_pixel_model, then_method, seedvr2_model, ltx_lora, detail, encoder, ...). "
          "upscale_options says what can run.",
          {"ep": EP, "pass": _s("final when left out", enum=["proxy", "final"]),
           "shots": {"type": "array", "items": SHOT},
           "takes": {"type": "array", "items": {"type": "object", "properties": {
               "shot": SHOT, "take": TAKE}}},
           "redo": {"type": "boolean"}, "scale": {"type": "number"},
-          "method": _s("latent (re-sample), pixel or seedvr2"),
+          "method": _s("latent (re-sample), pixel, seedvr2 or ltx (the LTX-2.5 detail pass)"),
           "pixel_model": _s("a file in models/upscale_models, or rtx_vsr"),
           "deliver": _s("1080p, 1440p, 4k or WxH"), "fit": _s("crop or pad"),
           "quality": _s("review or master")}, ("ep",),

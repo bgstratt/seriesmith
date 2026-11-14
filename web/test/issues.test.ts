@@ -218,3 +218,49 @@ describe("the list", () => {
     expect(issuesOf(ep, "proxy")).toEqual([]);           // no notepad, no noise
   });
 });
+
+describe("the r key (mark for faces)", () => {
+  const marked = (ep: string, sh: string) =>
+    store.get().status[`${ep}|proxy`]?.shots.find((x) => x.shot === sh)?.cut.refine_faces;
+
+  it("marks and unmarks the selected clip, and leaves its flag alone", async () => {
+    const { ep, shot } = await setup();
+    store.set({ shot, viewer: null });
+    expect(cutKey(key("r"))).toBe(true);
+    await vi.waitFor(() => expect(marked(ep, shot)).toBe(true));
+    expect(store.get().status[`${ep}|proxy`].shots.find((x) => x.shot === shot)?.cut.flag).toBeFalsy();
+    expect(cutKey(key("r"))).toBe(true);
+    await vi.waitFor(() => expect(marked(ep, shot)).toBeFalsy());
+  });
+
+  it("during Play all, marks the clip on screen and keeps playing", async () => {
+    const { ep, shot } = await setup();
+    const { currentPlaylist } = await import("../src/actions");
+    const items = currentPlaylist(store.get());
+    const it2 = items.find((i) => i.shot !== shot && i.dur > 0.5)!;
+    store.set({
+      shot,
+      viewer: { kind: "cut", shot: items[0].shot, pass: "proxy", a: null, b: null, mode: "single", target: "a" },
+      cutPlay: { playing: true, pos: it2.start + 0.5, seek: null, rate: 1 },
+    });
+    expect(cutKey(key("r"))).toBe(true);
+    await vi.waitFor(() => expect(marked(ep, it2.shot)).toBe(true));
+    expect(marked(ep, shot)).toBeFalsy();
+    expect(store.get().cutPlay.playing).toBe(true);
+    store.set({ viewer: null });
+  });
+
+  it("Shift+R goes to the next marked clip; a held key and a field are ignored", async () => {
+    const { ep, shot } = await setup();
+    const shots = store.get().status[`${ep}|proxy`].shots.map((x) => x.shot);
+    store.set({ shot: shots[2], viewer: null });
+    cutKey(key("r"));
+    await vi.waitFor(() => expect(marked(ep, shots[2])).toBe(true));
+    store.set({ shot });
+    expect(cutKey(key("R", { shiftKey: true }))).toBe(true);
+    expect(store.get().shot).toBe(shots[2]);
+    cutKey(key("r", { repeat: true }));
+    expect(marked(ep, shots[2])).toBe(true);
+    expect(cutKey(key("r", { target: { tagName: "INPUT" } }))).toBe(false);
+  });
+});

@@ -393,7 +393,7 @@ specific glob, then `"*"`):
   (`master` for delivery, `review` quicker).
 - Per model: `method` (`latent`: re-sampled by the take's own model, the best for H3 and
   LTX; `pixel`: an upscale model, `pixel_model`; `seedvr2`: a restoration model,
-  `seedvr2_model`), `scale` (a number, or `"auto"`: the smallest that covers `deliver`),
+  `seedvr2_model`; `ltx`: the LTX-2.5 detail pass, `ltx_lora` `refine` or `restore`), `scale` (a number, or `"auto"`: the smallest that covers `deliver`),
   `then` (an upscale model file, or `"seedvr2"`, after a re-sample).
 - FastH3 Omni re-samples as H3 does but isn't `minimax_h3_*`: give `fasth3_*` its own
   section, or its shots fall to `"*"`.
@@ -434,6 +434,13 @@ motion), then motion blur:
 sharpen), `cinematic` (SUPIR, very slow) or `none`; `motion_blur` is a fraction of the
 frame interval (0.3 smooths blocky motion, 0.5 is a 180° shutter). Write it for a 1080p or
 1440p master; leave it out for 4K (unmeasured there) or when they haven't asked.
+`"faces": true` redraws each character's face from their sheet where it's too small to
+have eyes and a mouth (wides and full shots; about a minute a character a shot; a large
+face is barely touched). Leave it out by default: the user marks the clips that need it
+with R while watching the dailies. Put it in `post.master` (Series settings → Finishing →
+**Post: refine faces** → every shot) only when they ask for every shot without marking; a
+shot's own `post` in overrides.json (`true` or `false`) is over it, and a clip's R mark
+(either way) is over both.
 
 ### Series intro and outro: the `publish` block
 
@@ -810,7 +817,11 @@ seriesmith never crops by itself: the script decides. Go through every medium an
    episode check it. Each crop is cut at the build and shown on its row in the Refs tab; one that
    shows only wall, floor or sky, or misses what its description names, has the wrong part or too
    much zoom: move the part or lower the zoom. Working from the script alone, without the
-   pictures, say so when you hand it over, so the crops get that look.
+   pictures, say so when you hand it over, so the crops get that look. A crop without one
+   speaks with its master's description, and an insert (a close shot of a thing, no one in
+   it) names its place by the first clause, up to the first comma: start the crop's
+   description with the thing itself ("close on the cracked dashboard of an old pickup
+   truck, its air vents and an old radio"), not with the room it's in.
 
 ### What a place sounds like: `ambience`
 

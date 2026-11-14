@@ -236,6 +236,11 @@ def block() -> str:
         for name, (folder, url) in U.SEEDVR2_DOWNLOADS.items():
             lines += [f"- `{name}` → `models/{folder}/` — [download]({url}) "
                       f"({U.SEEDVR2_SOURCE})"]
+        lines += ["", "**The LTX-2.5 detail pass** (any take; ComfyUI-LTXVideo from 2026-11-12 on, "
+                  "LTX-2.5's distilled transformer, text encoder and video VAE as for `ltx2`, gated): "
+                  "at least one of the detail LoRAs.", ""]
+        for name, (folder, url) in U.LTX_DOWNLOADS.items():
+            lines += [f"- `{name}` → `models/{folder}/` — [download]({url}) ({U.LTX_SOURCE})"]
         lines += [""]
         for tid, mode in own:
             lines += [f"- `{tid}`: nothing extra. Its render already has a latent upsampler, "

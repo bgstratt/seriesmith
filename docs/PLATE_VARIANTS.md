@@ -79,7 +79,7 @@ shots plays in one part of a wide plate, that part becomes a crop, and those sho
       keyframe's plate).
 - [x] Generate in the Refs tab: an edit of the master told which part, how much closer
       (`refs.built_prompt`).
-- [ ] The Refs tab: check a crop shows as a location with its picture (it's one like any other).
+- [x] The Refs tab: a crop shows as a location with its picture (the user, 2026-11-13).
 - [x] AUTHORING.md (and so the skill): **Medium and close shots get a crop of the plate**.
 - [x] Live (2026-11-12, Porchlights ep02 on a scratch copy, H3 Hybrid): sh1115 (MS) on
       `alcove_drinks` (left, 1.6): waist up between the drinks machine and the fountain, clean,

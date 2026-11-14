@@ -109,6 +109,19 @@ in place of an upscale model: `seriesmith upscale <ep> --then-seedvr2 --deliver 
 Then: SeedVR2), so the take is redrawn under its own prompt with its lips held, then
 restored to the output size.
 
+The **LTX-2.5 detail pass** is the fourth method, for any take too: LTX-2.5 redraws the take
+at the new size with one of Lightricks' detail IC-LoRAs, its frames as the guide, in tiles
+that share one canvas (ComfyUI-LTXVideo's Tiled Fusion sampler), so any size up to 8K comes
+out in one piece. `seriesmith upscale <ep> --method ltx --deliver 4k` (the dialog's LTX-2.5
+detail pass); `--ltx-lora restore` for the Restore LoRA instead of Refine Details (the
+default). Refine Details adds detail and keeps the look; Restore also cleans up compression
+and softness, and moves the colour more, which the colour finish after it takes back from the
+take, as after SeedVR2. It works from the take's frames with a prompt of its own about the
+look only (no prompt of the take's, no references), and the take's audio is copied on. It is
+slow: about 10 s a frame to 4K on an RTX 5090, and a 4.5 s take used 30 GB of its 32 GB;
+a take longer than about 5 s is sampled in 97-frame windows. It needs ComfyUI-LTXVideo from
+2026-11-12 or later and LTX-2.5's files (the Features window's LTX-2.5 detail pass).
+
 `--scale` is any number above 1, up to 4 (a pixel upscale lands on even sides, an H3
 re-sample on the 32 grid, so 1.5x, 2x, 3x of 1024×576 all work; the LTX targets' is 2x
 only). For 4x with generated detail, re-sample then upscale in one go:
@@ -448,14 +461,32 @@ blocky edges and shadows, and moving things that smear in blocks instead of blur
   - `"none"` skips the clean-up.
 - `motion_blur`: a fraction of the frame interval, 0 to 1. 0.3 smooths blocky motion; 0.5 is
   a 180° film shutter. Still areas are left alone.
+- `faces`: `true` redraws each character's face where it's small. Their face is tracked,
+  cropped so it fills the frame, redrawn by H3 Ref2VA from their sheet, and stitched back with
+  a feathered, colour-matched edge, its lips held to the take's sound. A small face (30 px or
+  so) gets all of the denoise, a 120 px one about a third, so a close-up is barely touched.
+  It runs after the clean-up and before the blur, about a minute a character, and needs
+  Carasibana's ComfyUI-H3-FaceRefine node pack (Setup lists it as **Refine faces**).
+  `{"denoise": 0.3}` is gentler (0.05 to 0.6; above 0.4 the head can drift from the body);
+  `{"subjects": ["peg"]}` refines only those characters. A character without a sheet is
+  left out, and a shot with no characters plays its upscale.
+  Off by default. In `post.master` (Series settings → Finishing → **Post: refine faces** →
+  **every shot**) it applies to every shot wherever the shot is finished: the upscale queues
+  its face pass behind it, and Master makes it whatever its Post-process mode.
 - A shot can have its own over it in overrides.json: `"post": {"sh040": {"motion_blur": 0},
-  "sh050": {"enhance": "none"}}`.
-- Face detailing (redrawing faces with an image model) was tried and dropped: it changed who
-  the characters were (docs/POST_PROCESSING.md).
+  "sh050": {"enhance": "none"}, "sh1350": {"faces": true}}` (`"faces": false` leaves one
+  shot out of "every shot").
+- Or mark the clip while you watch the dailies (the editor's **R**, `seriesmith cut --mark-faces`
+  / `--unmark-faces`): its upscale, its post and the master refine its faces from then on, or
+  leave them, with or without a post recipe (EDITOR.md, **Marking clips for faces**).
+
+  Which wins, when a post isn't told outright: the clip's mark (true or false, the last word),
+  then the shot's own `post.faces`, then the series'; none of them, no faces.
 
 `seriesmith post Shows\ep05` posts every upscaled shot of the cut by the recipe (`--only`,
-`--redo`, or `--enhance` / `--blur` for a one-off), and the editor's take and cut menus
-have **Post-process…**. The Master dialog's **Post-process** says what the master is made from:
+`--redo`, or `--enhance` / `--faces` / `--blur` for a one-off), and the editor's take and cut
+menus have **Post-process…** (the take menu's **Refine faces…** is the same dialog on faces
+alone). The Master dialog's **Post-process** says what the master is made from:
 
 - **Off**: the upscales.
 - **Where present** (`seriesmith master Shows\ep05 --post present`): each shot's fresh post where
