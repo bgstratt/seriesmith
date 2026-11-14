@@ -156,6 +156,10 @@ class TestSkillSplit(unittest.TestCase):
             if blocks:
                 self.assertEqual(core.count(f"**Read `references/{name}.md`**"), 1, name)
 
+    def test_the_core_stays_short(self):
+        """SKILL.md is read whole each time the skill loads; what grows goes to a reference."""
+        self.assertLessEqual(P.words(P.body()), P.MAX_CORE_WORDS)
+
     def test_the_site_page_has_no_marker(self):
         with open(os.path.join(S.SITE, "authoring.mdx"), encoding="utf-8") as fh:
             self.assertNotIn("skill:", fh.read())

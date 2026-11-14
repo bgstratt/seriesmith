@@ -1,6 +1,6 @@
 # Wardrobe, groups and vehicles
 
-A reference for SKILL.md: a wardrobe change as a variant and how to cut round it, the same background people in several shots as a group, the bokeh plate, vehicles in motion. Read it when a character changes clothes, the same background people are seen twice, or a vehicle moves.
+A reference for SKILL.md: a wardrobe change as a variant and how to cut round it, the same background people in several shots as a group, a blurred plate for a close-up, vehicles in motion. Read it when a character changes clothes, the same background people are seen twice, a vehicle moves, or a close-up needs nothing but blur behind the face.
 
 ### A wardrobe change is a new subject
 
@@ -105,6 +105,29 @@ Standing just inside the door, Luis holds his hard hat in both hands against his
 ```
 
 and every later shot of him in the office is `luis_plant_bareheaded` too.
+
+**When the room still shows behind a close-up.** The blur is words, and the model follows the
+plate's picture more than the prompt: a sharp plate still comes through, windows and candles
+and all. For a close-up that must have nothing behind the face but soft bokeh, make its
+background yourself:
+
+1. Find where the subject's head sits in the plate (behind Cindy, the open doorway; behind
+   Charming, the fireplace wall).
+2. Crop a patch of the plate there, in the frame's shape: about an eighth of the plate's
+   width for an `ecu`, a fifth for a `cu`.
+3. Scale it up to the render size and blur it heavily, until nothing in it has an edge.
+4. Give it a location of its own, an angle of the place (`of:`), with a description that names
+   nothing in it, and name it with `plate:` on the shot:
+
+```json
+"hall_bokeh_cindy": {"of": "hall",
+                     "description": "a magnified, completely out-of-focus crop of the background behind the subject: a soft wash of grey daylight framed by dark shadow, nothing recognizable",
+                     "plate": "../refs/_bg/hall_bokeh_cindy.png"}
+```
+
+Don't name the room's things in that description (the fireplace, the door), even out of
+focus: on H3 the words were drawn as a sharp room over the blurred picture. A plate that is
+only a blurred patch can't show where someone stands in a two-shot, so keep it to singles.
 
 ### Vehicles in motion
 

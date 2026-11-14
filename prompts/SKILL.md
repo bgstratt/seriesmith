@@ -152,7 +152,7 @@ sound: rustling raincoat, dripping water, distant birds
 
 Build it with `seriesmith check Shows\ep01` and then `seriesmith build Shows\ep01`.
 
-> **Read `references/series_config.md`** when writing a new `series.json`, or any block of one besides `subjects` and `locations`. It holds **Starting a series: what to settle first**, **Render size and delivery**, **The master recipe: `upscale.master`**, **Post-process: the `post` block**, **Series intro and outro: the `publish` block**, **Render profiles**, **Reference images and voices: the `refs` block**, **The episode's sound: the `sound` block**, **Negative prompts**, **Writing the `look` line**, **What a place sounds like: `ambience`**.
+> **Read `references/series_config.md`** when writing a new `series.json` or any block of one besides `subjects` and `locations`, relighting a plate, or marking a cold open. It holds **Starting a series: what to settle first**, **Render size and delivery**, **The master recipe: `upscale.master`**, **Post-process: the `post` block**, **Series intro and outro: the `publish` block**, **Render profiles**, **Reference images and voices: the `refs` block**, **The episode's sound: the `sound` block**, **Negative prompts**, **Writing the `look` line**, **What a place sounds like: `ambience`**, **A cold open: `cold_open:`**.
 
 ## The one thing that shapes every decision
 
@@ -170,39 +170,6 @@ shot 93. So:
 > **Read `references/models.md`** when the series config or a shot names a `target:`, or the person asks which model to use. It holds **Choosing a video target**, **Which model a shot renders on**, **Rendering a shot on LTX-2**, **Rendering a shot on LTX-2 with its refs: `target: ltx2_ingredients`**, **Rendering a shot on LTX-2.5 with several people's pictures: `target: ltx2_msr`**, **Rendering a shot on H3 from keyframes: `target: minimax_h3_fl2va`**, **Rendering a shot on Wan 2.2: `wan22_i2v`, `wan22_ti2v`, `wan22_vace`**, **Keyframes: `first:` and `last:`**, **A picture held still: `target: hold`**, **Rendering a shot on a hosted model: Seedance, Kling, Veo, …**, **Letting the model time a shot: `dur: model`**.
 
 ## The series config: series.json
-
-```json
-{
-  "series": { "id": "gold_path", "title": "The Gold Path",
-              "fps": 24, "width": 1344, "height": 768, "steps": 8 },
-  "proxy":  { "width": 896, "height": 512, "steps": 4, "audio_mode": "generate" },
-  "style":  { "look": "a 2D hand-drawn cartoon animation with clean black line art, flat solid colors and cel shading" },
-  "speech": { "pace": "normal" },
-  "subjects": {
-    "riley": {
-      "kind": "character",
-      "name": "Riley",
-      "design": "an eight-year-old boy with cornrow braids, an oversized yellow hoodie, baggy grey shorts and worn high-top sneakers, drawn with thick confident outlines",
-      "sheet": "refs/riley/riley_sheet_4panel.png",
-      "voice": "fast, bright, always slightly too loud",
-      "voice_sample": "audio/voices/riley_sample.wav"
-    },
-    "backpack": {
-      "kind": "prop",
-      "name": "Riley's backpack",
-      "design": "a battered olive-green canvas backpack with two front buckles and a shoelace for a zipper pull",
-      "sheet": "refs/props/backpack.png"
-    }
-  },
-  "locations": {
-    "street_gate": {
-      "description": "a late-afternoon suburban street seen from the yard gate, dense treeline beyond, warm low sun raking in from the left and long shadows across the asphalt",
-      "plate": "refs/_bg/street_gate.png"
-    }
-  },
-  "audio": { "mode": "clone" }
-}
-```
 
 - `style.look` opens every shot's description ("The target video is …"), so it sets the
   photography of the whole series. See **Writing the `look` line**.
@@ -224,7 +191,7 @@ shot 93. So:
   different clothes, the same prop in a different state. See **A wardrobe change is a new
   subject**.
 - `audio.mode` sets how dialogue shots sound: `clone` (the model speaks the written lines in
-  each character's sampled voice), `source_track` (you supply a recorded mix, `audio.track`,
+  each character's sampled voice, their `voice_sample`), `source_track` (you supply a recorded mix, `audio.track`,
   and shots dub to it; see seriesmith's recorded dialogue guide) or `generate` (the default: the model
   invents the voices from each `voice` line; no recordings or samples needed).
   `proxy.audio_mode` can use another mode for the animatic (`generate` is the usual one),
@@ -274,12 +241,8 @@ Weak: *"a mischievous kid with boundless energy who never sits still"* — none 
 drawable, and it crowds out detail that is.
 
 Lead with who they are (*"a young woman"*), then hair, then wardrobe and accessories; keep the
-body to build and silhouette (*tall*, *stocky*, *slight*). Hosted models (Seedance, Kling,
-Veo, Seedream, …) run behind their provider's content filter, and an explicit description of
-a body is what it refuses: for those, seriesmith tells the model the design without it, in
-the shot's prose and a reference picture's prompt alike (the pictures carry the look). Your
-own ComfyUI's models get the sentence as you wrote it. A design that leads with clothes and
-hair loses nothing either way.
+body to build and silhouette (*tall*, *stocky*, *slight*). A design that leads with clothes
+and hair reads the same on every model, a hosted one behind its provider's filter included.
 
 Location descriptions work the same way and must include the light: time of day, direction,
 quality. The plate is generated from that sentence. **Name the sources**: the pendant lamp
@@ -301,7 +264,8 @@ office_wide    the whole interior at once
 ```
 
 **Time of day is part of the location.** `street_day` and `street_night` are two entries with
-two plates, because the plate carries the light.
+two plates, because the plate carries the light. (A plate can also be made from another by
+relighting it: a location with `of:` and `relight:`.)
 
 **Write the angles as one place.** Each plate is drawn from its own `description`, so unless
 those sentences share fixed features they describe several rooms with the same name rather
@@ -328,24 +292,6 @@ angles of it:
   the master's plate**: the same building, materials and light, with only the camera moved.
   On a text-to-image model (Krea 2) it is drawn from its words as before.
 - An angle's master must be a location that isn't itself an angle.
-
-**A relit plate is a location too.** The same view under another light (the street at dusk
-for a flashback, the porch at night) is a location with `of:` and `relight:`, a relight
-preset's id (`dusk`, `night`, `rain`, `neon`, …) or the instruction in your own words:
-
-```json
-"street_dusk": {"name": "Street (Dusk)", "of": "street", "relight": "dusk",
-                "description": "a wet night street ... It is dusk, a deep blue evening sky ...",
-                "plate": "../refs/_bg/street_dusk.png"}
-```
-
-- On an edit model its plate is made **from the source's plate** with that relight: the
-  same place, only the light changed. Its description should carry the new light, since
-  shots read it.
-- Name it like any location: `# sq04 street_dusk`, or `plate: street_dusk` on a shot.
-- The source may be an angle; a relit plate's source can't itself be relit.
-- The editor can also make these from the plates (Relight on a sequence; a 360 panorama or a
-  camera tour of a master for its angles' pictures): in a config you only name them.
 
 ### Medium and close shots get a crop of the plate
 
@@ -414,13 +360,7 @@ seriesmith never crops by itself: the script decides. Go through every medium an
 
 ### Two people talking need an angle each
 
-This is the one that spoils scenes most often, and the build warns about it:
-
-```
-sequence sq11: Skye and Dr. Walter each get their own shot on the same plate (cafe_couch), so
-they are drawn against one background from one view and the cut reads as a single camera
-rather than a reverse angle. Give the location an angle per speaker and name it with `plate:`.
-```
+This is the one that spoils scenes most often, and the build warns about it.
 
 One plate is one picture. Two singles built on it are drawn against the same background from
 the same view, so cutting between them looks like one locked-off camera that people step into
@@ -499,7 +439,7 @@ is left alone, though on-screen lettering has its own field, `text:`.
 "takes off his hat" or "pulls on her coat" can't be written as action: a character who
 changes is a second subject (a variant), and the change itself is cut round.
 
-> **Read `references/people.md`** when a character changes clothes, the same background people are seen twice, or a vehicle moves. It holds **A wardrobe change is a new subject**, **Never show the change itself**, **Vehicles in motion**, **A group: the same extras every shot**.
+> **Read `references/people.md`** when a character changes clothes, the same background people are seen twice, a vehicle moves, or a close-up needs nothing but blur behind the face. It holds **A wardrobe change is a new subject**, **Never show the change itself**, **Vehicles in motion**, **A group: the same extras every shot**.
 
 ## The script: epNN.md
 
@@ -581,35 +521,14 @@ sequence (`continuous:` for every shot after the first); a shot's own line beats
 
 > **Read `references/continuity.md`** when you are about to write a `continuous:` line. It holds **Continuous shots: `continuous:`**, **Several shots in one generation: `continuous: multishot`**.
 
-### A cold open: `cold_open:`
-
-A teaser before the opening titles: the episode's first scene, then the series intro, then
-the rest. Mark the sequences (or shots) that play before the titles:
-
-```
-# sq01  diner_night
-cold_open: true
-```
-
-- **It's the cut's first shots, one after another.** A master (and the editor's **Titles**)
-  puts the series intro in right after the last of them; without any, at the start.
-- **The cut's order decides.** A marked shot moved after one that isn't is a gap: master
-  refuses until it's fixed. In the editor, right-click the clip the cold open should end on,
-  **In the cut › Cold open ends here**: the marks are rewritten to the cut as it is.
-- **A dissolve can't cross the break**: the titles go in on a cut.
-- Export and the mix are the cut as it is, with no titles; Play all's **Titles** plays the
-  intro and outro where a master puts them.
-- **Writing one:** a structure's **Cold Open** or **Teaser** beat is a cold open, and so is a
-  screenplay's `COLD OPEN` or `TEASER` heading (`references/script_conversion.md`): mark those
-  sequences, and only those.
-
 ## Durations land on a grid
 
 Every video model takes only certain frame counts, and a `dur:` between two of them rounds
 **up**, so you pay for frames you throw away. The grid is the target's: `17k + 5` frames on
 the H3 targets, `8k + 1` on LTX, `4k + 1` on Wan (at 24 fps; best kept to 3 s), whole
 seconds in each model's range on a hosted one. The build
-snaps each shot to its own target's grid, and `--check` warns about wasted padding.
+snaps each shot to its own target's grid, and the check's runtime line says how many frames
+that added (`+16f grid pad`).
 
 Write for H3's grid, the default; the other grids are fine-grained enough that these
 lengths land close on them too. At 24fps these are free on H3:
@@ -701,10 +620,6 @@ Film terms translate into that vocabulary:
 | over the shoulder | not a move: `size: ots`, with both in `who:`, and say whose shoulder in the action ("over Ada's shoulder, Bo faces camera") |
 | rack focus | not a move: say it in the action, "the focus shifts from the cup to Ada's face" |
 
-Staging (where people stand, who faces camera, how a scene's angles cut together) is the
-director's craft and is best learned from a book like Christopher Kenworthy's *Master
-Shots*; this guide covers only how to say the result to the model.
-
 On a wide full of big architecture (a plant, a street front, a church), prefer holding still,
 a pan or a slow push over a track, truck or arc. A camera that moves through the space makes
 the model redraw the buildings as it goes, and they build and unbuild themselves on screen.
@@ -787,30 +702,8 @@ the plate, completely blurred into soft bokeh. On H3 Ref2VA that last is named b
 alone, without the location's description, so the model isn't asked to draw the room. That is
 why a close-up on H3 has the room behind the face, blurred, and not a studio backdrop. A
 close-up still leaves the room's layout to the shots around it, so stage the space on a
-medium first.
-
-**When the room still shows behind a close-up.** The blur is words, and the model follows the
-plate's picture more than the prompt: a sharp plate still comes through, windows and candles
-and all. For a close-up that must have nothing behind the face but soft bokeh, make its
-background yourself:
-
-1. Find where the subject's head sits in the plate (behind Cindy, the open doorway; behind
-   Charming, the fireplace wall).
-2. Crop a patch of the plate there, in the frame's shape: about an eighth of the plate's
-   width for an `ecu`, a fifth for a `cu`.
-3. Scale it up to the render size and blur it heavily, until nothing in it has an edge.
-4. Give it a location of its own, an angle of the place (`of:`), with a description that names
-   nothing in it, and name it with `plate:` on the shot:
-
-```json
-"hall_bokeh_cindy": {"of": "hall",
-                     "description": "a magnified, completely out-of-focus crop of the background behind the subject: a soft wash of grey daylight framed by dark shadow, nothing recognizable",
-                     "plate": "../refs/_bg/hall_bokeh_cindy.png"}
-```
-
-Don't name the room's things in that description (the fireplace, the door), even out of
-focus: on H3 the words were drawn as a sharp room over the blurred picture. A plate that is
-only a blurred patch can't show where someone stands in a two-shot, so keep it to singles.
+medium first. (When a sharp plate still shows through behind a close-up, it can be given a
+blurred plate of its own.)
 
 **Say how tight an extreme close-up is, in its action.** The framing's name alone gives a
 close-up of the whole face; the action says what fills the frame: "an extreme close-up of
@@ -839,13 +732,9 @@ between them:
 4. **A cut on action.** Open the second shot mid-movement ("already turning to the door"),
    not at rest: movement across the cut hides the change of pose. It helps the other three;
    on its own it seldom saves a cut.
-5. **Continue the picture** when the second shot really is the same moment carrying on:
-   `continuous: first` opens the shot on the previous shot's last frame, so nothing
-   re-poses (on H3 FL2VA, which the shot moves to by itself; see **Continuous shots**). Its
-   upscale starts from the previous shot's upscaled last frame, so the two meet on one
-   picture. When the action itself runs across the cut (someone walking into the next
-   framing), `continuous: latent` carries the motion and sound too, on H3 Ref2VA, FastH3
-   Omni or H3 Singularity.
+5. **Continue the picture**, only when the second shot really is the same moment carrying
+   on: a `continuous:` line opens it on the previous shot's last frame, or carries its
+   motion and sound across (see **Continuous shots** before writing one).
 
 `continuous: multishot` is no fix for a jump cut: the model draws the cut the script asks
 for, so two near-identical shots in one generation still cut as one.
@@ -894,12 +783,13 @@ gone unless this shot says it again.
   seat is all H3 gets, so they vanish for a shot and come back on the next. The same goes for
   anyone the action touches or looks at in frame: "Harold reaches for Cora's elbow" with no
   Cora in `who:` gets an invented stranger.
-- **Repeat `extras:` on every shot of a populated room**, closes included ("diners at the far
-  tables, blurred behind him"). It does not carry over from the previous shot, and without it
-  the room is empty on the cut. That's for far-off, blurred people. **Anyone who comes back
-  and is seen** (the clerk behind the register, the nurse at the desk, two paramedics, the
-  workers at the next table) is a character, or a group subject for several, never the same
-  `extras:` line in two shots: see **A group: the same extras every shot**.
+- **A populated room is populated in every shot of it**, closes included: nothing carries
+  over from the previous shot, and without its people the room is empty on the cut. A shot's
+  `extras:` says who else is there ("diners at the far tables, blurred behind him"), drawn
+  afresh each time. So **anyone who comes back and is seen** (the clerk behind the register,
+  the nurse at the desk, two paramedics, the workers at the next table) is a character, or
+  for several a group subject, cast in each shot: `seriesmith check` warns when two shots at
+  one place name the same people in `extras:` (see **A group: the same extras every shot**).
 - **Say the posture.** A plate of a kitchen table is an empty table, and the sheet shows the
   character standing. Open on the posture plus the movement: "Seated at the kitchen table,
   Harold turns his head slowly…", not "Harold turns his head slowly…".
@@ -995,10 +885,6 @@ kitchen`, `# sq04 phone_room`, `# sq05 kitchen`.
 Keep a sequence intact and vary the shots with `plate:` rather than splitting a scene into
 one-shot sequences, which re-seeds every shot in it.
 
-`continuous:` under the `#` header applies to every shot after the first: `first` or
-`latent` chains each onto the one before as one continuous take, and `multishot` renders the
-whole sequence as one generation with cuts in it (see **Continuous shots**).
-
 ## What goes on which line
 
 These map to different fields in the generated prompt, and mixing them dilutes all three.
@@ -1029,7 +915,7 @@ range that isn't `min-max` seconds with min below max; a `target:` or `profile:`
 doesn't exist; a `first:` / `last:` that isn't a method or an image path; a `continuous:`
 the shot's own target can't render (`latent` on a model that isn't H3 Ref2VA or one of its
 family, `first` on a target that reads no first frame). Warnings cover
-crammed dialogue, wasted grid padding, and what a target can't do (a dialogue shot on Wan,
+crammed dialogue and what a target can't do (a dialogue shot on Wan,
 a `clone` shot on `ltx2_ingredients`).
 
 A script that does not compile is not a draft, it is a bug. Fix and re-run until it is clean.

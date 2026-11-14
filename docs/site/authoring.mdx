@@ -300,7 +300,7 @@ any other.
   different clothes, the same prop in a different state. See **A wardrobe change is a new
   subject**.
 - `audio.mode` sets how dialogue shots sound: `clone` (the model speaks the written lines in
-  each character's sampled voice), `source_track` (you supply a recorded mix, `audio.track`,
+  each character's sampled voice, their `voice_sample`), `source_track` (you supply a recorded mix, `audio.track`,
   and shots dub to it; see `RECORDED_DIALOGUE.md`) or `generate` (the default: the model
   invents the voices from each `voice` line; no recordings or samples needed).
   `proxy.audio_mode` can use another mode for the animatic (`generate` is the usual one),
@@ -616,12 +616,13 @@ Weak: *"a mischievous kid with boundless energy who never sits still"* — none 
 drawable, and it crowds out detail that is.
 
 Lead with who they are (*"a young woman"*), then hair, then wardrobe and accessories; keep the
-body to build and silhouette (*tall*, *stocky*, *slight*). Hosted models (Seedance, Kling,
-Veo, Seedream, …) run behind their provider's content filter, and an explicit description of
-a body is what it refuses: for those, seriesmith tells the model the design without it, in
-the shot's prose and a reference picture's prompt alike (the pictures carry the look). Your
-own ComfyUI's models get the sentence as you wrote it. A design that leads with clothes and
-hair loses nothing either way.
+body to build and silhouette (*tall*, *stocky*, *slight*). A design that leads with clothes
+and hair reads the same on every model, a hosted one behind its provider's filter included.
+
+Hosted models (Seedance, Kling, Veo, Seedream, …) run behind their provider's content filter,
+and an explicit description of a body is what it refuses: for those, seriesmith tells the
+model the design without it, in the shot's prose and a reference picture's prompt alike (the
+pictures carry the look). Your own ComfyUI's models get the sentence as you wrote it.
 
 Location descriptions work the same way and must include the light: time of day, direction,
 quality. The plate is generated from that sentence. **Name the sources**: the pendant lamp
@@ -691,7 +692,8 @@ office_wide    the whole interior at once
 ```
 
 **Time of day is part of the location.** `street_day` and `street_night` are two entries with
-two plates, because the plate carries the light.
+two plates, because the plate carries the light. (A plate can also be made from another by
+relighting it: a location with `of:` and `relight:`.)
 
 **Write the angles as one place.** Each plate is drawn from its own `description`, so unless
 those sentences share fixed features they describe several rooms with the same name rather
@@ -830,7 +832,7 @@ hum runs across its cuts instead of starting and stopping with each take:
 
 ### Two people talking need an angle each
 
-This is the one that spoils scenes most often, and the build warns about it:
+This is the one that spoils scenes most often, and the build warns about it.
 
 ```
 sequence sq11: Skye and Dr. Walter each get their own shot on the same plate (cafe_couch), so
@@ -1448,7 +1450,8 @@ Every video model takes only certain frame counts, and a `dur:` between two of t
 **up**, so you pay for frames you throw away. The grid is the target's: `17k + 5` frames on
 the H3 targets, `8k + 1` on LTX, `4k + 1` on Wan (at 24 fps; best kept to 3 s), whole
 seconds in each model's range on a hosted one. The build
-snaps each shot to its own target's grid, and `--check` warns about wasted padding.
+snaps each shot to its own target's grid, and the check's runtime line says how many frames
+that added (`+16f grid pad`).
 
 Write for H3's grid, the default; the other grids are fine-grained enough that these
 lengths land close on them too. At 24fps these are free on H3:
@@ -1626,7 +1629,8 @@ the plate, completely blurred into soft bokeh. On H3 Ref2VA that last is named b
 alone, without the location's description, so the model isn't asked to draw the room. That is
 why a close-up on H3 has the room behind the face, blurred, and not a studio backdrop. A
 close-up still leaves the room's layout to the shots around it, so stage the space on a
-medium first.
+medium first. (When a sharp plate still shows through behind a close-up, it can be given a
+blurred plate of its own.)
 
 **When the room still shows behind a close-up.** The blur is words, and the model follows the
 plate's picture more than the prompt: a sharp plate still comes through, windows and candles
@@ -1678,13 +1682,9 @@ between them:
 4. **A cut on action.** Open the second shot mid-movement ("already turning to the door"),
    not at rest: movement across the cut hides the change of pose. It helps the other three;
    on its own it seldom saves a cut.
-5. **Continue the picture** when the second shot really is the same moment carrying on:
-   `continuous: first` opens the shot on the previous shot's last frame, so nothing
-   re-poses (on H3 FL2VA, which the shot moves to by itself; see **Continuous shots**). Its
-   upscale starts from the previous shot's upscaled last frame, so the two meet on one
-   picture. When the action itself runs across the cut (someone walking into the next
-   framing), `continuous: latent` carries the motion and sound too, on H3 Ref2VA, FastH3
-   Omni or H3 Singularity.
+5. **Continue the picture**, only when the second shot really is the same moment carrying
+   on: a `continuous:` line opens it on the previous shot's last frame, or carries its
+   motion and sound across (see **Continuous shots** before writing one).
 
 `continuous: multishot` is no fix for a jump cut: the model draws the cut the script asks
 for, so two near-identical shots in one generation still cut as one.
@@ -1733,12 +1733,13 @@ gone unless this shot says it again.
   seat is all H3 gets, so they vanish for a shot and come back on the next. The same goes for
   anyone the action touches or looks at in frame: "Harold reaches for Cora's elbow" with no
   Cora in `who:` gets an invented stranger.
-- **Repeat `extras:` on every shot of a populated room**, closes included ("diners at the far
-  tables, blurred behind him"). It does not carry over from the previous shot, and without it
-  the room is empty on the cut. That's for far-off, blurred people. **Anyone who comes back
-  and is seen** (the clerk behind the register, the nurse at the desk, two paramedics, the
-  workers at the next table) is a character, or a group subject for several, never the same
-  `extras:` line in two shots: see **A group: the same extras every shot**.
+- **A populated room is populated in every shot of it**, closes included: nothing carries
+  over from the previous shot, and without its people the room is empty on the cut. A shot's
+  `extras:` says who else is there ("diners at the far tables, blurred behind him"), drawn
+  afresh each time. So **anyone who comes back and is seen** (the clerk behind the register,
+  the nurse at the desk, two paramedics, the workers at the next table) is a character, or
+  for several a group subject, cast in each shot: `seriesmith check` warns when two shots at
+  one place name the same people in `extras:` (see **A group: the same extras every shot**).
 - **Say the posture.** A plate of a kitchen table is an empty table, and the sheet shows the
   character standing. Open on the posture plus the movement: "Seated at the kitchen table,
   Harold turns his head slowly…", not "Harold turns his head slowly…".
@@ -1908,10 +1909,6 @@ of day — starts a new `#` sequence. Intercutting is just alternating sequences
 Keep a sequence intact and vary the shots with `plate:` rather than splitting a scene into
 one-shot sequences, which re-seeds every shot in it.
 
-`continuous:` under the `#` header applies to every shot after the first: `first` or
-`latent` chains each onto the one before as one continuous take, and `multishot` renders the
-whole sequence as one generation with cuts in it (see **Continuous shots**).
-
 ## What goes on which line
 
 These map to different fields in the generated prompt, and mixing them dilutes all three.
@@ -1942,7 +1939,7 @@ range that isn't `min-max` seconds with min below max; a `target:` or `profile:`
 doesn't exist; a `first:` / `last:` that isn't a method or an image path; a `continuous:`
 the shot's own target can't render (`latent` on a model that isn't H3 Ref2VA or one of its
 family, `first` on a target that reads no first frame). Warnings cover
-crammed dialogue, wasted grid padding, and what a target can't do (a dialogue shot on Wan,
+crammed dialogue and what a target can't do (a dialogue shot on Wan,
 a `clone` shot on `ltx2_ingredients`).
 
 A script that does not compile is not a draft, it is a bug. Fix and re-run until it is clean.

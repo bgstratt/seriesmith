@@ -231,8 +231,9 @@ lines are not added here.
 - `tests/test_docs.py` already holds that `prompts/` is what the generator writes; it gains:
   every marked block lands in exactly one reference; the one-file instructions hold every
   core section and every block; `SKILL.md` names each reference once.
-- A word limit on the core in the generator (9,000), so it fails when the core grows back,
-  the way `MAX_FILES` does for the bundle.
+- A word limit on the core in the generator, so it fails when the core grows back, the way
+  `MAX_FILES` does for the bundle. Planned at 9,000; set at 9,500, since the core came to
+  9,380 words (see the checklist's line 10).
 
 ## 9. Knowing nothing was lost
 
@@ -281,7 +282,16 @@ alters it; `.venv\Scripts\python -m pytest tests/test_docs.py -n 0` after each.
       the baseline's reports: the default delivery names its setup and proxy (896×512).
       Left as it is: the 1440p example's own proxy (960×544 at 8 steps), which is the
       **At size, master 1440p** setup's.
-- [ ] 3. Each rule said once (section 2); the misfiled text moved.
+- [x] 3. Each rule said once (section 2); the misfiled text moved. Done where a rule was
+      said in the core and again in a reference, or twice in the core: the second whole
+      series config and the build's quoted warning are for the docs only; the hosted filter
+      is one sentence; "continue the picture" points at its section; `continuous:` under a
+      header is in the script's table and the paragraph under it; `extras:` no longer says
+      "every shot" and "never twice" in one bullet; grid padding is reported, not warned
+      about, and says so. Moved with their kin: relit plates and the cold open to
+      `series_config.md`, the blurred plate for a close-up to `people.md`. Not done: the
+      repeats inside one reference (the duration grids and the picture tables in
+      `models.md`, the sizes), which cost nothing when the reference isn't read.
 - [x] 4. The markers and the generator (section 3); the site's page unchanged; the tests
       of section 8. As built: where a reference's first part was, `SKILL.md` has one quoted
       line, "Read `references/<name>.md` when …", with the headings that reference holds;
@@ -306,5 +316,9 @@ alters it; `.venv\Scripts\python -m pytest tests/test_docs.py -n 0` after each.
       five), the twelve shots named onto them, the two negations reworded. The crops' parts
       were chosen from the descriptions, without the plates: they want a look once the
       plates are made.
-- [ ] 10. The word limit on the core (section 8).
+- [x] 10. The word limit on the core (section 8). The core is 9,380 words (it was 20,100;
+      with its preamble `SKILL.md` is 9,850). That is over the 7,800 estimated and the 9,000
+      planned as the limit, so the limit is 9,500. Getting to 9,000 would mean dropping the
+      script's second example or moving the file and folder rules out of the first episode,
+      and both are what a writer uses on every script.
 - [ ] 11. The three requests run again and compared (section 9).

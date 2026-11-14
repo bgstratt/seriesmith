@@ -1,6 +1,6 @@
 # The series config, block by block
 
-A reference for SKILL.md: starting a series and what to settle first, render size and delivery, the master recipe, post, the intro and outro, the `look` line, render profiles, the `refs`, `sound` and `ambience` blocks, relit plates. Read it when writing a new `series.json`, or any block of one besides `subjects` and `locations`.
+A reference for SKILL.md: starting a series and what to settle first, render size and delivery, the master recipe, post, the intro and outro and a cold open before them, the `look` line, render profiles, the `refs`, `sound` and `ambience` blocks, relit plates. Read it when writing a new `series.json` or any block of one besides `subjects` and `locations`, relighting a plate, or marking a cold open.
 
 ## Starting a series: what to settle first
 
@@ -361,6 +361,24 @@ from the room and soften what the model draws worst, low-key practical light giv
 contrast and shape, and grain gives the image the texture of film. Keep it to one sentence;
 the per-shot light belongs in the location descriptions and the action.
 
+**A relit plate is a location too.** The same view under another light (the street at dusk
+for a flashback, the porch at night) is a location with `of:` and `relight:`, a relight
+preset's id (`dusk`, `night`, `rain`, `neon`, …) or the instruction in your own words:
+
+```json
+"street_dusk": {"name": "Street (Dusk)", "of": "street", "relight": "dusk",
+                "description": "a wet night street ... It is dusk, a deep blue evening sky ...",
+                "plate": "../refs/_bg/street_dusk.png"}
+```
+
+- On an edit model its plate is made **from the source's plate** with that relight: the
+  same place, only the light changed. Its description should carry the new light, since
+  shots read it.
+- Name it like any location: `# sq04 street_dusk`, or `plate: street_dusk` on a shot.
+- The source may be an angle; a relit plate's source can't itself be relit.
+- The editor can also make these from the plates (Relight on a sequence; a 360 panorama or a
+  camera tour of a master for its angles' pictures): in a config you only name them.
+
 ### What a place sounds like: `ambience`
 
 A location may say what is **heard** there, its room tone or air, in `ambience`. An
@@ -386,3 +404,25 @@ hum runs across its cuts instead of starting and stopping with each take:
 - Nothing is automatic: a location with no `ambience` (and whose place has none) gets no
   bed. `seriesmith refs` makes the beds refs_todo lists; the editor's Refs tab has them under
   **Ambience**. Its level is the mix's (the Ambience lane, seriesmith's editor guide).
+
+### A cold open: `cold_open:`
+
+A teaser before the opening titles: the episode's first scene, then the series intro, then
+the rest. Mark the sequences (or shots) that play before the titles:
+
+```
+# sq01  diner_night
+cold_open: true
+```
+
+- **It's the cut's first shots, one after another.** A master (and the editor's **Titles**)
+  puts the series intro in right after the last of them; without any, at the start.
+- **The cut's order decides.** A marked shot moved after one that isn't is a gap: master
+  refuses until it's fixed. In the editor, right-click the clip the cold open should end on,
+  **In the cut › Cold open ends here**: the marks are rewritten to the cut as it is.
+- **A dissolve can't cross the break**: the titles go in on a cut.
+- Export and the mix are the cut as it is, with no titles; Play all's **Titles** plays the
+  intro and outro where a master puts them.
+- **Writing one:** a structure's **Cold Open** or **Teaser** beat is a cold open, and so is a
+  screenplay's `COLD OPEN` or `TEASER` heading (`references/script_conversion.md`): mark those
+  sequences, and only those.

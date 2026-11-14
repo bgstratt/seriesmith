@@ -226,6 +226,10 @@ BUNDLE_SKIP = ["__pycache__", "*.pyc", "workflow.json"]
 # when that holds only a docstring: its code is imported by module path, which Python 3
 # finds without one (a namespace package).
 MAX_FILES = 200
+# SKILL.md is read whole every time the skill loads: its core (AUTHORING.md less what the
+# markers send to references or leave out) stays under this, so a section added to the
+# guide is marked for a reference or the generator fails (docs/SKILL_SPLIT.md, section 8).
+MAX_CORE_WORDS = 9500
 
 
 # The references cut out of AUTHORING.md by its `skill:ref` markers, in the order SKILL.md
@@ -234,9 +238,10 @@ MAX_FILES = 200
 REFS = [
     ("series_config", "The series config, block by block",
      "starting a series and what to settle first, render size and delivery, the master recipe, "
-     "post, the intro and outro, the `look` line, render profiles, the `refs`, `sound` and "
-     "`ambience` blocks, relit plates",
-     "writing a new `series.json`, or any block of one besides `subjects` and `locations`"),
+     "post, the intro and outro and a cold open before them, the `look` line, render profiles, "
+     "the `refs`, `sound` and `ambience` blocks, relit plates",
+     "writing a new `series.json` or any block of one besides `subjects` and `locations`, "
+     "relighting a plate, or marking a cold open"),
     ("models", "Which model renders a shot",
      "the targets and what each takes, a section per model, the hosted models and their table "
      "of pictures, keyframes, `dur: model`, `target: hold`",
@@ -247,8 +252,9 @@ REFS = [
      "you are about to write a `continuous:` line"),
     ("people", "Wardrobe, groups and vehicles",
      "a wardrobe change as a variant and how to cut round it, the same background people in "
-     "several shots as a group, the bokeh plate, vehicles in motion",
-     "a character changes clothes, the same background people are seen twice, or a vehicle moves"),
+     "several shots as a group, a blurred plate for a close-up, vehicles in motion",
+     "a character changes clothes, the same background people are seen twice, a vehicle moves, "
+     "or a close-up needs nothing but blur behind the face"),
 ]
 # the two whole documents bundled as references: (name, what it covers, when to read it)
 DOC_REFS = [
@@ -583,6 +589,10 @@ def main() -> int:
         if not os.path.isfile(p):
             sys.exit(f"  !! {p} not found")
     text = body()
+    if words(text) > MAX_CORE_WORDS:
+        sys.exit(f"  !! the skill's core is {words(text)} words, over {MAX_CORE_WORDS}: mark the new part of "
+                 f"docs/AUTHORING.md for a reference (<!-- skill:ref NAME -->) or for the docs only "
+                 f"(<!-- skill:omit -->)")
     out = os.path.join(ROOT, "prompts")
 
     write(os.path.join(out, "SKILL.md"), skill_text(text))
