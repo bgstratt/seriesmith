@@ -66,6 +66,7 @@ import subprocess
 import sys
 import tempfile
 
+from seriesmith import proc as PROC
 from seriesmith import assemble as ASM  # noqa: E402
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
@@ -109,7 +110,7 @@ class PublishError(Exception):
 
 
 def run(cmd: list[str], cwd: str | None = None, timeout: int = 3600) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+    return PROC.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
 
 
 _progress = False
@@ -131,7 +132,7 @@ def run_counted(cmd: list[str], total: int, stage: str, cwd: str | None = None,
         return run(cmd, cwd, timeout)
     import threading
     cmd = cmd[:1] + ["-progress", "pipe:1", "-nostats"] + cmd[1:]
-    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    p = PROC.popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     err: list[str] = []
     drain = threading.Thread(target=lambda: err.append(p.stderr.read()), daemon=True)
     drain.start()

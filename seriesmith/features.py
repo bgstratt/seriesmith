@@ -763,7 +763,14 @@ def shell_line(cmd: list[str]) -> str:
 def pip_command(item: Item, python: str | None) -> str:
     """The pip line that puts `item` in `python` ("python" when it isn't
     known), quoted for this system's shell."""
-    return shell_line([python or "python", "-m", "pip", "install", item.name, *item.pip_args])
+    return pip_line(python or "python", item.name, *item.pip_args)
+
+
+def pip_line(python: str, *what: str) -> str:
+    """The line of text that installs `what` with `python`'s pip, quoted for this system's
+    shell: shown for the user to run. seriesmith never runs it (the Comfy Registry's rule,
+    and its own: nothing installs a package at runtime)."""
+    return f"{shell_line([python])} -m pip install {shell_line(list(what))}"
 
 
 KEY_HOW = ("Set your Comfy API key (platform.comfy.org) in Settings › Comfy API key, or in "
@@ -975,5 +982,5 @@ def managed_ffmpeg_dir() -> str:
 
 __all__ = ["CORE_CLASSES", "Env", "Feature", "GROUPS", "Item", "PACKS", "catalog",
            "feature_label_of", "fetch_items", "how", "item_status", "known_files",
-           "managed_ffmpeg_dir", "nodes_hub", "pack_for_class", "pip_command", "resolve",
+           "managed_ffmpeg_dir", "nodes_hub", "pack_for_class", "pip_command", "pip_line", "resolve",
            "shell_line", "status", "whisper_item"]

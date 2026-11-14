@@ -30,10 +30,10 @@ import glob
 import json
 import os
 import re
-import subprocess
 import sys
 import zlib
 
+from seriesmith import proc as PROC
 from seriesmith import refs as R
 from seriesmith import takes as T
 
@@ -168,7 +168,7 @@ def find_holds(video: str, out_dir: str, python: str | None = None, timeout: int
     # each tool as a command (a JSON list: ffprobe may be PyAV's stand-in)
     cmd = [python or sys.executable, HELPER, video, out_dir, json.dumps(R._ffmpeg("ffmpeg")),
            json.dumps(R._ffmpeg("ffprobe"))]
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    r = PROC.run(cmd, capture_output=True, text=True, timeout=timeout)
     if r.returncode != 0:
         raise TourError((r.stderr or r.stdout or "finding the holds failed").strip()[-800:])
     return json.loads(r.stdout.strip().splitlines()[-1])

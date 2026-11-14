@@ -66,6 +66,9 @@ don't open a public issue for it.
 
 ## Programs it runs
 
+- **One place starts them** (`seriesmith/proc.py`; the node pack's is `comfy_nodes/_ff.py`).
+  A program is started from an argument list, never a shell line, and without your keys in
+  its environment (the Comfy API key, a provider's key, the Hugging Face token).
 - **ffmpeg and ffprobe** (`seriesmith/ff.py`): found once (PATH, imageio-ffmpeg, PyAV), run
   with an argument list, never through a shell. What a series config sets for the episode
   title (its colours, size, timing and font) is written into ffmpeg's filter graph, so each
@@ -77,8 +80,7 @@ don't open a public issue for it.
   through `seriesmith/_run.py`, or as one of the package's own helper files. Nothing a show
   or a request names is ever run: never `python -c`, never a script from outside the
   package, never `cmd /c`. The helpers refuse any command but ffmpeg or ffprobe (or PyAV's
-  stand-in for ffprobe, seriesmith's own `ffprobe_av.py`). The tools run
-  without your API keys in their environment.
+  stand-in for ffprobe, seriesmith's own `ffprobe_av.py`).
 - **A show's own models** (`<show>/targets/`): only seriesmith's built-in code, chosen by
   name. A show can't bring Python of its own.
 - **The count check's detectors** (`seriesmith/countcheck.py`, `helpers/counts.py`): two YOLOv8

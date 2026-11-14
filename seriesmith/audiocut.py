@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import array
 import os
-import subprocess
 import sys
 
+from seriesmith import proc as PROC
 from seriesmith import ff as FF
 from seriesmith import peaks as PK
 from seriesmith.core import fileio as F
@@ -45,7 +45,7 @@ def _decode(path: str, start: float, end: float) -> array.array:
     exe = FF.find("ffmpeg")
     if not exe:
         raise CutError("ffmpeg isn't installed")
-    r = subprocess.run([*exe, "-v", "error", "-nostdin", "-ss", f"{start:.3f}", "-to", f"{end:.3f}",
+    r = PROC.run([*exe, "-v", "error", "-nostdin", "-ss", f"{start:.3f}", "-to", f"{end:.3f}",
                         "-i", path, "-vn", "-ac", "1", "-ar", str(RATE), "-f", "s16le", "-"],
                        capture_output=True, timeout=120)
     if r.returncode != 0:
@@ -106,7 +106,7 @@ def cut(src: str, start: float, end: float, at_least: float = 0.0) -> str:
         raise CutError("ffmpeg isn't installed")
     tmp = F.temp_beside(out, ".wav")
     try:
-        r = subprocess.run([*exe, "-v", "error", "-nostdin", "-y", "-ss", f"{start:.3f}",
+        r = PROC.run([*exe, "-v", "error", "-nostdin", "-y", "-ss", f"{start:.3f}",
                             "-to", f"{end:.3f}", "-i", src, "-vn",
                             *(["-af", f"apad=whole_dur={pad:.3f}"] if pad else []),
                             "-c:a", "pcm_s16le", tmp],
@@ -166,7 +166,7 @@ def levelled(src: str) -> str:
         raise CutError("ffmpeg isn't installed")
     tmp = F.temp_beside(out, ".wav")
     try:
-        r = subprocess.run([*exe, "-v", "error", "-nostdin", "-y", "-i", src, "-vn",
+        r = PROC.run([*exe, "-v", "error", "-nostdin", "-y", "-i", src, "-vn",
                             "-af", LEVEL, "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", tmp],
                            capture_output=True, timeout=300)
         if r.returncode != 0 or not os.path.isfile(tmp):

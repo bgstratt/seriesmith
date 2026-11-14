@@ -19,6 +19,7 @@ import json
 import os
 import threading
 
+from seriesmith import proc as PROC
 from seriesmith import color as COL
 from seriesmith import jobs as J
 from seriesmith import levels as LV
@@ -1388,7 +1389,6 @@ def _to_wav(path: str) -> bool:
     """`path` (any audio ffmpeg reads) rewritten in place as a 16-bit PCM wav;
     False (left as it was) when there's no ffmpeg or it fails."""
     import os
-    import subprocess
 
     from seriesmith import ff as FF
     exe = FF.find("ffmpeg")
@@ -1396,7 +1396,7 @@ def _to_wav(path: str) -> bool:
         return False
     out = path + ".wav"
     try:
-        subprocess.run([*exe, "-v", "error", "-y", "-i", path, "-c:a", "pcm_s16le", out],
+        PROC.run([*exe, "-v", "error", "-y", "-i", path, "-c:a", "pcm_s16le", out],
                        capture_output=True, check=True, timeout=120)
         F.replace(out, path)
         return True

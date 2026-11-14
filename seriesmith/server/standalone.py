@@ -23,6 +23,7 @@ import sys
 
 from aiohttp import ClientSession, WSMsgType, web
 
+from seriesmith import proc as PROC
 from seriesmith import api as A
 from seriesmith.settings import load_settings, settings_path
 
@@ -393,7 +394,6 @@ def ensure_proxy(settings) -> str:
     up. Otherwise there is nothing to start: local renders go straight to
     ComfyUI. Returns what happened."""
     import shutil
-    import subprocess
     from urllib.parse import urlparse
 
     from seriesmith.backends.comfy import health
@@ -419,7 +419,7 @@ def ensure_proxy(settings) -> str:
     state = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
                          "seriesmith", "proxy")
     os.makedirs(state, exist_ok=True)
-    r = subprocess.run([exe, "start", "--comfyui", settings.comfyui_url, "--port",
+    r = PROC.run([exe, "start", "--comfyui", settings.comfyui_url, "--port",
                         str(u.port or 8189), "--state-dir", state],
                        capture_output=True, text=True, timeout=60)
     return "comfy-api-proxy: " + ((r.stdout or r.stderr).strip().splitlines() or ["started"])[-1]

@@ -25,8 +25,8 @@ import importlib.util
 import json
 import os
 import shutil
-import subprocess
 import sys
+from seriesmith import proc as PROC
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FFPROBE_AV = os.path.join(HERE, "helpers", "ffprobe_av.py")
@@ -126,7 +126,7 @@ def probe_json(path: str, *args: str, timeout: float = 60) -> dict:
     "-show_entries", "-count_frames", "-show_data", ...). FFError when it
     fails or says something that isn't JSON; FileNotFoundError when there is
     no ffprobe at all (tool() is then the bare name)."""
-    r = subprocess.run([*tool("ffprobe"), "-v", "error", *args, "-of", "json", path],
+    r = PROC.run([*tool("ffprobe"), "-v", "error", *args, "-of", "json", path],
                        capture_output=True, timeout=timeout)
     err = r.stderr.decode("utf-8", "replace").strip()
     if r.returncode != 0:
@@ -144,7 +144,7 @@ def frame_md5s(path: str, at: float, count: int, timeout: float = 600) -> list[s
     """framemd5 of `count` decoded frames of `path`'s picture from `at` seconds
     (input seeking: a caller works out `at` from the frame it wants). FFError
     when they don't decode cleanly (anything on stderr counts)."""
-    r = subprocess.run([*tool("ffmpeg"), "-v", "error", "-ss", f"{max(0.0, at):.6f}", "-i", path,
+    r = PROC.run([*tool("ffmpeg"), "-v", "error", "-ss", f"{max(0.0, at):.6f}", "-i", path,
                         "-map", "0:v:0", "-frames:v", str(count), "-f", "framemd5", "-"],
                        capture_output=True, timeout=timeout)
     err = r.stderr.decode("utf-8", "replace").strip()

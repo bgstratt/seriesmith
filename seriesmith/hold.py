@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import subprocess
 
+from seriesmith import proc as PROC
 from seriesmith import ff as FF
 from seriesmith import finish as F
 from seriesmith import takes as T
@@ -66,7 +67,7 @@ def encode(picture: str, dst: str, frames: int, fps: float, size: tuple[int, int
         cmd += ["-an"]
     cmd += ["-movflags", "+faststart", tmp]
     try:
-        subprocess.run(cmd, check=True, capture_output=True, timeout=TIMEOUT)
+        PROC.run(cmd, check=True, capture_output=True, timeout=TIMEOUT)
     except subprocess.CalledProcessError as e:
         _drop(tmp)
         raise HoldError("ffmpeg couldn't hold it: "

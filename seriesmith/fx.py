@@ -43,8 +43,8 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
 
+from seriesmith import proc as PROC
 from seriesmith import edit as E
 from seriesmith import ff as FF
 from seriesmith import mix as MX
@@ -273,7 +273,7 @@ def stage(src: str, dst: str, video: dict) -> None:
     and size, cut to its frame count, no sound (libx264, near lossless)."""
     vf = f"fps={video['fps']:g},scale={video['width']}:{video['height']}:flags=bicubic"
     tmp = F.temp_beside(dst, ".mp4")
-    r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src, "-an", "-vf", vf,
+    r = PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src, "-an", "-vf", vf,
                         "-frames:v", str(int(video["frames"])), "-c:v", "libx264", "-crf", "12",
                         "-preset", "veryfast", "-pix_fmt", "yuv420p", tmp],
                        capture_output=True, timeout=600)

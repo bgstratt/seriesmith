@@ -32,6 +32,7 @@ import tempfile
 import threading
 import time
 
+from seriesmith import proc as PROC
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import source as H  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
@@ -100,7 +101,7 @@ def probe(python: str) -> dict:
         return dict(hit[1])
     found = None
     try:
-        r = subprocess.run([python, PROBE, *(f"{d}={m}" for d, m in PACKAGES)],
+        r = PROC.run([python, PROBE, *(f"{d}={m}" for d, m in PACKAGES)],
                            capture_output=True, timeout=120,
                            env=E.tool_env())
         out = r.stdout.decode("utf-8", "replace").strip().splitlines()
@@ -430,7 +431,7 @@ def _stream(cmd: list[str], cwd: str, timeout: float, on_progress,
     is handed what kills it (a queue job's cancel)."""
     log: list[str] = []
     stopped: list[bool] = []
-    p = subprocess.Popen(cmd, cwd=cwd, env=E.tool_env(),
+    p = PROC.popen(cmd, cwd=cwd, env=E.tool_env(),
                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     def kill():

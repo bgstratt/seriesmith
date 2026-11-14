@@ -25,6 +25,7 @@ import threading
 # the pipeline
 # ---------------------------------------------------------------------------
 
+from seriesmith import proc as PROC
 from seriesmith import cue as CU  # noqa: E402
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import inspector as IN  # noqa: E402
@@ -5246,7 +5247,6 @@ def _line_up_task(ctx: Context, params: dict):
 
     def work(qjob, report, stop) -> str:
         import shutil
-        import subprocess
         import tempfile
         from seriesmith import ff as FF
         from seriesmith import lines as LN
@@ -5254,7 +5254,7 @@ def _line_up_task(ctx: Context, params: dict):
         def heard(path: str, tmp: str, name: str, at: float = 0.0) -> float:
             """When a sound's first word starts, in seconds."""
             wav = os.path.join(tmp, name + ".wav")
-            subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", path, "-ss", f"{at:.3f}", "-vn", "-ac", "1", "-ar", "16000", wav], check=True)
+            PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", path, "-ss", f"{at:.3f}", "-vn", "-ac", "1", "-ar", "16000", wav], check=True)
             words = K.transcribe_file(wav, tmp, " ".join(x["text"] for x in LN.shot_lines(ep, shot)), stop=stop)
             if not words:
                 raise ValueError(f"no words could be heard in {os.path.basename(path)}")

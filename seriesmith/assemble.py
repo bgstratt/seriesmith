@@ -76,6 +76,7 @@ import wave
 
 # Sibling modules: ComfyUI's embedded Python (a ._pth install) doesn't put a
 # script's own folder on sys.path, so do it here.
+from seriesmith import proc as PROC
 from seriesmith import checks as CK  # noqa: E402
 from seriesmith import color as COL  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
@@ -94,7 +95,7 @@ PROGRESS = "##assemble "
 
 
 def run(cmd: list[str], timeout: int = 900) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, timeout=timeout)
+    return PROC.run(cmd, capture_output=True, timeout=timeout)
 
 
 def say(on: bool, stage: str, done: int | None = None, total: int | None = None,

@@ -118,12 +118,16 @@ Ordered by what it buys.
   `?blobs=true` listing; `installer.download` hashes as it streams and refuses the rename
   on a mismatch; `fetches` gains a `revision`; ffmpeg a versioned archive with its hash;
   htdemucs its full sha256 (its file name carries the first eight digits).
-- [ ] **Fewer places for a scanner to count** (the likely source of "too many findings"):
-  96 subprocess calls in 39 files through one runner in `ff.py` (and `_ff.py` in the node
-  pack); the pip commands (`sdk.py`, `features.py`, `track.py`) as text, not argument
-  lists; `installer.run` (never called) removed; the containment check's three copies as
-  one that returns the checked path, used at the sink; `web.FileResponse` taking a value
-  only the checked routes can make; the helpers run by path through `_run.py`.
+- [x] **One place starts a program** (2026-11-14). The 62 `subprocess` calls in 35 files
+  go through `seriesmith/proc.py` (the node pack's 17 through `comfy_nodes/_ff.py`): an
+  argument list, never a shell, and an environment without the keys, which ffmpeg and the
+  proxy used to inherit. A test holds the rule. `installer.run`, a generic runner nothing
+  called, is gone; the pip lines (`sdk.command`, `features.pip_command`) are text.
+- [ ] **Fewer places for a scanner to count, the rest**: the containment check's copies
+  (`core/paths.py`, `_inputs.py`) as one that returns the checked path, used at the sink;
+  `web.FileResponse` taking a value only the checked routes can make; the helpers run by
+  path (`probe.py`, the stills and colour helpers) through `_run.py`; `python -m demucs`
+  in `comfy_nodes/shot.py`.
 - [ ] **ffmpeg reads a playlist as media.** No call sets `-protocol_whitelist`; a `.mp4`
   that is an HLS playlist can pull other local media files into a take. One input builder
   in `ff.py` with `-protocol_whitelist file,pipe`, tested against the bundled build.

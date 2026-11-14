@@ -107,7 +107,7 @@ class SeriesmithLoadTakeVideo:
 # ---------------------------------------------------------------------------
 
 def has_audio(path: str) -> bool:
-    out = subprocess.run([*_ff.tool("ffprobe"), "-v", "error", "-select_streams", "a",
+    out = _ff.run([*_ff.tool("ffprobe"), "-v", "error", "-select_streams", "a",
                           "-show_entries", "stream=index", "-of", "csv=p=0", path],
                          capture_output=True, text=True, timeout=60).stdout
     return bool(out.strip())
@@ -118,7 +118,7 @@ def copy_audio(picture: str, source: str, out: str) -> str:
     bit (no re-encode), or the picture alone when the source is mute. Returns
     "copied" or "none"."""
     if source and has_audio(source):
-        subprocess.run([*_ff.tool("ffmpeg"), "-v", "error", "-y", "-i", picture, "-i", source,
+        _ff.run([*_ff.tool("ffmpeg"), "-v", "error", "-y", "-i", picture, "-i", source,
                         "-map", "0:v:0", "-map", "1:a:0", "-c", "copy", out],
                        capture_output=True, check=True, timeout=300)
         return "copied"
@@ -136,7 +136,7 @@ def nvenc_encoders() -> set:
     global _NVENC
     if _NVENC is None:
         try:
-            out = subprocess.run([*_ff.tool("ffmpeg"), "-hide_banner", "-encoders"], capture_output=True,
+            out = _ff.run([*_ff.tool("ffmpeg"), "-hide_banner", "-encoders"], capture_output=True,
                                  text=True, timeout=60).stdout
             _NVENC = {w for line in out.splitlines() for w in line.split() if w.endswith("_nvenc")}
         except Exception:
@@ -214,7 +214,7 @@ def encode_stream(images, path: str, fps: float, encoder: str = "auto",
         cmd = [*_ff.tool("ffmpeg"), "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
                "-s", f"{w}x{h}", "-framerate", str(fps), "-i", "-", "-frames:v", str(n),
                *(["-vf", vf] if vf else []), *args, path]
-        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = _ff.popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             for i in range(n):
                 frame = as_uint8(images[i])

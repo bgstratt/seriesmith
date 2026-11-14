@@ -22,6 +22,7 @@ by default**: CupsMV's H3 Ref2VA shots lip-synced as well to the full song as to
 from __future__ import annotations
 
 import os
+from seriesmith import proc as PROC
 
 SUFFIX = ".vocals.wav"
 # Hybrid Demucs's weights, as torchaudio's HDEMUCS_HIGH_MUSDB_PLUS downloads them; the node
@@ -85,7 +86,6 @@ def collect(recording: str, run, status: str, dest: str | None = None) -> str:
     it came at), at `dest` (default: beside the recording, stem_path; a take's voice stem
     goes beside the take, voices.py). Returns the stem's path; RuntimeError when there's
     nothing to keep."""
-    import subprocess
     import tempfile
 
     from seriesmith import ff as FF
@@ -101,7 +101,7 @@ def collect(recording: str, run, status: str, dest: str | None = None) -> str:
     tmp = F.temp_beside(stem, ".wav")
     try:
         outs[0].save(raw)
-        r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", raw, "-vn",
+        r = PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", raw, "-vn",
                             "-c:a", "pcm_s24le", tmp], capture_output=True, timeout=1800)
         if r.returncode != 0 or not os.path.isfile(tmp):
             raise RuntimeError("the vocal stem that came back couldn't be read: "

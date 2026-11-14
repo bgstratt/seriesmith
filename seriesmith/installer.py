@@ -42,6 +42,7 @@ import zipfile
 from dataclasses import dataclass, field
 from typing import Callable
 
+from seriesmith import proc as PROC
 from seriesmith import features as FT
 from seriesmith.core import downloads as DL
 from seriesmith.core import fileio as F
@@ -224,20 +225,6 @@ def download(url: str, dest: str, token: str | None = None,
     F.replace(part, dest)
 
 
-def run(cmd: list[str], cwd: str | None = None, timeout: int = 1800) -> str:
-    """A command to its end; InstallError with the end of its output if it fails."""
-    try:
-        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
-    except FileNotFoundError:
-        raise InstallError(f"{cmd[0]} isn't installed") from None
-    except subprocess.TimeoutExpired:
-        raise InstallError(f"{os.path.basename(cmd[0])} took longer than {timeout}s") from None
-    if r.returncode:
-        tail = "\n".join((r.stderr or r.stdout or "").strip().splitlines()[-5:])
-        raise InstallError(f"{os.path.basename(cmd[0])} failed: {tail[-600:]}")
-    return r.stdout
-
-
 def extract_ffmpeg(archive: str, into: str) -> None:
     """ffmpeg and ffprobe out of a build's archive, into `into` (flat)."""
     want = {"ffmpeg", "ffprobe", "ffmpeg.exe", "ffprobe.exe"}
@@ -273,11 +260,10 @@ class Installer:
     Hugging Face token at the moment it's needed (the settings can change)."""
 
     def __init__(self, place: Callable[[], Place], token: Callable[[], str | None] = lambda: None,
-                 runner=run, downloader=download, on_change: Callable[[], None] | None = None,
+                 downloader=download, on_change: Callable[[], None] | None = None,
                  listing=None):
         self._place = place
         self._token = token
-        self._run = runner
         self._download = downloader
         self._listing = listing             # a repo's files (hubcache.repo_listing; tests)
         self._on_change = on_change
@@ -515,7 +501,7 @@ def python_has(python: str | None, module: str) -> bool | None:
         return hit[0]
     try:
         probe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "helpers", "probe.py")
-        r = subprocess.run([python, probe, f"{module}={module}"], capture_output=True, timeout=30)
+        r = PROC.run([python, probe, f"{module}={module}"], capture_output=True, timeout=30)
         ok = json.loads(r.stdout.decode("utf-8", "replace").strip().splitlines()[-1]).get(module) is not None
     except (OSError, subprocess.TimeoutExpired, ValueError, IndexError):
         return None

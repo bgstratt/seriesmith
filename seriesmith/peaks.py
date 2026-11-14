@@ -30,6 +30,7 @@ import sys
 import tempfile
 import wave
 
+from seriesmith import proc as PROC
 from seriesmith import ff as FF
 from seriesmith.core import fileio as F
 
@@ -267,7 +268,7 @@ def _ffmpeg_peaks(path: str) -> list[int]:
     per_bin = FF_RATE // RATE
     # stderr goes to a temp file, so a chatty ffmpeg can't block on a full pipe
     with tempfile.TemporaryFile() as err:
-        proc = subprocess.Popen([*FF.tool("ffmpeg"), "-v", "error", "-nostdin", "-i", path, "-vn",
+        proc = PROC.popen([*FF.tool("ffmpeg"), "-v", "error", "-nostdin", "-i", path, "-vn",
                                  "-ac", "1", "-ar", str(FF_RATE), "-f", "s16le", "-"],
                                 stdout=subprocess.PIPE, stderr=err)
         try:

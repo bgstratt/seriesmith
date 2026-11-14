@@ -12,6 +12,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 import urllib.request
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -461,6 +462,10 @@ class InstallerTest(unittest.TestCase):
         self.place = INS.Place({"loras": [os.path.join(self.root, "models", "loras")]}, self.cn,
                                os.path.join(self.root, "python.exe"))
         self.ran = []
+        # the installer starts no program for a pack or a package
+        p = mock.patch.object(INS.PROC, "run", side_effect=lambda cmd, **kw: self.ran.append(cmd))
+        p.start()
+        self.addCleanup(p.stop)
 
     def runner(self, cmd, cwd=None, timeout=0):
         self.ran.append(cmd)
@@ -473,7 +478,7 @@ class InstallerTest(unittest.TestCase):
         progress(10, 10)
 
     def test_a_file_goes_in_a_pack_or_package_never(self):
-        ins = INS.Installer(lambda: self.place, runner=self.runner, downloader=self.downloader)
+        ins = INS.Installer(lambda: self.place, downloader=self.downloader)
         items = [FT.Item("pack", "SomePack", url="https://github.com/x/SomePack", classes=("N",)),
                  FT.Item("model", "a.safetensors", folder="loras", url="https://h/a"),
                  FT.Item("pip", "demucs", where="comfyui", module="demucs")]
@@ -487,7 +492,7 @@ class InstallerTest(unittest.TestCase):
             if url.endswith("/a"):
                 raise INS.InstallError("gated: accept the licence")
             self.downloader(url, dest, token, progress, cancelled)
-        ins = INS.Installer(lambda: self.place, runner=self.runner, downloader=failing)
+        ins = INS.Installer(lambda: self.place, downloader=failing)
         ins.start([FT.Item("model", "a.safetensors", folder="loras", url="https://h/a"),
                    FT.Item("model", "b.safetensors", folder="loras", url="https://h/b")])
         st = ins.wait(10)
@@ -496,7 +501,7 @@ class InstallerTest(unittest.TestCase):
 
     def test_nowhere_to_put_it(self):
         nowhere = INS.Place(why_not="ComfyUI isn't on this machine")
-        ins = INS.Installer(lambda: nowhere, runner=self.runner, downloader=self.downloader)
+        ins = INS.Installer(lambda: nowhere, downloader=self.downloader)
         ins.start([FT.Item("model", "a.safetensors", folder="loras", url="https://h/a")])
         st = ins.wait(10)
         self.assertEqual(st["tasks"][0]["status"], "failed")

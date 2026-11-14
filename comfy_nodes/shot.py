@@ -228,7 +228,7 @@ def _ffmpeg_decode(path: str) -> tuple[torch.Tensor, int]:
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "decoded.wav")
         try:
-            subprocess.run(
+            _ff.run(
                 [*_ff.tool("ffmpeg"), "-y", "-v", "error", "-i", path,
                  "-acodec", "pcm_s16le", out],
                 check=True, capture_output=True, timeout=300)
@@ -635,7 +635,7 @@ class SeriesmithSaveTake:
             return blocked
         try:
             with tempfile.TemporaryDirectory() as tmp:
-                subprocess.run(
+                _ff.run(
                     [sys.executable, "-m", "demucs", "--two-stems", "vocals",
                      "-o", tmp, wav_path],
                     check=True, capture_output=True, timeout=600, env=_hub.demucs_env(),
@@ -937,13 +937,13 @@ class SeriesmithSaveTake:
         proc = None
         try:
             if pipe:
-                proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                proc = _ff.popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE)
                 _, err = proc.communicate(input=raw, timeout=900)
                 if proc.returncode:
                     raise subprocess.CalledProcessError(proc.returncode, cmd, b"", err)
             else:
-                subprocess.run(cmd, check=True, capture_output=True, timeout=900)
+                _ff.run(cmd, check=True, capture_output=True, timeout=900)
             result = f"mp4 written ({'with audio' if audio_path else 'mute'})"
         except FileNotFoundError:
             # no ffmpeg on PATH: PyAV, which every ComfyUI has (its requirements)

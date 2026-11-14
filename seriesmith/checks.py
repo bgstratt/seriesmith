@@ -30,8 +30,8 @@ Stdlib; ffmpeg through seriesmith.ff.
 from __future__ import annotations
 
 import re
-import subprocess
 
+from seriesmith import proc as PROC
 from seriesmith import ff as FF
 
 SUFFIX = "_checks.json"
@@ -64,7 +64,7 @@ def scan(path: str, timeout: int = TIMEOUT) -> dict:
           f"blackdetect=d={BLACK['d']}:pix_th={BLACK['pix_th']}:pic_th={BLACK['pic_th']},"
           f"freezedetect=n={FREEZE['n']}:d={FREEZE['d']},"
           "signalstats,metadata=mode=print:key=lavfi.signalstats.YAVG")
-    r = subprocess.run([*FF.tool("ffmpeg"), "-hide_banner", "-nostats", "-v", "info", "-i", path,
+    r = PROC.run([*FF.tool("ffmpeg"), "-hide_banner", "-nostats", "-v", "info", "-i", path,
                         "-map", "0:v:0", "-vf", vf, "-an", "-f", "null", "-"],
                        capture_output=True, timeout=timeout)
     if r.returncode != 0:

@@ -79,6 +79,7 @@ import sys
 import uuid
 from dataclasses import dataclass, field
 
+from seriesmith import proc as PROC
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import takefiles as TF  # noqa: E402
@@ -2123,7 +2124,7 @@ def _ffmpeg(tool: str) -> list[str]:
 def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
     import subprocess
     try:
-        r = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        r = PROC.run(cmd, capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         return 1, f"{os.path.basename(cmd[0])} took longer than {timeout}s"
     return r.returncode, (r.stdout + b"\n" + r.stderr).decode("utf-8", "replace")
@@ -3346,12 +3347,11 @@ PANO_ENGINES = ("qwen", "klein")
 def erp_canvas(ref: Ref, plate: str, width: int, fov: float = KLEIN_PANO_FOV) -> str:
     """The plate on a green 2:1 canvas (h3_erp.py, run with this Python), kept
     in refs/_takes/<key>/_erp/ by the plate's sha1, the width and the fov."""
-    import subprocess
     d = os.path.join(takes_dir(ref), "_erp")
     os.makedirs(d, exist_ok=True)
     out = os.path.join(d, f"{T.file_sha1(plate)}_{width}_f{int(fov)}.png")
     if not os.path.isfile(out):
-        r = subprocess.run([sys.executable, ERP_HELPER, plate, out, "--width", str(width),
+        r = PROC.run([sys.executable, ERP_HELPER, plate, out, "--width", str(width),
                             "--fov", str(fov)], capture_output=True, text=True, timeout=300)
         if r.returncode != 0 or not os.path.isfile(out):
             raise RefError(f"couldn't place the plate on a 360 canvas: "

@@ -78,6 +78,7 @@ import re
 import subprocess
 import sys
 
+from seriesmith import proc as PROC
 from seriesmith import color as COL
 from seriesmith import hold as HO
 from seriesmith import jobs as J
@@ -1144,10 +1145,9 @@ TOOL_ENV = {"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
 
 def tool_env() -> dict[str, str]:
     """The environment a pipeline tool runs in: this one, less the keys it never needs (the
-    Comfy API key, a provider's SERIESMITH_KEY_*), with TOOL_ENV."""
-    keep = {k: v for k, v in os.environ.items()
-            if k != "COMFY_API_KEY" and not k.startswith("SERIESMITH_KEY_")}
-    return {**keep, **TOOL_ENV}
+    Comfy API key, a provider's SERIESMITH_KEY_*, the Hugging Face token: proc.clean_env),
+    with TOOL_ENV."""
+    return PROC.clean_env(TOOL_ENV)
 
 
 class NotUsable(Exception):
@@ -2758,7 +2758,7 @@ def run_tool(script: str, args: list[str], cwd: str, timeout: int,
         return _stream_tool(tool_cmd(script, args), script, cwd, env, timeout,
                             progress or (lambda tool, ev: None), stop)
     try:
-        r = subprocess.run(tool_cmd(script, args), capture_output=True, cwd=cwd, env=env,
+        r = PROC.run(tool_cmd(script, args), capture_output=True, cwd=cwd, env=env,
                            timeout=timeout)
     except subprocess.TimeoutExpired:
         return 1, "", f"{script} took longer than {timeout}s and was stopped"
@@ -2773,7 +2773,7 @@ def _stream_tool(cmd: list[str], script: str, cwd: str, env: dict, timeout: int,
     neither pipe fills and stalls the script)."""
     import json
     import threading
-    p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = PROC.popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     err_chunks: list[bytes] = []
     drain = threading.Thread(target=lambda: err_chunks.append(p.stderr.read()), daemon=True)
     drain.start()

@@ -23,6 +23,7 @@ import os
 import shutil
 import subprocess
 
+from seriesmith import proc as PROC
 from seriesmith import color as COL
 from seriesmith import ff as FF
 from seriesmith import finish as F
@@ -86,7 +87,7 @@ def encode(src: str, dst: str) -> None:
            "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-fps_mode", "cfr",
            "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", tmp]
     try:
-        subprocess.run(cmd, check=True, capture_output=True, timeout=ENCODE_TIMEOUT)
+        PROC.run(cmd, check=True, capture_output=True, timeout=ENCODE_TIMEOUT)
     except subprocess.CalledProcessError as e:
         _drop(tmp)
         raise TakeImportError("ffmpeg couldn't convert it: "
@@ -178,7 +179,7 @@ PROXY_MAX_W = 1920
 def _ffmpeg(cmd: list[str], dst: str, what: str) -> None:
     tmp = fileio.temp_beside(dst, ".mp4")
     try:
-        subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", *cmd, tmp], check=True,
+        PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", *cmd, tmp], check=True,
                        capture_output=True, timeout=ENCODE_TIMEOUT)
     except subprocess.CalledProcessError as e:
         _drop(tmp)

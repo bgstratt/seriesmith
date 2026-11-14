@@ -23,6 +23,7 @@ from seriesmith import features as FT  # noqa: E402
 from seriesmith import inspector as IN  # noqa: E402
 from seriesmith import installer as INS  # noqa: E402
 from seriesmith import net as NET  # noqa: E402
+from seriesmith import proc as PROC  # noqa: E402
 from seriesmith import publish as PUB  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith.backends.native import ComfyUIBackend  # noqa: E402
@@ -272,6 +273,54 @@ class TitleTest(unittest.TestCase):
                 ("font", "font.ttf:textfile=x"), ("font", "x.ttf,movie=a")):
             with self.assertRaises(PUB.PublishError, msg=(key, bad)):
                 PUB.publish_config({"publish": {"subtitle": {key: bad}}})
+
+
+class ProgramsTest(unittest.TestCase):
+    """Every program is started in one place (seriesmith.proc): an argument list, and an
+    environment without the keys."""
+
+    def test_never_a_shell_line(self):
+        for bad in ("ffmpeg -i x", b"ffmpeg"):
+            with self.assertRaises(ValueError):
+                PROC.run(bad)
+        with self.assertRaises(ValueError):
+            PROC.run([sys.executable, "-c", "pass"], shell=True)
+        with self.assertRaises(ValueError):
+            PROC.popen("ffmpeg -i x")
+
+    def test_a_program_gets_no_keys(self):
+        keys = {"COMFY_API_KEY": "k1", "HF_TOKEN": "k2", "HUGGING_FACE_HUB_TOKEN": "k3",
+                "SERIESMITH_KEY_FAL": "k4"}
+        code = "import os; print(sorted(k for k in os.environ if os.environ[k] in ('k1','k2','k3','k4','ok')))"
+        with mock.patch.dict(os.environ, {**keys, "SERIESMITH_PLAIN": "ok"}):
+            self.assertEqual(set(keys) & set(PROC.clean_env()), set())
+            r = PROC.run([sys.executable, "-c", code], capture_output=True, text=True)
+            self.assertEqual(r.stdout.strip(), "['SERIESMITH_PLAIN']")
+            from seriesmith import edit as E
+            self.assertEqual(set(keys) & set(E.tool_env()), set())
+
+    def test_nothing_else_starts_one(self):
+        """No module of the package but proc (and the helpers, which run in another Python)
+        calls subprocess to start a program; the node pack's go through _ff."""
+        import re
+        starts = re.compile(r"\bsubprocess\.(run|Popen|call|check_call|check_output)\(|\bos\.(system|popen|startfile)\(")
+        found = []
+        for top, own in (("seriesmith", ("proc.py",)), ("comfy_nodes", ("_ff.py",))):
+            for d, _, names in os.walk(os.path.join(ROOT, top)):
+                if os.path.basename(d) in ("helpers", "__pycache__", "static"):
+                    continue
+                for n in names:
+                    if n.endswith(".py") and n not in own:
+                        with open(os.path.join(d, n), encoding="utf-8") as fh:
+                            if starts.search(fh.read()):
+                                found.append(os.path.relpath(os.path.join(d, n), ROOT))
+        self.assertEqual(found, [])
+
+    def test_a_pip_line_is_text(self):
+        from seriesmith import sdk as SDK
+        self.assertIsInstance(SDK.command(), str)
+        self.assertIsInstance(FT.pip_command(FT.Item("pip", "demucs"), None), str)
+        self.assertFalse(hasattr(INS, "run"))
 
 
 class IdsTest(unittest.TestCase):

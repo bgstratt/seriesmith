@@ -50,6 +50,7 @@ import os
 import re
 import subprocess
 
+from seriesmith import proc as PROC
 from seriesmith import ff as FF
 
 VERSION = 1
@@ -76,7 +77,7 @@ _WORD = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)*")
 
 def scores(mp4: str, timeout: int = TIMEOUT) -> list[float]:
     """Each frame's scene-change score (scdet, 0-100), in order. RuntimeError when ffmpeg fails."""
-    r = subprocess.run([*FF.tool("ffmpeg"), "-hide_banner", "-nostats", "-v", "info", "-i", mp4,
+    r = PROC.run([*FF.tool("ffmpeg"), "-hide_banner", "-nostats", "-v", "info", "-i", mp4,
                         "-map", "0:v:0", "-vf",
                         f"scale={SCALE_W}:-2,scdet=threshold=100,metadata=mode=print:key=lavfi.scd.score",
                         "-an", "-f", "null", "-"], capture_output=True, timeout=timeout)
@@ -100,7 +101,7 @@ def cuts(per_frame: list[float], fps: float, asked: list[int] = ()) -> list[dict
 def thumbs(mp4: str, timeout: int = TIMEOUT) -> list[bytes]:
     """Each frame at THUMB size, RGB bytes. RuntimeError when ffmpeg fails."""
     w, h = THUMB
-    r = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-i", mp4, "-map", "0:v:0", "-vf",
+    r = PROC.run([*FF.tool("ffmpeg"), "-v", "error", "-i", mp4, "-map", "0:v:0", "-vf",
                         f"scale={w}:{h},format=rgb24", "-f", "rawvideo", "-"],
                        capture_output=True, timeout=timeout)
     if r.returncode != 0:

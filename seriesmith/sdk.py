@@ -25,17 +25,16 @@ def have() -> bool:
     return importlib.util.find_spec("comfy_sdk") is not None
 
 
-def command() -> list[str]:
-    """The install, for you to run: pip of the Python seriesmith runs on
-    (inside ComfyUI, ComfyUI's own)."""
-    return [sys.executable, "-m", "pip", "install", REQUIREMENT]
+def command() -> str:
+    """The install as a line of text, for you to run yourself (seriesmith never runs it):
+    pip of the Python seriesmith runs on (inside ComfyUI, ComfyUI's own)."""
+    from seriesmith.features import pip_line
+    return pip_line(sys.executable, REQUIREMENT)
 
 
 def state() -> dict:
-    # the spec's < and > quoted: list2cmdline leaves them bare, a redirection in cmd
-    from seriesmith.features import shell_line
     return {"status": "ready" if have() else "missing",
-            "command": shell_line(command()), "python": sys.executable}
+            "command": command(), "python": sys.executable}
 
 
 __all__ = ["REQUIREMENT", "command", "have", "state"]

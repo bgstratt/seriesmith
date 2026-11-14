@@ -75,6 +75,7 @@ import urllib.request
 import uuid
 from dataclasses import dataclass, field, replace as _replace
 
+from seriesmith import proc as PROC
 from seriesmith import takes as T
 from seriesmith import targets as TG
 from seriesmith.core import fileio as F
@@ -3554,13 +3555,12 @@ def remux_dub(take: T.Take) -> str:
     _h3.wav, the dub spoken in it, the model's sound under it), as a generate or
     clone take's does, where a dub's saver leaves it mute for a recording laid
     in at the cut. Returns a note ("" when nothing was done)."""
-    import subprocess
     from seriesmith import ff as FF
     if not (os.path.isfile(take.paths.mp4) and os.path.isfile(take.paths.h3_wav)):
         return ""
     tmp = F.temp_beside(take.paths.mp4, ".mp4")
     try:
-        r = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-nostdin", "-y",
+        r = PROC.run([*FF.tool("ffmpeg"), "-v", "error", "-nostdin", "-y",
                             "-i", take.paths.mp4, "-i", take.paths.h3_wav,
                             "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
                             "-c:a", "aac", "-b:a", "192k", "-shortest", tmp],

@@ -98,8 +98,8 @@ import json
 import math
 import os
 import re
-import subprocess
 
+from seriesmith import proc as PROC
 from seriesmith.core.paths import show_file
 from seriesmith import ff as FF
 from seriesmith.core import fileio as F
@@ -728,7 +728,7 @@ def decode(path: str, start: float = 0.0, seconds: float | None = None,
     if seconds is not None:
         cmd += ["-t", f"{max(0.0, seconds):.6f}"]
     cmd += ["-vn", "-map", "0:a:0?", "-f", "f32le", "-ac", str(channels), "-ar", str(rate), "-"]
-    r = subprocess.run(cmd, capture_output=True, timeout=1800)
+    r = PROC.run(cmd, capture_output=True, timeout=1800)
     if r.returncode != 0 or not r.stdout:
         return np.zeros((0, channels), dtype=np.float32)
     return np.frombuffer(r.stdout, dtype=np.float32).reshape(-1, channels).copy()
@@ -737,7 +737,7 @@ def decode(path: str, start: float = 0.0, seconds: float | None = None,
 def write_wav(path: str, buf, codec: str = "pcm_s24le") -> None:
     """24-bit PCM at RATE (or `codec`: the stems are pcm_f32le), written beside and moved into place."""
     tmp = F.temp_beside(path, ".wav")
-    r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "f32le", "-ac", "2",
+    r = PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "f32le", "-ac", "2",
                         "-ar", str(RATE), "-i", "-", "-c:a", codec, tmp],
                        input=buf.astype("float32").tobytes(), capture_output=True, timeout=1800)
     if r.returncode != 0:
@@ -959,7 +959,7 @@ def _per_sample(curve, n: int):
 def measure(path: str, target: float, peak: float) -> dict | None:
     """loudnorm's measurement of a file's sound (an export's picture isn't decoded):
     {"input_i", "input_tp", "input_lra", "input_thresh", ...} as floats, or None."""
-    r = subprocess.run([*FF.tool("ffmpeg"), "-hide_banner", "-nostats", "-i", path, "-vn", "-af",
+    r = PROC.run([*FF.tool("ffmpeg"), "-hide_banner", "-nostats", "-i", path, "-vn", "-af",
                         f"loudnorm=I={target:g}:TP={peak:g}:LRA=11:print_format=json",
                         "-f", "null", "-"], capture_output=True, timeout=1800)
     text = r.stderr.decode("utf-8", "replace")
@@ -1133,7 +1133,7 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
         write_wav(tmp, mixed * lin, "pcm_f32le")
         up = RATE * TP_OVERSAMPLE
         out = F.temp_beside(raw_mix, ".wav")
-        r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", tmp, "-af",
+        r = PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", tmp, "-af",
                             f"aresample={up},alimiter=limit={_db(hold):.4f}:level=false:attack=5:"
                             f"release=50,aresample={RATE}",
                             "-c:a", "pcm_s24le", out], capture_output=True, timeout=1800)
@@ -1157,7 +1157,7 @@ def render(mix: dict, origins: dict, total: int, fps: float, root: str, dialogue
 def mux(video: str, wav: str, total: int, fps: float) -> None:
     """Lay `wav` under `video` as its only sound (AAC), the picture copied, in place."""
     tmp = F.temp_beside(video, ".mp4")
-    r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", video, "-i", wav,
+    r = PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", video, "-i", wav,
                         "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac",
                         "-b:a", "256k", "-t", f"{total / fps:.6f}", tmp],
                        capture_output=True, timeout=1800)

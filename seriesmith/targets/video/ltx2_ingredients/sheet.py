@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
+from seriesmith import proc as PROC
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 HELPER = os.path.join(ROOT, "helpers", "refsheet.py")          # ROOT: the package
@@ -24,7 +24,7 @@ class SheetError(RuntimeError):
 def compose(spec: dict, out: str, timeout: int = 120) -> dict:
     """Write the sheet `spec` describes to `out` (see helpers/refsheet.py).
     Returns the helper's report ({"width", "height", "boxes"})."""
-    r = subprocess.run([sys.executable, HELPER, out], input=json.dumps(spec).encode("utf-8"),
+    r = PROC.run([sys.executable, HELPER, out], input=json.dumps(spec).encode("utf-8"),
                        capture_output=True, timeout=timeout)
     err = r.stderr.decode("utf-8", "replace").strip()
     if r.returncode or not os.path.isfile(out):

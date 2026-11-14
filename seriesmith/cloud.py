@@ -37,6 +37,7 @@ import threading
 import time
 import wave
 
+from seriesmith import proc as PROC
 from seriesmith.backends import BackendError, File, HTTPFailure, http_json
 from seriesmith.core import paths as P
 
@@ -270,7 +271,7 @@ def sound(spec: dict, path: str) -> str:
         tmp = path + ".src.wav"
         import subprocess
         try:
-            subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src,
+            PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src,
                             "-acodec", "pcm_s16le", tmp], check=True, capture_output=True,
                            timeout=300)
         except (OSError, subprocess.CalledProcessError) as e:

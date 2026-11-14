@@ -65,6 +65,7 @@ import re
 import xml.etree.ElementTree as ET
 from urllib.parse import unquote, urlparse
 
+from seriesmith import proc as PROC
 from seriesmith import mix as MX
 from seriesmith import takes as T
 from seriesmith.core import fileio
@@ -1062,7 +1063,7 @@ def keyframe(ep: str, shot: str, mp4: str, frame: int, fps: float) -> str | None
         return None
     tmp = fileio.temp_beside(dst, ".png")
     try:
-        subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-ss",
+        PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-ss",
                         f"{max(0.0, (frame - 0.25) / fps):.6f}", "-i", mp4, "-frames:v", "1", tmp],
                        check=True, capture_output=True, timeout=300)
         fileio.replace(tmp, dst)
