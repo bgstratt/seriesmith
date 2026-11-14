@@ -372,7 +372,7 @@ specific glob, then `"*"`):
   (`master` for delivery, `review` quicker).
 - Per model: `method` (`latent`: re-sampled by the take's own model, the best for H3 and
   LTX; `pixel`: an upscale model, `pixel_model`; `seedvr2`: a restoration model,
-  `seedvr2_model`), `scale` (a number, or `"auto"`: the smallest that covers `deliver`),
+  `seedvr2_model`; `ltx`: the LTX-2.5 detail pass, `ltx_lora` `refine` or `restore`), `scale` (a number, or `"auto"`: the smallest that covers `deliver`),
   `then` (an upscale model file, or `"seedvr2"`, after a re-sample).
 - FastH3 Omni re-samples as H3 does but isn't `minimax_h3_*`: give `fasth3_*` its own
   section, or its shots fall to `"*"`.

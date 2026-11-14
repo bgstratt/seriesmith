@@ -563,7 +563,7 @@ TOOLS: list[Tool] = [
 
     # finishing: upscale, post, master
     Tool("upscale_options", "What upscaling can run on this machine: pixel models, which "
-         "video models can re-sample (latent), SeedVR2, delivery sizes; with ep, the "
+         "video models can re-sample (latent), SeedVR2, the LTX detail pass, delivery sizes; with ep, the "
          "series' master recipe.", {"ep": _s("optional: an episode, for its recipe")}, (),
          route("GET", "/seriesmith/upscale/options", "ep", query=True)),
     Tool("post_options", "What post-processing can run here (enhance tiers and methods, "
@@ -625,14 +625,14 @@ TOOLS: list[Tool] = [
     Tool("upscale", "QUEUES JOBS (GPU or credits): the final cut's takes upscaled (the "
          "whole cut when shots and takes are left out; fresh ones skipped unless redo). "
          "Common fields below; every other field of POST /seriesmith/upscale passes "
-         "through (then_pixel_model, then_method, seedvr2_model, detail, encoder, ...). "
+         "through (then_pixel_model, then_method, seedvr2_model, ltx_lora, detail, encoder, ...). "
          "upscale_options says what can run.",
          {"ep": EP, "pass": _s("final when left out", enum=["proxy", "final"]),
           "shots": {"type": "array", "items": SHOT},
           "takes": {"type": "array", "items": {"type": "object", "properties": {
               "shot": SHOT, "take": TAKE}}},
           "redo": {"type": "boolean"}, "scale": {"type": "number"},
-          "method": _s("latent (re-sample), pixel or seedvr2"),
+          "method": _s("latent (re-sample), pixel, seedvr2 or ltx (the LTX-2.5 detail pass)"),
           "pixel_model": _s("a file in models/upscale_models, or rtx_vsr"),
           "deliver": _s("1080p, 1440p, 4k or WxH"), "fit": _s("crop or pad"),
           "quality": _s("review or master")}, ("ep",),

@@ -1132,14 +1132,16 @@ export interface TakeUpscale {
   fresh: boolean;
   width: number | null;
   height: number | null;
-  route: "latent" | "vae" | "pixel" | "seedvr2" | null;
+  route: "latent" | "vae" | "pixel" | "seedvr2" | "ltx" | null;
   start_step: number | null;
-  /** latent (a re-sample), pixel (an upscale model over the frames) or seedvr2 */
-  method?: "latent" | "pixel" | "seedvr2";
+  /** latent (a re-sample), pixel (an upscale model over the frames), seedvr2 or ltx (the LTX-2.5 detail pass) */
+  method?: "latent" | "pixel" | "seedvr2" | "ltx";
   /** the pixel method's model file */
   pixel_model?: string | null;
   /** the SeedVR2 method's model file */
   seedvr2_model?: string | null;
+  /** the LTX detail pass's LoRA file */
+  ltx_lora?: string | null;
   /** a pixel step after the re-sample: its model, scale and the re-sample's size */
   then_pixel?: { model: string; scale: number; from: [number, number]; method?: "seedvr2" } | null;
   /** Phase 13e: marked Keep (a wholesale redo or Master leaves it alone) */
@@ -1180,9 +1182,11 @@ export interface UpscaleRequest {
   /** latent: re-sample takes of other models through this one (a target id) */
   through?: string;
   /** null: each take's default (latent where its target has one, else pixel) */
-  method?: "latent" | "pixel" | "seedvr2" | null;
+  method?: "latent" | "pixel" | "seedvr2" | "ltx" | null;
   /** seedvr2: "7b" (the default), "3b" or a model file name */
   seedvr2_model?: string | null;
+  /** ltx: "refine" (the default), "restore" or a LoRA file name */
+  ltx_lora?: string | null;
   /** the pixel method's model (models/upscale_models); null: the default */
   pixel_model?: string | null;
   /** latent: start 0-2 steps earlier than the default (more detail, more change) */
@@ -1278,6 +1282,9 @@ export interface UpscaleOptions {
   pixel: { status: "ready" | "not_ready" | "unknown"; missing: string[]; models: string[]; default: string };
   /** SeedVR2 (core nodes, its own model files): absent from older servers */
   seedvr2?: { status: "ready" | "not_ready" | "unknown"; missing: string[]; models: string[]; default: string };
+  /** the LTX-2.5 detail pass (ComfyUI-LTXVideo, LTX-2.5's files, its LoRAs: the ones
+   * installed, of refine and restore): absent from older servers */
+  ltx?: { status: "ready" | "not_ready" | "unknown"; missing: string[]; loras: string[]; default: string };
   /** each video target's latent upscale: null when it has none */
   latent: Record<string, {
     status: "ready" | "not_ready" | "unknown"; missing: string[];
@@ -1391,9 +1398,9 @@ export interface RecipeView {
 }
 
 export interface UpscaleResult {
-  queued: { shot: string; take: number; route: "latent" | "vae" | "pixel" | "seedvr2"; scale: number; start_step: number | null;
-            method?: "latent" | "pixel" | "seedvr2"; pixel_model?: string | null; then_pixel_model?: string | null;
-            seedvr2_model?: string | null;
+  queued: { shot: string; take: number; route: "latent" | "vae" | "pixel" | "seedvr2" | "ltx"; scale: number; start_step: number | null;
+            method?: "latent" | "pixel" | "seedvr2" | "ltx"; pixel_model?: string | null; then_pixel_model?: string | null;
+            seedvr2_model?: string | null; ltx_lora?: string | null;
             width: number; height: number; prompt_id: string }[];
   skipped: { shot: string; take?: number; reason: string }[];
   errors: { shot: string; take?: number; error: string }[];

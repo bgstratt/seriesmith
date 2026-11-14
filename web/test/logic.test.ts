@@ -66,6 +66,14 @@ describe("upscaleRequestOf (the Upscale dialog)", () => {
     expect(r).toMatchObject({ method: "seedvr2", seedvr2_model: "seedvr2_3b_int8_convrot.safetensors", from_upscale: true });
     expect("pixel_model" in r || "detail" in r || "vae" in r || "then_pixel_model" in r).toBe(false);
   });
+  it("ltx: its LoRA, never a pixel model, a re-sample's controls, a then step or on an upscale", () => {
+    const r = upscaleRequestOf({ ...f, method: "ltx", ltxLora: "restore", detail: 2, vae: true, through: "ltx2",
+                                 thenModel: "x.pth", fromUpscale: true, scale: 3 }, one);
+    expect(r).toMatchObject({ method: "ltx", ltx_lora: "restore", scale: 3 });
+    expect(["pixel_model", "detail", "vae", "through", "then_pixel_model", "from_upscale"].some((k) => k in r)).toBe(false);
+    // a delivery size decides its scale, as the pixel method's
+    expect("scale" in upscaleRequestOf({ ...f, method: "ltx", scale: 3, deliver: "4k" }, one)).toBe(false);
+  });
   it("a delivery size: sent with its fit; it decides the pixel and then-pixel scales", () => {
     const px = upscaleRequestOf({ ...f, method: "pixel", scale: 3, deliver: "4k", fit: "pad" }, one);
     expect(px).toMatchObject({ deliver: "4k", fit: "pad" });

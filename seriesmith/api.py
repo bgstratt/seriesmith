@@ -1918,10 +1918,13 @@ def post_upscale(ctx: Context, body):
         raise ApiError(400, "start_step must be a whole number or null")
     method = body.get("method")
     if method is not None and method not in U.METHODS:
-        raise ApiError(400, "method must be latent, pixel, seedvr2 or null (each take's default)")
+        raise ApiError(400, "method must be latent, pixel, seedvr2, ltx or null (each take's default)")
     seedvr2_model = body.get("seedvr2_model")
     if seedvr2_model is not None and (not isinstance(seedvr2_model, str) or not seedvr2_model):
         raise ApiError(400, "seedvr2_model must be 7b, 3b or a model file name, or null")
+    ltx_lora = body.get("ltx_lora")
+    if ltx_lora is not None and (not isinstance(ltx_lora, str) or not ltx_lora):
+        raise ApiError(400, "ltx_lora must be refine, restore or a LoRA file name, or null")
     pixel_model = body.get("pixel_model")
     if pixel_model is not None and (not isinstance(pixel_model, str) or not pixel_model):
         raise ApiError(400, "pixel_model must be an upscale model's file name (or rtx_vsr), or null")
@@ -2004,8 +2007,8 @@ def post_upscale(ctx: Context, body):
                                 then_method=then_method,
                                 from_upscale=from_upscale, encoder=encoder, precision=precision,
                                 frequency_split=frequency_split, keep_soft=keep_soft, grain=grain,
-                                seedvr2_model=seedvr2_model, deliver=deliver, fit=fit,
-                                quality=quality, upscaler=body.get("upscaler"),
+                                seedvr2_model=seedvr2_model, ltx_lora=ltx_lora,
+                                deliver=deliver, fit=fit, quality=quality, upscaler=body.get("upscaler"),
                                 windowing=body.get("windowing"), through=body.get("through") or None)
         if up.action == "skip":
             skipped.append({"shot": shot, "take": t.take, "reason": up.why})
@@ -2054,7 +2057,7 @@ def post_upscale(ctx: Context, body):
                 continue
             row = {"shot": up.shot, "take": up.take.take, "route": up.route,
                    "method": up.method, "pixel_model": up.pixel_model or None,
-                   "seedvr2_model": up.seedvr2_model or None,
+                   "seedvr2_model": up.seedvr2_model or None, "ltx_lora": up.ltx_lora or None,
                    "scale": up.scale, "start_step": up.start_step,
                    "then_pixel_model": up.then_model or None,
                    "width": up.out_size[0], "height": up.out_size[1], "prompt_id": pid}
@@ -2575,6 +2578,7 @@ def get_upscale_options(ctx: Context, query: dict):
         info = None
     px = U.pixel_readiness(info)
     sv2 = U.seedvr2_readiness(info)
+    ltx = U.ltx_readiness(info)
     latent = {}
     for t in TG.list_targets("video"):
         r = U.upscale_readiness(t, info)
@@ -2586,7 +2590,7 @@ def get_upscale_options(ctx: Context, query: dict):
                      fixed_scale=U.fixed_scale(spec), family=U.family(spec), **U.node_choices(spec, info))
         latent[t.id] = r
     ep = check_ep(ctx, query["ep"]) if query.get("ep") else None
-    return 200, {"pixel": px, "seedvr2": sv2, "latent": latent, "through": U.through_choices(info),
+    return 200, {"pixel": px, "seedvr2": sv2, "ltx": ltx, "latent": latent, "through": U.through_choices(info),
                  "details": list(U.DETAILS),
                  "recipe": recipe_view(ep) if ep else None,
                  "max_scale": U.MAX_SCALE, "encoders": list(U.ENCODERS),

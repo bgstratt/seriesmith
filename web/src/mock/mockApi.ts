@@ -1811,6 +1811,7 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
         pixel: { status: "ready", missing: [], models: ["4x-UltraSharp.pth", "RealESRGAN_x2.pth", "RealESRGAN_x4.pth"], default: "RealESRGAN_x2.pth" },
         seedvr2: { status: "ready", missing: [], models: ["seedvr2_3b_int8_convrot.safetensors", "seedvr2_7b_int8_convrot.safetensors"],
                    default: "seedvr2_7b_int8_convrot.safetensors" },
+        ltx: { status: "ready", missing: [], loras: ["refine", "restore"], default: "refine" },
         delivers: [{ id: "1080p", width: 1920, height: 1080 }, { id: "1440p", width: 2560, height: 1440 },
                    { id: "4k", width: 3840, height: 2160 }],
         fits: ["crop", "pad"],

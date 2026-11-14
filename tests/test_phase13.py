@@ -902,6 +902,107 @@ class PixelUpscaleTest(UpscaleRouteTest):
                                                  "seedvr2_model": "gone.safetensors", "redo": True}), 409)
         self.assertIn("gone.safetensors", msg)
 
+    def ltx_info(self, unets=(U.LTX_UNETS[0],), texts=(U.LTX_TEXT[0],), loras=tuple(U.LTX_LORAS.values())):
+        info = {c: {"input": {}} for c in U.LTX_NODES}
+        info["UNETLoader"] = {"input": {"required": {"unet_name": [list(unets), {}]}}}
+        info["CLIPLoader"] = {"input": {"required": {"clip_name": [list(texts), {}]}}}
+        info["VAELoader"] = {"input": {"required": {"vae_name": [[U.LTX_VAE], {}]}}}
+        info["LTXICLoRALoaderModelOnly"] = {"input": {"required": {"lora_name": [list(loras), {}]}}}
+        return info
+
+    def test_ltx_tiling(self):
+        """The tiles and windows by ComfyUI-LTXVideo's rules: the HD tile (the take's
+        own size when within 200 px of a 1280 long edge), 8k+1 frames, a window of
+        the clip up to 121 frames, else 97."""
+        self.assertEqual(U.ltx_tiling(1344, 768, 107),
+                         {"tile_width": 1344, "tile_height": 768, "overlap": 0.5, "frames": 113, "window": 113})
+        t = U.ltx_tiling(960, 544, 39)
+        self.assertEqual((t["tile_width"], t["tile_height"], t["frames"], t["window"]), (1280, 736, 41, 41))
+        t = U.ltx_tiling(1920, 1080, 200)
+        self.assertEqual((t["tile_width"], t["tile_height"], t["frames"], t["window"]), (1280, 736, 201, 97))
+        self.assertEqual([U.ltx_frames(n) for n in (1, 9, 10, 73, 97, 98)], [1, 9, 17, 73, 97, 105])
+        self.assertEqual(U.ltx_size(1344, 768, 2), (2688, 1536))
+        self.assertEqual(U.ltx_size(1344, 768, 1.5), (2016, 1152))
+        self.assertEqual(U.ltx_size(1000, 562, 2), (2016, 1152))         # up onto the grid
+
+    def test_ltx_any_target(self):
+        t = self.as_target(self.final_take(latent=False), "wan22_vace")      # no re-sample of its own
+        T.update_sidecar(t.paths.sidecar, width=1344, height=768, frames=107, seed=12345)
+        t = T.get_take(self.ep, "final", "sh010", 1)
+        up = U.plan_upscale(self.ep, t, method="ltx", grain=0.02)
+        self.assertEqual((up.action, up.method, up.route, up.ltx_lora, up.width, up.height),
+                         ("upscale", "ltx", "ltx", U.LTX_LORAS["refine"], 2688, 1536))
+        self.assertEqual(U.plan_upscale(self.ep, t, method="ltx", ltx_lora="restore").ltx_lora,
+                         U.LTX_LORAS["restore"])
+        g = U.ltx_graph(up)
+        self.assertEqual(g["up_video"]["inputs"]["frames"], 113)            # held to 8k+1
+        self.assertEqual((g["up_resize"]["inputs"]["width"], g["up_resize"]["inputs"]["height"]), (2688, 1536))
+        self.assertEqual((g["up_empty"]["inputs"]["length"], g["up_guide"]["inputs"]["tile_frames"]), (113, 113))
+        self.assertEqual(g["up_lora"]["inputs"]["lora_name"], U.LTX_LORAS["refine"])
+        self.assertEqual(g["up_guide"]["inputs"]["latent_downscale_factor"], ["up_lora", 1])
+        self.assertFalse(g["up_guide"]["inputs"]["use_tiled_encode"])
+        fuse = g["up_fuse"]["inputs"]
+        self.assertEqual((fuse["tile_width"], fuse["tile_height"], fuse["tile_frames"], fuse["seed"]),
+                         (1344, 768, 113, 12345))
+        self.assertEqual((fuse["latents"], fuse["model"]), (["up_guide", 2], ["up_lora", 0]))
+        fin = g["up_finish"]["inputs"]
+        self.assertEqual((fin["images"], fin["source"], fin["grain"]), (["up_dec", 0], ["up_video", 0], 0.02))
+        self.assertEqual((g["up_keep"]["inputs"]["image"], g["up_keep"]["inputs"]["length"]), (["up_finish", 0], 107))
+        self.assertEqual(g["up_save"]["inputs"]["images"], ["up_keep", 0])
+        self.assertEqual(g["up_unet"]["inputs"]["unet_name"], U.LTX_UNETS[0])
+        self.assertTrue(runs_as(g) <= set(U.LTX_NODES))
+        rec = U.queued_record(up)
+        self.assertEqual((rec["method"], rec["ltx_lora"], rec["tiles"], rec["window"], rec["steps"]),
+                         ("ltx", U.LTX_LORAS["refine"], [1344, 768], 113, 8))
+        self.assertEqual(rec["recipe"]["ltx_lora"], U.LTX_LORAS["refine"])
+        self.assertIn("LTX-2.5 detail pass", U.describe(up))
+        # a delivery: the covering frame, up onto the grid; the saver crops it
+        up = U.plan_upscale(self.ep, t, method="ltx", deliver="4k")
+        self.assertEqual((up.width, up.height, up.out_size), (3840, 2208, (3840, 2160)))
+        self.assertEqual(U.ltx_graph(up)["up_save"]["inputs"]["width"], 3840)
+        # never on top of an earlier upscale; a take that doesn't say its length
+        self.assertEqual(U.plan_upscale(self.ep, t, method="ltx", from_upscale=True).action, "error")
+        T.update_sidecar(t.paths.sidecar, frames=None, length=None)
+        bad = U.plan_upscale(self.ep, T.get_take(self.ep, "final", "sh010", 1), method="ltx")
+        self.assertEqual(bad.action, "error")
+        self.assertIn("frames", bad.why)
+
+    def test_ltx_readiness_route_and_options(self):
+        self.final_take()
+        self.assertEqual(U.ltx_readiness(self.ltx_info())["status"], "ready")
+        r = U.ltx_readiness(self.ltx_info(loras=(U.LTX_LORAS["restore"],)))
+        self.assertEqual((r["status"], r["loras"]), ("not_ready", ["restore"]))       # refine, the default, missing
+        self.assertEqual(U.ltx_readiness(self.ltx_info(loras=(U.LTX_LORAS["restore"],)), "restore")["status"], "ready")
+        r = U.ltx_readiness({k: v for k, v in self.ltx_info().items() if k != "LTXVTiledFusionSampler"})
+        self.assertTrue(any("LTXVTiledFusionSampler" in m and "ComfyUI-LTXVideo" in m for m in r["missing"]))
+        r = U.ltx_readiness(self.ltx_info(unets=(), texts=()))
+        self.assertEqual(len(r["missing"]), 2)
+        self.assertEqual(U.ltx_readiness(None)["status"], "unknown")
+        # the bf16 files when those are what's installed: the graph loads them
+        info = self.ltx_info(unets=(U.LTX_UNETS[1],), texts=(U.LTX_TEXT[1],))
+        self.assertEqual(U.ltx_files(info), {"unet": U.LTX_UNETS[1], "text": U.LTX_TEXT[1], "vae": U.LTX_VAE})
+        up = U.plan_upscale(self.ep, T.get_take(self.ep, "final", "sh010", 1), method="ltx", redo=True)
+        self.assertEqual(U.not_ready([up], info), [])
+        g = U.ltx_graph(up)
+        self.assertEqual((g["up_unet"]["inputs"]["unet_name"], g["up_clip"]["inputs"]["clip_name"]),
+                         (U.LTX_UNETS[1], U.LTX_TEXT[1]))
+        # the route and the dialog's options
+        self.comfy.nodes |= set(U.LTX_NODES)
+        self.comfy.info.update({k: v for k, v in self.ltx_info().items()
+                                if k in ("UNETLoader", "CLIPLoader", "VAELoader", "LTXICLoRALoaderModelOnly")})
+        res = self.ok(A.post_upscale(self.ctx, {"ep": self.ep, "shots": ["sh010"], "method": "ltx",
+                                                "ltx_lora": "restore"}))
+        q = res["queued"][0]
+        self.assertEqual((q["method"], q["ltx_lora"]), ("ltx", U.LTX_LORAS["restore"]))
+        self.assertEqual(self.status_take()["upscale"]["ltx_lora"], U.LTX_LORAS["restore"])
+        self.assertTrue(any(v["class_type"] == "LTXVTiledFusionSampler" for v in self.comfy.graphs[-1].values()))
+        opts = self.ok(A.get_upscale_options(self.ctx, {}))
+        self.assertEqual((opts["ltx"]["status"], opts["ltx"]["loras"]), ("ready", ["refine", "restore"]))
+        msg = self.err(A.post_upscale(self.ctx, {"ep": self.ep, "shots": ["sh010"], "method": "ltx",
+                                                 "ltx_lora": "gone.safetensors", "redo": True}), 409)
+        self.assertIn("gone.safetensors", msg)
+        self.err(A.post_upscale(self.ctx, {"ep": self.ep, "shots": ["sh010"], "method": "ltx", "ltx_lora": 3}), 400)
+
     def test_default_pixel_model(self):
         self.assertEqual(U.default_pixel_model(["4x-UltraSharp.pth", "RealESRGAN_x2.pth"]), "RealESRGAN_x2.pth")
         self.assertEqual(U.default_pixel_model(["4x-UltraSharp.pth", "2x-Other.pth"]), "2x-Other.pth")
@@ -1031,6 +1132,13 @@ class RecipeTest(ApiTest):
                      "detail 5", "scale 9", "then: only after a re-sample"):
             self.assertIn(want, text)
         self.assertTrue(U.check_recipe({"deliver": "4k"}))                   # no targets
+        # the LTX detail pass, and its LoRA
+        ltx = {"method": "ltx", "ltx_lora": "restore"}
+        self.assertEqual(U.check_recipe({"deliver": "4k", "targets": {"*": ltx}}), [])
+        self.assertIn("ltx_lora 5", "\n".join(U.check_fields({"method": "ltx", "ltx_lora": 5})))
+        self.assertEqual(U.recipe_kwargs(ltx)["ltx_lora"], "restore")
+        self.assertEqual(U.recipe_from_request({"method": "ltx", "ltx_lora": "restore"}), ltx)
+        self.assertEqual(U.describe_recipe(ltx, {"deliver": "4k"}), "LTX-2.5 detail pass (restore) → 4k (crop)")
         # the build says so too
         cfg = load_series_config(os.path.join(KITCHEN, "series.json"))
         with open(os.path.join(KITCHEN, "script.md"), encoding="utf-8") as fh:

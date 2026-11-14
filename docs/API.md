@@ -1470,7 +1470,7 @@ no recipe at all is 409.
 ```
 
 A section's fields: `method`, `scale`, `detail`, `start_step`, `vae`, `pixel_model`,
-`seedvr2_model`, `upscaler` and `windowing` (`"pack"`: the node pack's in place of ComfyUI's own), `then` (an upscale model file, or `"seedvr2"`), `then_scale`, `precision`,
+`seedvr2_model`, `ltx_lora`, `upscaler` and `windowing` (`"pack"`: the node pack's in place of ComfyUI's own), `then` (an upscale model file, or `"seedvr2"`), `then_scale`, `precision`,
 `frequency_split`, `keep_soft`, `grain`. `quality` (`review` | `master`) is read by Phase
 13e3. The build warns about anything else (upscale.check_recipe).
 
@@ -1578,7 +1578,14 @@ What the editor's Upscale dialog offers on this ComfyUI:
 `method: "seedvr2"` runs SeedVR2 (ComfyUI's own nodes; any take, no prompt): `seedvr2_model`
 is `"7b"` (the default), `"3b"` or a file name; it takes `scale`, `from_upscale` and the
 finish like the pixel method, and options lists it as `seedvr2: {status, missing, models,
-default}`. `latent[target]` is null for a target with no latent upscale; otherwise it also has `mode`
+default}`. `method: "ltx"` runs the LTX-2.5 detail pass (ComfyUI-LTXVideo's Tiled Fusion;
+any take, a prompt of its own about the look only): `ltx_lora` is `"refine"` (Refine Details,
+the default), `"restore"` or a LoRA file name; it takes `scale`, `deliver` and the finish like
+SeedVR2 (its size is rounded up onto a 32 grid, then cropped or padded to the delivery), not
+`from_upscale`; options lists it as `ltx: {status, missing, loras (of refine and restore, the
+installed ones), default}`. Its record has `ltx_lora`, `ltx_files` (the transformer, text
+encoder and VAE it loaded), `tiles` and `window` (the frames a temporal window samples).
+`latent[target]` is null for a target with no latent upscale; otherwise it also has `mode`
 (`resample` | `second_stage`), `align` and `fixed_scale` (second_stage's only scale), and
 the answer has `max_scale`, `recipe` (with `?ep=`: the episode's master recipe, null
 without one: `deliver`, `fit`, `quality`, `encoder`, `targets` (each video target's matching

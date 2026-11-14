@@ -2142,7 +2142,7 @@ def upscale_summary(root: str, t: T.Take, cache: dict | None = None) -> dict | N
             "width": up.get("width"), "height": up.get("height"),
             "route": up.get("route"), "start_step": up.get("start_step"),
             "method": up.get("method", "latent"), "pixel_model": up.get("pixel_model"),
-            "seedvr2_model": up.get("seedvr2_model"),
+            "seedvr2_model": up.get("seedvr2_model"), "ltx_lora": up.get("ltx_lora"),
             "then_pixel": up.get("then_pixel"),
             "deliver": up.get("deliver"),
             "keep": bool(up.get("keep")),

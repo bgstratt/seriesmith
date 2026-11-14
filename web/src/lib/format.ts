@@ -37,7 +37,9 @@ export function upscaleBadge(t: TakeSummary | undefined): Badge | null {
   if (u.status === "queued") return { kind: "queued", label: "upscaling", title: `Upscale of ${tn(t!.take)} queued` };
   if (u.status === "failed") return { kind: "failed", label: "upscale failed", title: u.save_notes || "The upscale failed" };
   if (!u.fresh) return { kind: "stale", label: "2x stale", title: `The upscale (${size}) was made from an earlier ${tn(t!.take)}: upscale it again` };
-  const how = u.method === "seedvr2"
+  const how = u.method === "ltx"
+    ? `LTX-2.5 detail pass, ${/restore/i.test(u.ltx_lora ?? "") ? "Restore" : /refine/i.test(u.ltx_lora ?? "") ? "Refine Details" : u.ltx_lora ?? "?"}`
+    : u.method === "seedvr2"
     ? `SeedVR2, ${u.seedvr2_model ?? "?"}${u.on_upscale ? ", on an earlier upscale" : ""}`
     : u.method === "pixel"
     ? `pixel, ${u.pixel_model ?? "?"}${u.on_upscale ? ", on an earlier upscale" : ""}`

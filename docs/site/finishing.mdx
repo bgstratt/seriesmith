@@ -114,6 +114,19 @@ in place of an upscale model: `seriesmith upscale <ep> --then-seedvr2 --deliver 
 Then: SeedVR2), so the take is redrawn under its own prompt with its lips held, then
 restored to the output size.
 
+The **LTX-2.5 detail pass** is the fourth method, for any take too: LTX-2.5 redraws the take
+at the new size with one of Lightricks' detail IC-LoRAs, its frames as the guide, in tiles
+that share one canvas (ComfyUI-LTXVideo's Tiled Fusion sampler), so any size up to 8K comes
+out in one piece. `seriesmith upscale <ep> --method ltx --deliver 4k` (the dialog's LTX-2.5
+detail pass); `--ltx-lora restore` for the Restore LoRA instead of Refine Details (the
+default). Refine Details adds detail and keeps the look; Restore also cleans up compression
+and softness, and moves the colour more, which the colour finish after it takes back from the
+take, as after SeedVR2. It works from the take's frames with a prompt of its own about the
+look only (no prompt of the take's, no references), and the take's audio is copied on. It is
+slow: about 10 s a frame to 4K on an RTX 5090, and a 4.5 s take used 30 GB of its 32 GB;
+a take longer than about 5 s is sampled in 97-frame windows. It needs ComfyUI-LTXVideo from
+2026-11-12 or later and LTX-2.5's files (the Features window's LTX-2.5 detail pass).
+
 `--scale` is any number above 1, up to 4 (a pixel upscale lands on even sides, an H3
 re-sample on the 32 grid, so 1.5x, 2x, 3x of 1024×576 all work; the LTX targets' is 2x
 only). For 4x with generated detail, re-sample then upscale in one go:

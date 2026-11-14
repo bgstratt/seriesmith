@@ -1591,9 +1591,11 @@ export async function loadMasterJob(): Promise<void> {
 
 /** The Upscale dialog's choices. `method` "auto" leaves each take's default. */
 export interface UpscaleForm {
-  method: "auto" | "latent" | "pixel" | "seedvr2";
+  method: "auto" | "latent" | "pixel" | "seedvr2" | "ltx";
   /** the SeedVR2 method's model (null: the server's default, 7b) */
   seedvr2Model?: string | null;
+  /** the LTX detail pass's LoRA: refine or restore (null: the server's default, refine) */
+  ltxLora?: string | null;
   pixelModel: string | null;
   detail: 0 | 1 | 2;
   redo: boolean;
@@ -1631,8 +1633,11 @@ export function upscaleRequestOf(f: UpscaleForm, ask: { pass: Pass; takes: { sho
                                  /** a take's re-sample starts with a pixel model (Wan) */ refineNeedsModel = false): Omit<UpscaleRequest, "ep"> {
   const req: Omit<UpscaleRequest, "ep"> = ask.takes ? { pass: ask.pass, takes: ask.takes } : { pass: ask.pass, shots: null };
   if (f.method !== "auto") req.method = f.method;
-  if (f.method !== "seedvr2" && (f.method !== "latent" || refineNeedsModel) && f.pixelModel) req.pixel_model = f.pixelModel;
+  // the controls only a re-sample has (each take's default may be one)
+  const latentish = f.method === "auto" || f.method === "latent";
+  if (f.method !== "seedvr2" && f.method !== "ltx" && (f.method !== "latent" || refineNeedsModel) && f.pixelModel) req.pixel_model = f.pixelModel;
   if (f.method === "seedvr2" && f.seedvr2Model) req.seedvr2_model = f.seedvr2Model;
+  if (f.method === "ltx" && f.ltxLora) req.ltx_lora = f.ltxLora;
   if ((f.method === "pixel" || f.method === "seedvr2") && f.fromUpscale) req.from_upscale = true;
   if (f.encoder !== "auto") req.encoder = f.encoder;
   if (f.quality === "master") req.quality = "master";
@@ -1640,15 +1645,15 @@ export function upscaleRequestOf(f: UpscaleForm, ask: { pass: Pass; takes: { sho
   if (!f.frequencySplit) req.frequency_split = false;
   if (f.keepSoft) req.keep_soft = f.keepSoft;
   if (f.grain) req.grain = f.grain;
-  if (f.method !== "pixel" && f.method !== "seedvr2" && f.detail) req.detail = f.detail;
-  if (f.method !== "pixel" && f.method !== "seedvr2" && f.vae) req.vae = true;
-  if (f.method !== "pixel" && f.method !== "seedvr2" && f.upscaler) req.upscaler = f.upscaler;
-  if (f.method !== "pixel" && f.method !== "seedvr2" && f.windowing) req.windowing = f.windowing;
-  if (f.method !== "pixel" && f.method !== "seedvr2" && f.through) req.through = f.through;
+  if (latentish && f.detail) req.detail = f.detail;
+  if (latentish && f.vae) req.vae = true;
+  if (latentish && f.upscaler) req.upscaler = f.upscaler;
+  if (latentish && f.windowing) req.windowing = f.windowing;
+  if (latentish && f.through) req.through = f.through;
   // a delivery size decides the pixel method's scale, and a then-pixel step's
   const sized = !!f.deliver;
-  if (f.scale !== 2 && !(sized && (f.method === "pixel" || f.method === "seedvr2"))) req.scale = f.scale;
-  if (f.method !== "pixel" && f.method !== "seedvr2" && f.thenModel) {
+  if (f.scale !== 2 && !(sized && !latentish)) req.scale = f.scale;
+  if (latentish && f.thenModel) {
     if (f.thenMethod === "seedvr2") {
       req.then_method = "seedvr2";
       if (f.seedvr2Model) req.seedvr2_model = f.seedvr2Model;

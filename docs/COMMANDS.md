@@ -533,7 +533,8 @@ seriesmith publish Shows\ep05                          # intro + review cut + ou
 - `upscale` refines each take of the pass's cut that has no fresh upscale into
   `<stem>.up.mp4` beside it: `--method latent` (re-sampled late in the take's own schedule;
   the default where the target has one), `pixel` (an upscale model; `--pixel-model rtx_vsr` for
-  NVIDIA RTX Video Super Resolution) or `seedvr2`.
+  NVIDIA RTX Video Super Resolution), `seedvr2` or `ltx` (the LTX-2.5 detail pass; `--ltx-lora
+  refine|restore`).
   `--start-step`, `--scale`, `--vae`, `--deliver WxH`, `--quality review|master`, `--redo`.
 - `post` finishes an upscale into `<stem>.post.mp4`: `--enhance draft|production|cinematic`
   (or `pixel|seedvr2|supir|none`), `--faces` (`--faces-denoise`), `--blur`, `--grain`; with

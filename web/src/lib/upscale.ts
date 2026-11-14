@@ -5,12 +5,14 @@
 //   - a re-sample (resample mode, H3): the sides land on the target's `align` (32)
 //   - a re-sample with a fixed upsampler (LTX: 2x): only the target's fixed scale
 //   - then pixel: the re-sample's size times its scale, on even sides
+//   - the LTX detail pass: any scale, the sides rounded up onto LTX's 32 grid
 
 import type { UpscaleOptions } from "../types";
 
 export const SCALES = [1.5, 2, 3, 4];
 
 export type LatentInfo = NonNullable<UpscaleOptions["latent"][string]>;
+export type UpscaleMethod = "latent" | "pixel" | "seedvr2" | "ltx";
 
 export interface SizeCheck {
   ok: boolean;
@@ -30,7 +32,7 @@ function onGrid(w: number, h: number, s: number, align: number): SizeCheck {
 /** The size `method` makes of a take at `scale` (ok: false with `why` when it can't). */
 export function upscaleSize(
   take: { width?: number | null; height?: number | null } | undefined,
-  method: "latent" | "pixel" | "seedvr2",
+  method: UpscaleMethod,
   scale: number,
   latent: LatentInfo | null,
   maxScale = 4,
@@ -41,11 +43,17 @@ export function upscaleSize(
   if (!(scale > 1 && scale <= maxScale)) return { ok: false, why: `scale is more than 1, up to ${maxScale}` };
   // SeedVR2 pads what it needs: any even size, as the pixel method
   if (method === "pixel" || method === "seedvr2") return onGrid(w, h, scale, 2);
+  if (method === "ltx") return { ok: true, ...ltxGrid(w * scale, h * scale) };
   if (!latent) return { ok: false, why: "its target has no re-sample" };
   if (latent.fixed_scale != null && scale !== latent.fixed_scale) {
     return { ok: false, why: `its re-sample is fixed at ${latent.fixed_scale}x` };
   }
   return onGrid(w, h, scale, latent.align ?? 32);
+}
+
+/** A size the LTX detail pass makes: up onto its 32 grid (upscale.ltx_size). */
+export function ltxGrid(w: number, h: number): { w: number; h: number } {
+  return { w: 32 * Math.ceil(w / 32 - 1e-9), h: 32 * Math.ceil(h / 32 - 1e-9) };
 }
 
 /** The then-pixel step's size from the re-sample's. */
@@ -98,7 +106,7 @@ export function fitWords(mw: number, mh: number, W: number, H: number, fit: "cro
 }
 
 /** "Best for each take": a re-sample where the take's target has one that's ready. */
-export function methodFor(choice: "auto" | "latent" | "pixel" | "seedvr2", latent: LatentInfo | null): "latent" | "pixel" | "seedvr2" {
+export function methodFor(choice: "auto" | UpscaleMethod, latent: LatentInfo | null): UpscaleMethod {
   if (choice !== "auto") return choice;
   return latent && latent.status === "ready" ? "latent" : "pixel";
 }

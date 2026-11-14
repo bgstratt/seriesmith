@@ -389,10 +389,14 @@ ORDERS = ("cut", "target")
 
 def load_key(job: U.UpscaleJob) -> tuple:
     """What ComfyUI loads to run an upscale: its target's model for a re-sample,
-    else the upscale model or SeedVR2 model (whatever the take's target)."""
+    else the upscale model, SeedVR2 model or LTX detail LoRA (whatever the take's target)."""
     if job.method == "latent":
         return ("latent", job.target.id, job.then_method, job.then_model)
-    return (job.method, job.seedvr2_model if job.method == "seedvr2" else job.pixel_model)
+    if job.method == "seedvr2":
+        return (job.method, job.seedvr2_model)
+    if job.method == "ltx":
+        return (job.method, job.ltx_lora)
+    return (job.method, job.pixel_model)
 
 
 def in_order(rows: list, order: str = "cut") -> list:
