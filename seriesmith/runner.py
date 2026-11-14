@@ -21,6 +21,7 @@ import threading
 
 from seriesmith import color as COL
 from seriesmith import jobs as J
+from seriesmith import levels as LV
 from seriesmith import takecheck as TC
 from seriesmith import takes as T
 from seriesmith.queue import Job as QJob
@@ -946,6 +947,7 @@ class Runner:
                 self.started(qjob, run, backend, report)
                 status = run.watch(on_progress=progress_to(report))
                 rec = VO.collect(take, run, status, sig, started)
+                LV.warm(root, [take.paths.voice])          # its speech readings, for Play all
                 m = rec.get("measured") or {}
                 report(line=f"voice stem ok: {rec.get('seconds')} s, whole {m.get('whole_rms_db')} dB, "
                             f"voice {m.get('voice_rms_db')} dB")
@@ -1169,7 +1171,9 @@ class Runner:
     def _check_take(self, ep: str, take: T.Take) -> None:
         """A finished take's checks (takecheck: a cut it wasn't asked for, its words) on a thread
         of their own, one take at a time: Whisper takes a few seconds, which the queue's next job
-        doesn't wait for. The editor hears of the take again once they're recorded."""
+        doesn't wait for. The editor hears of the take again once they're recorded. Its
+        sound's speech readings are measured too (levels.py), for Play all's levelling."""
+        LV.warm(ep, [take.paths.mp4])
         if not CHECK_TAKES:
             return
 
@@ -1355,9 +1359,10 @@ def collect_ref(take, run, status: str, res: dict, backend_name: str) -> str:
 
 def collect_tour(s, ref, side: dict, run, status: str, hold) -> None:
     """A tour's run, ended with `status`, collected: its video kept and its
-    holds found (tour.keep_tour, which updates `side`). Raises when it failed."""
+    holds found (tour.keep_tour, which updates `side`). Raises when it failed.
+    The video is saved beside where it goes and moved in from there: a rename
+    can't cross drives (the system temp folder on C:, the project on F:)."""
     import os
-    import tempfile
 
     from seriesmith import tour as TR
     if status != "succeeded":
@@ -1365,17 +1370,16 @@ def collect_tour(s, ref, side: dict, run, status: str, hold) -> None:
     outs = [o for o in run.outputs() if o.name.lower().endswith((".mp4", ".webm", ".mov"))]
     if not outs:
         raise RuntimeError("the job finished without a video")
-    fd, tmp = tempfile.mkstemp(suffix=os.path.splitext(outs[0].name)[1])
-    os.close(fd)
-    try:
-        outs[0].save(tmp)
 
-        def write(path):
-            F.replace(tmp, path)
-        side.update(TR.keep_tour(s, ref, side, write, os.path.splitext(outs[0].name)[1], hold))
-    finally:
-        if os.path.exists(tmp):
-            os.remove(tmp)
+    def write(path):
+        part = F.temp_beside(path, os.path.splitext(path)[1])
+        try:
+            outs[0].save(part)
+            F.replace(part, path)
+        finally:
+            if os.path.exists(part):
+                os.remove(part)
+    side.update(TR.keep_tour(s, ref, side, write, os.path.splitext(outs[0].name)[1], hold))
     if side.get("status") != "ok":
         raise RuntimeError(side.get("error") or "the tour failed")
 

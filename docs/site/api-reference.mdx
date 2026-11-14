@@ -44,6 +44,7 @@ section and search for the path for its later additions.
 | `POST /seriesmith/take/import`, `POST /seriesmith/take/copy` | Takes from outside |
 | `GET /seriesmith/mcp` | Using seriesmith from an LLM |
 | `POST /seriesmith/cut/reset`, `POST /seriesmith/cut/copy`, `GET /seriesmith/peaks` | Phase 9b |
+| `POST /seriesmith/levels` | Waveforms (backend): Play all's levelling |
 | `POST /seriesmith/assemble` | Assemble |
 | `POST` / `DELETE /seriesmith/upscale`, `GET /seriesmith/upscale/options`, `PUT /seriesmith/upscale/recipe`, `PUT /seriesmith/upscale/keep`, `POST /seriesmith/master`, `GET /seriesmith/master/job` | Upscale |
 | `POST` / `DELETE /seriesmith/post`, `GET /seriesmith/post/options` | Post-process |
@@ -3453,6 +3454,16 @@ waveforms, and play-through polish. Backend and UI build in parallel; the backen
   stream. Computed once per file at 200 bins/second (stdlib `wave` for PCM wav, else
   `ffmpeg -ac 1 -ar 8000 -f s16le`), cached in `<ep>/_cache/peaks/<sha1 of path+size+   mtime>.json`, then resampled to `bins`. 404 for a missing file, 400 for a path outside
   the episode (and its parent-folder series config's folder).
+- **`POST /seriesmith/levels`** `{ep, pass, clips: [{shot, path, from, to}]}`: Play all's
+  levelling (docs/LEVELLING.md). Each clip is the file Play all plays for its lines (`path` as
+  `/seriesmith/file` takes it: the take's mp4, its voice stem, its own audio source) and the
+  seconds of it the cut plays (`to` null: to its end). Answers `{limit_db, middle, gains:   {shot: dB}, unmeasured: [shot]}`: the pass's mix.json `level.limit_db` (0: off, no gains),
+  and each clip of a shot with lines moved to the median of their speech levels within it, as
+  the export's mix moves it (the same readings and arithmetic, `levels.py`). A file's speech
+  readings (its power every 50 ms) are measured once, cached in `<ep>/_cache/levels/<sha1 of   path+size+mtime>.json`: a finished take's as it finishes, a voice stem's as it's split off,
+  an episode's cut's (what it lacks) when `GET /seriesmith/episode` opens it, at most once a
+  minute; anything else here, on the spot. 400 for a path outside the episode or a bad span,
+  404 for a missing file.
 - **Takes** in `GET /seriesmith/episode` carry `audio`: the file whose sound the cut plays for
   that take (the mp4 if it has an audio stream, else its `_h3.wav`, else null) — the same
   rule as assemble's `--audio auto`.

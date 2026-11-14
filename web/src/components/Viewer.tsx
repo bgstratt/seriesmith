@@ -29,6 +29,7 @@ import { PANO_VIEW, TOUR_VIEW, takesOf, viewLabel, viewOf } from "../lib/refs";
 import { HoldUseBar } from "./TourSection";
 import { shotTarget, takeTargetBadge, targetLabel } from "../lib/targets";
 import { statusKey, store, useApp, type CompareMode, type ViewerState } from "../store";
+import { dbGain, playAllDb } from "../lib/levels";
 import type { Pass, RefTake, TakeSummary, TitlesInfo } from "../types";
 import { FloatingWindow, defaultViewerRect } from "./FloatingWindow";
 import { aspectOf, useShotStatus, useStatus } from "./hooks";
@@ -593,13 +594,17 @@ export function useCutEngine(ep: string, winRef: React.RefObject<HTMLDivElement>
   const voiced = useApp((s) => [...voicedShots(currentMix(s)), ...sourcedShots(items)].join(" "));
   const voicedRef = useRef<Set<string>>(new Set());
   voicedRef.current = new Set(voiced ? voiced.split(" ") : []);
-  // the dialogue fader, mute and solo on the clips' own sound and the recording, and a
-  // region's dialogue_db under the playhead (a video plays at most at its own level)
+  // the dialogue fader, mute and solo on the clips' own sound and the recording, a
+  // region's dialogue_db under the playhead, and the clip's levelling (lib/levels.ts; never
+  // the recording, one file for the cut): a video plays at most at its own level
   const dialogue = useApp((s) => {
     const res = currentMix(s);
     const g = trackGains(res).dialogue;
     const r = res?.mix.regions?.length ? dialogueDbAt(items, res.mix, fps, s.cutPlay.pos) : 0;
-    return Math.min(1, r ? g * 10 ** (r / 20) : g);
+    const lv = recording ? undefined : s.dialogueLevels[statusKey(ep, s.pass)];
+    const at = lv ? items.find((it) => s.cutPlay.pos >= it.start && s.cutPlay.pos < it.start + it.dur) : undefined;
+    const l = at ? dbGain(playAllDb(lv, [at.shot])[at.shot]) : 1;
+    return Math.min(1, (r ? g * 10 ** (r / 20) : g) * l);
   });
   useEffect(() => {
     for (const el of [v0.current, v1.current, au.current]) if (el) el.volume = dialogue;

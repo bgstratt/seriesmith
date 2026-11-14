@@ -20,7 +20,8 @@ import { bedPlan, duckTracks, fxPlan, entryEnd, entryLevel, entryMarks, playPlan
 import { totalDuration, type PlayItem } from "../lib/playlist";
 import { api } from "../host";
 import { statusKey, store } from "../store";
-import { currentMix } from "../mixActions";
+import { currentMix, loadDialogueLevels } from "../mixActions";
+import { levelClips, levelled, playAllDb } from "../lib/levels";
 import { auditionMix } from "../lib/spotting";
 import type { MixTrack } from "../types";
 
@@ -236,6 +237,7 @@ export function useMixAudio(ep: string, items: PlayItem[], fps: number, clips = 
     let voicesSeen: unknown = null;
     let clipsSeen: boolean | null = null;
     let duckSeen: unknown = null;
+    let levelsSeen: unknown = null;
     let auditionSeen: unknown = null;
     let itemsSeen: PlayItem[] | null = null;
     let seekN: number | undefined;
@@ -251,8 +253,14 @@ export function useMixAudio(ep: string, items: PlayItem[], fps: number, clips = 
       const duck = s.mixDuck[statusKey(ep, s.pass)];
       const aud = s.audition && s.audition.ep === ep && s.audition.pass === s.pass ? s.audition : null;
       const clipsOn = clipsRef.current;
+      const levels = s.dialogueLevels[statusKey(ep, s.pass)];
       if (res?.mix !== mixSeen || res?.beds !== bedsSeen || res?.fx !== fxSeen || res?.voices !== voicesSeen || clipsOn !== clipsSeen
-          || its !== itemsSeen || duck !== duckSeen || aud !== auditionSeen) {
+          || its !== itemsSeen || duck !== duckSeen || aud !== auditionSeen || levels !== levelsSeen) {
+        // the lines levelled as the export levels them (asked of the server when the cut or the mix changes)
+        if (res?.mix !== mixSeen || res?.voices !== voicesSeen || its !== itemsSeen) {
+          void loadDialogueLevels(ep, s.pass, levelClips(its, res), res?.mix.level?.limit_db ?? 0);
+        }
+        levelsSeen = levels;
         auditionSeen = aud;
         voicesSeen = res?.voices;
         clipsSeen = clipsOn;
@@ -266,7 +274,8 @@ export function useMixAudio(ep: string, items: PlayItem[], fps: number, clips = 
         // the items, and the places' ambience beds under them (looped, crossfaded at their runs' cuts)
         // and the shots' picked effects at their clips
         // and voices only's stems in place of their clips' own sound
-        plan = [...(clipsOn ? [...voicePlan(its, res), ...sourcePlan(its)] : []), ...bedPlan(its, res?.beds, res?.mix ?? {}, fps), ...fxPlan(its, res?.fx, res?.mix ?? {}, fps),
+        const db = playAllDb(levels, its.map((it) => it.shot));
+        plan = [...(clipsOn ? levelled([...voicePlan(its, res), ...sourcePlan(its)], db) : []), ...bedPlan(its, res?.beds, res?.mix ?? {}, fps), ...fxPlan(its, res?.fx, res?.mix ?? {}, fps),
                 ...playPlan(its, aud ? auditionMix(res?.mix ?? {}, aud) : res?.mix ?? {}, fps)];
         total = totalDuration(its);
         e.setDucking(duckTracks(res, its, fps, duck, total));

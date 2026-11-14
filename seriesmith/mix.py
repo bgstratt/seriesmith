@@ -103,6 +103,7 @@ import subprocess
 from seriesmith.core.paths import show_file
 from seriesmith import ff as FF
 from seriesmith.core import fileio as F
+from seriesmith import levels as LV
 
 MIX_FILE = "mix.json"
 PASSES = ("final", "proxy")
@@ -130,10 +131,8 @@ LOUDNESS = {"target_lufs": -16.0, "true_peak_db": -1.0}
 # lane's Level the lines sets LEVEL_ON; set, it renders a mix for itself (active)
 LEVEL = {"limit_db": 0.0}
 LEVEL_ON = 9.0
-LEVEL_WINDOW = 0.05          # seconds per level reading
-LEVEL_GATE = 30.0            # dB under a clip's loudest window: quieter isn't speech
-LEVEL_FLOOR = -60.0          # dBFS: nothing quieter is speech
-LEVEL_MIN = 0.5              # seconds of speech a clip needs to be measured
+# how a clip's speech is measured: levels.py's, which Play all's levelling reads too
+LEVEL_WINDOW, LEVEL_GATE, LEVEL_FLOOR, LEVEL_MIN = LV.WINDOW, LV.GATE, LV.FLOOR, LV.MIN_SPEECH
 LEVEL_RAMP = 0.02            # seconds a level change takes at a join
 # room under the ceiling for the AAC the mix is muxed as: CupsMV ep01's mix, limited to -1.5 at
 # 48 kHz, measured -0.5 dBTP in the export (docs/SOUND.md phase 5)
@@ -828,7 +827,7 @@ def render_item(item: dict, origins: dict, total: int, fps: float, root: str):
 def speech_level(buf, rate: int = RATE) -> float | None:
     """A stretch of dialogue's speech level, dB (full scale): the mean power of its LEVEL_WINDOW
     readings within LEVEL_GATE dB of its loudest and above LEVEL_FLOOR; None with less than
-    LEVEL_MIN seconds of them (no speech to level)."""
+    LEVEL_MIN seconds of them (no speech to level). levels.level_of, on the stretch as laid."""
     np = _np()
     w = max(1, int(rate * LEVEL_WINDOW))
     k = len(buf) // w
@@ -837,11 +836,7 @@ def speech_level(buf, rate: int = RATE) -> float | None:
     mono = buf[:k * w].astype(np.float64)
     mono = mono.mean(1) if mono.ndim == 2 else mono
     power = (mono.reshape(k, w) ** 2).mean(1)
-    db = 10 * np.log10(np.maximum(power, 1e-12))
-    keep = db[(db >= db.max() - LEVEL_GATE) & (db >= LEVEL_FLOOR)]
-    if len(keep) * LEVEL_WINDOW < LEVEL_MIN:
-        return None
-    return float(10 * np.log10((10 ** (keep / 10)).mean()))
+    return LV.level_of(10 * np.log10(np.maximum(power, 1e-12)))
 
 
 def level_dialogue(buf, spans: list[tuple[str, int, int]], limit_db: float, rate: int = RATE,
@@ -857,10 +852,9 @@ def level_dialogue(buf, spans: list[tuple[str, int, int]], limit_db: float, rate
         lv = speech_level(buf[a:b], rate)
         if lv is not None:
             levels[shot] = lv
-    if len(levels) < 2:
+    middle, gains = LV.gains_of(levels, limit_db)
+    if not gains:
         return {}
-    middle = float(np.median(list(levels.values())))
-    gains = {shot: max(-limit_db, min(limit_db, middle - lv)) for shot, lv in levels.items()}
     g = np.zeros(len(buf), dtype=np.float32)
     for shot, a, b in spans:
         if shot in gains:

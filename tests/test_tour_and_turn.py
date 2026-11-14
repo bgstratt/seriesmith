@@ -166,7 +166,17 @@ class TourQueueTest(Base):
         ref = R.find_ref(self.s, "location:kitchen")
         found = {"fps": 24, "holds": [{"hold": 1, "start": 0.0, "end": 0.5, "frame": 3,
                                        "sharpness": 1.0, "path": self.png}]}
-        with mock.patch.object(TOUR, "find_holds", return_value=found):
+        from seriesmith.core import fileio as F
+        replace = F.replace
+
+        def one_drive(src, dst):
+            # a rename can't cross drives (the system temp on C:, the project on F:): every
+            # file is moved into place from its own folder
+            if os.path.dirname(os.path.abspath(src)) != os.path.dirname(os.path.abspath(dst)):
+                raise OSError(17, "The system cannot move the file to a different disk drive")
+            replace(src, dst)
+        with mock.patch.object(TOUR, "find_holds", return_value=found), \
+                mock.patch.object(F, "replace", side_effect=one_drive):
             ((side, g),) = TOUR.plan_tours(self.s, ref, "turn left and hold", None)
             n, qid = runner.enqueue_tour(self.s, ref, side, g, "local")
             end = time.time() + 15

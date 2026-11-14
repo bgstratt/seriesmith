@@ -17,6 +17,7 @@ import {
 import { locate } from "./lib/playlist";
 import { fileKindProblem } from "./lib/lookback";
 import { trackList as trackListOf } from "./lib/mix";
+import { levelRequestKey, type LevelClip } from "./lib/levels";
 import { statusKey, store, type AppState, type SoundAddAsk } from "./store";
 import { tn } from "./lib/format";
 import type { Anchor, HitKind, Mix, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixRegion, MixResult, MixTrack, Pass, TrackKind } from "./types";
@@ -69,6 +70,32 @@ export async function loadMix(ep = get().ep, pass = get().pass): Promise<MixResu
 
 /** The pass's speech curve (Play all ducks with it), fetched with the mix; one the server can't
  * make is no ducking in the preview. The same curve keeps its object. */
+const levelsAsked = new Map<string, string>();
+
+/** Play all's levelling (lib/levels.ts): each speaking clip's change, asked of the server for
+ * `clips` under `limit` (the pass's mix.json level.limit_db) unless it already answered them.
+ * Levelling off clears it. A failed ask leaves the clips at their own level. */
+export async function loadDialogueLevels(ep: string, pass: Pass, clips: LevelClip[], limit: number): Promise<void> {
+  const k = statusKey(ep, pass);
+  const reqKey = levelRequestKey(clips, limit);
+  const have = store.get().dialogueLevels[k];
+  if ((have && have.key === reqKey) || levelsAsked.get(k) === reqKey) return;
+  if (!(limit > 0)) {
+    set((s) => ({ dialogueLevels: { ...s.dialogueLevels, [k]: { key: reqKey, limit: 0, gains: {} } } }));
+    return;
+  }
+  levelsAsked.set(k, reqKey);
+  try {
+    const r = await api().levels(ep, pass, clips);
+    if (levelsAsked.get(k) !== reqKey) return;              // asked again since: that answer wins
+    set((s) => ({ dialogueLevels: { ...s.dialogueLevels, [k]: { key: reqKey, limit: r.limit_db, gains: r.gains } } }));
+  } catch (e) {
+    console.warn("seriesmith mix: no levels for Play all", e);
+  } finally {
+    if (levelsAsked.get(k) === reqKey) levelsAsked.delete(k);
+  }
+}
+
 async function loadDuck(ep: string, pass: Pass): Promise<void> {
   const key = statusKey(ep, pass);
   let r: { step: number; curve: number[] } | null = null;
