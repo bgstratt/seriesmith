@@ -2570,9 +2570,9 @@ existing routes now show:
   `audio: "none"`, `policies: ["silent"]`, `policy_fallback: "silent"`, `prompt: "prose"`,
   `negative_prompt: true`, `keyframes` `["first", "last"]` (I2V, VACE) or `["first"]` (5B),
   `subject_refs` true only for VACE. `template`: 14B `fps: 16.0`, `frames: {step: 4, base: 5,   max: 161}`, `size_multiple: 16`; 5B `fps: 24.0`, `max: 241`, `size_multiple: 32`; all
-  `size_fit: "snap"` under 720p. Presets: I2V final 832×480 / proxy 640×352, 4 steps with
-  the lightx2v LoRA pair; 5B final 1280×704 / proxy 640×352, 20 / 12 steps; VACE final
-  832×480 / proxy 640×352, 20 / 10 steps at cfg 3.5. `widgets` add `model_low` (the 14B's
+  `size_fit: "snap"` under 720p. Presets: I2V final 1280×720 / proxy 832×480, 4 steps with
+  the lightx2v LoRA pair; 5B final 1280×704 / proxy 832×480, 20 / 12 steps; VACE final
+  1280×720 / proxy 832×480, 20 / 10 steps at cfg 3.5. `widgets` add `model_low` (the 14B's
   low noise model), `cfg`, `sampler`, `shift` (and VACE's `vace_strength`); `loras` is the
   high noise stage's spec (a 14B binding has one LoRA chain per stage: `stage` routes a
   LoRA, else its name's `high_noise` / `low_noise`, else both).

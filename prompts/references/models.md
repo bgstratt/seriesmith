@@ -139,7 +139,7 @@ What every Wan shot has in common:
 - **Keep it to 3 s or less.** The 14B models were trained on 3.4 s and follow the prompt less
   after that; past 6.7 s a shot must be split. Lengths are on a `4k + 1` grid.
 - **No `sound:` or `music:`**: they are ignored.
-- Sizes are the model's own (832×480 or 1280×704 final, 640×352 proxy); the cut scales them.
+- Sizes are the model's own (1280×720 or 1280×704 final, 832×480 proxy); the cut scales them.
 
 ### Keyframes: `first:` and `last:`
 

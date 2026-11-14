@@ -12,7 +12,7 @@ recipe before it can run.
 
 | Decision | What to ask | Where it goes | With no answer |
 |---|---|---|---|
-| **Look** | Live action or animated? What should it look like (film stock, lens, palette, drawing style)? | `style.look` | Ask: there's no good default. See **Writing the `look` line** |
+| **Look** | Live action or animated? What should it look like (film stock, lens, palette, drawing style)? | `style.look` | Ask. Told to just start, take it from the brief's genre and say which look you chose. See **Writing the `look` line** |
 | **Delivery** | 1080p, 1440p or 4K? An exact 16:9 frame, or is H3's 7:4 fine? Fast iterations, or every take at full size? | `series.width` / `height`, `proxy`, `upscale.master` | Render at 1344×768 (it renders on every target with nothing extra installed), proxy 896×512, and master 1440p: the **Render at size** setup. See **Render size and delivery** |
 | **Voices** | Generated from a description, cloned from voice samples, or lip-synced to dialogue you've recorded? | `audio.mode` (`generate`, `clone`, `source_track`), each character's `voice` / `voice_sample` | `generate` |
 | **Finishing** | Clean up the upscale (edges, blocky motion) before the master? | `post` | `"enhance": "production"`, `"motion_blur": 0.3` for a 1080p or 1440p master; none for 4K. See **Post-process** |
