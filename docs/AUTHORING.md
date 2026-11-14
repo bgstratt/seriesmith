@@ -140,7 +140,7 @@ recipe before it can run.
 | Decision | What to ask | Where it goes | With no answer |
 |---|---|---|---|
 | **Look** | Live action or animated? What should it look like (film stock, lens, palette, drawing style)? | `style.look` | Ask: there's no good default. See **Writing the `look` line** |
-| **Delivery** | 1080p, 1440p or 4K? An exact 16:9 frame, or is H3's 7:4 fine? Fast iterations, or every take at full size? | `series.width` / `height`, `proxy`, `upscale.master` | Render at 1344×768 (it renders on every target with nothing extra installed) and master 1440p. See **Render size and delivery** |
+| **Delivery** | 1080p, 1440p or 4K? An exact 16:9 frame, or is H3's 7:4 fine? Fast iterations, or every take at full size? | `series.width` / `height`, `proxy`, `upscale.master` | Render at 1344×768 (it renders on every target with nothing extra installed), proxy 896×512, and master 1440p: the **Render at size** setup. See **Render size and delivery** |
 | **Voices** | Generated from a description, cloned from voice samples, or lip-synced to dialogue you've recorded? | `audio.mode` (`generate`, `clone`, `source_track`), each character's `voice` / `voice_sample` | `generate` |
 | **Finishing** | Clean up the upscale (edges, blocky motion) before the master? | `post` | `"enhance": "production"`, `"motion_blur": 0.3` for a 1080p or 1440p master; none for 4K. See **Post-process** |
 | **Titles** | Is there a series intro and outro (clips made once for the whole show)? | `_titles/INTRO.mp4` and `OUTRO.mp4` in the show folder; `publish` only to name other files or style the episode title | Nothing to write: a master picks the clips up when they're there. See **Series intro and outro** |
@@ -206,8 +206,8 @@ shot 93. So:
 |---|---|---|---|---|---|
 | `minimax_h3_ref2va` (default) | your sheets and plate, as up to nine reference pictures: eight subjects and the plate | generated, dubbed to a recording, or cloned from voice samples | first, when the series' `first_target` sends its continuing shots to it (otherwise they go to H3 FL2VA) | `17k+5` frames at 24 fps | recurring characters who talk; lip sync to your recording |
 | `fasth3_omni` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | crowded shots (up to eight characters, props and vehicles); FastVideo's 8-step H3, no turbo LoRA |
-| `h3_singularity` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | Ref2VA shots on AIGC-Singularity's fine-tune of H3 Ref2VA (its v2 pruned INT8: sharper highlights, distant faces, motion). A shot that asks for a first frame (`continuous: first`, a `first:` line) opens on it here, its pictures kept |
-| `h3_hybrid` | as Ref2VA | as Ref2VA | not read | `17k+5` at 24 fps | Ref2VA shots on a merge of H3's two checkpoints: FL2VA's cleaner picture with Ref2VA's reference pictures. For shots where Ref2VA's turbo draws a lattice over thin things in a reference (a stethoscope, a phone cord, a lanyard); it holds a reference a little less tightly. A shot that asks for a first frame opens on it here, its pictures kept |
+| `h3_singularity` | as Ref2VA | as Ref2VA | first, on a shot that asks for one | `17k+5` at 24 fps | Ref2VA shots on AIGC-Singularity's fine-tune of H3 Ref2VA (its v2 pruned INT8: sharper highlights, distant faces, motion). A shot that asks for a first frame (`continuous: first`, a `first:` line) opens on it here, its pictures kept |
+| `h3_hybrid` | as Ref2VA | as Ref2VA | first, on a shot that asks for one | `17k+5` at 24 fps | Ref2VA shots on a merge of H3's two checkpoints: FL2VA's cleaner picture with Ref2VA's reference pictures. For shots where Ref2VA's turbo draws a lattice over thin things in a reference (a stethoscope, a phone cord, a lanyard); it holds a reference a little less tightly. A shot that asks for a first frame opens on it here, its pictures kept |
 | `fasth3_fl2va`, `h3_singularity_fl2va` | the first/last keyframes, as FL2VA | as FL2VA | as FL2VA | as FL2VA | FL2VA's graph with FastH3 Omni's or Singularity's weights. `fasth3_fl2va` is where a `continuous: first` shot on FastH3 Omni goes, so it keeps FastH3's look; either can be named, or be the series' `first_target` |
 | `minimax_h3_fl2va` | the shot's first/last keyframes, plus words | generated, dubbed, or cloned (the lines made by LTX first) | optional | `17k+5` at 24 fps, best 5–15 s | picking up exactly where the previous shot ended |
 | `ltx2` | words, plus keyframes when there are any | generated, dubbed to a recording, or cloned from voice samples | optional | `8k+1` at 24 fps, up to ~20 s | fast text-to-video with sound; `dur: model` |
@@ -375,8 +375,9 @@ specific glob, then `"*"`):
 - `upscale.save_latents` (`"final"`, the default) keeps each final take's latent so a
   re-sample can start from it.
 
-One recipe per delivery; pick the one they asked for (1080p is the usual, 1440p for a
-series rendered at 1344×768, 4K only when asked):
+One recipe per delivery; pick the one they asked for. With no answer it is 1440p, which the
+default render size (1344×768) doubles to; 1080p for a series rendered small or at 16:9; 4K
+only when asked:
 
 ```json
 "upscale": { "save_latents": "final",
@@ -408,7 +409,7 @@ motion), then motion blur:
 `enhance` is `production` (SeedVR2 7B, the one to use), `draft` (a quick upscale-model
 sharpen), `cinematic` (SUPIR, very slow) or `none`; `motion_blur` is a fraction of the
 frame interval (0.3 smooths blocky motion, 0.5 is a 180° shutter). Write it for a 1080p or
-1440p master; leave it out for 4K (unmeasured there) or when they haven't asked.
+1440p master, asked for or not (it is the default); leave it out for 4K (unmeasured there).
 `"faces": true` redraws each character's face from their sheet where it's too small to
 have eyes and a mouth (wides and full shots; about a minute a character a shot; a large
 face is barely touched). Leave it out by default: the user marks the clips that need it
@@ -909,7 +910,7 @@ is left alone, though on-screen lettering has its own field, `text:`.
 
 ### A wardrobe change is a new subject
 
-The same idea for people. A character's clothes live in their `design` sentence and in their
+A character's clothes live in their `design` sentence and in their
 model sheet, so a character who changes clothes is a second subject with `of:` — a
 **variant** — not a note in the action line:
 
@@ -987,7 +988,7 @@ When the story needs the change, cut around it:
 
 Once the new state is on screen it holds. Every later shot of that character names the
 variant until another cut brings the old clothes back, so add the variant (a design sentence
-that says what is gone: "no hard hat, a hairnet over short grey hair") before writing the
+that says how he looks now: "bareheaded, a hairnet over short grey hair") before writing the
 shots that need it. Its sheet is an edit of the original's views, so it's cheap.
 
 For example, the hat coming off in Kemp's office. Written as an action, the hat is on again
@@ -1046,7 +1047,7 @@ sound: running footsteps on grass, fabric movement
 | `= id  Title` | episode header, once at the top |
 | `# sqNN  location` | sequence; the location must be a series config key |
 | `## shNNN` | a shot. **Every `##` is a cut** — no `CUT TO:` needed |
-| `who: a, b` | characters on screen, in this order (on H3 Ref2VA they become `<Picture 1..3>`); `cast:` is the same |
+| `who: a, b` | characters on screen, in this order (on H3 Ref2VA they become `<Picture 1>`, `<Picture 2>`, … in it); `cast:` is the same |
 | `with: x, y` | props and vehicles, after the characters; `props:` is the same |
 | `size: mcu` | shot size, from extreme close-up to extreme wide (`ecu`, `cu`/`close`, `mcu`, `ms`/`medium`, `cowboy`, `mws`, `fs`/`full`, `ws`/`wide`, `ews`), or an angle (`pov`, `ots`, `low`, `high`); the full names work too. Opens the shot's prompt as its framing ("A medium close-up frames… from the chest up"), and decides how much of the location and of the sheet is used. See **Faces need room** |
 | `plate: street_gate` | this shot's angle; defaults to the sequence's location |
@@ -1066,7 +1067,7 @@ sound: running footsteps on grass, fabric movement
 | `sla: off` | H3's sparse attention (PlagueKind's `H3SLAAttention`) left out: about 40% slower, a little smoother frame to frame. Also under a `#` header, in a profile (`"sla": "off"`) or for the series (`"sla": "off"` in its `series` block); `on` is the default |
 | `lens: shallow` | the lens the shot is shot on: `spherical`, `anamorphic`, `vintage`, `wide`, `long`, `shallow`, `tilt_shift` or `deep` (the look builder's Lens row). The action opens with its words ("Shallow depth of field: the subject sharp, the background falling into soft bokeh."), so every model reads it. Also under a `#` header, for its shots. Shallow focus shows the most; with a plate as the reference, the plate keeps its own geometry and the rest show less |
 | `profile: dialogue_close` | a render profile from the series config; also valid under a `#` header |
-| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `ltx2`, `ltx2_ingredients`, `ltx2_msr`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, `hold` for a picture held still, or a show's own); see below |
+| `target: ltx2` | the video model for this shot or sequence (`minimax_h3_ref2va`, `fasth3_omni`, `h3_singularity`, `h3_hybrid`, `ltx2`, `ltx2_ingredients`, `ltx2_msr`, `minimax_h3_fl2va`, `wan22_i2v`, `wan22_ti2v`, `wan22_vace`, a hosted model such as `seedance_2_5`, `hold` for a picture held still, or a show's own); see below |
 | `first: generate` / `last: refs/x.png` | how this shot's first / last keyframe is made: `generate`, `import`, `none`, or a path to an image; also valid under a `#` header (the default of its shots); see **Keyframes** |
 | `continuous: first` | this shot carries straight on from the previous one in the cut: `first` (open on its last frame) or `latent` (hold the previous take's last frames and carry on from them); `multishot` renders it in one generation with the shot before (see **Several shots in one generation**); under a `#` header, every shot after the sequence's first; `none` breaks the chain; see **Continuous shots** |
 | `cold_open: true` | it plays before the opening titles: a master puts the series intro in right after the cold open's last shot. Under a `#` header, every shot of the sequence; on a shot, that shot (`cold_open: false` takes one out of its sequence's). The cold open is the cut's first shots, one after another: see **A cold open** |
@@ -1182,7 +1183,9 @@ follows from the model:
 - `ltx2`, the FL2VA models, `wan22_ti2v` (first only), `wan22_vace` and the hosted models
   use them when they exist (a hosted model given a first frame is sent the keyframes instead
   of the character pictures);
-- H3 Ref2VA, FastH3 Omni and `ltx2_ingredients` don't read them.
+- H3 Ref2VA, H3 Singularity and H3 Hybrid read a first frame on a shot that asks for one
+  (**Continuous shots** says where such a shot renders), never a last;
+- FastH3 Omni, `ltx2_ingredients` and `ltx2_msr` don't read them.
 
 How each is made, on the shot or under a `#` header for all its shots:
 
@@ -1217,7 +1220,7 @@ they answer different needs:
 | `continuous:` | What it does | Use it for | Renders on |
 |---|---|---|---|
 | `first` | opens on the previous shot's last frame | picking up exactly where a shot ended, on almost any model | every model that reads a first frame; H3 Ref2VA's and FastH3 Omni's move to their FL2VA |
-| `latent` | holds the previous take's last 1.6 s (picture and sound) and goes on from them | one unbroken take built from several renders: the camera and the action keep running, no cut | H3 Ref2VA, FastH3 Omni, H3 Singularity; the shot it continues can be from any model |
+| `latent` | holds the previous take's last 1.6 s (picture and sound) and goes on from them | one unbroken take built from several renders: the camera and the action keep running, no cut | H3 Ref2VA, FastH3 Omni, H3 Singularity, H3 Hybrid; the shot it continues can be from any model |
 | `multishot` | renders it **in the same generation** as the shot before: one clip with cuts in it | a scene cut between angles, where the model sees every shot at once | the H3 family (Ref2VA, FastH3 Omni, FL2VA, Singularity), Seedance, Kling v3 Omni, Kling O1 |
 
 `first` and `latent` make a **continuous take**: each shot is its own render, joined so the
@@ -1467,10 +1470,11 @@ speaks (H3, LTX) will fit any line into any window by speeding the delivery up. 
 are all there, the lip sync is fine, and the performance is gone. On Wan, which acts the
 lines silently, the recording laid in at the edit still needs the room.
 
-A 2.33s shot holds about **seven syllables**. Never guess — the compiler measures it:
+A 2.33s shot holds about **seven syllables**. Never guess — the check measures it, in its
+pacing table:
 
 ```
-seriesmith build series.json ep01.md --pace
+seriesmith check Shows\ep01
 ```
 
 Three ways out of a crammed shot, in the order worth trying:
@@ -1537,6 +1541,10 @@ Shots*; this guide covers only how to say the result to the model.
 On a wide full of big architecture (a plant, a street front, a church), prefer holding still,
 a pan or a slow push over a track, truck or arc. A camera that moves through the space makes
 the model redraw the buildings as it goes, and they build and unbuild themselves on screen.
+
+A static hold (`camera: holds a static shot`) suits a reaction, or any shot where stillness
+is the point. On another wide you have just cut to, a slow push gives the space depth, and
+costs nothing extra.
 
 ## Breaking a scene into shots
 
@@ -1610,7 +1618,9 @@ the subjects, a medium the part behind them, a medium close-up a magnified, soft
 slice of it, and a close-up or an extreme close-up (`cu`, `ecu`) a tightly cropped portion of
 the plate, completely blurred into soft bokeh. On H3 Ref2VA that last is named by its picture
 alone, without the location's description, so the model isn't asked to draw the room. That is
-why a close-up on H3 has the room behind the face, blurred, and not a studio backdrop.
+why a close-up on H3 has the room behind the face, blurred, and not a studio backdrop. A
+close-up still leaves the room's layout to the shots around it, so stage the space on a
+medium first.
 
 **When the room still shows behind a close-up.** The blur is words, and the model follows the
 plate's picture more than the prompt: a sharp plate still comes through, windows and candles
@@ -1766,8 +1776,7 @@ speeds up when it should stop, and smears.
   facing camera), the back seat looking forward (both heads, the road ahead). The view
   forward out of the windshield is for a POV or a shot from behind, never a face.
 
-Reserve `camera: holds a static shot` for reactions where stillness is the point. On a wide
-you have just cut to, a slow push gives the space depth, and costs nothing extra.
+## Shot IDs
 
 Shot IDs go `sh010, sh020, sh030`, leaving gaps so you can insert `sh015` later. Renumbering
 changes seeds and invalidates renders. An ID is unique across the whole episode, not just its
@@ -1790,8 +1799,8 @@ are kept by ID. So when revising a script:
 ## Reference slots (H3 Ref2VA)
 
 This section is about the default target, `minimax_h3_ref2va`. The other targets take no
-slots (their limits are under **Rendering a shot on …**), but the three-subject rule is a
-good habit everywhere: a shot about more than three things is usually two shots.
+slots (their limits are under **Rendering a shot on …**), but one habit holds everywhere:
+a shot about more than three things is usually two shots.
 
 Every shot hands H3 its subjects and the plate. Slots 1–3 are the first three subjects —
 characters first, then props and vehicles, in the order `who:` and `with:` list them. **Slot 4
@@ -1882,12 +1891,6 @@ smock and hard hat still turn into twenty of him. When the extras share the lead
 vary them in `extras:`: men and women, different ages and builds, hairnets instead of hard
 hats, faces turned away or soft in the background.
 
-On H3 Ref2VA, `size:` also decides what the plate means (besides the framing words; see
-**Faces need room**): on a wide or medium the room's layout
-is kept, and on a close-up the background is a zoomed-in crop of the plate — the part of the room
-right behind the subject — and never the plain backdrop of the character sheet. A close-up
-still leaves the room's layout to the shots around it, so stage the space on a medium first.
-
 Add a prop to `with:` only when its exact design matters and recurs. A generic mug is better
 described in the action text, because every referenced prop spends a slot.
 
@@ -1919,11 +1922,11 @@ These map to different fields in the generated prompt, and mixing them dilutes a
 ## Finish by validating
 
 ```
-seriesmith build series.json ep01.md --check     # counts, runtime, references, warnings
-seriesmith build series.json ep01.md --pace      # dialogue pacing per shot
+seriesmith check Shows\ep01     # counts, runtime, references, warnings, then dialogue pacing per shot
 ```
 
-(`seriesmith check <episode folder>` runs both.) The check compiles every shot for the
+(It runs `seriesmith build series.json ep01.md --check` and then `--pace`; those take the two
+files by name where there is no episode folder.) The check compiles every shot for the
 target it renders on, so it also reports each target's limits.
 
 Errors name the line and quote it. Common ones: a name in `who:` that is not in the series config; a
@@ -1932,9 +1935,9 @@ which would otherwise become action prose); more than eight subjects on H3 Ref2V
 with neither `dur:` nor `audio:`; `dur: auto` on a shot with no dialogue; a `dur: model`
 range that isn't `min-max` seconds with min below max; a `target:` or `profile:` name that
 doesn't exist; a `first:` / `last:` that isn't a method or an image path; a `continuous:`
-the shot's own target can't render (`latent` off H3 Ref2VA, `first` on a target that reads
-no first frame). Warnings cover
+the shot's own target can't render (`latent` on a model that isn't H3 Ref2VA or one of its
+family, `first` on a target that reads no first frame). Warnings cover
 crammed dialogue, wasted grid padding, and what a target can't do (a dialogue shot on Wan,
-a `clone` shot on LTX).
+a `clone` shot on `ltx2_ingredients`).
 
 A script that does not compile is not a draft, it is a bug. Fix and re-run until it is clean.

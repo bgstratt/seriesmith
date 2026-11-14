@@ -272,7 +272,15 @@ alters it; `.venv\Scripts\python -m pytest tests/test_docs.py -n 0` after each.
       another and in the example), `extras:` "on every shot" against "never the same line
       twice", Look's "no good default" against "just start", grid padding said to be warned
       about and only reported.
-- [ ] 2. The contradictions fixed (section 1), each read against the code.
+- [x] 2. The contradictions fixed (section 1), each read against the code. What the code
+      says, where the document had it two ways: H3 Ref2VA, Singularity and Hybrid read a
+      first frame (never a last), FastH3 Omni reads none; `latent` renders on Ref2VA,
+      FastH3 Omni, Singularity and Hybrid; `ltx2` clones and `ltx2_ingredients` doesn't.
+      The check is written one way, `seriesmith check <episode folder>`. The shot IDs have
+      a section of their own; the static hold is with the camera moves. Also fixed, from
+      the baseline's reports: the default delivery names its setup and proxy (896×512).
+      Left as it is: the 1440p example's own proxy (960×544 at 8 steps), which is the
+      **At size, master 1440p** setup's.
 - [ ] 3. Each rule said once (section 2); the misfiled text moved.
 - [ ] 4. The markers and the generator (section 3); the site's page unchanged; the tests
       of section 8.

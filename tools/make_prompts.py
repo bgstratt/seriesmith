@@ -99,7 +99,7 @@ score can be drafted from them (that file's **From beats to shots**). Write the 
 the model. Leave `target:` lines out unless a shot
 needs something only one model does (see **Choosing a video target**); advice that holds for
 one target only is marked with that target's name. Validate with `seriesmith check
-series.json <script>` and `--pace` before calling a script finished. Rendering, upscaling
+<episode folder>` before calling a script finished. Rendering, upscaling
 and mastering are the person's to run, not part of writing: point to `docs/FINISHING.md`
 and `docs/COMMANDS.md` for those."""
 
