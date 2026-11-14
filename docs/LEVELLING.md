@@ -51,4 +51,5 @@ level, so the cut you judged wasn't the cut you'd export.
       engine's stems and sources, the viewer's volume.
 - [x] Tests: `tests/test_levels.py`, `web/test/levels.test.ts`.
 - [x] Docs: SOUND_GUIDE, API.
-- [ ] Live (you): Play all on a cut with Level the lines on, a quiet clip next to a loud one.
+- [x] Live (you, 2026-11-13): Play all on a cut with Level the lines on, a quiet clip next to a
+      loud one: levelled, playback unaffected.
