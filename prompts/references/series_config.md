@@ -32,7 +32,7 @@ pass, and the intro and outro picked up from `_titles/`:
 {
   "series": { "id": "last_light", "title": "Last Light", "fps": 24,
               "width": 1344, "height": 768 },
-  "proxy": { "width": 960, "height": 544, "steps": 8,
+  "proxy": { "width": 896, "height": 512, "steps": 8,
              "lora": "minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors" },
   "style": { "look": "a live-action film shot on 35mm, anamorphic lenses, sodium-vapour night light, wet streets, shallow depth of field" },
   "speech": { "pace": "normal" },
@@ -72,7 +72,7 @@ grid. The four setups, and the master each delivers:
 | **Render at size** (the default) | 1344×768 | 896×512 | 1344×768, or a 1440p master | anything; renders on every model with nothing extra installed |
 | **Render small, master 1080p** | 960×544 | 864×480 | 1920×1080 (8 rows cropped) | the cheapest takes; mostly H3 shots, upscaled after the cut is locked |
 | **16:9, master 1080p or 4K** | 1024×576 | 512×288 | 1920×1080 or 3840×2160 exactly | an exact 16:9 frame; many shots on LTX |
-| **At size, master 1440p** | 1344×768 | 960×544, 8 steps | 2560×1440 (23 rows cropped) | live action with close dialogue, where faces need the pixels |
+| **At size, master 1440p** | 1344×768 | 896×512, 8 steps | 2560×1440 (23 rows cropped) | live action with close dialogue, where faces need the pixels |
 
 - 1344×768 is 7:4, H3's native canvas, not 16:9: a 16:9 delivery crops it slightly
   (`fit: crop`) or pads it with bars (`fit: pad`). Say so when someone names a 16:9 size.

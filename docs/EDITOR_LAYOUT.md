@@ -203,7 +203,7 @@ Neither is the timeline. Both stay.
 
 Change:
 
-- **The take strip becomes a column beside the video**, on its right, as wide as a
+- **The take strip becomes a column beside the video**, on its left, as wide as a
   thumbnail and its line of text, scrolling when the takes outnumber its height. It leaves
   the video its height and shows more takes at the viewer's usual shape. The strip's
   clicks are unchanged (click loads A, ctrl-click B, right-click the menu), as is the line
@@ -256,7 +256,8 @@ Each line is a commit on this branch. After the last one on a day: `npm run type
       buttons; "In the cut" has the state look; the rule is at the head of `styles.css`.
       The other text links and the other surfaces' primaries were not gone through.
 - [x] 8. The take strip as a column beside the video; the take rows' seed in Details
-      (section 9). As built: the takes keep their order (t01 at the top) and the column
+      (section 9). As built: the column is on the picture's left (first built on its right; moved
+      2026-11-14), the takes keep their order (t01 at the top) and the column
       keeps the take in A in view; a ref's candidates (the stills viewer) stay a row under
       the picture.
 - [ ] 9. Looked at live in both themes on the standalone page and in ComfyUI, at 1600×1000

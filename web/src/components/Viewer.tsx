@@ -384,19 +384,9 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
 
   return (
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultViewerRect} head={head} winRef={winRef} float={!!v.floating}>
-      {/* the picture and its transport, the shot's takes in a column on their right: the
+      {/* the picture and its transport, the shot's takes in a column on their left: the
           picture keeps the window's height */}
       <div className="h3-vbody">
-      <div className="h3-vmain">
-      <CompareStage
-        mode={mode}
-        hasB={!!takeB}
-        emptyB="Ctrl/⌘-click a take on the right to load B"
-        paneA={(style) => pane("a", takeA, style)}
-        paneB={(style) => pane("b", takeB, style)}
-      />
-      <Transport a={aEl} fps={fps} audio={audio} setAudio={setAudio} hasB={!!takeB} />
-      </div>
       <div className="h3-vstrip h3-vcol" ref={stripRef}>
         {takes.map((t) => {
           const isA = t.take === v.a;
@@ -430,6 +420,16 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
           );
         })}
         {!takes.length && <div className="h3-muted">No takes.</div>}
+      </div>
+      <div className="h3-vmain">
+      <CompareStage
+        mode={mode}
+        hasB={!!takeB}
+        emptyB="Ctrl/⌘-click a take on the left to load B"
+        paneA={(style) => pane("a", takeA, style)}
+        paneB={(style) => pane("b", takeB, style)}
+      />
+      <Transport a={aEl} fps={fps} audio={audio} setAudio={setAudio} hasB={!!takeB} />
       </div>
       </div>
       <div className="h3-transport" style={{ justifyContent: "flex-end", flexWrap: "wrap" }}>

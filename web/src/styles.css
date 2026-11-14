@@ -337,11 +337,11 @@
 .h3-transport { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-top: 1px solid var(--h3-border); flex: 0 0 auto; }
 .h3-transport input[type="range"] { flex: 1 1 auto; min-width: 60px; }
 .h3-vstrip { display: flex; gap: 4px; overflow-x: auto; padding: 6px 8px; border-top: 1px solid var(--h3-border); flex: 0 0 auto; }
-/* a shot's takes beside its picture: a column on the right, a thumbnail and its line wide */
+/* a shot's takes beside its picture: a column on the left, a thumbnail and its line wide */
 .h3-vbody { display: flex; flex: 1 1 auto; min-height: 0; min-width: 0; }
 .h3-vmain { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; min-height: 0; }
 .h3-vstrip.h3-vcol {
-  flex-direction: column; overflow-x: hidden; overflow-y: auto; border-top: 0; border-left: 1px solid var(--h3-border);
+  flex-direction: column; overflow-x: hidden; overflow-y: auto; border-top: 0; border-right: 1px solid var(--h3-border);
   padding: 6px; gap: 6px; min-width: 76px; align-items: stretch;
 }
 .h3-vcol .h3-vtake { align-items: flex-start; }

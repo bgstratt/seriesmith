@@ -280,8 +280,8 @@ alters it; `.venv\Scripts\python -m pytest tests/test_docs.py -n 0` after each.
       The check is written one way, `seriesmith check <episode folder>`. The shot IDs have
       a section of their own; the static hold is with the camera moves. Also fixed, from
       the baseline's reports: the default delivery names its setup and proxy (896×512).
-      Left as it is: the 1440p example's own proxy (960×544 at 8 steps), which is the
-      **At size, master 1440p** setup's.
+      The 1440p setup's proxy was 960×544 at 8 steps; since 2026-11-14 it is 896×512 at 8
+      steps, as every 1344×768 setup's: the proxy is the final's own 7:4 shape, near 480p.
 - [x] 3. Each rule said once (section 2); the misfiled text moved. Done where a rule was
       said in the core and again in a reference, or twice in the core: the second whole
       series config and the build's quoted warning are for the docs only; the hosted filter

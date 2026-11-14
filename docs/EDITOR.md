@@ -1375,7 +1375,7 @@ first shot's take, and a shot clicked in the list or on the timeline shows its t
 cut, waiting on its first frame (a take row clicked shows that take). Double-click, or the
 play button, plays it. Play all, a ref's pictures and a cue's window stay as they are when a
 shot is clicked. In ComfyUI the viewer is a window: a selection moves it only when it is
-already open on a shot. The shot's **takes are a column on the picture's right** (the one
+already open on a shot. The shot's **takes are a column on the picture's left** (the one
 in the cut ticked, the one playing outlined, a take's badge only when something about it is
 unusual): click one to load it, Ctrl/⌘-click to load it as B, right-click for its menu; the
 column scrolls when there are many. Under the picture, **Details**, **New take from…**,
