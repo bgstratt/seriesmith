@@ -377,7 +377,7 @@ under the shot.
 - **Use** puts that take in the cut. A take has to be finished and have video before it can
   go in.
 - **The ⋯ button, or right-click anywhere on a shot or take**, opens the context menu. It is
-  the same menu in the bin, the timeline and the viewer strip.
+  the same menu in the bin, the timeline and the viewer's column of takes.
 - **Import video…** (under a shot's takes, or in its context menu), or a video file dropped on
   the shot's row: a clip from anywhere (your phone, another tool) as the shot's next take,
   in the cut. See [Takes from outside](#takes-from-outside).
@@ -1375,7 +1375,12 @@ first shot's take, and a shot clicked in the list or on the timeline shows its t
 cut, waiting on its first frame (a take row clicked shows that take). Double-click, or the
 play button, plays it. Play all, a ref's pictures and a cue's window stay as they are when a
 shot is clicked. In ComfyUI the viewer is a window: a selection moves it only when it is
-already open on a shot. **Click the picture** to play or pause it (as
+already open on a shot. The shot's **takes are a column on the picture's right** (the one
+in the cut ticked, the one playing outlined, a take's badge only when something about it is
+unusual): click one to load it, Ctrl/⌘-click to load it as B, right-click for its menu; the
+column scrolls when there are many. Under the picture, **Details**, **New take from…**,
+**Re-render part of…** and **Use** (which reads **In the cut** on the cut's take).
+**Click the picture** to play or pause it (as
 `Space` does): a take, two side by side (they play together), Play all, the gallery, a clip's
 Replace audio preview. **Scroll on the picture** to zoom in about the pointer (up to 10x),
 **drag** to look round while zoomed, and **double-click** for the whole picture again: a take

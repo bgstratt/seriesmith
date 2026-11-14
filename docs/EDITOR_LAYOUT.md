@@ -255,7 +255,9 @@ Each line is a commit on this branch. After the last one on a day: `npm run type
       post dialogs) take `h3-in`; Re-render…, Relight…, Fill N and Fill act are small
       buttons; "In the cut" has the state look; the rule is at the head of `styles.css`.
       The other text links and the other surfaces' primaries were not gone through.
-- [ ] 8. The take strip as a column beside the video; the take rows' seed in Details
-      (section 9).
+- [x] 8. The take strip as a column beside the video; the take rows' seed in Details
+      (section 9). As built: the takes keep their order (t01 at the top) and the column
+      keeps the take in A in view; a ref's candidates (the stills viewer) stay a row under
+      the picture.
 - [ ] 9. Looked at live in both themes on the standalone page and in ComfyUI, at 1600×1000
       and at a narrow window, on an episode of 280 shots.

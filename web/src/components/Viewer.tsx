@@ -291,6 +291,12 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
     }
   }, [aEl, fps]));
 
+  // the column scrolls: the take in A is kept in view (another shot selected, a take stepped to)
+  const stripRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = stripRef.current?.querySelector<HTMLElement>(`[data-take="${v.a}"]`);
+    if (el && typeof el.scrollIntoView === "function") el.scrollIntoView({ block: "nearest" });
+  }, [v.shot, v.a]);
   const load = (t: TakeSummary, toB: boolean) => {
     if (!t.mp4) return;
     // a take asked for plays, where one a selection showed waits
@@ -378,22 +384,27 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
 
   return (
     <FloatingWindow storageKey={RECT_KEY} defaultRect={defaultViewerRect} head={head} winRef={winRef} float={!!v.floating}>
+      {/* the picture and its transport, the shot's takes in a column on their right: the
+          picture keeps the window's height */}
+      <div className="h3-vbody">
+      <div className="h3-vmain">
       <CompareStage
         mode={mode}
         hasB={!!takeB}
-        emptyB="Ctrl/⌘-click a take below to load B"
+        emptyB="Ctrl/⌘-click a take on the right to load B"
         paneA={(style) => pane("a", takeA, style)}
         paneB={(style) => pane("b", takeB, style)}
       />
       <Transport a={aEl} fps={fps} audio={audio} setAudio={setAudio} hasB={!!takeB} />
-      <div className="h3-vstrip">
+      </div>
+      <div className="h3-vstrip h3-vcol" ref={stripRef}>
         {takes.map((t) => {
           const isA = t.take === v.a;
           const isB = !!takeB && t.take === v.b;
           const stale = realStale(t);
           const tb = takeTargetBadge(t, shotCurrent, targets);
           return (
-            <div key={t.take} className={`h3-vtake${isA ? " h3-a" : ""}${isB ? " h3-b" : ""}`}>
+            <div key={t.take} data-take={t.take} className={`h3-vtake${isA ? " h3-a" : ""}${isB ? " h3-b" : ""}`}>
               <Thumb
                 ep={ep}
                 pass={v.pass}
@@ -419,6 +430,7 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
           );
         })}
         {!takes.length && <div className="h3-muted">No takes.</div>}
+      </div>
       </div>
       <div className="h3-transport" style={{ justifyContent: "flex-end", flexWrap: "wrap" }}>
         <span className="h3-muted h3-small h3-grow">

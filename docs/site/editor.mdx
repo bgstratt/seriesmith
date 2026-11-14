@@ -163,6 +163,17 @@ pictures (hover scrubs one, click selects, double-click plays, right-click as a 
 **Gallery** opens every take of the episode, large ([The gallery](#the-gallery)); a
 sequence's header, double-clicked, opens it on that sequence.
 
+**A row's badges** come in three looks, by how much they ask of you. Filled red is
+something wrong: a take failed, the cut's pick can't be used, references are missing.
+Outlined orange needs a look: stale, no takes, a placeholder, an override written for an
+older build. Outlined grey is a fact: left out, moved, trimmed, an override, an upscale, a
+model other than the episode's. A job on its way (queued, rendering) has its own colour. A
+row shows its two most serious and a count (`+2`); hover the count for the rest and their
+reasons, or open the row to see them all. A **lock** before the shot's id is its approved
+take, locked in the cut; it is a mark of its own, on the timeline's clip as well. A clip too
+narrow for a badge's words wears its level as a coloured left edge, and the words are in
+its tooltip. A take's seed, and whether it was the same or a new one, are in **Details**.
+
 ### The episode's model
 
 **Model:** is the model every shot without one of its own renders on, with whether it is
@@ -370,7 +381,7 @@ under the shot.
 - **Use** puts that take in the cut. A take has to be finished and have video before it can
   go in.
 - **The ⋯ button, or right-click anywhere on a shot or take**, opens the context menu. It is
-  the same menu in the bin, the timeline and the viewer strip.
+  the same menu in the bin, the timeline and the viewer's column of takes.
 - **Import video…** (under a shot's takes, or in its context menu), or a video file dropped on
   the shot's row: a clip from anywhere (your phone, another tool) as the shot's next take,
   in the cut. See [Takes from outside](#takes-from-outside).
@@ -1361,7 +1372,17 @@ wins and shows as such. On the standalone page opened on the PC that runs the se
 Docked in the middle of the page: the selected shot's takes (step with `←` `→`, compare two
 **side by side** or under a **wipe**, **Play all** for the cut), a ref's candidates, a
 location's tour (keep any frame as a hold), and a 360 in its own viewer. Drag its tab out to
-float it, or dock another window beside it. **Click the picture** to play or pause it (as
+float it, or dock another window beside it. It follows the selection: an episode opens on its
+first shot's take, and a shot clicked in the list or on the timeline shows its take in the
+cut, waiting on its first frame (a take row clicked shows that take). Double-click, or the
+play button, plays it. Play all, a ref's pictures and a cue's window stay as they are when a
+shot is clicked. In ComfyUI the viewer is a window: a selection moves it only when it is
+already open on a shot. The shot's **takes are a column on the picture's right** (the one
+in the cut ticked, the one playing outlined, a take's badge only when something about it is
+unusual): click one to load it, Ctrl/⌘-click to load it as B, right-click for its menu; the
+column scrolls when there are many. Under the picture, **Details**, **New take from…**,
+**Re-render part of…** and **Use** (which reads **In the cut** on the cut's take).
+**Click the picture** to play or pause it (as
 `Space` does): a take, two side by side (they play together), Play all, the gallery, a clip's
 Replace audio preview. **Scroll on the picture** to zoom in about the pointer (up to 10x),
 **drag** to look round while zoomed, and **double-click** for the whole picture again: a take
@@ -1584,7 +1605,10 @@ next shot starts where this one ended.
 
 **Sound** in the timeline's header unfolds the lanes under the clips (remembered; it is also
 where the waveforms are): a thin **hits** lane, then a lane per track: **Dialogue**, **Effects**,
-**Ambience** and **Music** by default, and any you add.
+**Ambience** and **Music** by default, and any you add. **Drag the line between the clips
+and the lanes** to trade the clips' height for the lanes' (remembered in this browser;
+double-click it for the height they came with). In a panel too short for a clip and every
+lane, the lanes shrink first and then the track scrolls down to the last one.
 They scroll with the clips; each lane's head stays on the left with its **fader** (dB, -60 to
 +12), **M** (mute) and **S** (solo: hear only the soloed lanes). A fader nothing sets sits at its
 default, shown greyed: 0 dB, but **-12 dB on Music**, so the score sits under the lines. A level
