@@ -779,7 +779,7 @@ Click (or Shift+R): the next one · R marks or unmarks the clip on screen (or th
       </div>
       <div className={`h3-track-wrap${short ? " h3-track-short" : ""}`} ref={wrapRef} onDragOver={onExtOver} onDragLeave={onExtLeave} onDrop={onExtDrop}>
         <div ref={trackRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
-        {!ep && <div className="h3-empty-state">Pick an episode in the Shots tab.</div>}
+        {!ep && <div className="h3-empty-state">{host().topBar ? "Open an episode from the top bar." : "Pick an episode in the Shots tab."}</div>}
         {ep && err && !st && <div className="h3-pad"><div className="h3-note h3-note-err">{err}</div></div>}
         {ep && st && (
           <div className={`h3-track${drag ? " h3-track-dragging" : ""}`} ref={innerRef}

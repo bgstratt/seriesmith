@@ -96,12 +96,14 @@ and `design` unless they are only ever a voice), and `locations` with a `descrip
 `plate` each. `--check` names whichever is missing.
 
 Drafting with an AI assistant: the guide comes as a skill, `seriesmith-episode-script`.
-`prompts/seriesmith-episode-script.zip` is the whole skill (the guide, a worked screenplay
-conversion from `docs/SCRIPT_CONVERSION.md`, the story structures from
-`docs/STORY_STRUCTURES.md`, and a copy of `build` to validate with): upload it
+`prompts/seriesmith-episode-script.zip` is the whole skill: the guide's core (`SKILL.md`), six
+references it reads when a script needs them (the series config, the models, continuity,
+people, a worked screenplay conversion from `docs/SCRIPT_CONVERSION.md`, the story structures
+from `docs/STORY_STRUCTURES.md`), and `scripts/check.py`, one file carrying `build` to validate
+with. Upload it
 in Claude (Settings → Skills → Upload a skill), or unzip it into `.claude/skills/` for Claude
-Code. `python tools/make_prompts.py` rebuilds it. `prompts/SKILL.md` is the skill's
-text alone, and `prompts/seriesmith-script.instructions.md` the same guide for Cursor, Copilot or
+Code. `python tools/make_prompts.py` rebuilds it. `prompts/SKILL.md` and
+`prompts/references/` are the skill's text alone, and `prompts/seriesmith-script.instructions.md` the same guide for Cursor, Copilot or
 any system prompt. Edit the docs, not the copies. Whatever writes the script, `--check`
 and `--pace` are what say it is correct.
 

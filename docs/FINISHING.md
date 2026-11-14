@@ -263,7 +263,7 @@ upscale to reach 1080p. With about 4 takes a shot, a 100-shot episode is roughly
 this way against about 7 at 1344×768 (extrapolated from 3–5 s shots: master one real
 episode before planning a season on it).
 
-- **960×544** (proxy 448×256) when the shots are mostly H3: the re-sample makes 1920×1088,
+- **960×544** (proxy 864×480) when the shots are mostly H3: the re-sample makes 1920×1088,
   cropped by 8 rows (0.7%, invisible).
 - **1024×576** (proxy 512×288) when many shots are on LTX, or for a touch more crispness:
   it's on both H3's 32 grid and LTX's 64 (LTX snaps 960×544 to 960×512, whose 2x is

@@ -356,7 +356,7 @@ function TakesView({ ep, v }: { ep: string; v: ViewerState }) {
         />
       ) : (
         <div className="h3-empty-state" style={{ color: "#aaa" }}>
-          {t ? `${tn(t.take)} has no video (${t.status})` : which === "b" ? "Ctrl/⌘-click a take below to load B" : "Click a take below"}
+          {t ? `${tn(t.take)} has no video (${t.status})` : which === "b" ? "Ctrl/⌘-click a take on the left to load B" : "Click a take on the left"}
         </div>
       )}
     </div>

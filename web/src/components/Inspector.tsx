@@ -500,7 +500,7 @@ export function Inspector() {
     return [...targetBadges(s, targets, seriesDefault, cutTake(s)), ...shotBadges(s)];
   }, [s, targets, seriesDefault]);
 
-  if (!ep) return <div className="h3-empty-state">Pick an episode in the Shots tab.</div>;
+  if (!ep) return <div className="h3-empty-state">{host().topBar ? "Open an episode from the top bar." : "Pick an episode in the Shots tab."}</div>;
   if (!shot) return <div className="h3-empty-state">Select a shot in the Shots tab or the timeline.</div>;
   const ct = s ? cutTake(s) : undefined;
   const hasUsable = !!s?.takes.some((t) => t.status === "ok" && t.has_video);
