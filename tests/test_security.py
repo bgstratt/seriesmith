@@ -296,8 +296,8 @@ class ProgramsTest(unittest.TestCase):
             self.assertEqual(set(keys) & set(PROC.clean_env()), set())
             r = PROC.run([sys.executable, "-c", code], capture_output=True, text=True)
             self.assertEqual(r.stdout.strip(), "['SERIESMITH_PLAIN']")
-            from seriesmith import edit as E
-            self.assertEqual(set(keys) & set(E.tool_env()), set())
+            from seriesmith import edit as E          # seriesmith's own tools: the Hub's token only
+            self.assertEqual(set(keys) & set(E.tool_env()), {"HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"})
 
     def test_nothing_else_starts_one(self):
         """No module of the package but proc (and the helpers, which run in another Python)

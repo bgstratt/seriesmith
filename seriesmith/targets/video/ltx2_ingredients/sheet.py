@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-from seriesmith import proc as PROC
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 HELPER = os.path.join(ROOT, "helpers", "refsheet.py")          # ROOT: the package
@@ -24,6 +23,9 @@ class SheetError(RuntimeError):
 def compose(spec: dict, out: str, timeout: int = 120) -> dict:
     """Write the sheet `spec` describes to `out` (see helpers/refsheet.py).
     Returns the helper's report ({"width", "height", "boxes"})."""
+    # here, not at the top: the script-writing skill's bundle compiles this model without
+    # the part of seriesmith that starts programs
+    from seriesmith import proc as PROC
     r = PROC.run([sys.executable, HELPER, out], input=json.dumps(spec).encode("utf-8"),
                        capture_output=True, timeout=timeout)
     err = r.stderr.decode("utf-8", "replace").strip()

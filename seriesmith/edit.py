@@ -1141,13 +1141,16 @@ def sweep(root: str, pass_: str, comfy_url: str, folder: str | None = None) -> i
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL_ENV = {"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
+HUB_TOKENS = ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACE_HUB_TOKEN")
 
 
 def tool_env() -> dict[str, str]:
     """The environment a pipeline tool runs in: this one, less the keys it never needs (the
-    Comfy API key, a provider's SERIESMITH_KEY_*, the Hugging Face token: proc.clean_env),
-    with TOOL_ENV."""
-    return PROC.clean_env(TOOL_ENV)
+    Comfy API key, a provider's SERIESMITH_KEY_*: proc.clean_env), with TOOL_ENV. The
+    Hugging Face token stays: align is seriesmith's own code and may fetch Whisper's models
+    with it; ffmpeg and every other program get none."""
+    hub = {k: v for k, v in os.environ.items() if k.upper() in HUB_TOKENS}
+    return PROC.clean_env({**hub, **TOOL_ENV})
 
 
 class NotUsable(Exception):
