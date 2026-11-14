@@ -30,7 +30,7 @@ import { useTargets } from "./Targets";
 import { Badges, Progress, mediaStyle, useScrub } from "./Thumb";
 import { AudioBadge } from "./ClipAudio";
 import { audioBadgeOf } from "../lib/audioSource";
-import { HEAD_W, SoundLanes, lanesH } from "./SoundLanes";
+import { HEAD_W, HITS_H, LANE_DEFAULT, LANE_MAX, LANE_MIN, LaneHeight, SoundLanes, lanesH } from "./SoundLanes";
 import { trackList } from "../lib/mix";
 import { currentMix, toggleSound } from "../mixActions";
 import { openSpotting } from "../spotActions";
@@ -43,6 +43,30 @@ const MIN_CLIP = 26;
 const OUT_CLIP = 16;
 /** the ruler band over each clip */
 const RULER_H = 12;
+/** the shortest a clip gets while the sound lanes are under it: they give way first, then the track scrolls */
+const CLIP_MIN = 36;
+const LANE_KEY = "seriesmith.laneH";
+
+/** A sound lane's height as this browser left it (the splitter between the clips and the lanes). */
+function useLaneWant(): [number, (h: number) => void] {
+  const [h, setH] = useState(() => {
+    try {
+      const n = Number(localStorage.getItem(LANE_KEY));
+      return n >= LANE_MIN && n <= LANE_MAX ? n : LANE_DEFAULT;
+    } catch {
+      return LANE_DEFAULT;
+    }
+  });
+  const set = (n: number) => {
+    setH(n);
+    try {
+      localStorage.setItem(LANE_KEY, String(n));
+    } catch {
+      /* not remembered: fine */
+    }
+  };
+  return [h, set];
+}
 
 /** A clip being dragged to a new place: the insertion point and where its marker goes. */
 /** Something from outside held over the track: onto a clip, or between two. */
@@ -347,8 +371,9 @@ export function Timeline() {
   const progress = useApp((s) => s.progress);
   // the sound lanes (the mix) under the clips: the waveforms, each clip's own sound on the dialogue lane
   const sound = useApp((s) => s.sound);
-  // the mix's tracks: the lanes' height
-  const LANES_H = lanesH(useApp((s) => trackList(currentMix(s)?.mix).length));
+  // the mix's tracks, and a lane's height as the splitter left it
+  const tracks = Math.max(1, useApp((s) => trackList(currentMix(s)?.mix).length));
+  const [laneWant, setLaneWant] = useLaneWant();
   // Phase 9d: the recording overrides every clip's own audio source
   const recording = useApp((s) => s.cutAudio === "recording");
   const undo = useApp((s) => (s.ep ? s.cutUndo[statusKey(s.ep, s.pass)] : undefined));
@@ -377,8 +402,28 @@ export function Timeline() {
   const nextOf = useMemo(() => new Map(items.slice(0, -1).map((i, k) => [i.shot, items[k + 1].shot])), [items]);
   const { list: targets, seriesDefault } = useTargets();
   const fps = st?.fps || 24;
-  // clip height: the track minus padding, the sequence label, the ruler and the sound lanes
-  const clipH = Math.max(24, (size.height || 150) - 6 - 16 - RULER_H - (sound ? LANES_H + 2 : 0) - 2);
+  // what the clips and the sound lanes share: the track minus padding, the sequence label and the ruler
+  const room = (size.height || 150) - 6 - 16 - RULER_H - 2;
+  // the lanes give way before the clips do: a lane as tall as asked while a clip keeps CLIP_MIN
+  const laneFit = Math.floor((room - 2 - CLIP_MIN - HITS_H - 1) / tracks) - 1;
+  const laneH = Math.max(LANE_MIN, Math.min(laneWant, laneFit));
+  const LANES_H = lanesH(tracks, laneH);
+  const clipH = Math.max(sound ? CLIP_MIN : 24, room - (sound ? LANES_H + 2 : 0));
+  // too short for a clip and every lane: the track is as tall as they need and scrolls, so
+  // the last lane is never under the panel's edge
+  const short = sound && !!size.height && clipH + LANES_H + 2 > room;
+  const onSplitDown = (e: RPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const y0 = e.clientY;
+    const from = laneH;
+    const most = Math.max(LANE_MIN, Math.min(LANE_MAX, laneFit));
+    trackPointer(
+      (m) => setLaneWant(Math.max(LANE_MIN, Math.min(most, Math.round(from + (y0 - m.clientY) / tracks)))),
+      (cancelled) => { if (cancelled) setLaneWant(from); },
+    );
+  };
   const aspect = aspectOf(st);
   const total = items.length ? totalDuration(items) : st?.shots.reduce((n, s) => n + (shotSeconds(s, st.fps) ?? 0), 0) ?? 0;
   const prog = useMemo(() => passProgress(st?.shots), [st]);
@@ -732,13 +777,13 @@ Click (or Shift+R): the next one · R marks or unmarks the clip on screen (or th
           <button className="h3-btn h3-icon" aria-label="Refresh" title="Refresh" disabled={!ep} onClick={() => void refreshEpisode()}><i className="pi pi-refresh" /></button>
         </span>
       </div>
-      <div className="h3-track-wrap" ref={wrapRef} onDragOver={onExtOver} onDragLeave={onExtLeave} onDrop={onExtDrop}>
+      <div className={`h3-track-wrap${short ? " h3-track-short" : ""}`} ref={wrapRef} onDragOver={onExtOver} onDragLeave={onExtLeave} onDrop={onExtDrop}>
         <div ref={trackRef} style={{ position: "absolute", inset: 0, pointerEvents: "none" }} />
         {!ep && <div className="h3-empty-state">Pick an episode in the Shots tab.</div>}
         {ep && err && !st && <div className="h3-pad"><div className="h3-note h3-note-err">{err}</div></div>}
         {ep && st && (
           <div className={`h3-track${drag ? " h3-track-dragging" : ""}`} ref={innerRef}
-            style={sound ? { paddingLeft: HEAD_W + 6, paddingBottom: LANES_H + 4 } : undefined}>
+            style={sound ? { paddingLeft: HEAD_W + 6, paddingBottom: LANES_H + 4, ...(short ? { height: 6 + 16 + RULER_H + 2 + clipH + LANES_H + 2 } : {}) } : undefined}>
             {groups.map((g) => (
               <div key={`${g.sequence}@${g.start}`} className="h3-tl-seq">
                 <div className="h3-tl-seq-label" title={`${g.sequence} · ${fmtSeconds(g.seconds)}`}>{g.sequence}</div>
@@ -810,8 +855,16 @@ Music across it, cut there by the intro: ${coldOpen.crossing.map((c) => c.label)
             {drag && drag.gap != null && <div className="h3-drop-marker" style={{ left: drag.x }} />}
             {ext?.kind === "between" && <div className="h3-drop-marker h3-drop-new" style={{ left: ext.x }} title="Drop: a new shot here" />}
             {sound && (
-              <SoundLanes ep={ep} st={st} other={other} items={items} innerRef={innerRef} fps={fps} zoom={zoom}
-                measureKey={`${zoom}|${clipH}|${trim?.shot ?? ""}|${trim?.trimIn ?? ""}|${trim?.trimOut ?? ""}|${size.width}`} />
+              <LaneHeight.Provider value={laneH}>
+                <SoundLanes ep={ep} st={st} other={other} items={items} innerRef={innerRef} fps={fps} zoom={zoom}
+                  measureKey={`${zoom}|${clipH}|${trim?.shot ?? ""}|${trim?.trimIn ?? ""}|${trim?.trimOut ?? ""}|${size.width}`} />
+              </LaneHeight.Provider>
+            )}
+            {sound && (
+              <div className="h3-tl-split" style={{ bottom: LANES_H }} role="separator" aria-orientation="horizontal"
+                title="Drag: the clips' height against the sound lanes' (remembered) · double-click: as it came"
+                onPointerDown={onSplitDown} onClick={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => { e.stopPropagation(); setLaneWant(LANE_DEFAULT); }} />
             )}
             <Playhead trackRef={innerRef} wrapRef={wrapRef} zoom={zoom} />
             <ColorDefs prefix="t" />

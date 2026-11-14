@@ -247,7 +247,9 @@ Each line is a commit on this branch. After the last one on a day: `npm run type
       take in the cut shows its newest take that plays; a take row clicked shows that take;
       Play all, a ref's pictures, a cue's window and a viewer over the storyboard are left
       alone; several shots picked with Ctrl or Shift don't move it.
-- [ ] 6. The timeline's splitter and the lanes' scroll (section 7).
+- [x] 6. The timeline's splitter and the lanes' scroll (section 7). As built: a lane is 18
+      to 72 px (22 as it comes), a clip keeps 36 px; in a short panel the lanes shrink to 18
+      first, then the whole track (clips and lanes) scrolls down.
 - [ ] 7. The controls: the fields' sweep, links and buttons, one primary (section 8).
 - [ ] 8. The take strip as a column beside the video; the take rows' seed in Details
       (section 9).

@@ -208,6 +208,12 @@
 
 /* timeline */
 .h3-track-wrap { flex: 1 1 auto; overflow-x: auto; overflow-y: hidden; min-height: 0; position: relative; }
+/* too short for a clip and every sound lane: it scrolls down to the last one */
+.h3-track-wrap.h3-track-short { overflow-y: auto; }
+/* the line between the clips and the sound lanes: dragged, it trades one's height for the other's */
+.h3-tl-split { position: absolute; left: 0; right: 0; height: 7px; z-index: 5; cursor: row-resize; }
+.h3-tl-split::after { content: ""; position: absolute; left: 0; right: 0; top: 3px; height: 1px; background: var(--h3-border); }
+.h3-tl-split:hover::after, .h3-tl-split:active::after { top: 2px; height: 3px; background: var(--h3-accent); }
 .h3-track { display: flex; align-items: stretch; height: 100%; padding: 4px 6px 2px; gap: 2px; width: max-content; }
 .h3-tl-seq { display: flex; flex-direction: column; min-width: 0; height: 100%; }
 .h3-tl-seq-label { font-size: 10px; color: var(--h3-muted); padding: 0 2px 2px; white-space: nowrap; overflow: hidden; height: 14px; flex: 0 0 14px; }

@@ -1599,7 +1599,10 @@ next shot starts where this one ended.
 
 **Sound** in the timeline's header unfolds the lanes under the clips (remembered; it is also
 where the waveforms are): a thin **hits** lane, then a lane per track: **Dialogue**, **Effects**,
-**Ambience** and **Music** by default, and any you add.
+**Ambience** and **Music** by default, and any you add. **Drag the line between the clips
+and the lanes** to trade the clips' height for the lanes' (remembered in this browser;
+double-click it for the height they came with). In a panel too short for a clip and every
+lane, the lanes shrink first and then the track scrolls down to the last one.
 They scroll with the clips; each lane's head stays on the left with its **fader** (dB, -60 to
 +12), **M** (mute) and **S** (solo: hear only the soloed lanes). A fader nothing sets sits at its
 default, shown greyed: 0 dB, but **-12 dB on Music**, so the score sits under the lines. A level
