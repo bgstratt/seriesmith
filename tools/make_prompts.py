@@ -5,15 +5,18 @@ make_prompts.py — regenerate prompts/ and the script-writing skill from docs/A
 The authoring guide is the single source. This wraps it in the packaging each
 assistant expects, so the copies cannot drift from the document:
 
-    prompts/SKILL.md                         the skill's text alone (Claude Code / Claude.ai)
+    prompts/SKILL.md                         the skill's core (Claude Code / Claude.ai; what
+                                             `seriesmith mcp` serves as the script format)
+    prompts/references/*.md                  the parts of the guide read only when needed
+                                             (REFS), and the two bundled docs: `seriesmith
+                                             mcp` serves each as a resource
     prompts/seriesmith-script.instructions.md
-                                             Cursor, Copilot, generic system prompt
+                                             Cursor, Copilot, generic system prompt: the
+                                             whole guide in one file, for a client with no
+                                             references
     build/skill/seriesmith-episode-script/   the whole skill, ready to install:
         SKILL.md                             the same text, plus what the folder bundles
-        references/script_conversion.md      docs/SCRIPT_CONVERSION.md (a screenplay scene
-                                             worked through to shots)
-        references/story_structures.md       docs/STORY_STRUCTURES.md (story structures,
-                                             for outlining an episode written fresh)
+        references/                          the same references
         scripts/check.py                     the build (build.py, core/, targets/) carried
                                              inside one file, to validate a script with
                                              --check where seriesmith isn't installed
@@ -33,6 +36,15 @@ zip also bundles the build: the core and the targets):
     python tools/make_prompts.py --no-bundle     # prompts/ only, not the skill
 
 For Claude Code, unzip prompts/seriesmith-episode-script.zip into .claude/skills/.
+
+The split is written into AUTHORING.md as comments, each on a line of its own:
+
+    <!-- skill:ref models -->      this part goes to references/models.md; where a
+    ...                            reference's first part was, SKILL.md says when to read it
+    <!-- /skill:ref -->
+    <!-- skill:omit -->            this part is for a person reading the docs: it is in
+    ...                            none of the skill's files
+    <!-- /skill:omit -->
 
 Stdlib only.
 """
@@ -105,14 +117,7 @@ and `docs/COMMANDS.md` for those."""
 
 BUNDLE_NOTE = """## Files in this skill
 
-- `references/script_conversion.md`: a spec-format screenplay scene worked through to shots, with
-  where the cuts land and why. Read it when adapting existing script pages rather than
-  writing shots directly.
-- `references/story_structures.md`: the story structures (three-act, Sitcom, Episodic Drama,
-  Story Circle, Fable, Kishōtenketsu, the Hero's Journey and its 27 beats, …), a menu to
-  offer, each one's beats with their share of the runtime and how each is scored, and how
-  beats become shots. Read it when outlining an
-  episode written fresh.
+{references}
 - `scripts/check.py`: the build itself (its core and the targets), carried inside one
   file so a script can be validated anywhere. Run it; don't open it (it is the build's
   files as text, about 2 MB, and reading it tells you nothing):
@@ -197,6 +202,42 @@ BUNDLE_SKIP = ["__pycache__", "*.pyc", "workflow.json"]
 MAX_FILES = 200
 
 
+# The references cut out of AUTHORING.md by its `skill:ref` markers, in the order SKILL.md
+# lists them: (name, title, what it covers, when to read it). The last two are also what
+# `seriesmith mcp` says of each resource.
+REFS = [
+    ("series_config", "The series config, block by block",
+     "starting a series and what to settle first, render size and delivery, the master recipe, "
+     "post, the intro and outro, the `look` line, render profiles, the `refs`, `sound` and "
+     "`ambience` blocks, relit plates",
+     "writing a new `series.json`, or any block of one besides `subjects` and `locations`"),
+    ("models", "Which model renders a shot",
+     "the targets and what each takes, a section per model, the hosted models and their table "
+     "of pictures, keyframes, `dur: model`, `target: hold`",
+     "the series config or a shot names a `target:`, or the person asks which model to use"),
+    ("continuity", "Shots that carry on from one another",
+     "`continuous: first`, `latent` and `multishot`: what each does, where it renders, how to "
+     "write it",
+     "before writing any `continuous:` line"),
+    ("people", "Wardrobe, groups and vehicles",
+     "a wardrobe change as a variant and how to cut round it, the same background people in "
+     "several shots as a group, the bokeh plate, vehicles in motion",
+     "a character changes clothes, the same background people are seen twice, or a vehicle moves"),
+]
+# the two whole documents bundled as references: (name, what it covers, when to read it)
+DOC_REFS = [
+    ("script_conversion", "a spec-format screenplay scene worked through to shots, with where "
+     "the cuts land and why",
+     "adapting existing script pages rather than writing shots directly"),
+    ("story_structures", "the story structures (three-act, Sitcom, Episodic Drama, Story Circle, "
+     "Fable, Kishōtenketsu, the Hero's Journey and its 27 beats, …), a menu to offer, each one's "
+     "beats with their share of the runtime and how each is scored, and how beats become shots",
+     "outlining an episode written fresh"),
+]
+MARK = re.compile(r"^<!-- (/?)skill:(ref|omit)(?: ([a-z_]+))? -->$")
+GENERATED = re.compile(r"^<!-- (BEGIN|END) [A-Z ]+")      # a generated block's own markers
+
+
 def read(path: str) -> str:
     with open(path, encoding="utf-8") as fh:
         return fh.read()
@@ -213,11 +254,122 @@ def outside_repo(text: str) -> str:
     return re.sub(r"\bAUTHORING(?:\.md)?", "SKILL.md", text)
 
 
-def body() -> str:
+def source() -> str:
+    """AUTHORING.md less its own title and lede (the wrappers supply their own), its links
+    turned for a reader away from the repo."""
     text = read(SOURCE)
-    # drop the document's own title and lede; the wrappers supply their own
     parts = text.split("\n## ", 1)
     return outside_repo("## " + parts[1] if len(parts) == 2 else text)
+
+
+def headings(block: str) -> list[str]:
+    """A block's `##` and `###` headings, less their backticked field names' punctuation
+    (a line inside a code fence is a script's shot, not a heading)."""
+    out, fenced = [], False
+    for ln in block.split("\n"):
+        if ln.startswith("```"):
+            fenced = not fenced
+        elif not fenced and re.match(r"#{2,3} ", ln):
+            out.append(ln.lstrip("#").strip())
+    return out
+
+
+def trigger(name: str, when: str, block: str) -> str:
+    """What SKILL.md says where a reference's first part was: when to read it, and the
+    headings it holds (the core names a section by its heading)."""
+    heads = headings(block)
+    holds = f" It holds {', '.join(f'**{h}**' for h in heads)}." if heads else ""
+    return f"> **Read `references/{name}.md`** when {when}.{holds}"
+
+
+def split(text: str) -> tuple[str, dict[str, list[str]], str]:
+    """(the core, {reference: its blocks in the document's order}, the whole): `text` with
+    its `skill:` markers read. The core has a reference's trigger where its first block was
+    and nothing where the others were; the whole has every `skill:ref` block in place and no
+    marker. `skill:omit` blocks are in neither. A marker that doesn't pair, nests, names no
+    reference of REFS, or sits inside a generated block, is an error."""
+    names = [r[0] for r in REFS]
+    when = {r[0]: r[3] for r in REFS}
+    core: list[str] = []
+    whole: list[str] = []
+    refs: dict[str, list[str]] = {n: [] for n in names}
+    inside: tuple[str, str | None] | None = None      # (kind, name) of the open block
+    at = 0
+    buf: list[str] = []
+    generated = False
+    slots: list[tuple[int, str]] = []                 # where in the core each reference's trigger goes
+    for i, ln in enumerate(text.split("\n"), 1):
+        g = GENERATED.match(ln)
+        if g:
+            generated = g.group(1) == "BEGIN"
+        m = MARK.match(ln.strip()) if ln.strip().startswith("<!--") else None
+        if not m:
+            if "skill:" in ln and ln.strip().startswith("<!--"):
+                raise SystemExit(f"  !! AUTHORING.md line {i}: not a marker the generator reads: {ln.strip()}")
+            if inside:
+                buf.append(ln)
+            else:
+                core.append(ln)
+                whole.append(ln)
+            continue
+        closing, kind, name = m.group(1) == "/", m.group(2), m.group(3)
+        if generated:
+            raise SystemExit(f"  !! AUTHORING.md line {i}: a skill marker inside a generated block")
+        if not closing:
+            if inside:
+                raise SystemExit(f"  !! AUTHORING.md line {i}: a skill marker inside the block opened at line {at}")
+            if kind == "ref" and name not in names:
+                raise SystemExit(f"  !! AUTHORING.md line {i}: skill:ref names {name!r}; the references are {', '.join(names)}")
+            if kind == "omit" and name:
+                raise SystemExit(f"  !! AUTHORING.md line {i}: skill:omit takes no name")
+            inside, at, buf = (kind, name), i, []
+            continue
+        if not inside or inside[0] != kind:
+            raise SystemExit(f"  !! AUTHORING.md line {i}: a closing skill:{kind} with none open")
+        block = "\n".join(buf).strip("\n")
+        if kind == "ref":
+            n = inside[1]
+            if not refs[n]:
+                slots.append((len(core), n))
+                core.append("")                       # the trigger, written once every block is read
+            refs[n].append(block)
+            whole.extend(buf)
+        inside = None
+    if inside:
+        raise SystemExit(f"  !! AUTHORING.md line {at}: skill:{inside[0]} is never closed")
+    for pos, n in slots:
+        core[pos] = trigger(n, when[n], "\n\n".join(refs[n]))
+    tidy = lambda lines: re.sub(r"\n{3,}", "\n\n", "\n".join(lines))
+    return tidy(core), refs, tidy(whole)
+
+
+def body() -> str:
+    """The core: what SKILL.md says under its preamble."""
+    return split(source())[0]
+
+
+def whole() -> str:
+    """The whole guide in the document's order: the one-file instructions' text."""
+    return split(source())[2]
+
+
+def references() -> dict[str, str]:
+    """{file name: text} of every reference: those cut from AUTHORING.md (a reference with
+    no block in the document isn't written) and the two bundled documents."""
+    blocks = split(source())[1]
+    out = {}
+    for name, title, covers, when in REFS:
+        if blocks[name]:
+            out[f"{name}.md"] = (f"# {title}\n\n"
+                                 f"A reference for SKILL.md: {covers}. Read it when {when}.\n\n"
+                                 + "\n\n".join(blocks[name]) + "\n")
+    out["script_conversion.md"] = bundle_breakdown()
+    out["story_structures.md"] = bundle_structures()
+    return out
+
+
+def words(text: str) -> int:
+    return len(text.split())
 
 
 def write(path: str, content: str) -> None:
@@ -238,6 +390,14 @@ def skill_text(text: str, extra: str = "") -> str:
             "---\n\n"
             "# Writing an episode for seriesmith\n\n"
             f"{PREAMBLE}\n\n{text}" + (f"\n{extra}\n" if extra else ""))
+
+
+def instructions_text() -> str:
+    """The one-file instructions: the whole guide, for a client with no references."""
+    return ("# seriesmith episode script — assistant instructions\n\n"
+            "Paste this into Cursor rules, Copilot instructions, a custom GPT, or any\n"
+            "system prompt. Generated from docs/AUTHORING.md by tools/make_prompts.py.\n\n"
+            f"{PREAMBLE}\n\n{whole()}")
 
 
 def version() -> str:
@@ -303,9 +463,16 @@ def check_py() -> str:
     return CHECK_PY.replace("{stamp}", stamp).replace("{files}", "".join(rows))
 
 
+def reference_list() -> str:
+    """The skill's references as its "Files in this skill" lists them, each once."""
+    have = references()
+    rows = [(n, covers, when) for n, _title, covers, when in REFS if f"{n}.md" in have] + DOC_REFS
+    return "\n".join(f"- `references/{n}.md`: {covers}. Read it when {when}." for n, covers, when in rows)
+
+
 def bundle_skill(text: str) -> str:
     """The bundled skill's SKILL.md: the skill's text and what the folder holds."""
-    return skill_text(text, BUNDLE_NOTE.replace("{version}", version()))
+    return skill_text(text, BUNDLE_NOTE.replace("{version}", version()).replace("{references}", reference_list()))
 
 
 def bundle_breakdown() -> str:
@@ -334,8 +501,8 @@ def bundle(text: str, out: str | None = None) -> str:
     if os.path.isdir(folder):
         shutil.rmtree(folder)
     write(os.path.join(folder, "SKILL.md"), bundle_skill(text))
-    write(os.path.join(folder, "references", "script_conversion.md"), bundle_breakdown())
-    write(os.path.join(folder, "references", "story_structures.md"), bundle_structures())
+    for name, ref in references().items():
+        write(os.path.join(folder, "references", name), ref)
 
     scripts = os.path.join(folder, "scripts")
     os.makedirs(scripts)
@@ -380,11 +547,15 @@ def main() -> int:
     out = os.path.join(ROOT, "prompts")
 
     write(os.path.join(out, "SKILL.md"), skill_text(text))
-    write(os.path.join(out, INSTRUCTIONS),
-          "# seriesmith episode script — assistant instructions\n\n"
-          "Paste this into Cursor rules, Copilot instructions, a custom GPT, or any\n"
-          "system prompt. Generated from docs/AUTHORING.md by tools/make_prompts.py.\n\n"
-          f"{PREAMBLE}\n\n{text}")
+    refs = references()
+    folder = os.path.join(out, "references")
+    for stale in (os.listdir(folder) if os.path.isdir(folder) else []):
+        if stale not in refs:
+            os.remove(os.path.join(folder, stale))
+    for name, ref in refs.items():
+        write(os.path.join(folder, name), ref)
+    write(os.path.join(out, INSTRUCTIONS), instructions_text())
+    print(f"  the core is {words(text)} words, the whole guide {words(whole())}")
     if not args.no_bundle:
         zpath = bundle(text)
         shutil.copyfile(zpath, os.path.join(out, f"{NAME}.zip"))

@@ -41,12 +41,16 @@ class TestScriptSkill(unittest.TestCase):
 
     def generated(self) -> dict:
         """What `python tools/make_prompts.py --no-bundle` would write now."""
-        text = P.body()
         return {
-            "prompts/SKILL.md": P.skill_text(text),
-            "prompts/" + P.INSTRUCTIONS:
-                "# seriesmith episode script — assistant instructions\n\nPaste this into Cursor rules, Copilot instructions, a custom GPT, or any\nsystem prompt. Generated from docs/AUTHORING.md by tools/make_prompts.py.\n\n" f"{P.PREAMBLE}\n\n{text}",
+            "prompts/SKILL.md": P.skill_text(P.body()),
+            "prompts/" + P.INSTRUCTIONS: P.instructions_text(),
+            **{f"prompts/references/{name}": text for name, text in P.references().items()},
         }
+
+    def test_no_reference_left_behind(self):
+        """prompts/references/ holds the references the generator writes and no other."""
+        folder = os.path.join(ROOT, "prompts", "references")
+        self.assertEqual(sorted(os.listdir(folder)), sorted(P.references()))
 
     def test_up_to_date(self):
         for rel, want in self.generated().items():
@@ -69,8 +73,7 @@ class TestScriptSkill(unittest.TestCase):
         text = P.body()
         with zipfile.ZipFile(path) as zf:
             for arc, want in ((f"{P.NAME}/SKILL.md", P.bundle_skill(text)),
-                              (f"{P.NAME}/references/script_conversion.md", P.bundle_breakdown()),
-                              (f"{P.NAME}/references/story_structures.md", P.bundle_structures())):
+                              *((f"{P.NAME}/references/{name}", ref) for name, ref in P.references().items())):
                 with self.subTest(file=arc):
                     self.assertEqual(zf.read(arc).decode("utf-8"), want,
                                      f"prompts/{P.NAME}.zip is out of date -- run "
@@ -81,13 +84,73 @@ class TestScriptSkill(unittest.TestCase):
         name, points at nothing there."""
         import re
         text = P.body()
-        for name, got in (("SKILL.md", P.bundle_skill(text)),
-                          ("script_conversion.md", P.bundle_breakdown()),
-                          ("story_structures.md", P.bundle_structures())):
+        for name, got in (("SKILL.md", P.bundle_skill(text)), *P.references().items()):
             with self.subTest(file=name):
                 self.assertEqual(re.findall(r"\]\((?!https?:|#)[^)]*\)", got), [])
                 self.assertNotIn("AUTHORING", got)
                 self.assertEqual(re.findall(r"`[A-Z_]+\.md`", got.replace("`INSTALL.md`", "")), [])
+
+
+class TestSkillSplit(unittest.TestCase):
+    """AUTHORING.md's `skill:ref` and `skill:omit` markers (docs/SKILL_SPLIT.md): what the
+    generator makes of them, on a document of its own and on the real one."""
+
+    DOC = ("## One\n\ncore one\n\n<!-- skill:ref models -->\n### A model\n\nmodel words\n<!-- /skill:ref -->\n\n"
+           "## Two\n\n<!-- skill:omit -->\nfor a person\n<!-- /skill:omit -->\ncore two\n\n"
+           "<!-- skill:ref models -->\n### Another\n\nmore\n<!-- /skill:ref -->\n\n```\n## sh010\n```\n")
+
+    def test_the_core_the_references_and_the_whole(self):
+        core, refs, whole = P.split(self.DOC)
+        self.assertIn("core one", core)
+        self.assertIn("core two", core)
+        self.assertNotIn("model words", core)
+        self.assertNotIn("for a person", core)
+        self.assertNotIn("for a person", whole)
+        self.assertNotIn("skill:", core + whole)
+        # one trigger, where the first block was, naming the headings of both
+        self.assertEqual(core.count("references/models.md"), 1)
+        self.assertLess(core.index("references/models.md"), core.index("## Two"))
+        self.assertIn("**A model**, **Another**", core)
+        self.assertEqual(refs["models"], ["### A model\n\nmodel words", "### Another\n\nmore"])
+        # the whole: every block where it was, in the document's order
+        self.assertLess(whole.index("model words"), whole.index("core two"))
+        self.assertLess(whole.index("core two"), whole.index("### Another"))
+
+    def test_a_marker_that_is_wrong_fails(self):
+        for bad in ("<!-- skill:ref models -->\nx\n",                                       # never closed
+                    "<!-- skill:ref nowhere -->\nx\n<!-- /skill:ref -->\n",                 # no such reference
+                    "<!-- skill:omit -->\n<!-- skill:ref models -->\n<!-- /skill:ref -->\n<!-- /skill:omit -->\n",
+                    "<!-- /skill:ref -->\n",
+                    "<!-- BEGIN PICTURES (generated) -->\n<!-- skill:omit -->\n<!-- /skill:omit -->\n<!-- END PICTURES -->\n",
+                    "<!-- skill:reff models -->\n"):
+            with self.subTest(doc=bad[:40]):
+                with self.assertRaises(SystemExit):
+                    P.split(bad)
+
+    def test_every_block_lands_once(self):
+        """Each marked block of AUTHORING.md is in exactly one reference and in the one-file
+        instructions, and not in the core; SKILL.md names each reference it has once."""
+        core, refs, whole = P.split(P.source())
+        written = P.references()
+        for name, blocks in refs.items():
+            for block in blocks:
+                first = next(ln for ln in block.split("\n") if ln.strip())
+                with self.subTest(reference=name, block=first[:50]):
+                    self.assertIn(block, written[f"{name}.md"])
+                    self.assertIn(block, whole)
+                    self.assertNotIn(block, core)
+                    self.assertEqual([n for n, text in written.items() if block in text], [f"{name}.md"])
+        skill = P.bundle_skill(core)
+        for name in written:
+            with self.subTest(named=name):
+                self.assertEqual(skill.count(f"- `references/{name}`"), 1)
+        for name, blocks in refs.items():
+            if blocks:
+                self.assertEqual(core.count(f"**Read `references/{name}.md`**"), 1, name)
+
+    def test_the_site_page_has_no_marker(self):
+        with open(os.path.join(S.SITE, "authoring.mdx"), encoding="utf-8") as fh:
+            self.assertNotIn("skill:", fh.read())
 
 
 class TestSiteDocs(unittest.TestCase):
