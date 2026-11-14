@@ -529,11 +529,19 @@ class Target:
         self.template = Template(spec.get("template") or {}, self.short)
         self.recipe: dict = dict(spec.get("recipe") or {})
         b = dict(spec.get("binding") or {})
+        # a target.json is data (a show's own comes with the show): its workflow is a file in
+        # its own folder by name, never a path elsewhere, and the variable that can point at
+        # another is a workflow's by its name, never any variable of the environment
         wf = b.get("workflow", "")
+        if not isinstance(wf, str) or wf != os.path.basename(wf.replace("\\", "/")) or wf in (".", ".."):
+            wf = ""
+        env = b.get("env", "")
+        if not isinstance(env, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]*WORKFLOW", env):
+            env = ""
         self.binding = Binding(
             workflow=os.path.join(folder, wf) if wf else "",
             workflow_name=b.get("workflow_name") or wf,
-            env=b.get("env", ""), loader=dict(b.get("loader") or {}),
+            env=env, loader=dict(b.get("loader") or {}),
             saver=dict(b.get("saver") or {}), params=dict(b.get("params") or {}),
             review_nodes=list(b.get("review_nodes") or []), prune=bool(b.get("prune")),
             bypass={str(k): str(v) for k, v in (b.get("bypass_if_missing") or {}).items()})

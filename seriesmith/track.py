@@ -101,9 +101,8 @@ def probe(python: str) -> dict:
         return dict(hit[1])
     found = None
     try:
-        r = PROC.run([python, PROBE, *(f"{d}={m}" for d, m in PACKAGES)],
-                           capture_output=True, timeout=120,
-                           env=E.tool_env())
+        r = PROC.run(PROC.module(python, "helpers.probe", *(f"{d}={m}" for d, m in PACKAGES)),
+                     capture_output=True, timeout=120, env=E.tool_env())
         out = r.stdout.decode("utf-8", "replace").strip().splitlines()
         if out:
             got = json.loads(out[-1])

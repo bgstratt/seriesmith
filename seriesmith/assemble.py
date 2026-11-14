@@ -397,7 +397,7 @@ def rejoin_sound(out: str, clips: list[tuple[str, int]], fps: float, tmp: str) -
     joined = os.path.join(tmp, "rejoin.wav")
     listing = os.path.join(tmp, "rejoin.txt")
     with open(listing, "w", encoding="utf-8") as fh:
-        fh.writelines(f"file '{p.replace(os.sep, '/')}'\n" for p in parts)
+        fh.writelines(FF.concat_line(p) for p in parts)
     r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", listing,
              "-c:a", "pcm_s16le", joined])
     if r.returncode != 0:
@@ -1448,7 +1448,7 @@ def main(argv: list[str] | None = None) -> int:
                     parts.append((norm, p["used"]))
                 for path, frames in parts:
                     clips.append((path, frames))
-                    fh.write(f"file '{path.replace(os.sep, '/')}'\n")
+                    fh.write(FF.concat_line(path))
                 say(args.progress, "clips", i + 1, len(plan), p["id"])
         say(args.progress, "join", text=os.path.basename(out_path))
         return run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "concat", "-safe", "0",

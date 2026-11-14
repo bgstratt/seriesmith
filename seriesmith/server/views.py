@@ -94,6 +94,19 @@ def drop_uploads(form) -> None:
 
 
 LOOPBACK_ADDRS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+# on every answer: a file is the type the server says, never one the browser guesses
+CLIENT_HEADER = "X-Seriesmith-Client"
+SAFE_HEADERS = {"X-Content-Type-Options": "nosniff"}
+# on the standalone server's answers too: its page isn't framed by another site, loads no
+# plugin and keeps its own base address
+PAGE_HEADERS = {**SAFE_HEADERS, "X-Frame-Options": "SAMEORIGIN", "Referrer-Policy": "no-referrer",
+                "Content-Security-Policy": "frame-ancestors 'self'; object-src 'none'; base-uri 'self'"}
+
+
+async def page_headers(request, response) -> None:
+    """aiohttp's on_response_prepare: PAGE_HEADERS on every answer of the standalone server."""
+    for k, v in PAGE_HEADERS.items():
+        response.headers.setdefault(k, v)
 
 
 def is_local(request: web.Request) -> bool:
@@ -145,7 +158,10 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str):
             arg = dict(request.query)
         ctx = make_context()
         ctx.sweep_later = True             # a server answers first, then tidies (get_refs)
-        ctx.local = is_local(request)      # this PC, or another device (api.check_source)
+        # this PC, or another device (api.check_source). The MCP server says who it is: a model
+        # client reads scripts and pages, so its calls get a paired device's reach (files
+        # inside the project folders, no PC-only setting), not the person's at the PC
+        ctx.local = is_local(request) and request.headers.get(CLIENT_HEADER, "") != "mcp"
         loop = asyncio.get_running_loop()
         # a request that queues work is kept with its jobs (runner.ASKED), so
         # one still waiting when the server stops can be asked for again
@@ -168,8 +184,12 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str):
         finally:
             drop_uploads(arg)
         if is_file and status == 200:
-            return web.FileResponse(data["path"], headers={
-                "Cache-Control": "no-cache", "Content-Type": data["content_type"]})
+            if not isinstance(data, A.Served):            # only a path a route checked (api.served)
+                return _json(500, {"error": "that route didn't name a file to send"})
+            headers = {"Cache-Control": "no-cache", "Content-Type": data["content_type"], **SAFE_HEADERS}
+            if data["content_type"] == "application/octet-stream":
+                headers["Content-Disposition"] = "attachment"   # a kind the page doesn't show: saved, never opened
+            return web.FileResponse(data["path"], headers=headers)
         return _json(status, data)
     view.__name__ = f"seriesmith_{fn.__name__}"
     return view

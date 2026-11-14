@@ -17,6 +17,7 @@ What may be run is decided where the command is made: ffmpeg and ffprobe from `f
 seriesmith's own modules from `edit.tool_cmd` (through `_run.py`), a helper file of the
 package by its own path. Nothing a show or a request names.
 
+    module(py, name)     the command for one of seriesmith's own modules, through _run.py
     run(cmd, ...)        subprocess.run
     popen(cmd, ...)      subprocess.Popen
     call(cmd, ...)       subprocess.call
@@ -56,6 +57,19 @@ def _checked(cmd, kw: dict) -> list[str]:
     return ff.limited(cmd)
 
 
+RUNNER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_run.py")
+
+
+def module(python: str | None, name: str, *args: str) -> list[str]:
+    """The command that runs one of seriesmith's own modules (`helpers.erp`, `align`) with
+    `python` (this one when None), through _run.py: the only way a Python of seriesmith's
+    is started. ValueError for a name that isn't a module's."""
+    import sys
+    if not name or not all(part.isidentifier() for part in name.split(".")):
+        raise ValueError(f"{name!r} isn't one of seriesmith's modules")
+    return [python or sys.executable, RUNNER, "seriesmith." + name, *args]
+
+
 def run(cmd, **kw) -> subprocess.CompletedProcess:
     cmd = _checked(cmd, kw)
     return subprocess.run(cmd, **kw)
@@ -71,4 +85,4 @@ def call(cmd, **kw) -> int:
     return subprocess.call(cmd, **kw)
 
 
-__all__ = ["call", "clean_env", "popen", "run"]
+__all__ = ["call", "clean_env", "module", "popen", "run"]

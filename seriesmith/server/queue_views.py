@@ -23,6 +23,7 @@ SDK_KINDS = ("cloud", "deployment", "router")
 PC_ONLY = {"ffmpeg_dir": "which programs seriesmith runs",
            "comfyui_dir": "which programs seriesmith runs",
            "comfyui_url": "where jobs, your files and the Comfy API key are sent",
+           "comfyui_key_url": "which ComfyUI is trusted with the Comfy API key",
            "local_url": "where jobs, your files and the Comfy API key are sent",
            "cloud_url": "where jobs, your files and the Comfy API key are sent",
            "local_via": "where jobs, your files and the Comfy API key are sent",

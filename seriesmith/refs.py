@@ -3351,8 +3351,8 @@ def erp_canvas(ref: Ref, plate: str, width: int, fov: float = KLEIN_PANO_FOV) ->
     os.makedirs(d, exist_ok=True)
     out = os.path.join(d, f"{T.file_sha1(plate)}_{width}_f{int(fov)}.png")
     if not os.path.isfile(out):
-        r = PROC.run([sys.executable, ERP_HELPER, plate, out, "--width", str(width),
-                            "--fov", str(fov)], capture_output=True, text=True, timeout=300)
+        r = PROC.run(PROC.module(None, "helpers.erp", plate, out, "--width", str(width),
+                                 "--fov", str(fov)), capture_output=True, text=True, timeout=300)
         if r.returncode != 0 or not os.path.isfile(out):
             raise RefError(f"couldn't place the plate on a 360 canvas: "
                            f"{(r.stderr or r.stdout).strip()[-400:]}")

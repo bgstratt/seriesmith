@@ -60,6 +60,13 @@ don't open a public issue for it.
   outputs are used as file names only, inside the take's folder: never as a path.
 - **Ids** in a request (a cue, a model of the show's own) are checked as ids before they
   name a folder.
+- **A file sent to the page** is one a route has checked to be inside the episode, sent
+  with its type stated (`X-Content-Type-Options: nosniff`); a kind the page doesn't show is
+  sent as a download, never opened in the browser.
+- **The MCP server** (`seriesmith mcp`) works for a model client, which reads scripts and
+  pages that may try to steer it. Its calls have a paired device's reach, not yours at the
+  PC: a file it imports must be inside a project folder, and it can change none of the
+  PC-only settings.
 - **The node pack's inputs** (`comfy_nodes/_inputs.py`). A file a node is given must be inside
   ComfyUI's input, output or temp folder.
 - **Writes** go through `seriesmith/core/fileio.py`: atomic, never a partial file.
@@ -86,7 +93,9 @@ don't open a public issue for it.
   package, never `cmd /c`. The helpers refuse any command but ffmpeg or ffprobe (or PyAV's
   stand-in for ffprobe, seriesmith's own `ffprobe_av.py`).
 - **A show's own models** (`<show>/targets/`): only seriesmith's built-in code, chosen by
-  name. A show can't bring Python of its own.
+  name. A show can't bring Python of its own. Its workflow is a file in the model's own
+  folder, by name; it can't point at a file elsewhere or at an environment variable that
+  isn't a workflow's.
 - **The count check's detectors** (`seriesmith/countcheck.py`, `helpers/counts.py`): two YOLOv8
   weight files, which are PyTorch pickles and so can run code as they load. The helper loads
   one only when its sha256 is the one written in `countcheck.WEIGHTS`, checked just before
@@ -97,7 +106,10 @@ don't open a public issue for it.
 
 - **The Comfy API key** goes only to comfy.org, comfy.app or this PC. A Comfy partner node
   reads the key from the job it runs in, so a job with one is sent only to a ComfyUI on
-  this PC: with ComfyUI on another machine it is refused, saying so.
+  this PC: with ComfyUI on another machine it is refused, saying so. If your ComfyUI is on
+  another machine and you want paid nodes there, Settings on the PC has a box for it: the
+  key is then sent to that one address (https, or http on your own network only), and to
+  no other if the address changes.
 - **The Hugging Face token** goes only to Hugging Face's own hosts, never on a redirect
   elsewhere.
 - **A provider's key** stays with the hosts it was saved for. If the provider's definition
@@ -124,13 +136,21 @@ don't open a public issue for it.
   as missing and never downloaded, and nothing is ever written into `custom_nodes`.
   A download follows the address its record names (a model's current file on the Hub,
   ffmpeg's current release build), so you get the version that is there when you ask;
-  files aren't held to a pinned hash. The exception is the count check's two detector
-  files, which are pickles and are loaded only at their pinned sha256.
+  files aren't held to a pinned hash. A model's definition may name its file's `sha256`,
+  and then the download is kept only if it matches. The count check's two detector files,
+  which are pickles, are loaded only at their pinned sha256.
 - **No Python package or node pack is installed at runtime.** Features says how to add one
   (ComfyUI-Manager, or the pip command for the right Python) instead. `requirements.txt` is
   what Manager installs.
 - **Releases** are published to the Comfy Registry only from `main` by the version bump, with
   every GitHub Action pinned to a commit and comfy-cli pinned to a version.
+
+## The page
+
+- **It asks no other site for anything.** Its icons and typefaces are built into its own
+  files; nothing is loaded from a CDN.
+- **It can't be framed by another site**, loads no plugin, and its links to a provider's
+  docs or key page open https addresses only.
 
 ## Not covered
 

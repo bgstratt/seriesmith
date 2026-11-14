@@ -333,6 +333,16 @@ def too_wide(path: str) -> bool:
     return os.path.dirname(real) == real or _inside(_real(os.path.expanduser("~")), real)
 
 
+class Served(dict):
+    """A file a route answers with ({"path", "content_type"}), for the server to stream. Made
+    only by served(), by the routes that have checked the path (ep_file, a zip's id): the
+    server streams nothing else, whatever a handler returns."""
+
+
+def served(path: str, content_type: str) -> Served:
+    return Served(path=path, content_type=content_type)
+
+
 def from_this_pc(ctx: Context, what: str) -> None:
     if not ctx.local:
         raise ApiError(403, f"{what} can be changed only on the PC running seriesmith")
@@ -1228,7 +1238,7 @@ def get_file(ctx: Context, query: dict):
     ep = check_ep(ctx, query.get("ep"))
     full, rel = ep_file(ctx, ep, query.get("path"))
     ext = os.path.splitext(full)[1].lower()
-    return 200, {"path": full, "content_type": CONTENT_TYPES.get(ext, "application/octet-stream")}
+    return 200, served(full, CONTENT_TYPES.get(ext, "application/octet-stream"))
 
 
 # a selection's zip (the gallery's Download): kept this long, then swept
@@ -1311,7 +1321,7 @@ def get_download(ctx: Context, query: dict):
     path = os.path.join(_zips_dir(ctx), zid + ".zip")
     if not os.path.isfile(path):
         raise ApiError(404, "that zip is gone (they're kept an hour): select and download again")
-    return 200, {"path": path, "content_type": "application/zip"}
+    return 200, served(path, "application/zip")
 
 
 THUMB_WIDTHS = (128, 256, 512, 1024)
@@ -1337,8 +1347,8 @@ def get_thumb(ctx: Context, query: dict):
     ext = os.path.splitext(full)[1].lower()
     small = thumb_file(ctx, full, width) if ext in THUMB_EXT else None
     if small is None:
-        return 200, {"path": full, "content_type": CONTENT_TYPES.get(ext, "application/octet-stream")}
-    return 200, {"path": small, "content_type": "image/jpeg"}
+        return 200, served(full, CONTENT_TYPES.get(ext, "application/octet-stream"))
+    return 200, served(small, "image/jpeg")
 
 
 def thumb_file(ctx: Context, full: str, width: int) -> str | None:

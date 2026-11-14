@@ -27,6 +27,7 @@ from seriesmith import installer as INS  # noqa: E402
 from seriesmith import net as NET  # noqa: E402
 from seriesmith import proc as PROC  # noqa: E402
 from seriesmith import publish as PUB  # noqa: E402
+from seriesmith import settings as S  # noqa: E402
 from seriesmith import targets as TG  # noqa: E402
 from seriesmith.backends.native import ComfyUIBackend  # noqa: E402
 from seriesmith.core import downloads as DL  # noqa: E402
@@ -361,6 +362,131 @@ class FfmpegInputsTest(unittest.TestCase):
             bare = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-i", fake, "-f", "null", "-"],
                                   capture_output=True).returncode
             self.assertEqual(bare, 0)
+
+
+class TrustedComfyUITest(unittest.TestCase):
+    """The one ComfyUI on another machine that Settings (on the PC) trusts with the key."""
+
+    def test_which_addresses_can_be_trusted(self):
+        for ok in ("https://comfy.example.com", "http://192.168.1.50:8188", "http://10.0.0.5:8188",
+                   "http://100.101.102.103:8188", "http://desktop:8188", "http://desktop.local:8188",
+                   "http://desktop.tail1234.ts.net:8188"):
+            self.assertIsNone(S.key_comfyui_problem(ok), ok)
+        for bad in ("http://comfy.example.com:8188", "http://8.8.8.8:8188", "ftp://x", "desktop:8188", ""):
+            self.assertTrue(S.key_comfyui_problem(bad), bad)
+
+    def test_the_key_goes_only_to_the_address_named(self):
+        lan = "http://192.168.1.50:8188"
+        s = S.Settings(comfyui_url=lan)
+        self.assertFalse(S.key_goes_to(lan, s))
+        s.comfyui_key_url = lan
+        self.assertTrue(S.key_goes_to(lan, s))
+        self.assertTrue(S.key_goes_to(lan + "/", s))
+        self.assertFalse(S.key_goes_to("http://192.168.1.51:8188", s))      # the address changed: untrusted
+        self.assertTrue(S.key_goes_to("http://127.0.0.1:8188", S.Settings()))
+        s.comfyui_key_url = "http://comfy.example.com:8188"                 # in the clear across the internet
+        self.assertFalse(S.key_goes_to("http://comfy.example.com:8188", s))
+
+    def test_it_is_saved_checked_and_is_the_pcs_alone(self):
+        from seriesmith.server import queue_views as QV
+        self.assertIn("comfyui_key_url", QV.PC_ONLY)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "settings.json")
+            with self.assertRaises(ValueError):
+                S.save_settings({"comfyui_key_url": "http://comfy.example.com:8188"}, path)
+            S.save_settings({"comfyui_key_url": "http://192.168.1.50:8188/"}, path)
+            self.assertEqual(S.load_settings(path, env={}).comfyui_key_url, "http://192.168.1.50:8188")
+
+    def test_a_trusted_comfyui_gets_the_partner_job(self):
+        graph = {"1": {"class_type": "X", "inputs": {}, "_meta": {"partner": True}}}
+        b = ComfyUIBackend("local", "http://192.168.1.50:8188")
+        b.api_key, b.key_ok = "comfy-secret", True
+        sent = []
+        client = mock.Mock()
+        client._json.side_effect = lambda path, body: sent.append(body) or {"prompt_id": "p"}
+        with mock.patch("seriesmith.backends.native._client", return_value=client), \
+                mock.patch.object(ComfyUIBackend, "without_missing", return_value=[]):
+            b.submit(graph)
+        self.assertEqual(sent[0]["extra_data"], {"api_key_comfy_org": "comfy-secret"})
+
+
+class DataTest(unittest.TestCase):
+    """What a target.json, a provider's definition and a route's answer may name."""
+
+    def target(self, binding):
+        with tempfile.TemporaryDirectory() as tmp:
+            return TG.Target(tmp, {"id": "x_model", "kind": "video", "binding": binding}).binding, tmp
+
+    def test_a_targets_workflow_is_a_file_in_its_own_folder(self):
+        b, folder = self.target({"workflow": "graph.json", "env": "SERIESMITH_X_WORKFLOW"})
+        self.assertEqual((b.workflow, b.env), (os.path.join(folder, "graph.json"), "SERIESMITH_X_WORKFLOW"))
+        for bad in ("../../other/graph.json", "C:/Users/u/graph.json", UNC, "sub/graph.json", ".."):
+            b, _ = self.target({"workflow": bad})
+            self.assertEqual(b.workflow, "", bad)
+        for bad in ("COMFY_API_KEY", "HF_TOKEN", "PATH", "workflow", "SERIESMITH_KEY_FAL"):
+            b, _ = self.target({"workflow": "graph.json", "env": bad})
+            self.assertEqual(b.env, "", bad)
+
+    def test_a_providers_links_open_web_pages(self):
+        from seriesmith import providers as PR
+        self.assertTrue(any("docs" in p for p in PR.problems({"docs": "javascript:alert(1)"})))
+        self.assertTrue(any("key_url" in p for p in PR.problems({"key_url": "http://x.example/keys"})))
+        self.assertTrue(any("voices.browse" in p for p in PR.problems({"voices": {"browse": "data:text/html,x"}})))
+        self.assertFalse(any("docs" in p or "key_url" in p for p in
+                             PR.problems({"docs": "https://x.example/docs", "key_url": "https://x.example/keys"})))
+
+    def test_a_route_sends_only_a_file_it_checked(self):
+        from seriesmith import api as A
+        self.assertIsInstance(A.served("x.mp4", "video/mp4"), A.Served)
+        self.assertNotIsInstance({"path": "C:/Windows/win.ini", "content_type": "text/plain"}, A.Served)
+        from seriesmith.server import views as V
+        self.assertEqual(V.PAGE_HEADERS["X-Content-Type-Options"], "nosniff")
+        self.assertIn("frame-ancestors 'self'", V.PAGE_HEADERS["Content-Security-Policy"])
+
+    def test_the_mcp_server_says_who_it_is(self):
+        from seriesmith import mcp as M
+        from seriesmith.server import views as V
+        seen = []
+
+        class Answer:
+            headers = {}
+            def read(self): return b"{}"
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+        with mock.patch("urllib.request.urlopen", lambda req, timeout=0: seen.append(req) or Answer()):
+            M.Client("http://127.0.0.1:8190").call("GET", "/seriesmith/config")
+        self.assertEqual(seen[0].get_header(V.CLIENT_HEADER.capitalize()), "mcp")
+
+    def test_a_module_of_seriesmiths_is_the_only_python_started(self):
+        cmd = PROC.module(None, "helpers.probe", "a=b")
+        self.assertEqual(cmd[:3], [sys.executable, PROC.RUNNER, "seriesmith.helpers.probe"])
+        for bad in ("", "../x", "helpers/probe.py", "os;rm", "a b"):
+            with self.assertRaises(ValueError):
+                PROC.module(None, bad)
+        r = PROC.run(PROC.module(None, "helpers.probe", "json=json", "nope=no_such_module_here"),
+                     capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('"nope": null', r.stdout)
+
+    def test_a_download_with_a_hash_is_kept_only_if_it_matches(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp:
+            cn = os.path.join(tmp, "custom_nodes")
+            os.makedirs(cn)
+            place = INS.Place({"vae": [os.path.join(tmp, "models", "vae")]}, cn)
+
+            def downloader(url, dest, token, progress, cancelled):
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with open(dest, "wb") as fh:
+                    fh.write(b"weights")
+            ins = INS.Installer(lambda: place, downloader=downloader)
+            good = hashlib.sha256(b"weights").hexdigest()
+            dest = os.path.join(tmp, "models", "vae", "a.safetensors")
+            with self.assertRaises(INS.InstallError):
+                ins._model(FT.Item("model", "a.safetensors", folder="vae", url=HF, sha256="0" * 64), place)
+            self.assertEqual(os.listdir(os.path.dirname(dest)), [])
+            self.assertIn("checked", ins._model(FT.Item("model", "a.safetensors", folder="vae", url=HF, sha256=good), place))
+            self.assertTrue(os.path.isfile(dest))
 
 
 class IdsTest(unittest.TestCase):

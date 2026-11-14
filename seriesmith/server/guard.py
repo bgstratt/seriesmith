@@ -125,5 +125,10 @@ def guarded(view):
         from seriesmith.server import pairing as PR
         if PR.refused(request):                           # another device, not paired yet
             return PR.refusal()
-        return await view(request)
+        response = await view(request)
+        try:                                              # never a type the browser guesses
+            response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        except (AttributeError, RuntimeError):            # already sent (a stream)
+            pass
+        return response
     return checked

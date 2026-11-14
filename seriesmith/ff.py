@@ -173,6 +173,12 @@ INPUT_FORMATS = ",".join((
     "psd_pipe", "gif", "apng", "jpegxl_pipe", "qoi_pipe", "hdr_pipe", "pgm_pipe", "ppm_pipe"))
 
 
+def concat_line(path: str) -> str:
+    """One `file` line of a concat demuxer's list for `path`: forward slashes, a `'` in the
+    name escaped, so a name can't end the quotes and write a directive of its own."""
+    return "file '" + path.replace(os.sep, "/").replace("'", "'\\''") + "'\n"
+
+
 def _program(cmd0: str, name: str) -> bool:
     base = os.path.basename(str(cmd0)).lower()
     return base == name or base.startswith((name + ".", name + "-"))   # ffmpeg.exe, imageio's ffmpeg-win-...
@@ -207,5 +213,5 @@ def limited(cmd: list[str]) -> list[str]:
     return out
 
 
-__all__ = ["FFError", "find", "forget", "frame_md5s", "have", "limited", "managed", "probe_json", "tool",
+__all__ = ["FFError", "concat_line", "find", "forget", "frame_md5s", "have", "limited", "managed", "probe_json", "tool",
            "where"]

@@ -208,6 +208,8 @@ A `downloads` record with a URL is acted on only when it is a model file (`.safe
 (`vae`, `ultralytics/bbox`: never a path, never `custom_nodes`); a `fetches` record only for
 a Hugging Face repo (`owner/name`) with file patterns inside it. Any other is listed as
 missing and never downloaded (`seriesmith/core/downloads.py`; saving a model says which).
+A record may also name the file's `sha256` (64 hex digits): the download is then kept only
+if it matches. Without one the file is downloaded as its address gives it.
 
 The Features window and INSTALL.md's model list are built from `models` and `downloads`
 (and the window's lines from `fetches` too). A node pack that downloads something itself

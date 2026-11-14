@@ -26,8 +26,8 @@ def compose(spec: dict, out: str, timeout: int = 120) -> dict:
     # here, not at the top: the script-writing skill's bundle compiles this model without
     # the part of seriesmith that starts programs
     from seriesmith import proc as PROC
-    r = PROC.run([sys.executable, HELPER, out], input=json.dumps(spec).encode("utf-8"),
-                       capture_output=True, timeout=timeout)
+    r = PROC.run(PROC.module(None, "helpers.refsheet", out), input=json.dumps(spec).encode("utf-8"),
+                 capture_output=True, timeout=timeout)
     err = r.stderr.decode("utf-8", "replace").strip()
     if r.returncode or not os.path.isfile(out):
         if "No module named 'PIL'" in err:

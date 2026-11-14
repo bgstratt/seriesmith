@@ -251,6 +251,15 @@ def extract_ffmpeg(archive: str, into: str) -> None:
         raise InstallError(f"the build had no ffmpeg and ffprobe (found {sorted(got) or 'nothing'})")
 
 
+def file_sha256(path: str) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(CHUNK), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 # ---------------------------------------------------------------------------
 # the queue
 # ---------------------------------------------------------------------------
@@ -394,8 +403,19 @@ class Installer:
             raise InstallError(f"{item.folder} is where ComfyUI keeps code, not models")
         if os.path.isfile(dest):
             return "already there"
-        self._download(item.url, dest, self._token(), self._progress(item.key), lambda: self._cancel)
-        return f"saved in {d}"
+        if not item.sha256:
+            self._download(item.url, dest, self._token(), self._progress(item.key), lambda: self._cancel)
+            return f"saved in {d}"
+        # its record names the file's sha256: downloaded beside its place, checked, then kept
+        held = dest + ".check"
+        self._download(item.url, held, self._token(), self._progress(item.key), lambda: self._cancel)
+        got = file_sha256(held)
+        if got != item.sha256:
+            os.remove(held)
+            raise InstallError(f"{item.name} isn't the file its record names (sha256 {got[:12]}..., "
+                               f"expected {item.sha256[:12]}...): not kept")
+        F.replace(held, dest)
+        return f"saved in {d} (sha256 checked)"
 
     def _hub(self, item: FT.Item, place: Place) -> str | None:
         """A hub item into the place its package reads it from (hubcache):
@@ -500,8 +520,8 @@ def python_has(python: str | None, module: str) -> bool | None:
     if hit and time.monotonic() - hit[1] < 60:
         return hit[0]
     try:
-        probe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "helpers", "probe.py")
-        r = PROC.run([python, probe, f"{module}={module}"], capture_output=True, timeout=30)
+        r = PROC.run(PROC.module(python, "helpers.probe", f"{module}={module}"),
+                     capture_output=True, timeout=30)
         ok = json.loads(r.stdout.decode("utf-8", "replace").strip().splitlines()[-1]).get(module) is not None
     except (OSError, subprocess.TimeoutExpired, ValueError, IndexError):
         return None

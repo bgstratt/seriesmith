@@ -333,6 +333,8 @@ def available(settings=None) -> dict[str, Backend]:
         from seriesmith.backends.native import ComfyUIBackend
         out["local"] = ComfyUIBackend("local", s.local_comfyui)
         out["local"].api_key = s.api_key          # for a partner node's job (partner)
+        from seriesmith.settings import key_goes_to
+        out["local"].key_ok = key_goes_to(s.local_comfyui, s)   # this PC's, or the one Settings trusts
     if s.api_key:
         out["cloud"] = ComfyBackend("cloud", "cloud", s.cloud_url, s.api_key)
         from seriesmith.backends.router import RouterBackend

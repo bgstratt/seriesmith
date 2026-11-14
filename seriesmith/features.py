@@ -172,6 +172,8 @@ class Item:
     label: str = ""                # hub: what it is, in words
     alt: str = ""                  # model: the same file in torch's hub folder (its path
                                    # there), which counts as installed too
+    sha256: str = ""               # model: the file's sha256, when its record has one: checked
+                                   # before the download is kept (installer)
     dir: str = ""                  # hub (into a models folder): the folder the repo goes
                                    # in there, when its pack doesn't read it by the repo's
                                    # name (ComfyUI-Qwen-TTS: models/qwen-tts/<model>/)
@@ -870,6 +872,7 @@ def known_files(features: list[Feature] | None = None) -> dict[str, Item]:
     """Every model file with a recorded download, by name, and every hub
     item, by its repo or path: what the What's missing window may ask for by
     name (the server never takes a URL from the page)."""
+    import re
     from seriesmith import targets as TG
     out: dict[str, Item] = {}
     for f in features or catalog():
@@ -880,7 +883,9 @@ def known_files(features: list[Feature] | None = None) -> dict[str, Item]:
         for name, d in t.downloads.items():
             if d.get("url") and d.get("folder"):
                 base = name.replace("\\", "/").rsplit("/", 1)[-1]
-                out.setdefault(base, Item("model", base, folder=d["folder"], url=d["url"], target=t.id))
+                sha = d.get("sha256") if isinstance(d.get("sha256"), str) else ""
+                out.setdefault(base, Item("model", base, folder=d["folder"], url=d["url"], target=t.id,
+                                          sha256=sha.lower() if re.fullmatch(r"[0-9a-fA-F]{64}", sha) else ""))
     return out
 
 

@@ -254,6 +254,8 @@ def make_app(roots: list[str] | None = None, settings=None,
     local_only = host not in ("0.0.0.0", "::", "")
     app = web.Application(client_max_size=A.MAX_UPLOAD + (1 << 20),
                           middlewares=[guard_middleware(local_only, allow_hosts)])
+    from seriesmith.server.views import page_headers
+    app.on_response_prepare.append(page_headers)
     app["events"], app["settings"], app["comfy_connected"] = events, settings, False
     app["queue"], app["runner"], app["backends"] = queue, runner, backends
     app["make_context"] = make_context
@@ -288,6 +290,12 @@ def make_app(roots: list[str] | None = None, settings=None,
         node offers: the model and LoRA pickers), passed on."""
         folder = request.match_info.get("folder")
         node = request.match_info.get("node")
+        # a folder's or a node class's name, never a path that climbs to another of ComfyUI's
+        # routes (its /queue and /history are passed on only as comfy_queue trims them)
+        import re
+        if any(x is not None and not re.fullmatch(r"[A-Za-z0-9_.+ -]+", x) or x in (".", "..")
+               for x in (folder, node)):
+            return web.json_response({"error": "not a folder's or a node's name"}, status=400)
         url = settings.comfyui_url + (f"/object_info/{node}" if node else
                                       "/models" + (f"/{folder}" if folder else ""))
         try:
@@ -334,6 +342,12 @@ def make_app(roots: list[str] | None = None, settings=None,
         app.router.add_get(p, comfy_queue)
     app.router.add_get("/", index)
     if os.path.isdir(os.path.join(STATIC, "assets")):
+        # the types said here, not left to this PC's registry (Windows' can have .js or .css
+        # as text/plain, which a browser then refuses)
+        import mimetypes
+        for ext, kind in ((".js", "text/javascript"), (".css", "text/css"), (".woff2", "font/woff2"),
+                          (".png", "image/png")):
+            mimetypes.add_type(kind, ext)
         app.router.add_static("/assets", os.path.join(STATIC, "assets"))
 
     async def stop_view(request: web.Request) -> web.Response:

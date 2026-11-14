@@ -607,7 +607,7 @@ def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub:
     infos = {p: (cut if p == pic_only else probe(p)) for p in order}
     with open(os.path.join(tmp, "join.txt"), "w", encoding="utf-8") as f:
         for p in order:
-            f.write(f"file '{p.replace(os.sep, '/')}'\n")
+            f.write(FF.concat_line(p))
     pieces = []
     for i, (pic, snd, kind) in enumerate(parts, 1):
         if kind == "tail":
