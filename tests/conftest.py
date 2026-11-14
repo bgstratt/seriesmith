@@ -40,6 +40,9 @@ os.environ["SERIESMITH_COMFYUI_URL"] = _NOWHERE
 os.environ["SERIESMITH_CLOUD_URL"] = _NOWHERE
 # a finished take isn't checked on a thread of its own (runner.CHECK_TAKES): tests check one by name
 os.environ["SERIESMITH_TAKE_CHECKS"] = "0"
+# nor are sounds measured for Play all's levelling on threads of their own (levels.WARM):
+# tests measure one by name
+os.environ["SERIESMITH_LEVELS_WARM"] = "0"
 os.environ.pop("COMFY_API_KEY", None)
 # the caches kept between runs (seriesmith/diskcache.py) go to a scratch folder,
 # never beside the settings file above (tests/)

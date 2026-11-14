@@ -21,6 +21,7 @@ import threading
 
 from seriesmith import color as COL
 from seriesmith import jobs as J
+from seriesmith import levels as LV
 from seriesmith import takecheck as TC
 from seriesmith import takes as T
 from seriesmith.queue import Job as QJob
@@ -946,6 +947,7 @@ class Runner:
                 self.started(qjob, run, backend, report)
                 status = run.watch(on_progress=progress_to(report))
                 rec = VO.collect(take, run, status, sig, started)
+                LV.warm(root, [take.paths.voice])          # its speech readings, for Play all
                 m = rec.get("measured") or {}
                 report(line=f"voice stem ok: {rec.get('seconds')} s, whole {m.get('whole_rms_db')} dB, "
                             f"voice {m.get('voice_rms_db')} dB")
@@ -1169,7 +1171,9 @@ class Runner:
     def _check_take(self, ep: str, take: T.Take) -> None:
         """A finished take's checks (takecheck: a cut it wasn't asked for, its words) on a thread
         of their own, one take at a time: Whisper takes a few seconds, which the queue's next job
-        doesn't wait for. The editor hears of the take again once they're recorded."""
+        doesn't wait for. The editor hears of the take again once they're recorded. Its
+        sound's speech readings are measured too (levels.py), for Play all's levelling."""
+        LV.warm(ep, [take.paths.mp4])
         if not CHECK_TAKES:
             return
 

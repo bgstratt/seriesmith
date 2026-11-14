@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import re
 import sys
 import threading
@@ -31,6 +32,7 @@ from seriesmith import issues as IS  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
 from seriesmith import mix as MX  # noqa: E402
 from seriesmith import peaks as PK  # noqa: E402
+from seriesmith import levels as LV  # noqa: E402
 from seriesmith import promote as P  # noqa: E402
 from seriesmith import refs as R  # noqa: E402
 from seriesmith import retries as RT  # noqa: E402
@@ -488,6 +490,7 @@ def get_episode(ctx: Context, query: dict):
     J.load_shotlist(ep, pass_)                           # 404 before touching ComfyUI
     listed: dict = {}
     changed = sweep(ctx, ep, pass_, listed)
+    warm_levels(ep, pass_)
     # the sweep's listing serves the status too, unless it closed a take
     return 200, seeds_out(E.episode_status(ep, pass_, listed=None if changed else listed))
 
@@ -4027,6 +4030,50 @@ def get_peaks(ctx: Context, query: dict):
         raise ApiError(500, str(e))
 
 
+_levels_warmed: dict = {}
+
+
+def warm_levels(ep: str, pass_: str, every: float = 60.0) -> None:
+    """The cut's sounds not yet measured for Play all's levelling (levels.warm), at most once a
+    minute an episode and pass: a take finished or a stem split since is measured as it's made."""
+    key = (os.path.normcase(ep), pass_)
+    now = time.monotonic()
+    if now - _levels_warmed.get(key, -every) < every:
+        return
+    _levels_warmed[key] = now
+    try:
+        LV.warm(ep, LV.cut_sounds(ep, pass_))
+    except Exception:                                    # noqa: BLE001  a nicety: Play all measures what it needs
+        pass
+
+
+@handler
+def post_levels(ctx: Context, body):
+    """Play all's levelling (docs/LEVELLING.md): `clips` [{shot, path (as /seriesmith/file
+    takes it), from, to (seconds of that file the cut plays; to null: its end)}], each
+    speaking clip's speech level read from its file's cached readings (measured now if
+    missing) and moved as the export's mix moves it: {limit_db (the pass's mix.json
+    level.limit_db; 0: levelling off), middle, gains: {shot: dB}, unmeasured: [shot]}."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    clips = body.get("clips")
+    if not isinstance(clips, list) or len(clips) > 2000:
+        raise ApiError(400, "clips must be a list of {shot, path, from, to}")
+    out = []
+    for c in clips:
+        if not isinstance(c, dict) or not isinstance(c.get("shot"), str) or not isinstance(c.get("path"), str):
+            raise ApiError(400, "each clip needs a shot and a path")
+        a, b = c.get("from", 0), c.get("to")
+        if isinstance(a, bool) or not isinstance(a, (int, float)) or a < 0 or (
+                b is not None and (isinstance(b, bool) or not isinstance(b, (int, float)) or b < a)):
+            raise ApiError(400, "from and to are seconds, from >= 0, to (or null) >= from")
+        full, _ = ep_file(ctx, ep, c["path"], escape_status=400)
+        out.append({"shot": c["shot"], "path": full, "from": float(a), "to": None if b is None else float(b)})
+    limit = float(((MX.load(ep).get(pass_) or {}).get("level") or {}).get("limit_db") or 0)
+    return 200, LV.clip_gains(ep, out, limit, MX.speaking_shots(ep))
+
+
 OVERRIDE_FIELDS = ("prompt", "seed", "model", "loras", "steps", "note", "target", "negative",
                    "model_low", "size")
 
@@ -7319,6 +7366,7 @@ ROUTES = [
     ("POST", "/seriesmith/cut/reset", post_cut_reset, "body"),
     ("POST", "/seriesmith/cut/copy", post_cut_copy, "body"),
     ("GET", "/seriesmith/peaks", get_peaks, "query"),
+    ("POST", "/seriesmith/levels", post_levels, "body"),
     ("PUT", "/seriesmith/override", put_override, "body"),
     ("DELETE", "/seriesmith/override", delete_override, "query"),
     ("PUT", "/seriesmith/episode-target", put_episode_target, "body"),

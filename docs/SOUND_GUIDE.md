@@ -207,7 +207,10 @@ move it. A cue's tempo is fitted so its hits fall on bar lines.
 - **Level the lines** (the Dialogue lane's menu, beside Voices only): each speaking shot's lines
   brought to the same level as the others, the middle of them, at most 9 dB up or down, so a
   quiet take and a loud one sit together. Shots with no lines keep their level. The export's log
-  says what moved ("sh190 +3.2"). Off until you tick it.
+  says what moved ("sh190 +3.2"). Off until you tick it. Play all plays the lines levelled
+  too, the same amounts, but it can't play a clip louder than its own file, so it turns the
+  others down instead: the balance is the export's, the whole cut a few dB quieter. The
+  recording isn't levelled in Play all (it's one file under the whole cut).
 - **Ducking**: music and ambience dip under speech (music -9 dB, ambience -6 dB), worked out
   from the dialogue track, the same in Play all and the export.
 - **Duck regions**: right-click a lane ▸ **Duck region here** for a stretch where the music

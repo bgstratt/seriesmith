@@ -8,6 +8,7 @@ import type { ExportProblem, ExportRun } from "./lib/exportCheck";
 import type { ShotColor } from "./lib/color";
 import type { GalleryScope } from "./lib/gallery";
 import type { RefFilter } from "./lib/refs";
+import type { DialogueLevels } from "./lib/levels";
 import type {
   AlignReady, AlignResult, BuildResult, Config, CutAudioSource, EpisodeStatus, EpisodeSummary, ModelList, Pass, Ref,
   ColdOpenState, CueResult, CueSummary, Issue, MasterJob, MixResult, RefDefaults, RefGenerateMissingResult, RefMatchResult, SeedMode, ShotDetail, SourceFile, TakeRef,
@@ -486,6 +487,8 @@ export interface AppState {
   mixError: Record<string, string>;
   /** GET /seriesmith/mix/duck of the pass open, by statusKey (fetched with the mix): Play all ducks with it */
   mixDuck: Record<string, { step: number; curve: number[] }>;
+  /** Play all's levelling (lib/levels.ts), by statusKey(ep, pass) */
+  dialogueLevels: Record<string, DialogueLevels>;
   /** GET /seriesmith/mix/beats of the pass open, by statusKey: fetched when the mix's music files (or the
    * recording) change, never polled; `sig` is what it was fetched for. The timeline snaps trims to them. */
   mixBeats: Record<string, { sig: string; beats: MixBeats }>;
@@ -689,6 +692,7 @@ export function initialState(prefs: Prefs = {}): AppState {
     mix: {},
     mixError: {},
     mixDuck: {},
+    dialogueLevels: {},
     mixBeats: {},
     coldOpen: {},
     cues: {},

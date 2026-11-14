@@ -11,6 +11,7 @@
 
 import type { OwnBeat, StoryboardAnswer, StoryboardBlock, StoryboardEdit, StoryboardSketchAnswer } from "./lib/storyboard";
 import type { MixBeats } from "./lib/beats";
+import type { LevelClip } from "./lib/levels";
 import type {
   ColorMatch,
   MatchBy,
@@ -433,6 +434,8 @@ export interface Api {
   cutReset(ep: string, pass: Pass, what: CutWhat): Promise<{ cut: CutFile }>;
   /** Phase 9b: POST /seriesmith/cut/copy: one pass's order and/or trims onto the other (never picks). */
   cutCopy(ep: string, from: Pass, to: Pass, what: CutWhat): Promise<{ cut: CutFile }>;
+  /** POST /seriesmith/levels: Play all's levelling, each speaking clip's change as the export's mix makes it. */
+  levels(ep: string, pass: Pass, clips: LevelClip[]): Promise<{ limit_db: number; middle: number | null; gains: Record<string, number>; unmeasured: string[] }>;
   /** Phase 9b: GET /seriesmith/peaks: `bins` peaks (0..255) of a media file over start..end seconds. */
   peaks(ep: string, path: string, bins: number, start?: number | null, end?: number | null): Promise<PeaksResult>;
   /** Phase 9d: POST /seriesmith/audio/import as multipart: a media file from this
@@ -976,6 +979,16 @@ export function createHttpApi(t: Transport): Api {
     repaintCue: (req) => call("POST", "/seriesmith/cue/repaint", req),
     cutReset: (ep, pass, what) => call("POST", "/seriesmith/cut/reset", { ep, pass, what }),
     cutCopy: (ep, from, to, what) => call("POST", "/seriesmith/cut/copy", { ep, from, to, what }),
+    levels: async (ep, pass, clips) => {
+      const r = await call<{ limit_db?: unknown; middle?: unknown; gains?: unknown; unmeasured?: unknown }>(
+        "POST", "/seriesmith/levels", { ep, pass, clips });
+      const gains: Record<string, number> = {};
+      if (r?.gains && typeof r.gains === "object") {
+        for (const [k, v] of Object.entries(r.gains as Record<string, unknown>)) if (typeof v === "number" && Number.isFinite(v)) gains[k] = v;
+      }
+      return { limit_db: typeof r?.limit_db === "number" ? r.limit_db : 0, middle: typeof r?.middle === "number" ? r.middle : null,
+               gains, unmeasured: Array.isArray(r?.unmeasured) ? r.unmeasured.filter((x): x is string => typeof x === "string") : [] };
+    },
     peaks: async (ep, path, bins, start, end) => {
       const n = Math.max(1, Math.round(bins));
       const r = await get<Partial<PeaksResult>>(`/seriesmith/peaks?${qs({

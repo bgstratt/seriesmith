@@ -1617,6 +1617,11 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
       emit("seriesmith.episode", { ep: EP });
       return { cut: { episode: "ep05", ...clone(cut) } };
     },
+    async levels(_ep, _pass, clips) {
+      // the mock measures nothing: levelling stays as the mix has it, every clip at its own level
+      await wait();
+      return { limit_db: 0, middle: null, gains: {}, unmeasured: clips.map((c) => c.shot) };
+    },
     async peaks(ep, path, bins, start, end) {
       await wait(40);
       need(ep);
