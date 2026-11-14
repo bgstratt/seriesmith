@@ -1,7 +1,8 @@
 # Dailies: takes reviewed by a vision-language model
 
-Status (2026-11-12): **the notes and their history are built** (checklist 1), and **the count
-check** (checklist 9); **the VLM review is set aside** (see "Set aside" below). This file is the design record
+Status (2026-11-13): **the notes and their history are built** (checklist 1), and **the count
+check** (checklist 9); **the VLM review is dropped for now** (the user, 2026-11-13: no reason to
+use it; see "Set aside" below), so checklist 3-8 stay unbuilt. This file is the design record
 and the checklist; the contracts go in the docstrings, `docs/API.md` and `docs/EDITOR.md` as
 they are built.
 
