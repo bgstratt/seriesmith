@@ -218,7 +218,7 @@ REFS = [
     ("continuity", "Shots that carry on from one another",
      "`continuous: first`, `latent` and `multishot`: what each does, where it renders, how to "
      "write it",
-     "before writing any `continuous:` line"),
+     "you are about to write a `continuous:` line"),
     ("people", "Wardrobe, groups and vehicles",
      "a wardrobe change as a variant and how to cut round it, the same background people in "
      "several shots as a group, the bokeh plate, vehicles in motion",

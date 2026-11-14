@@ -933,6 +933,10 @@ Words someone says go in a dialogue line, never in quotation marks in the action
 quoted words with a speaking verb in the action; quoted lettering (a sign that reads "OPEN")
 is left alone, though on-screen lettering has its own field, `text:`.
 
+**Clothes are fixed within a shot.** They come from the character's `design` and sheet, so
+"takes off his hat" or "pulls on her coat" can't be written as action: a character who
+changes is a second subject (a variant), and the change itself is cut round.
+
 ### A wardrobe change is a new subject
 
 A character's clothes live in their `design` sentence and in their
@@ -1489,6 +1493,9 @@ Render cost scales as roughly `duration^1.29`, so long shots are *less* efficien
 than short ones. Cartoon pacing, 2 to 5 seconds, is both better filmmaking and cheaper.
 
 ## Dialogue has to fit the shot
+
+Dialogue needs a model with sound: H3 and LTX have it, the Wan models are silent, and a
+spoken line on one of those is a warning.
 
 This is the easiest way to wreck an episode, and it does not announce itself: a model that
 speaks (H3, LTX) will fit any line into any window by speeding the delivery up. The words

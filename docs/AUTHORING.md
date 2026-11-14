@@ -129,6 +129,7 @@ shots if you are starting from one (the script-writing skill bundles it as
 `references/script_conversion.md`); `docs/STORY_STRUCTURES.md` has the story structures
 for outlining one from scratch (`references/story_structures.md`).
 
+<!-- skill:ref series_config -->
 ## Starting a series: what to settle first
 
 The first episode above is the smallest series config that builds. A series that will be
@@ -186,6 +187,7 @@ when the series renders on FastH3 Omni.
 locations a new episode needs, and change nothing else unasked. If it has no
 `upscale.master` or `post` block, say once that the show can't be mastered by recipe
 until it has one, and offer to add one.
+<!-- /skill:ref -->
 
 ## The one thing that shapes every decision
 
@@ -200,6 +202,7 @@ shot 93. So:
 - Character descriptions live in the series config, written once, injected into every prompt they
   appear in. Never repeat a character's appearance in the script.
 
+<!-- skill:ref models -->
 ## Choosing a video target
 
 | target | what pins the look | sound | keyframes | length grid | good for |
@@ -239,6 +242,7 @@ shot 93. So:
 Details per target are under **Rendering a shot on …** below. A show can have models of
 its own too (another hosted model, or a workflow saved in ComfyUI), named in `target:` like
 any other.
+<!-- /skill:ref -->
 
 ## The series config: series.json
 
@@ -330,6 +334,7 @@ any other.
 | `upscale.master`, `post` | no recipe: the episode can't be mastered by recipe |
 | a subject's `sheet`, a location's `plate` | described in words only (fine for a first try) |
 
+<!-- skill:ref series_config -->
 ### Render size and delivery
 
 `series.width` / `series.height` is the size every final take renders at, and
@@ -483,7 +488,9 @@ and pick one with `profile:` under a `#` sequence header or on a `##` shot:
 
   then `profile: full` on the shots with a big move (or `lora: none` on one shot, or
   `"lora": "none"` in the series config's `series` block for all of them).
+<!-- /skill:ref -->
 
+<!-- skill:ref models -->
 ### Which model a shot renders on
 
 Most specific first:
@@ -498,7 +505,9 @@ Most specific first:
 So leave `target:` out of a script and `series.target` out of a config unless the choice is
 the film's: the episode then follows whatever the person renders on. Which models are
 installed, and what each still needs, is `seriesmith targets` ([FULL_SETUP.md](FULL_SETUP.md)).
+<!-- /skill:ref -->
 
+<!-- skill:ref series_config -->
 ### Reference images and voices: the `refs` block
 
 The pictures (character sheets, props, plates) and shot keyframes are made by an image
@@ -597,6 +606,7 @@ episode's **`negative.txt`** (a text file beside the script), the series config'
 `"negative": "..."`, then the model's own. The take records which one it used. Turbo and
 distilled models sample without guidance (cfg 1): there a negative does nothing, and the
 take says so.
+<!-- /skill:ref -->
 
 ### Writing the `design` sentence
 
@@ -626,6 +636,7 @@ over the table, the chandeliers, the TV's glow, the streetlight through the blin
 lit by things you can point at renders as a lit set, with pools of light and shadow
 between them; "warm lighting" renders as an evenly lit showroom.
 
+<!-- skill:ref series_config -->
 ### Writing the `look` line
 
 `style.look` is the first sentence of every shot's description, so it is the series'
@@ -673,6 +684,7 @@ Each clause is something the model can see: shallow focus and bokeh separate the
 from the room and soften what the model draws worst, low-key practical light gives the frame
 contrast and shape, and grain gives the image the texture of film. Keep it to one sentence;
 the per-shot light belongs in the location descriptions and the action.
+<!-- /skill:ref -->
 
 ### A location is one angle, not one place
 
@@ -799,6 +811,7 @@ seriesmith never crops by itself: the script decides. Go through every medium an
    description with the thing itself ("close on the cracked dashboard of an old pickup
    truck, its air vents and an old radio"), not with the room it's in.
 
+<!-- skill:ref series_config -->
 ### What a place sounds like: `ambience`
 
 A location may say what is **heard** there, its room tone or air, in `ambience`. An
@@ -824,6 +837,7 @@ hum runs across its cuts instead of starting and stopping with each take:
 - Nothing is automatic: a location with no `ambience` (and whose place has none) gets no
   bed. `seriesmith refs` makes the beds refs_todo lists; the editor's Refs tab has them under
   **Ambience**. Its level is the mix's (the Ambience lane, [EDITOR.md](EDITOR.md)).
+<!-- /skill:ref -->
 
 ### Two people talking need an angle each
 
@@ -908,6 +922,11 @@ Words someone says go in a dialogue line, never in quotation marks in the action
 quoted words with a speaking verb in the action; quoted lettering (a sign that reads "OPEN")
 is left alone, though on-screen lettering has its own field, `text:`.
 
+**Clothes are fixed within a shot.** They come from the character's `design` and sheet, so
+"takes off his hat" or "pulls on her coat" can't be written as action: a character who
+changes is a second subject (a variant), and the change itself is cut round.
+
+<!-- skill:ref people -->
 ### A wardrobe change is a new subject
 
 A character's clothes live in their `design` sentence and in their
@@ -1011,6 +1030,7 @@ Standing just inside the door, Luis holds his hard hat in both hands against his
 ```
 
 and every later shot of him in the office is `luis_plant_bareheaded` too.
+<!-- /skill:ref -->
 
 ## The script: epNN.md
 
@@ -1090,6 +1110,7 @@ scene-setting note and is ignored. A line under a `#` header (`model:`, `lora:`,
 `profile:`, `target:`, `first:`, `last:`, `overlap:`) is the default for every shot in the
 sequence (`continuous:` for every shot after the first); a shot's own line beats it.
 
+<!-- skill:ref models -->
 ### Rendering a shot on LTX-2
 
 `target: ltx2` on a `##` shot, under a `#` header, or in a profile renders that shot (or
@@ -1211,7 +1232,9 @@ write the action as a short sequence of sentences, and both ends come out right.
 
 A first frame from the previous shot isn't a `first:` value: the shot says
 `continuous: first`.
+<!-- /skill:ref -->
 
+<!-- skill:ref continuity -->
 ### Continuous shots: `continuous:`
 
 A shot that carries on from the one before it says so, and how. There are three ways, and
@@ -1313,6 +1336,7 @@ dur: 1.62
   without its pictures.
 - **Sound is generated**: a dubbed or cloned shot can't be in a group.
 - It is no fix for a jump cut: two near-identical shots in one generation still cut as one.
+<!-- /skill:ref -->
 
 ### A cold open: `cold_open:`
 
@@ -1336,6 +1360,7 @@ cold_open: true
   screenplay's `COLD OPEN` or `TEASER` heading (SCRIPT_CONVERSION.md): mark those
   sequences, and only those.
 
+<!-- skill:ref models -->
 ### A picture held still: `target: hold`
 
 `target: hold` holds the shot's first keyframe still for its `dur:`: a card ("Two hours
@@ -1438,6 +1463,7 @@ prediction between 3 and 8 seconds (without a range: 1 to 20).
 - Use it for silent action and establishing shots whose length you don't care to pick. A
   dialogue shot is better with `dur: auto` or an `audio:` window, which keep the lines
   their room.
+<!-- /skill:ref -->
 
 ## Durations land on a grid
 
@@ -1464,6 +1490,9 @@ Render cost scales as roughly `duration^1.29`, so long shots are *less* efficien
 than short ones. Cartoon pacing, 2 to 5 seconds, is both better filmmaking and cheaper.
 
 ## Dialogue has to fit the shot
+
+Dialogue needs a model with sound: H3 and LTX have it, the Wan models are silent, and a
+spoken line on one of those is a warning.
 
 This is the easiest way to wreck an episode, and it does not announce itself: a model that
 speaks (H3, LTX) will fit any line into any window by speeding the delivery up. The words
@@ -1759,6 +1788,7 @@ gone unless this shot says it again.
   in the middle of the shot. Write them as present from the first frame: "the line already
   running, a worker at every station".
 
+<!-- skill:ref people -->
 ### Vehicles in motion
 
 A moving vehicle with a loose description wanders: it swerves toward the people in frame,
@@ -1775,6 +1805,7 @@ speeds up when it should stop, and smears.
   ridges sliding past behind him), the windshield from outside on the hood (both front seats
   facing camera), the back seat looking forward (both heads, the road ahead). The view
   forward out of the windshield is for a POV or a shot from behind, never a face.
+<!-- /skill:ref -->
 
 ## Shot IDs
 
@@ -1836,6 +1867,7 @@ Eleanor circles a masked man in black tails, one hand in his, laughing as she tu
 camera: arcs around Eleanor with small amplitude at slow speed
 ```
 
+<!-- skill:ref people -->
 ### A group: the same extras every shot
 
 `extras:` people are invented fresh every shot, so they change sex, size and colour from
@@ -1893,6 +1925,7 @@ hats, faces turned away or soft in the background.
 
 Add a prop to `with:` only when its exact design matters and recurs. A generic mug is better
 described in the action text, because every referenced prop spends a slot.
+<!-- /skill:ref -->
 
 ## Sequences
 
