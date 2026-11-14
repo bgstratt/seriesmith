@@ -131,21 +131,16 @@ At the head of the Shots tab, **Rescan the project roots** (after adding an epis
 outside the editor) and **Simple / Advanced**.
 
 The **refresh** beside the head reads the episode again from disk and rescans the project
-folders. Under it, the Shots toolbar, its buttons in groups, left to right:
+folders. Under it, the Shots toolbar:
 
-| Icon | What it does |
+| Button | What it does |
 |---|---|
 | **+ Shot** | **Add a shot** after the selected one, as a form (below) |
-| pencil | **Edit the selected shot** as a form |
-| sliders | **Inspect the selected shot** |
-| file-edit | **Edit the episode's script** — opens the Script window |
-| cog | **Series settings** — the series config as a form; a section with a guide has a **Docs ↗** link to its page on the docs site |
-| book | **Edit the series config** (`series.json`) as text |
-| volume-up | **Recording** — attach a dialogue recording and time the script against it (`align`). Lit when the episode has one. For a song, its **Vocal stem** part (optional, off by default) makes the singing's stem on local ComfyUI, aligns **from the vocal stem**, and lets **dub shots hear the vocal stem** (RECORDED_DIALOGUE.md) |
-| play | **Play all** — the cut, played from its takes, no export needed |
-| film | **Open the timeline** |
-| speech bubble | **Issues** — the pass's notes (below), with how many are open |
-| images | **Open the Refs tab** |
+| **Script** | **Edit the episode's script** — opens the Script window |
+| **Series** | **Series settings** — the series config as a form; a section with a guide has a **Docs ↗** link to its page on the docs site |
+| **Issues** | The pass's notes (below), with how many are open |
+| play, **Timeline** | In ComfyUI only, where the timeline is a bottom panel: **Play all** (the cut, played from its takes, no export needed) and **Open the timeline**. On seriesmith's own page the timeline is always in view, with Play all in its bar |
+| **⋯** (More) | The rest, each by its name: **Edit the selected shot** as a form, **Inspect the selected shot**, **series.json as text**, **Recording** — attach a dialogue recording and time the script against it (`align`); for a song, its **Vocal stem** part (optional, off by default) makes the singing's stem on local ComfyUI, aligns **from the vocal stem**, and lets **dub shots hear the vocal stem** (RECORDED_DIALOGUE.md) — and, in ComfyUI, **Open the Refs tab** |
 
 Under it, the episode's card: **Model:**, the episode's video model (below), the row
 that works on the pass: **Build** (runs `build` for both passes from the script and series config), **Re-render
@@ -466,7 +461,7 @@ groups that open beside the menu when you hover them.
 
 ### Editing a shot
 
-**+ Shot** in the Shots toolbar adds a shot after the selected one; the pencil (or
+**+ Shot** in the Shots toolbar adds a shot after the selected one; **Edit** in the toolbar's **⋯** (or
 **Edit shot…** in the context menu) opens the selected one. The form is the shot's lines
 in the script as fields, in cards; each field's help is on its label (point at the ⓘ):
 
@@ -589,7 +584,7 @@ lines, smears), action, camera, count, cut, lipsync, text, performance (the acti
 reactions, how people play off each other) or other. Leaving it at **(none)** is fine. `i` and `o` are still trim-in and trim-out at the playhead, as
 in any NLE, which is why the note key is `n`.
 
-**The note button** (a speech bubble) in the Shots toolbar shows how many are open and opens
+**Issues** in the Shots toolbar shows how many are open and opens
 the list, where
 **Copy export** puts the whole document on the clipboard for an assistant, **✕** resolves one,
 and **Clear addressed** empties the ones whose shots you have already fixed. Once the notes

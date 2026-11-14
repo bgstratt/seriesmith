@@ -1,6 +1,6 @@
-import { memo, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import {
-  build, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openFilmPath, openStoryboard, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
+  build, openTrackPanel, ensureEpisodes, loadEpisodes, loadIssues, openBrowse, openGallery, openRelight, renderSequence, openDrafts, openFilmPath, openStoryboard, openInspector, openIssues, openMenu, openSeriesForm, openShotForm, openSource, openViewer, pickTake, playAll, refreshEpisode,
   clickShot, openSound, renderStale, requestRender, select, selectEpisode, setPass, toggleExpanded, toggleSequence,
 } from "../actions";
 import { api, host } from "../host";
@@ -23,7 +23,7 @@ import { MultiBar } from "./MultiBar";
 import { EpisodeTarget } from "./Readiness";
 import { useTargets } from "./Targets";
 import { Badges, Progress, Thumb, statusClass } from "./Thumb";
-import { TrackButton, TrackLine } from "./Track";
+import { TrackLine } from "./Track";
 import { QueueBar } from "./Jobs";
 import { dragHasFiles, uploadText } from "../lib/lookback";
 import { TAKE_MIME, decodeTakeDrag, dragHasTake } from "../lib/takeDrop";
@@ -728,6 +728,57 @@ function ShotBin() {
  * P10: the pass's issue notepad. The count is the open ones — an issue whose
  * shot has been rebuilt or re-rendered reads "addressed" and isn't counted.
  */
+/** The toolbar's rest, each by its name: the selected shot as a form and in the
+ * Inspector, the series config as text, the recording; in ComfyUI the Refs tab too
+ * (a page with a top bar has that tab above the panel). */
+function MoreMenu({ selShot }: { selShot: string | null }) {
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!at) return;
+    const down = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!box.current?.contains(t) && !btn.current?.contains(t)) setAt(null);
+    };
+    const key = (e: KeyboardEvent) => e.key === "Escape" && setAt(null);
+    window.addEventListener("pointerdown", down, true);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("pointerdown", down, true);
+      window.removeEventListener("keydown", key);
+    };
+  }, [at]);
+  const item = (icon: string, label: string, title: string, run: () => void, disabled = false) => (
+    <button role="menuitem" disabled={disabled} title={title} onClick={() => { setAt(null); run(); }}>
+      <i className={icon} /> {label}
+    </button>
+  );
+  return (
+    <>
+      <button ref={btn} className={`h3-btn h3-icon${at ? " h3-on" : ""}`} aria-label="More" aria-haspopup="menu" aria-expanded={!!at}
+        title="More: the selected shot as a form or in the Inspector, series.json as text, the recording"
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setAt(at ? null : { x: r.left, y: r.bottom + 2 });
+        }}>
+        <i className="pi pi-ellipsis-h" />
+      </button>
+      {at && (
+        <div ref={box} className="h3-menu" role="menu" style={{ left: at.x, top: at.y }}>
+          {item("pi pi-pencil", selShot ? `Edit ${selShot}…` : "Edit the selected shot…", "Edit the selected shot as a form",
+            () => selShot && openShotForm({ shot: selShot, after: null }), !selShot)}
+          {item("pi pi-sliders-h", selShot ? `Inspect ${selShot}` : "Inspect the selected shot", "The Inspector: the selected shot's prompt, refs, overrides and takes",
+            () => openInspector())}
+          {item("pi pi-book", "series.json as text…", "Edit the series config (series.json) as text", () => openSource("series"))}
+          {item("pi pi-volume-up", "Recording…", "The dialogue recording: attach one, align the script to it, or clear it", () => openTrackPanel())}
+          {!host().topBar && item("h3-ico-images", "Open the Refs tab", "Open the Refs tab", () => host().show("refs"))}
+        </div>
+      )}
+    </>
+  );
+}
+
 function IssuesButton() {
   const n = useIssueCount();
   const ep = useApp((s) => s.ep);
@@ -737,13 +788,13 @@ function IssuesButton() {
   }, [ep, pass]);
   return (
     <button
-      className={`h3-btn h3-icon${n ? " h3-on" : ""}`}
+      className={`h3-btn${n ? " h3-on" : ""}`}
       title={n
         ? `${n} issue${n === 1 ? "" : "s"} noted for this pass — open the list, or copy the export`
         : "Issues: what is wrong with this pass (select a clip and press n while you watch)"}
       onClick={() => openIssues(true)}
     >
-      <i className="pi pi-comment" />{n ? <span className="h3-small">&nbsp;{n}</span> : null}
+      <i className="pi pi-comment" /> Issues{n ? <span className="h3-small">&nbsp;{n}</span> : null}
     </button>
   );
 }
@@ -779,24 +830,25 @@ function ShotsBody() {
       )} />
       {ep && (
         <div className="h3-toolbar">
-          <span className="h3-group" title="The shots">
+          <span className="h3-group">
             <button className="h3-btn" title="Add a shot after the selected one (a form: who, size, length, action, dialogue, camera, sound)"
               onClick={() => openShotForm({ shot: null, after: selShot })}><i className="pi pi-plus" /> Shot</button>
-            <button className="h3-btn h3-icon" aria-label="Edit the selected shot" title="Edit the selected shot as a form" disabled={!selShot}
-              onClick={() => selShot && openShotForm({ shot: selShot, after: null })}><i className="pi pi-pencil" /></button>
-            <button className="h3-btn h3-icon" aria-label="Inspect the selected shot" title="Inspect the selected shot" onClick={() => openInspector()}><i className="pi pi-sliders-h" /></button>
           </span>
-          <span className="h3-group" title="The episode's text">
-            <button className="h3-btn h3-icon" aria-label="Edit the script" title="Edit the episode's script" onClick={() => openSource("script")}><i className="pi pi-file-edit" /></button>
-            <button className="h3-btn h3-icon" aria-label="Series settings" title="Series settings: the series config as a form" onClick={() => openSeriesForm()}><i className="pi pi-cog" /></button>
-            <button className="h3-btn h3-icon" aria-label="Edit series.json" title="Edit the series config (series.json) as text" onClick={() => openSource("series")}><i className="pi pi-book" /></button>
-            <TrackButton />
-          </span>
-          <span className="h3-group" title="Watching it">
-            <button className="h3-btn h3-icon" aria-label="Play all" title="Play all: the cut from its takes" onClick={() => playAll()}><i className="pi pi-play" /></button>
-            <button className="h3-btn h3-icon" aria-label="Open the timeline" title="Open the timeline" onClick={() => host().show("timeline")}><i className="h3-ico-film" /></button>
+          <span className="h3-group" title="The episode's text, and what is wrong with the pass">
+            <button className="h3-btn" title="Edit the episode's script" onClick={() => openSource("script")}><i className="pi pi-file-edit" /> Script</button>
+            <button className="h3-btn" title="Series settings: the series config as a form" onClick={() => openSeriesForm()}><i className="pi pi-cog" /> Series</button>
             <IssuesButton />
-            <button className="h3-btn h3-icon" aria-label="Open the Refs tab" title="Open the Refs tab" onClick={() => host().show("refs")}><i className="h3-ico-images" /></button>
+          </span>
+          {/* ComfyUI: the timeline is a bottom panel, opened from here. A page with a top
+              bar of its own has the timeline, and Play all in its bar, always in view */}
+          {!host().topBar && (
+            <span className="h3-group" title="Watching it">
+              <button className="h3-btn h3-icon" aria-label="Play all" title="Play all: the cut from its takes" onClick={() => playAll()}><i className="pi pi-play" /></button>
+              <button className="h3-btn" title="Open the timeline" onClick={() => host().show("timeline")}><i className="h3-ico-film" /> Timeline</button>
+            </span>
+          )}
+          <span className="h3-group">
+            <MoreMenu selShot={selShot} />
           </span>
         </div>
       )}

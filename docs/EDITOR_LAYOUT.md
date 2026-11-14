@@ -97,8 +97,8 @@ Today eleven buttons in three groups (`ShotsTab.tsx:682-702`), nine of them icon
 `+ Shot`, edit the shot, inspect the shot · the script, series settings, `series.json` as
 text, the recording · Play all, the timeline, Issues, the Refs tab.
 
-Change: the ones used through a session carry a label; the rest go behind one `More` menu,
-each with its name.
+Change: the ones used through a session carry a label; the rest go behind one `More` menu
+(the `⋯` button, so five labels fit the panel's width), each with its name.
 
 - Labelled: **+ Shot**, **Script**, **Series**, **Issues** (with its count, as now).
 - In `More`: edit the selected shot, inspect the selected shot, `series.json` as text, the
@@ -236,7 +236,7 @@ Each line is a commit on this branch. After the last one on a day: `npm run type
       head and the timeline's bar lose theirs there; ComfyUI's heads as described.
 - [x] 2. The episode card folds (section 1): the chevron, the one line, the remembered
       state, Generate missing as the big button only when something is missing.
-- [ ] 3. The toolbar: four labelled, the rest in `More`; in ComfyUI Timeline labelled
+- [x] 3. The toolbar: four labelled, the rest in `More`; in ComfyUI Timeline labelled
       and Play all beside it (section 4).
 - [ ] 4. Badges: the three levels, two and a count, the lock mark, the words, the viewer's
       takes, the timeline's narrow clips (section 5).
