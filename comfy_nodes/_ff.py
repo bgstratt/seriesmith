@@ -39,7 +39,12 @@ def _checked(cmd, kw: dict) -> list:
     if kw.get("env") is None:
         kw["env"] = {k: v for k, v in os.environ.items()
                      if k.upper() not in _SECRETS and not k.upper().startswith("SERIESMITH_KEY_")}
-    return [os.fspath(a) for a in cmd]
+    cmd = [os.fspath(a) for a in cmd]
+    try:                                                  # ffmpeg's inputs: files on this PC, media only
+        from seriesmith import ff
+        return ff.limited(cmd)
+    except ImportError:                                   # a copied pack, without seriesmith
+        return cmd
 
 
 def run(cmd, **kw):

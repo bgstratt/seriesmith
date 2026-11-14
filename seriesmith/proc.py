@@ -9,6 +9,9 @@ holds for all of them, and there is one place to read to check it:
     no keys              the program's environment is this one less the keys it never needs
                          (the Comfy API key, a provider's SERIESMITH_KEY_*, the Hugging Face
                          token), unless the caller passes an environment of its own
+    ffmpeg reads media   an ffmpeg or ffprobe command's inputs are held to files on this PC
+                         and to video, sound and pictures (ff.limited): never an address,
+                         never a playlist of other files
 
 What may be run is decided where the command is made: ffmpeg and ffprobe from `ff.tool`,
 seriesmith's own modules from `edit.tool_cmd` (through `_run.py`), a helper file of the
@@ -49,7 +52,8 @@ def _checked(cmd, kw: dict) -> list[str]:
     kw.pop("shell", None)
     if kw.get("env") is None:
         kw["env"] = clean_env()
-    return cmd
+    from seriesmith import ff                             # here: ff starts programs through this module
+    return ff.limited(cmd)
 
 
 def run(cmd, **kw) -> subprocess.CompletedProcess:

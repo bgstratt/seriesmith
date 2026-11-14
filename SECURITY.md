@@ -68,9 +68,13 @@ don't open a public issue for it.
 
 - **One place starts them** (`seriesmith/proc.py`; the node pack's is `comfy_nodes/_ff.py`).
   A program is started from an argument list, never a shell line, and without your keys in
-  its environment (the Comfy API key, a provider's key, the Hugging Face token).
+  its environment (the Comfy API key, a provider's key, the Hugging Face token). The one
+  exception: seriesmith's own align tool keeps the Hugging Face token, for Whisper's models.
 - **ffmpeg and ffprobe** (`seriesmith/ff.py`): found once (PATH, imageio-ffmpeg, PyAV), run
-  with an argument list, never through a shell. What a series config sets for the episode
+  with an argument list, never through a shell. What they may read is limited on every
+  command (`ff.limited`): a file on this PC, never an address, and only video, sound and
+  pictures. A playlist or a list of other files saved under a video's name is refused
+  instead of being followed. What a series config sets for the episode
   title (its colours, size, timing and font) is written into ffmpeg's filter graph, so each
   is checked to be what it says: a colour, a number, a font file.
 - **ComfyUI's Python** (the count check, the Features window's "is it installed"): the one
@@ -118,7 +122,10 @@ don't open a public issue for it.
   (`seriesmith/core/downloads.py`): a model file (`.safetensors`, `.sft`, `.gguf`), over
   https from Hugging Face or Civitai, into a models folder by name. Anything else is listed
   as missing and never downloaded, and nothing is ever written into `custom_nodes`.
-  Hashes aren't pinned for these downloads yet: that's the next item on the list.
+  A download follows the address its record names (a model's current file on the Hub,
+  ffmpeg's current release build), so you get the version that is there when you ask;
+  files aren't held to a pinned hash. The exception is the count check's two detector
+  files, which are pickles and are loaded only at their pinned sha256.
 - **No Python package or node pack is installed at runtime.** Features says how to add one
   (ComfyUI-Manager, or the pip command for the right Python) instead. `requirements.txt` is
   what Manager installs.

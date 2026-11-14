@@ -8,6 +8,7 @@ that become folder names.
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -20,6 +21,7 @@ sys.path.insert(0, ROOT)
 from seriesmith import backends as B  # noqa: E402
 from seriesmith import cue as CU  # noqa: E402
 from seriesmith import features as FT  # noqa: E402
+from seriesmith import ff as FF  # noqa: E402
 from seriesmith import inspector as IN  # noqa: E402
 from seriesmith import installer as INS  # noqa: E402
 from seriesmith import net as NET  # noqa: E402
@@ -321,6 +323,44 @@ class ProgramsTest(unittest.TestCase):
         self.assertIsInstance(SDK.command(), str)
         self.assertIsInstance(FT.pip_command(FT.Item("pip", "demucs"), None), str)
         self.assertFalse(hasattr(INS, "run"))
+
+
+class FfmpegInputsTest(unittest.TestCase):
+    """ffmpeg and ffprobe read files on this PC that are video, sound or pictures: never an
+    address, never a playlist of other files under a media file's name."""
+
+    def test_each_input_is_held(self):
+        got = FF.limited(["ffmpeg", "-y", "-i", "a.mp4", "-f", "lavfi", "-i", "anullsrc",
+                          "-f", "concat", "-safe", "0", "-i", "list.txt", "-f", "mp4", "o.mp4"])
+        self.assertEqual(got.count("-protocol_whitelist"), 3)
+        self.assertEqual(got.count("-format_whitelist"), 1)           # the one input with no -f
+        self.assertLess(got.index("-format_whitelist"), got.index("a.mp4"))
+        self.assertEqual(got[-3:], ["-f", "mp4", "o.mp4"])
+        self.assertEqual(FF.limited(got), got)                          # once
+        probe = FF.limited([r"C:\x\ffprobe.EXE", "-v", "error", "a.mp4"])
+        self.assertEqual(probe[1:3], ["-protocol_whitelist", FF.INPUT_PROTOCOLS])
+        self.assertEqual(FF.limited([sys.executable, "x.py", "-i", "a"]), [sys.executable, "x.py", "-i", "a"])
+        for bad in ("hls", "concat", "dash", "sdp", "rtsp", "lavfi", "applehttp", "subfile"):
+            self.assertNotIn(bad, FF.INPUT_FORMATS.split(","))
+        self.assertNotIn("http", FF.INPUT_PROTOCOLS)
+
+    @unittest.skipUnless(FF.have("ffmpeg"), "needs ffmpeg")
+    def test_a_list_of_files_under_a_videos_name_isnt_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            real, fake = os.path.join(tmp, "a.mp4"), os.path.join(tmp, "b.mp4")
+            made = PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "lavfi", "-i",
+                             "testsrc=d=0.5:s=64x64:r=8", real], capture_output=True)
+            self.assertEqual(made.returncode, 0, made.stderr)
+            with open(fake, "w", encoding="utf-8") as fh:
+                fh.write("ffconcat version 1.0\nfile a.mp4\n")
+            read = lambda p: PROC.run([*FF.tool("ffmpeg"), "-v", "error", "-i", p, "-f", "null", "-"],  # noqa: E731
+                                      capture_output=True).returncode
+            self.assertEqual(read(real), 0)
+            self.assertNotEqual(read(fake), 0)
+            # and it would have been, left to itself
+            bare = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-i", fake, "-f", "null", "-"],
+                                  capture_output=True).returncode
+            self.assertEqual(bare, 0)
 
 
 class IdsTest(unittest.TestCase):

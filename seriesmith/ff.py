@@ -154,5 +154,58 @@ def frame_md5s(path: str, at: float, count: int, timeout: float = 600) -> list[s
             if ln and not ln.startswith("#")]
 
 
-__all__ = ["FFError", "find", "forget", "frame_md5s", "have", "managed", "probe_json", "tool",
+# ---------------------------------------------------------------------------
+# what ffmpeg and ffprobe may read
+# ---------------------------------------------------------------------------
+
+# An input is a file on this PC (or what seriesmith pipes in): never an address ffmpeg
+# would fetch.
+INPUT_PROTOCOLS = "file,pipe,fd"
+# ...and one of the kinds of file seriesmith works with: video, sound and pictures. Not a
+# playlist or a script of other files (hls, dash, concat, sdp, ...), which ffmpeg would
+# otherwise take for media whatever the file is called, and follow to the files it names.
+# Names as `ffmpeg -demuxers` lists them; one a build doesn't have is ignored.
+INPUT_FORMATS = ",".join((
+    "mov,mp4,m4a,3gp,3g2,mj2", "matroska,webm", "avi", "mxf", "mpegts", "mpeg", "flv", "dv", "m4v",
+    "h264", "hevc", "mjpeg", "yuv4mpegpipe", "ivf",
+    "wav", "w64", "mp3", "flac", "ogg", "aac", "aiff", "asf", "ac3", "eac3", "caf", "amr",
+    "image2", "png_pipe", "jpeg_pipe", "webp_pipe", "tiff_pipe", "bmp_pipe", "exr_pipe", "dpx_pipe",
+    "psd_pipe", "gif", "apng", "jpegxl_pipe", "qoi_pipe", "hdr_pipe", "pgm_pipe", "ppm_pipe"))
+
+
+def _program(cmd0: str, name: str) -> bool:
+    base = os.path.basename(str(cmd0)).lower()
+    return base == name or base.startswith((name + ".", name + "-"))   # ffmpeg.exe, imageio's ffmpeg-win-...
+
+
+def limited(cmd: list[str]) -> list[str]:
+    """`cmd` with each input of an ffmpeg or ffprobe command held to INPUT_PROTOCOLS and
+    INPUT_FORMATS; any other command as it is. An input whose format the command itself
+    names (`-f lavfi`, `-f concat` over a list seriesmith wrote, `-f rawvideo` from a pipe)
+    keeps that format. seriesmith.proc applies it to every program it starts."""
+    if not cmd:
+        return cmd
+    guard = ["-protocol_whitelist", INPUT_PROTOCOLS]
+    kinds = ["-format_whitelist", INPUT_FORMATS]
+    if _program(cmd[0], "ffprobe"):
+        if "-protocol_whitelist" in cmd:
+            return cmd
+        return [cmd[0], *guard, *([] if "-f" in cmd else kinds), *cmd[1:]]
+    if not _program(cmd[0], "ffmpeg"):
+        return cmd
+    out, start, i = [cmd[0]], 1, 1
+    while i < len(cmd):
+        if cmd[i] == "-i" and i + 1 < len(cmd):
+            mine = out[start:]                            # this input's own options
+            if "-protocol_whitelist" not in mine:
+                out += guard + ([] if "-f" in mine else kinds)
+            out += [cmd[i], cmd[i + 1]]
+            start, i = len(out), i + 2
+            continue
+        out.append(cmd[i])
+        i += 1
+    return out
+
+
+__all__ = ["FFError", "find", "forget", "frame_md5s", "have", "limited", "managed", "probe_json", "tool",
            "where"]

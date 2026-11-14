@@ -111,13 +111,14 @@ Each line: what could happen, then what stops it now.
 
 Ordered by what it buys.
 
-- [ ] **Pinned download hashes.** Only the two YOLO weights are pinned. Every model URL is
-  `resolve/main`, hub repos take whatever `main` names, and ffmpeg comes from two sites'
-  moving "release" addresses and is then run. Plan: `sha256`, `size` and a
-  `/resolve/<commit>/` URL in each `downloads` record, written by a tool from the Hub's
-  `?blobs=true` listing; `installer.download` hashes as it streams and refuses the rename
-  on a mismatch; `fetches` gains a `revision`; ffmpeg a versioned archive with its hash;
-  htdemucs its full sha256 (its file name carries the first eight digits).
+- [ ] **A download's hash, where one is recorded.** Decided 2026-11-14: downloads are not
+  held to pinned files. The user chooses what to download, and a model's `main` or a
+  tool's "release" address is the version wanted; pinning every file would mean keeping up
+  with every version of every model. So a record may carry a `sha256`, checked as the file
+  streams and the rename refused on a mismatch (as the two YOLO weights already are, since
+  they are pickles); a record without one downloads as it does now. To do: the optional
+  field in `downloads`, the check in `installer.download`, htdemucs' hash (its file name
+  carries the first eight digits).
 - [x] **One place starts a program** (2026-11-14). The 62 `subprocess` calls in 35 files
   go through `seriesmith/proc.py` (the node pack's 17 through `comfy_nodes/_ff.py`): an
   argument list, never a shell, and an environment without the keys, which ffmpeg and the
@@ -128,9 +129,12 @@ Ordered by what it buys.
   `web.FileResponse` taking a value only the checked routes can make; the helpers run by
   path (`probe.py`, the stills and colour helpers) through `_run.py`; `python -m demucs`
   in `comfy_nodes/shot.py`.
-- [ ] **ffmpeg reads a playlist as media.** No call sets `-protocol_whitelist`; a `.mp4`
-  that is an HLS playlist can pull other local media files into a take. One input builder
-  in `ff.py` with `-protocol_whitelist file,pipe`, tested against the bundled build.
+- [x] **ffmpeg read a playlist as media** (2026-11-14). `ff.limited`, applied by `proc` to
+  every ffmpeg and ffprobe command: each input gets `-protocol_whitelist file,pipe,fd`, and
+  `-format_whitelist` (video, sound, pictures) unless the command names the format itself
+  (`lavfi`, a `concat` list seriesmith wrote, raw frames from a pipe). Tried on ffmpeg
+  8.1.2 and imageio-ffmpeg's 7.1. Not covered: ffprobe through PyAV (`ffprobe_av.py`), used
+  only where there is no ffprobe at all.
 - [ ] **A take's `master` stamps live in the show.** A forged show supplies the path, size
   and time together; reading a local media file that way needs its size and its modified
   time to the second. Keeping the stamps beside the settings would close it.
@@ -140,10 +144,13 @@ Ordered by what it buys.
   and `binding.env` names an environment variable freely.
 - [ ] **MCP runs with the PC's rights**: `import_ref`, `import_take` and `import_xml` take
   any path on the PC. A client steered by what it reads could copy a file into a show.
-- [ ] **The page**: no `X-Content-Type-Options`, frame or CSP headers; PrimeIcons and
-  Google Fonts load from their CDNs; a provider's `docs` and `key_url` links aren't held
-  to https.
-- [ ] **Smaller**: the tools' environment keeps the HF token; the ComfyUI passthrough
+- [ ] **The page**: no `X-Content-Type-Options`, frame or CSP headers; a provider's `docs`
+  and `key_url` links aren't held to https. (The page's icons and typeface load from
+  jsDelivr and Google Fonts: left as it is, decided 2026-11-14.)
+- [ ] **Partner nodes on a ComfyUI on another machine** are refused (the key would ride
+  in the job). If that setup is ever wanted: a setting, the PC's alone, naming the one
+  address trusted with the key, https or a private network only.
+- [ ] **Smaller**: the ComfyUI passthrough
   routes don't check `{node}` / `{folder}`; the count check hashes a weight file, then
   opens it again; a concat list doesn't escape `'`; `modelid`'s cache has a fixed name in
   the shared temp folder; the launchers ship in the Registry's zip.
