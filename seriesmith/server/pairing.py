@@ -78,7 +78,7 @@ class Pairing:
 
     def pair(self, code: str, name: str = "", address: str = "") -> str:
         """The new device's token, for its cookie; PairError when the code isn't right."""
-        code = "".join(ch for ch in str(code or "") if ch.isdigit())
+        code = "".join(ch for ch in str(code or "") if ch in "0123456789")
         with self.lock:
             offer = self.code
             if not offer or time.time() > offer["expires"]:
@@ -144,7 +144,8 @@ def pairing() -> Pairing:
 
 
 def is_local(request) -> bool:
-    return (request.remote or "") in LOOPBACK
+    from seriesmith.server.guard import from_this_pc
+    return from_this_pc(request.remote, request.headers.get("Host"))
 
 
 def is_open(path: str) -> bool:

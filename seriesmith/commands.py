@@ -137,7 +137,8 @@ def stage(name: str, ep: str, extra: list[str], skip_build: bool = False) -> int
             say_crops(ep)
         return rc
     if name == "align":
-        return run([sys.executable, "-m", "seriesmith.align", ep] + extra)
+        from seriesmith import edit as E
+        return run(E.tool_cmd("align.py", [ep] + extra))
     if name == "refs":
         return call("refs", _refs, ["--project-root", ep] + extra)
     if name == "render":
@@ -249,7 +250,8 @@ def _folder_or_files(name: str, own: Callable):
 
 def _align(rest: list[str]) -> int:
     if rest[:1] and rest[0] in HELP_FLAGS:
-        return subprocess.call([sys.executable, "-m", "seriesmith.align", "--help"])
+        from seriesmith import edit as E
+        return subprocess.call(E.tool_cmd("align.py", ["--help"]))
     # one episode, then the recording path and flags go straight to align
     if not rest or rest[0].startswith("-"):
         raise UsageError("give the episode folder first")

@@ -405,6 +405,10 @@ def meter_beats(spec: dict) -> int:
 
 
 def cue_dir(root: str, cid: str) -> str:
+    """A cue's folder. FileNotFoundError for an id that isn't one (a path, `..`): the id
+    comes from a request or a mix, and is a folder's name here."""
+    if not isinstance(cid, str) or not _ID_RX.match(cid):
+        raise FileNotFoundError(f"no cue {cid!r} in {root}")
     return os.path.join(root, SOUND_DIR, cid)
 
 

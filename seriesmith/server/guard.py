@@ -34,6 +34,20 @@ NETWORK_SUFFIXES = (".local", ".lan", ".home.arpa", ".ts.net", ".localhost")
 ENV_HOSTS = "SERIESMITH_ALLOWED_HOSTS"
 
 
+LOOPBACK_ADDRS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+
+
+def from_this_pc(remote: str | None, host: str | None) -> bool:
+    """Whether a request is this PC's own: it came from this PC's address AND was addressed
+    to this PC by name (localhost, 127.0.0.1). The address alone isn't enough: a web page
+    whose name is re-pointed at 127.0.0.1 (DNS rebinding) comes from this PC's browser too,
+    but under its own name, and so does anything a proxy on this PC passes on."""
+    if (remote or "") not in LOOPBACK_ADDRS:
+        return False
+    name, _ = split_host(host or "")
+    return name in LOCAL_NAMES or name.endswith(".localhost")
+
+
 def split_host(value: str) -> tuple[str, str]:
     """A Host header's (or an origin's netloc's) name, lowercased and without brackets, and
     its port ("" when there is none)."""
@@ -89,7 +103,9 @@ def refused(method: str, host: str | None, origin: str | None, fetch_site: str |
         if not host or split_host(parts.netloc) != split_host(host):
             return f"a request from another site ({parts.netloc}) isn't answered"
         return None
-    if (fetch_site or "").lower() == "cross-site":
+    # no Origin (a GET, a picture or video a page embeds): the browser still says where from.
+    # same-site is another program's page on this PC (localhost, another port): not ours
+    if (fetch_site or "").lower() in ("cross-site", "same-site"):
         return "a request from another site isn't answered"
     return None
 

@@ -35,7 +35,6 @@ RESTART = 3
 # how long a stop waits for requests in flight (aiohttp's own is 60 s, spent
 # waiting on the editor's live connection: Ctrl+C looked hung, then was killed)
 SHUTDOWN_WAIT = 5.0
-LOOPBACK = ("127.0.0.1", "::1", "localhost")
 # what the page listens for from ComfyUI (web/src/host.ts HostEvent)
 COMFY_EVENTS = {"progress", "executing", "execution_start", "execution_success",
                 "execution_error", "execution_interrupted", "execution_cached"}
@@ -340,7 +339,8 @@ def make_app(roots: list[str] | None = None, settings=None,
         """POST /seriesmith/server/stop {restart?}: stop this server cleanly
         (the editor's Stop / Restart, `seriesmith stop`). Only from this
         machine: a paired device can't stop it either."""
-        if request.remote not in LOOPBACK:
+        from seriesmith.server.guard import from_this_pc
+        if not from_this_pc(request.remote, request.headers.get("Host")):
             return web.json_response({"error": "the server can be stopped from its own machine only"},
                                      status=403)
         try:

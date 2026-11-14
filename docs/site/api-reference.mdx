@@ -100,8 +100,14 @@ route does, as ComfyUI serves its own).
 - **`source_path`** (an import's file on this machine: a take, a ref, a video, a
   recording, a character's lines, an FCP7 XML and the media it names) is an absolute
   path, anywhere from the PC running seriesmith and inside a root from another device
-  (403: send it as a multipart upload instead). `ffmpeg_dir` and `comfyui_dir` in
-  `PUT /seriesmith/settings` change from that PC only.
+  (403: send it as a multipart upload instead).
+- **From the PC only** (403 from another device): in `PUT /seriesmith/settings`, a change
+  to `ffmpeg_dir`, `comfyui_dir`, `comfyui_url`, `local_url`, `cloud_url`, `local_via`,
+  `deployments`, `api_key`, `hf_token`, `provider_keys` or `paid_limit` (the same values
+  sent back unchanged pass); `PUT` / `DELETE /seriesmith/providers` and
+  `PUT /seriesmith/providers/key`; `POST /seriesmith/jobs/paid-reset`. The PC is a request
+  from its own address that is addressed to it as localhost or 127.0.0.1; under any other
+  name it is another device (401 until paired).
 - **Who it answers** (`seriesmith serve`, `server/guard.py`): a request with an `Origin`
   must come from the server's own page (the Origin's host and port are the request's
   `Host`), and one the browser marks `Sec-Fetch-Site: cross-site` is refused; a request with

@@ -18,6 +18,17 @@ from seriesmith.settings import load_settings, settings_path
 
 # the backends that run through comfy-sdk (Comfy Cloud, deployments, Router)
 SDK_KINDS = ("cloud", "deployment", "router")
+# The settings only the PC itself changes (a paired device reads them and changes the rest):
+# what they decide, for the refusal's words
+PC_ONLY = {"ffmpeg_dir": "which programs seriesmith runs",
+           "comfyui_dir": "which programs seriesmith runs",
+           "comfyui_url": "where jobs, your files and the Comfy API key are sent",
+           "local_url": "where jobs, your files and the Comfy API key are sent",
+           "cloud_url": "where jobs, your files and the Comfy API key are sent",
+           "local_via": "where jobs, your files and the Comfy API key are sent",
+           "deployments": "where jobs, your files and the Comfy API key are sent",
+           "api_key": "the Comfy API key", "hf_token": "the Hugging Face token",
+           "provider_keys": "a provider's key", "paid_limit": "what may be spent"}
 ACTIONS = ("cancel", "cancel-all", "move", "pause", "retry", "paid-reset")
 
 # what queue_routes registers (server/routes.all_paths: known before the queue starts);
@@ -60,6 +71,7 @@ def queue_routes(settings, runner, connected=lambda: False,
         def act(ctx, body):
             body = A.body_dict(body)
             if what == "paid-reset":
+                A.from_this_pc(ctx, "the paid jobs' limit (what may be spent)")
                 queue.paid_count = 0
                 return 200, queue.list()
             if what == "cancel-all":
@@ -112,10 +124,11 @@ def queue_routes(settings, runner, connected=lambda: False,
         from seriesmith.backends import available
         from seriesmith.settings import FIELDS, from_env, save_settings
         body = A.body_dict(body)
-        # which ffmpeg and which ComfyUI folder (its Python) seriesmith runs: this PC only
-        for k in ("ffmpeg_dir", "comfyui_dir"):
+        # which ffmpeg and which ComfyUI folder (its Python) seriesmith runs, where jobs and
+        # downloads go, the keys and what may be spent: this PC only
+        for k, what in PC_ONLY.items():
             if k in body and (body[k] or None) != (getattr(settings, k, None) or None):
-                A.from_this_pc(ctx, f"{k} (which programs seriesmith runs)")
+                A.from_this_pc(ctx, f"{k} ({what})")
         try:
             save_settings({k: v for k, v in body.items() if k in FIELDS})
             fresh = load_settings()

@@ -109,7 +109,7 @@ class PresentTest(Caches):
 class ListingHub:
     """A stand-in Hub: the listing and the downloads."""
 
-    def __init__(self, files: dict[str, bytes], sha: str = "c0ffee"):
+    def __init__(self, files: dict[str, bytes], sha: str = "c0ffee" * 6 + "c0ff"):       # a commit, as the Hub names one
         self.files, self.sha, self.got = files, sha, []
 
     def listing(self, repo, token=None):
@@ -134,9 +134,9 @@ class DownloadTest(Caches):
                              listing=hub.listing)
         self.assertEqual(sorted(hub.got), ["config.json", "model.bin", "preprocessor_config.json",
                                            "tokenizer.json", "vocabulary.txt"])
-        self.assertEqual(root, os.path.join(HC.repo_dir(item.name), "snapshots", "c0ffee"))
+        self.assertEqual(root, os.path.join(HC.repo_dir(item.name), "snapshots", hub.sha))
         with open(os.path.join(HC.repo_dir(item.name), "refs", "main"), encoding="utf-8") as fh:
-            self.assertEqual(fh.read(), "c0ffee")           # no newline: huggingface_hub reads it raw
+            self.assertEqual(fh.read(), hub.sha)           # no newline: huggingface_hub reads it raw
         self.assertTrue(HC.present(item))
         self.assertEqual(seen[-1], (55, 55))                # across the files
         # again: nothing fetched twice

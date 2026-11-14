@@ -797,9 +797,18 @@ class Target:
     @property
     def downloads(self) -> dict[str, dict]:
         """target.json `downloads`: {file name: {"folder", "url" (None: no
-        trustworthy record), "source"}}."""
-        return {k: dict(v) for k, v in (self.spec.get("downloads") or {}).items()
-                if not k.startswith("_") and isinstance(v, dict)}
+        trustworthy record), "source"}}. A record the Features window mustn't act on
+        (core.downloads: a URL that isn't Hugging Face's or Civitai's, a folder that isn't a
+        models folder, a file that isn't a model) keeps its name and loses its URL and
+        folder, with why in `source`."""
+        from seriesmith.core import downloads as DL
+        out = {}
+        for k, v in (self.spec.get("downloads") or {}).items():
+            if k.startswith("_") or not isinstance(v, dict):
+                continue
+            why = DL.download_problem(k, v)
+            out[k] = {**v, "url": None, "folder": "", "source": why} if why else dict(v)
+        return out
 
     @property
     def fetches(self) -> dict[str, dict]:
@@ -809,8 +818,10 @@ class Target:
         there (seriesmith.hubcache): {Hugging Face repo: {"into": "hf" (its
         cache) | a models folder (the repo's files in <folder>/<repo>/),
         "files": [the patterns it reads], "extra"?: [more to fetch]}}."""
+        from seriesmith.core import downloads as DL
         return {k: dict(v) for k, v in (self.spec.get("fetches") or {}).items()
-                if not k.startswith("_") and isinstance(v, dict) and v.get("into")}
+                if not k.startswith("_") and isinstance(v, dict) and v.get("into")
+                and not DL.fetch_problem(k, v)}
 
     @property
     def nodes(self) -> dict[str, dict]:

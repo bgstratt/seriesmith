@@ -67,8 +67,8 @@ class PairingTest(unittest.TestCase):
         self.assertFalse(self.p.remove(d["id"]))
 
     def test_who_must_pair(self):
-        def req(remote, path, cookie=None):
-            return SimpleNamespace(remote=remote, path=path,
+        def req(remote, path, cookie=None, host="127.0.0.1:8190"):
+            return SimpleNamespace(remote=remote, path=path, headers={"Host": host},
                                    cookies={PR.COOKIE: cookie} if cookie else {})
         with mock.patch.object(PR, "pairing", return_value=self.p):
             self.assertFalse(PR.refused(req("127.0.0.1", "/seriesmith/episodes")))

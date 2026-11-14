@@ -50,11 +50,6 @@ class ProviderHTTP(HTTPFailure):
         self.http_status = status
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *a, **kw):
-        return None
-
-
 def pick(doc: Any, path) -> Any:
     """What `doc` has at a dotted path ("data.outputs.0"), the first found of a list of paths."""
     if isinstance(path, (list, tuple)):
@@ -158,6 +153,9 @@ class HttpBackend(Backend):
         # by host and port: another port on the same host is someone else
         hosts = [urllib.parse.urlparse(self.base).netloc] + list(definition.get("hosts") or [])
         self._hosts = {h.lower() for h in hosts if h}
+        from seriesmith import net as NET
+        # a provider running on this PC may name results on this PC
+        self._local = NET.is_loopback(urllib.parse.urlsplit(self.base).hostname or "")
 
     # -- one request ------------------------------------------------------------
 
@@ -166,6 +164,21 @@ class HttpBackend(Backend):
 
     def _ours(self, url: str) -> bool:
         return urllib.parse.urlparse(url).netloc.lower() in self._hosts
+
+    def _may_fetch(self, url: str) -> None:
+        """BackendError for an address this provider's requests don't go to (seriesmith.net).
+        Its own hosts, set on this PC: https, or http when it runs on this PC. Any other (a
+        redirect, a result's URL the provider names): https to a public host, so its answers
+        can't point a request at this PC's files, this PC or its network."""
+        from seriesmith import net as NET
+        u = urllib.parse.urlsplit(url)
+        if self._ours(url):
+            why = (None if u.scheme == "https" or (u.scheme == "http" and NET.is_loopback(u.hostname or ""))
+                   else "its key and your files go over https only")
+        else:
+            why = NET.address_problem(url, local=self._local)
+        if why:
+            raise BackendError(f"{self.id}: {u.netloc or url.split('?')[0]!r} isn't fetched: {why}")
 
     def _with_key(self, url: str, headers: dict) -> str:
         """`url`, and `headers` given the key, on the provider's own hosts only."""
@@ -197,12 +210,13 @@ class HttpBackend(Backend):
         url = self.url_of(url)
         for _ in range(MAX_REDIRECTS + 1):
             hdrs = {"User-Agent": USER_AGENT, **(headers or {})}
+            self._may_fetch(url)                         # each hop, a redirect's included
             full = self._with_key(url, hdrs) if keyed else url
             req = urllib.request.Request(full, data=data, method=method, headers=hdrs)
             try:
+                from seriesmith import net as NET
                 ctx = tls() if full.startswith("https") else None
-                https = [urllib.request.HTTPSHandler(context=ctx)] if ctx else []
-                opener = urllib.request.build_opener(_NoRedirect(), *https)
+                opener = NET.opener(context=ctx, redirects=False)   # http and https, never file:
                 with opener.open(req, timeout=timeout) as r:
                     return r.read(), r.headers.get("Content-Type", "")
             except urllib.error.HTTPError as e:

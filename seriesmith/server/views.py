@@ -97,8 +97,10 @@ LOOPBACK_ADDRS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 
 
 def is_local(request: web.Request) -> bool:
-    """Whether a request came from the PC the server runs on (its address, never a header)."""
-    return (request.remote or "") in LOOPBACK_ADDRS
+    """Whether a request is the PC's own: from its address, and addressed to it as localhost
+    (guard.from_this_pc: never a forwarding header)."""
+    from seriesmith.server.guard import from_this_pc
+    return from_this_pc(request.remote, request.headers.get("Host"))
 
 
 def json_type(request: web.Request) -> bool:

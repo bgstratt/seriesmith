@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from urllib.parse import quote
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -79,7 +80,14 @@ class PathTest(unittest.TestCase):
             self.assertEqual(XI.local_path("file://localhost/C%3a/My%20Show/a.mov"),
                              r"C:\My Show\a.mov")
             self.assertEqual(XI.local_path("file:///D:/clips/b%20c.mp4"), r"D:\clips\b c.mp4")
-            self.assertEqual(XI.local_path("file://server/share/x.mov"), r"\\server\share\x.mov")
+            # a share is followed only when it's a project folder: looking at any other
+            # would sign Windows in to a host the XML names
+            self.assertIsNone(XI.local_path("file://server/share/x.mov"))
+            from seriesmith.core import paths as PA
+            self.addCleanup(PA.set_project_roots, [])
+            PA.set_project_roots([r"\\server\share"])
+            with mock.patch("os.path.realpath", lambda p, *a, **kw: p):
+                self.assertEqual(XI.local_path("file://server/share/x.mov"), r"\\server\share\x.mov")
         else:
             self.assertEqual(XI.local_path("file:///Users/me/My%20Show/a.mov"),
                              "/Users/me/My Show/a.mov")

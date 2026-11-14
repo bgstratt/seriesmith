@@ -264,6 +264,12 @@ def master_file(take: T.Take) -> str | None:
     m = (take.sidecar or {}).get("master")
     if not isinstance(m, dict) or not isinstance(m.get("path"), str):
         return None
+    from seriesmith.core import paths as P
+    # the take's record names it, and a show can be handed over: a path on this PC's disks
+    # only. One on a network share isn't looked at (Windows would sign in to its host),
+    # unless the share is a project folder
+    if not os.path.isabs(m["path"]) or P.foreign(m["path"]):
+        return None
     try:
         st = os.stat(m["path"])
     except OSError:

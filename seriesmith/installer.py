@@ -43,7 +43,9 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from seriesmith import features as FT
+from seriesmith.core import downloads as DL
 from seriesmith.core import fileio as F
+from seriesmith.core import paths as P
 
 CHUNK = 1 << 20
 FFMPEG_BUILDS = {
@@ -72,7 +74,10 @@ class Place:
     def models_dir(self, folder: str) -> str | None:
         """Where a new file of `folder` goes: the path named after the folder
         (diffusion_models, not the legacy unet ComfyUI lists first), else
-        the first; None when ComfyUI's folders aren't known."""
+        the first; None when ComfyUI's folders aren't known, or `folder` isn't
+        a models folder's name (core.downloads: never a path, never custom_nodes)."""
+        if DL.folder_problem(folder):
+            return None
         paths = self.model_dirs.get(folder) or []
         for p in paths:
             if os.path.basename(os.path.normpath(p)).lower() == folder.lower():
@@ -128,17 +133,20 @@ def place_in_comfyui() -> Place:
 
 def place_from_url(comfyui_url: str, comfyui_dir: str | None = None) -> Place:
     """The standalone server: ComfyUI's /internal/folder_paths when it runs on
-    this machine, else settings comfyui_dir."""
+    this machine, else settings comfyui_dir. Only a ComfyUI on this PC is asked: the answer
+    says where downloads are written and which Python is run, so another machine's is never
+    taken (nor a folder on a network share, which Windows would sign in to)."""
     from urllib.parse import urlparse
     host = urlparse(comfyui_url).hostname or ""
     dirs: dict = {}
-    if host in ("127.0.0.1", "localhost", "::1") or comfyui_dir:
+    if host in ("127.0.0.1", "localhost", "::1"):
         try:
             with urllib.request.urlopen(comfyui_url.rstrip("/") + "/internal/folder_paths",
                                         timeout=10) as r:
                 got = json.loads(r.read() or b"{}")
-            dirs = {k: [p for p in (v if isinstance(v, list) else []) if isinstance(p, str)]
-                    for k, v in got.items()}
+            dirs = {k: [p for p in (v if isinstance(v, list) else [])
+                        if isinstance(p, str) and os.path.isabs(p) and not P.is_network(p)]
+                    for k, v in (got.items() if isinstance(got, dict) else ())}
             if dirs and not all(os.path.isdir(p) for p in (dirs.get("custom_nodes") or ["?"])):
                 dirs = {}                                 # another machine's paths
         except (OSError, ValueError):
@@ -389,10 +397,15 @@ class Installer:
     def _model(self, item: FT.Item, place: Place) -> str | None:
         if not item.url:
             raise InstallError("no recorded download for it")
+        why = DL.folder_problem(item.folder)
+        if why or item.name != os.path.basename(item.name.replace("\\", "/")):
+            raise InstallError(why or f"{item.name!r} isn't a file name")
         d = place.models_dir(item.folder)
         if not d:
             raise InstallError(place.why_not or "ComfyUI's models folders aren't known here")
         dest = os.path.join(d, item.name)
+        if place.custom_nodes and P.inside(dest, [place.custom_nodes]):
+            raise InstallError(f"{item.folder} is where ComfyUI keeps code, not models")
         if os.path.isfile(dest):
             return "already there"
         self._download(item.url, dest, self._token(), self._progress(item.key), lambda: self._cancel)

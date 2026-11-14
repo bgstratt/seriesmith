@@ -116,7 +116,9 @@ class ServerTest(unittest.TestCase):
                 bad = (await client.get("/seriesmith/config",
                                         headers={**h, "Origin": "https://evil.example"})).status
                 return ok, bad
-        self.assertEqual(asyncio.run(go()), (200, 403))
+        # its own page passes the guard and is asked to pair (401): this PC's address under
+        # another name isn't the PC itself (a proxy on it, or a page re-pointed at 127.0.0.1)
+        self.assertEqual(asyncio.run(go()), (401, 403))
 
 
 class InComfyUITest(unittest.TestCase):
@@ -140,7 +142,9 @@ class InComfyUITest(unittest.TestCase):
                     {},                                              # a program
                     {"Host": "comfy.example:8188", "Origin": "http://comfy.example:8188"},
                 )]
-        self.assertEqual(asyncio.run(go()), [200, 403, 403, 200, 200])
+        # the last: the Origin is its own, but it isn't addressed to this PC by name, so it
+        # is another device's to pair (or a page re-pointed at 127.0.0.1: DNS rebinding)
+        self.assertEqual(asyncio.run(go()), [200, 403, 403, 200, 401])
 
 
 if __name__ == "__main__":

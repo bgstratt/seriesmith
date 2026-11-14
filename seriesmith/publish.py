@@ -243,12 +243,43 @@ def title_font(font: str, named: bool, home: str | None = None) -> str:
     return got
 
 
+COLOR_RX = re.compile(r"(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|0x[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|[A-Za-z]{3,24})"
+                      r"(@(0|1|0?\.[0-9]{1,4}|1\.0{1,4}))?\Z")
+FONT_EXTS = (".ttf", ".otf", ".ttc")
+
+
+def subtitle_checked(sub: dict) -> dict:
+    """The title's settings, each what it says it is. They're written into ffmpeg's filter
+    graph, where a `,` or `:` in a value would start a filter or an option of its own, so a
+    colour is a colour (#RRGGBB or a name, `@opacity`), a size or time a number and the font
+    a font file. PublishError saying which isn't."""
+    out = dict(sub)
+    for key in ("color", "glow"):
+        if not isinstance(out[key], str) or not COLOR_RX.match(out[key]):
+            raise PublishError(f"publish.subtitle.{key} {out[key]!r} isn't a colour: #RRGGBB or a "
+                               f"colour's name, with @0.8 for its opacity")
+    for key in ("size", "y", "glow_size"):
+        if isinstance(out[key], bool) or not isinstance(out[key], (int, float)) or not 0 <= out[key] <= 4:
+            raise PublishError(f"publish.subtitle.{key} {out[key]!r} isn't a number (a fraction "
+                               f"of the frame's height)")
+    for key in ("intro_in", "outro_in", "outro_out"):
+        pair = out[key]
+        if (not isinstance(pair, (list, tuple)) or len(pair) != 2
+                or any(isinstance(v, bool) or not isinstance(v, (int, float)) or abs(v) > 86400 for v in pair)):
+            raise PublishError(f"publish.subtitle.{key} {pair!r} isn't two times in seconds")
+        out[key] = [float(v) for v in pair]
+    if not isinstance(out["font"], str) or not out["font"].lower().endswith(FONT_EXTS):
+        raise PublishError(f"publish.subtitle.font {out['font']!r} isn't a font file "
+                           f"({', '.join(FONT_EXTS)})")
+    return out
+
+
 def publish_config(series_cfg: dict) -> dict:
     """The series config's `publish` block with the subtitle defaults filled in (`_named`:
     what the config set itself)."""
     block = dict(series_cfg.get("publish") or {})
     block["_named"] = dict(block.get("subtitle") or {})
-    block["subtitle"] = {**SUBTITLE, **(block.get("subtitle") or {})}
+    block["subtitle"] = subtitle_checked({**SUBTITLE, **(block.get("subtitle") or {})})
     block["loudness"] = {**LEVEL, **(block.get("loudness") or {})}
     return block
 

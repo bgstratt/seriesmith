@@ -2373,7 +2373,9 @@ def collect_take(take: T.Take, run, saver: str, status: str) -> str:
         mark_failed(take, f"the job finished but its saver reported no record "
                           f"(got {', '.join(got) or 'nothing'})")
         return "failed"
-    fields = {k: v for k, v in record.items() if k not in ("shot", "take")}
+    # `master` (an imported edit's original footage, a path on this PC) is the import's to
+    # write, never a job's answer
+    fields = {k: v for k, v in record.items() if k not in ("shot", "take", "master")}
     if fields.get("status") == "ok" and not os.path.isfile(take.paths.mp4):
         fields.update(status="failed",
                       save_notes=f"{fields.get('save_notes', '')}; the mp4 didn't come back")
