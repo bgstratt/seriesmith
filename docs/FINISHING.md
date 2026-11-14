@@ -25,7 +25,8 @@ its 13% more pixels than 960×544, since attention grows a little faster than th
 count.)
 
 **A proxy smaller than 480p is too small to judge a shot by**: faces, hands and small props
-blur into each other. 896×512 is the default for a new series: the same 7:4 shape as
+blur into each other. 896×512 is the default for a new series, and what an H3 model renders
+when the series config has no `proxy` block: the same 7:4 shape as
 1344×768 exactly, so a proxy take can stand in for a final one in a cut (a proxy of
 another shape is scaled to fit there). 448×256 renders quicker, for a rough check of timing
 only.

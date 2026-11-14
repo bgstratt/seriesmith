@@ -255,8 +255,8 @@
       "lora": "pika_h3_flex_ref2va_v1_bf16.safetensors",
       "ref_image_size": "match",
       "steps": 6,
-      "width": 512,
-      "height": 288,
+      "width": 896,
+      "height": 512,
       "sampler": "lcm"
     }
   },

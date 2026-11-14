@@ -307,8 +307,8 @@
     "proxy": {
       "lora": "pika_h3_flex_fl2va_v1_bf16.safetensors",
       "steps": 6,
-      "width": 448,
-      "height": 256,
+      "width": 896,
+      "height": 512,
       "sampler": "lcm",
       "text_encoder": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
       "video_vae": "minimax_h3_video_vae_fp16.safetensors",

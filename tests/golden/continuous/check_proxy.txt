@@ -1,5 +1,5 @@
 
-  cont01  Continuous   [proxy]  512x288  4 steps
+  cont01  Continuous   [proxy]  896x512  4 steps
   model        minimax_h3_ref2va_pruned_int8_convrot.safetensors
   lora         minimax_h3_ref2v_lightx2v_turbo_4step_v0.1_resized_avg_rank_20_bf16.safetensors
   ------------------------------------------------------------
@@ -15,7 +15,7 @@
 
   target minimax_h3_fl2va (H3 FL2V): 4 shot(s) of this episode
 
-  cont01  Continuous   [proxy]  448x256  4 steps
+  cont01  Continuous   [proxy]  896x512  4 steps
   model        minimax_h3_fl2va_pruned_int8_convrot.safetensors
   lora         minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors
   ------------------------------------------------------------

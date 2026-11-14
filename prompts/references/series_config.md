@@ -78,7 +78,8 @@ grid. The four setups, and the master each delivers:
   (`fit: crop`) or pads it with bars (`fit: pad`). Say so when someone names a 16:9 size.
 - A proxy under 480 rows is too small to judge faces and hands by (16:9's 512×288 is the
   exception: H3's grid has no 16:9 size between it and 1024×576). Without a `proxy` block
-  the proxy is the model's own (512×288 on H3), so write one.
+  the proxy is the model's own (896×512 on H3, 1344×768's shape): write one whenever the
+  final is another size, so the two passes keep one shape.
 - Changing the size later changes only the takes rendered after it; never change an
   existing series' size unasked.
 - Why each setup, its timings, and the upscale methods are in seriesmith's finishing guide.

@@ -163,7 +163,7 @@ class PresetTest(unittest.TestCase):
                          (BLD.FINAL_MODEL, 8, 1344, 768))
         p = t.preset("proxy", {"series": {"model": "m.safetensors"}})
         self.assertEqual((p.model, p.lora, p.steps, p.width, p.height),
-                         ("m.safetensors", BLD.PROXY_LORA, 4, 512, 288))
+                         ("m.safetensors", BLD.PROXY_LORA, 4, 896, 512))
         p = t.preset("proxy", {"series": {}, "proxy": {"model": "p", "steps": 6, "width": 448}})
         self.assertEqual((p.model, p.steps, p.width), ("p", 6, 448))
         with self.assertRaises(KeyError):
@@ -487,7 +487,7 @@ class TargetsRouteTest(ApiTest):
         self.assertEqual(lt["widgets"]["seed"]["class_type"], "RandomNoise")
         self.assertEqual(lt["template"]["frames"], {"step": 8, "base": 1, "max": 481})
         self.assertEqual(lt["template"]["fps"], "series")
-        self.assertEqual(lt["presets"]["proxy"]["width"], 448)
+        self.assertEqual(lt["presets"]["proxy"]["width"], 768)
         # the two optional extras a picker should see: the dev transformer
         # (the quality profile) and the 2.5 ingredients IC-LoRA (sheets).
         # Neither is a preset value, so the distilled presets are unchanged.

@@ -2581,7 +2581,7 @@ ones now show:
   `short` "LTX+refs". `capabilities` gains `reference_sheet` (true only here), and
   `subject_refs` is true for it. `template`: `fps: 24`, `frames: {step: 8, base: 121, max:
   121}` (every shot is 121 frames), `size_multiple: 32`. Presets: final 768×448, proxy
-  512×288, both `ltx-2.3-22b-distilled-fp8.safetensors` + `ltx-2.3-22b-ic-lora-ingredients-0.9`
+  768×448, both `ltx-2.3-22b-distilled-fp8.safetensors` + `ltx-2.3-22b-ic-lora-ingredients-0.9`
   at 1.0, 8 steps, text encoder `gemma_3_12B_it_fp4_mixed`. Its widgets include `steps`
   (the template's KSampler), and `model` is patched into all three loaders that read the
   checkpoint.
@@ -2620,7 +2620,7 @@ Nothing new in the routes; what the existing ones now show:
   `template` is H3's (`fps: 24`, `frames: {step: 17, base: 5, max: 3592}`,
   `size_multiple: 32`); the build warns past the model's trained 362 frames. Presets: final
   1344×768, `minimax_h3_fl2va_pruned_int8_convrot` + `minimax_h3_fl2v_turbo_8step_v1.0` at
-  8 steps (`res_multistep`); proxy 448×256, the 4-step lightx2v v0.1 LoRA at 4 steps
+  8 steps (`res_multistep`); proxy 896×512, the 4-step lightx2v v0.1 LoRA at 4 steps
   (`euler`). `widgets` add `sampler` (KSamplerSelect) and have `steps` (BasicScheduler).
 - **Shotlist entries** are like `ltx2`'s: `keyframes` `{first, last}` (the conventional
   paths), no `panels`, no `negative`; `audio_intent` / `audio_note` on a clone shot. The

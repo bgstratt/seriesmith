@@ -154,7 +154,7 @@ class TargetTest(unittest.TestCase):
         f, p = self.t.presets["final"], self.t.presets["proxy"]
         self.assertEqual((f.model, f.lora, f.width, f.height, f.steps),
                          ("ltx-2.3-22b-distilled-fp8.safetensors", IC, 768, 448, 8))
-        self.assertEqual((p.width, p.height, p.lora), (512, 288, IC))
+        self.assertEqual((p.width, p.height, p.lora), (768, 448, IC))
         self.assertEqual((p.width % 32, p.height % 32), (0, 0))
         self.assertEqual(f.extra["text_encoder"], "gemma_3_12B_it_fp4_mixed.safetensors")
         # another target's series block lends no size: the IC-LoRA has one bucket
@@ -162,7 +162,7 @@ class TargetTest(unittest.TestCase):
         self.assertEqual((doc["defaults"]["width"], doc["defaults"]["height"]), (768, 448))
         self.assertEqual(doc["defaults"]["model"], f.model)
         doc, _ = self.t.compile_episode(self.story, self.cfg, "proxy")
-        self.assertEqual((doc["defaults"]["width"], doc["defaults"]["height"]), (512, 288))
+        self.assertEqual((doc["defaults"]["width"], doc["defaults"]["height"]), (768, 448))
 
     def test_describe(self):
         d = self.t.describe()
@@ -480,7 +480,7 @@ class RenderTest(unittest.TestCase):
         sheet = os.path.join(take.paths.dir, take.paths.stem + "_refsheet.png")
         self.assertTrue(os.path.isfile(sheet))
         self.assertEqual(comfy.uploads[got["sheet"]], open(sheet, "rb").read())
-        self.assertEqual(Image.open(sheet).size, (512, 288))
+        self.assertEqual(Image.open(sheet).size, (768, 448))
         self.assertFalse([f for f in os.listdir(take.paths.dir) if f.startswith(".tmp")])
         sc = T.read_sidecar(take.paths.sidecar)
         self.assertEqual(sc["target"], ING)
@@ -502,9 +502,9 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(g[J.node_of(g, "RepeatImageBatch")]["inputs"]["amount"], 89)
         pad = g[J.node_of(g, "ResizeAndPadImage")]["inputs"]
         self.assertEqual((pad["target_width"], pad["target_height"], pad["padding_color"]),
-                         (512, 288, "black"))
+                         (768, 448, "black"))
         lat = g[J.node_of(g, "EmptyLTXVLatentVideo")]["inputs"]
-        self.assertEqual((lat["width"], lat["height"], lat["length"]), (512, 288, 89))
+        self.assertEqual((lat["width"], lat["height"], lat["length"]), (768, 448, 89))
         au = g[J.node_of(g, "LTXVEmptyLatentAudio")]["inputs"]
         self.assertEqual((au["frames_number"], au["frame_rate"]), (89, 24.0))
         ks = g[J.node_of(g, "KSampler")]["inputs"]

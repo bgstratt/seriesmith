@@ -168,7 +168,7 @@
   },
 
   "presets": {
-    "_note": "LTX-2.5 22B distilled (int8): a fixed 8-step base schedule plus a 3-step refine (the workflow's ManualSigmas; `steps` is recorded, not patched). The final is the workflow's 768x512 unless the series config sets a size; the proxy is 448x256. Both use the same model: the distilled model is already fast. `base` is what a pass renders without the distilled transformer: the dev transformer, on the quality profile's 30-step schedule (recipe.sampling). The negative prompt is the IC-LoRA model card's suggestion plus the artefacts a review cut can't use; the template's own ('pc game, ..., cartoon, childish') would fight a cartoon series' look. For `dur: model` (capabilities): duration_head is the LTX-2.5 duration head in models/model_patches (not in the shotlist's defaults; checked at queue time), default_seconds the estimate of a silent shot, min_seconds/max_seconds the predictor's range when the script gives none.",
+    "_note": "LTX-2.5 22B distilled (int8): a fixed 8-step base schedule plus a 3-step refine (the workflow's ManualSigmas; `steps` is recorded, not patched). The final is the workflow's 768x512 unless the series config sets a size; the proxy is the same size (448x256 until 2026-11-14: too small to judge a shot by). Both use the same model: the distilled model is already fast. `base` is what a pass renders without the distilled transformer: the dev transformer, on the quality profile's 30-step schedule (recipe.sampling). The negative prompt is the IC-LoRA model card's suggestion plus the artefacts a review cut can't use; the template's own ('pc game, ..., cartoon, childish') would fight a cartoon series' look. For `dur: model` (capabilities): duration_head is the LTX-2.5 duration head in models/model_patches (not in the shotlist's defaults; checked at queue time), default_seconds the estimate of a silent shot, min_seconds/max_seconds the predictor's range when the script gives none.",
     "final": {
       "model": "ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors",
       "lora": null, "steps": 8, "width": 768, "height": 512,
@@ -182,7 +182,7 @@
       "default_seconds": 5.0, "min_seconds": 1.0, "max_seconds": 20.0
     },
     "proxy": {
-      "lora": null, "steps": 8, "width": 448, "height": 256,
+      "lora": null, "steps": 8, "width": 768, "height": 512,
       "base": {"model": "ltx-2.5-22b-dev-transformer-comfy-int8-convrot.safetensors", "steps": 30},
       "negative": "worst quality, inconsistent motion, blurry, jittery, distorted, flickering, morphing, extra limbs, watermark, subtitles",
       "text_encoder": "gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors",

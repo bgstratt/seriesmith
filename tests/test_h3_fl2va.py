@@ -126,7 +126,7 @@ class TargetTest(unittest.TestCase):
         self.assertEqual((f.model, f.lora, f.steps, f.width, f.height),
                          (MODEL, LORA8, 8, 1344, 768))
         self.assertEqual((p.model, p.lora, p.steps, p.width, p.height),
-                         (None, LORA4, 4, 448, 256))
+                         (None, LORA4, 4, 896, 512))
         self.assertEqual((f.extra["sampler"], p.extra["sampler"]), ("res_multistep", "euler"))
         # the series target is H3 Ref2VA: its pass blocks lend only their size
         doc, _ = self.t.compile_episode(self.story, self.cfg, "proxy")

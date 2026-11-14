@@ -142,7 +142,7 @@ target H3's model, LoRA or steps.
 
 A distilled LoRA is trained on a fixed set of timesteps, so it does its best work at its own
 step count: the 8-step v1.0 was distilled at 768p for 8 steps, and the proxy keeps the 4-step
-v0.1 both for speed and because its 544p training is closer to the animatic's 512×288.
+v0.1 both for speed and because its 544p training is closer to the animatic's 896×512.
 
 Override per pass in the series config (`series` for the final, `proxy` for the animatic):
 

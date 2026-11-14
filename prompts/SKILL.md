@@ -219,7 +219,7 @@ shot 93. So:
 |---|---|
 | `series.fps` | 24 |
 | `series.width` / `height` | the model's own (1344×768 on H3) |
-| `proxy` | the model's own proxy (512×288 on H3: too small; write one) |
+| `proxy` | the model's own proxy (896×512 on H3) |
 | `series.target` | this machine's default model |
 | `audio.mode` | `generate` (`source_track` when `audio.track` names a recording) |
 | `speech.pace` | `normal` |
