@@ -59,7 +59,7 @@ user's side.
 - Start a program through `seriesmith/proc.py` (`PROC.run`, `PROC.popen`; in the node pack
   `_ff.run`, `_ff.popen`), never `subprocess` directly, nor an `import subprocess` (its names,
   `PROC.PIPE`, `PROC.TimeoutExpired`, come from the runner; `tests/test_security.py` checks): the
-  helpers, which run in another Python, are the only exception. A pip line is text shown to
+  helpers, which run in another Python through `_run.py`, import `proc` too. A pip line is text shown to
   the user (`features.pip_line`), never a command.
 - Write files through `seriesmith/core/fileio.py` (`write_json`, `write_bytes`, `replace`,
   `read_json_or`, ...): atomic, LF, the Windows retry. Never a bare `open(path, "w")` for
