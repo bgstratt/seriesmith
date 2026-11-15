@@ -57,7 +57,8 @@ user's side.
   a bare `"ffmpeg"`: it finds imageio-ffmpeg's binary and PyAV's ffprobe stand-in when
   PATH has none (the node pack: `comfy_nodes/_ff.py`).
 - Start a program through `seriesmith/proc.py` (`PROC.run`, `PROC.popen`; in the node pack
-  `_ff.run`, `_ff.popen`), never `subprocess` directly (`tests/test_security.py` checks): the
+  `_ff.run`, `_ff.popen`), never `subprocess` directly, nor an `import subprocess` (its names,
+  `PROC.PIPE`, `PROC.TimeoutExpired`, come from the runner; `tests/test_security.py` checks): the
   helpers, which run in another Python, are the only exception. A pip line is text shown to
   the user (`features.pip_line`), never a command.
 - Write files through `seriesmith/core/fileio.py` (`write_json`, `write_bytes`, `replace`,

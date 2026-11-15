@@ -48,7 +48,6 @@ from __future__ import annotations
 import difflib
 import os
 import re
-import subprocess
 
 from seriesmith import proc as PROC
 from seriesmith import ff as FF
@@ -319,7 +318,7 @@ def record(root: str, take, words: bool = True) -> dict | None:
         c = check(root, take, words=words)
         take.sidecar = T.update_sidecar(take.paths.sidecar, checks=c)
         return c
-    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+    except (OSError, ValueError, RuntimeError, PROC.SubprocessError):
         return None
 
 

@@ -26,7 +26,6 @@ import json
 import math
 import os
 import re
-import subprocess
 import tempfile
 import time
 
@@ -214,7 +213,7 @@ def encode_stream(images, path: str, fps: float, encoder: str = "auto",
         cmd = [*_ff.tool("ffmpeg"), "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
                "-s", f"{w}x{h}", "-framerate", str(fps), "-i", "-", "-frames:v", str(n),
                *(["-vf", vf] if vf else []), *args, path]
-        proc = _ff.popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = _ff.popen(cmd, stdin=_ff.PIPE, stderr=_ff.PIPE)
         try:
             for i in range(n):
                 frame = as_uint8(images[i])

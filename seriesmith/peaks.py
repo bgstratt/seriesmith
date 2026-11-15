@@ -25,7 +25,6 @@ import hashlib
 import json
 import os
 import struct
-import subprocess
 import sys
 import tempfile
 import wave
@@ -141,7 +140,7 @@ def _ffprobe(path: str) -> dict | None:
         return None
     try:
         data = FF.probe_json(path, "-show_entries", "format=duration:stream=codec_type,sample_rate")
-    except (OSError, FF.FFError, subprocess.SubprocessError):
+    except (OSError, FF.FFError, PROC.SubprocessError):
         return None
     audio = [s for s in data.get("streams", []) if s.get("codec_type") == "audio"]
     try:
@@ -270,7 +269,7 @@ def _ffmpeg_peaks(path: str) -> list[int]:
     with tempfile.TemporaryFile() as err:
         proc = PROC.popen([*FF.tool("ffmpeg"), "-v", "error", "-nostdin", "-i", path, "-vn",
                                  "-ac", "1", "-ar", str(FF_RATE), "-f", "s16le", "-"],
-                                stdout=subprocess.PIPE, stderr=err)
+                                stdout=PROC.PIPE, stderr=err)
         try:
             out = s16_peaks(proc.stdout, per_bin)
         finally:

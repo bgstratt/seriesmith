@@ -26,7 +26,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import threading
@@ -108,7 +107,7 @@ def probe(python: str) -> dict:
             got = json.loads(out[-1])
             if isinstance(got, dict):
                 found = {k: got.get(k) for k, _ in PACKAGES}
-    except (OSError, ValueError, subprocess.SubprocessError):
+    except (OSError, ValueError, PROC.SubprocessError):
         found = None
     if found is None:                                     # this interpreter, then
         import importlib.util
@@ -431,7 +430,7 @@ def _stream(cmd: list[str], cwd: str, timeout: float, on_progress,
     log: list[str] = []
     stopped: list[bool] = []
     p = PROC.popen(cmd, cwd=cwd, env=E.tool_env(),
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                         stdout=PROC.PIPE, stderr=PROC.STDOUT)
 
     def kill():
         stopped.append(True)

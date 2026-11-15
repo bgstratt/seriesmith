@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 from seriesmith import proc as PROC
 
@@ -149,7 +148,7 @@ def measure(mp4: str, paths: dict, py: str, timeout: int = TIMEOUT) -> list[list
     cmd = [py, E.RUNNER, "seriesmith.helpers.counts", mp4, "--person", paths["person"],
            "--face", paths["face"], "--fps", str(SAMPLE_FPS), "--conf", str(CONF)]
     r = PROC.run(cmd, capture_output=True, timeout=timeout,
-                       creationflags=getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0))
+                       creationflags=PROC.BELOW_NORMAL)
     out = r.stdout.decode("utf-8", "replace").strip().splitlines()
     try:
         got = json.loads(out[-1])

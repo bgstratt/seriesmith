@@ -55,3 +55,12 @@ def run(cmd, **kw):
 def popen(cmd, **kw):
     import subprocess
     return subprocess.Popen(_checked(cmd, kw), **kw)
+
+
+# the standard library's names a caller of run / popen needs, so this file is the one
+# of the pack's that imports it
+import subprocess  # noqa: E402
+
+PIPE, STDOUT, DEVNULL = subprocess.PIPE, subprocess.STDOUT, subprocess.DEVNULL
+CalledProcessError, CompletedProcess = subprocess.CalledProcessError, subprocess.CompletedProcess
+SubprocessError, TimeoutExpired = subprocess.SubprocessError, subprocess.TimeoutExpired

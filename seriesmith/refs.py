@@ -2122,10 +2122,9 @@ def _ffmpeg(tool: str) -> list[str]:
 
 
 def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
-    import subprocess
     try:
         r = PROC.run(cmd, capture_output=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
+    except PROC.TimeoutExpired:
         return 1, f"{os.path.basename(cmd[0])} took longer than {timeout}s"
     return r.returncode, (r.stdout + b"\n" + r.stderr).decode("utf-8", "replace")
 

@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 
 from seriesmith import proc as PROC
 from seriesmith import color as COL
@@ -88,7 +87,7 @@ def encode(src: str, dst: str) -> None:
            "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", tmp]
     try:
         PROC.run(cmd, check=True, capture_output=True, timeout=ENCODE_TIMEOUT)
-    except subprocess.CalledProcessError as e:
+    except PROC.CalledProcessError as e:
         _drop(tmp)
         raise TakeImportError("ffmpeg couldn't convert it: "
                            + (e.stderr or b"").decode("utf-8", "replace")[-300:]) from None
@@ -181,7 +180,7 @@ def _ffmpeg(cmd: list[str], dst: str, what: str) -> None:
     try:
         PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", *cmd, tmp], check=True,
                        capture_output=True, timeout=ENCODE_TIMEOUT)
-    except subprocess.CalledProcessError as e:
+    except PROC.CalledProcessError as e:
         _drop(tmp)
         raise TakeImportError(f"ffmpeg couldn't {what}: "
                               + (e.stderr or b"").decode("utf-8", "replace")[-300:]) from None

@@ -39,7 +39,6 @@ import json
 import math
 import os
 import random
-import subprocess
 import sys
 from seriesmith import proc as PROC
 
@@ -259,7 +258,7 @@ def record_look(take) -> dict | None:
         lk = look(take.paths.mp4, sc.get("frames"))
         take.sidecar = T.update_sidecar(take.paths.sidecar, look=lk)
         return lk
-    except (OSError, ValueError, subprocess.SubprocessError):
+    except (OSError, ValueError, PROC.SubprocessError):
         return None
 
 

@@ -8,6 +8,7 @@ that become folder names.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -324,6 +325,25 @@ class ProgramsTest(unittest.TestCase):
         self.assertIsInstance(SDK.command(), str)
         self.assertIsInstance(FT.pip_command(FT.Item("pip", "demucs"), None), str)
         self.assertFalse(hasattr(INS, "run"))
+
+
+class ImportsTest(unittest.TestCase):
+    def test_only_the_runners_import_subprocess(self):
+        """seriesmith/proc.py and the node pack's _ff.py are the files that import it; the
+        helpers, which run in another Python, are the exception. Everything else takes a
+        pipe, a timeout or a failed exit's name from the runner."""
+        rx = re.compile(r"^\s*(import subprocess|from subprocess\b)", re.M)
+        found = []
+        for top in ("seriesmith", "comfy_nodes"):
+            for folder, _, names in os.walk(os.path.join(ROOT, top)):
+                for name in names:
+                    if name.endswith(".py"):
+                        path = os.path.join(folder, name)
+                        with open(path, encoding="utf-8") as fh:
+                            if rx.search(fh.read()):
+                                found.append(os.path.relpath(path, ROOT).replace(os.sep, "/"))
+        allowed = {"seriesmith/proc.py", "comfy_nodes/_ff.py"}
+        self.assertEqual(sorted(f for f in found if f not in allowed and "/helpers/" not in f), [])
 
 
 class FfmpegInputsTest(unittest.TestCase):

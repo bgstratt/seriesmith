@@ -1056,7 +1056,6 @@ def keyframe(ep: str, shot: str, mp4: str, frame: int, fps: float) -> str | None
     take, the first the cut plays, unless it has one: what `hold` (the imported series'
     model) holds, and where an image-to-video model starts when the shot is rendered
     again. The path, or None when there was one or ffmpeg couldn't."""
-    import subprocess
     from seriesmith import ff as FF
     dst = os.path.join(ep, "refs", "shots", T.safe_id(shot), "first.png")
     if os.path.isfile(dst):
@@ -1068,7 +1067,7 @@ def keyframe(ep: str, shot: str, mp4: str, frame: int, fps: float) -> str | None
                        check=True, capture_output=True, timeout=300)
         fileio.replace(tmp, dst)
         return dst
-    except (subprocess.SubprocessError, OSError):
+    except (PROC.SubprocessError, OSError):
         try:
             os.remove(tmp)
         except OSError:

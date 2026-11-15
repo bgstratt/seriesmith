@@ -85,4 +85,15 @@ def call(cmd, **kw) -> int:
     return subprocess.call(cmd, **kw)
 
 
-__all__ = ["call", "clean_env", "module", "popen", "run"]
+# the standard library's names a caller of run / popen needs (a pipe, a timeout, a failed
+# exit), so that this file is the one that imports it
+PIPE, STDOUT, DEVNULL = subprocess.PIPE, subprocess.STDOUT, subprocess.DEVNULL
+CalledProcessError, CompletedProcess, Popen = (subprocess.CalledProcessError, subprocess.CompletedProcess,
+                                               subprocess.Popen)
+SubprocessError, TimeoutExpired = subprocess.SubprocessError, subprocess.TimeoutExpired
+list2cmdline = subprocess.list2cmdline
+# Windows: a program started so that it gives way to the editor (0 elsewhere: no flag)
+BELOW_NORMAL = getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)
+
+__all__ = ["CalledProcessError", "CompletedProcess", "DEVNULL", "PIPE", "Popen", "STDOUT", "SubprocessError",
+           "TimeoutExpired", "call", "clean_env", "list2cmdline", "module", "popen", "run"]

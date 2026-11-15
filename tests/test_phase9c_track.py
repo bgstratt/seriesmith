@@ -155,13 +155,13 @@ class ReadyTest(unittest.TestCase):
         for dist, mod in K.PACKAGES:
             self.assertEqual(got[dist] is not None,
                              importlib.util.find_spec(mod) is not None, dist)
-        with mock.patch.object(K.subprocess, "run",
+        with mock.patch("seriesmith.proc.subprocess.run",
                                side_effect=AssertionError("cached")):
             self.assertEqual(K.probe(sys.executable), got)      # inside PROBE_TTL
 
     def test_probe_falls_back_to_this_interpreter(self):
         K._probe_cache.clear()
-        with mock.patch.object(K.subprocess, "run", side_effect=OSError("no such exe")):
+        with mock.patch("seriesmith.proc.subprocess.run", side_effect=OSError("no such exe")):
             got = K.probe("C:/nope/python.exe")
         self.assertEqual(got["numpy"] is not None, HAVE_NUMPY)
 

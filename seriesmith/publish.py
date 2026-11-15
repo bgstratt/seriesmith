@@ -62,7 +62,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 
@@ -109,7 +108,7 @@ class PublishError(Exception):
     pass
 
 
-def run(cmd: list[str], cwd: str | None = None, timeout: int = 3600) -> subprocess.CompletedProcess:
+def run(cmd: list[str], cwd: str | None = None, timeout: int = 3600) -> PROC.CompletedProcess:
     return PROC.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
 
 
@@ -125,14 +124,14 @@ def say(stage: str, done: int | None = None, total: int | None = None, text: str
 
 
 def run_counted(cmd: list[str], total: int, stage: str, cwd: str | None = None,
-                timeout: int = 3600) -> subprocess.CompletedProcess:
+                timeout: int = 3600) -> PROC.CompletedProcess:
     """`run`, with ffmpeg's frame count sent as progress lines as it goes (only
     when --progress asked for them; otherwise it is `run`)."""
     if not _progress:
         return run(cmd, cwd, timeout)
     import threading
     cmd = cmd[:1] + ["-progress", "pipe:1", "-nostats"] + cmd[1:]
-    p = PROC.popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    p = PROC.popen(cmd, cwd=cwd, stdout=PROC.PIPE, stderr=PROC.PIPE, text=True)
     err: list[str] = []
     drain = threading.Thread(target=lambda: err.append(p.stderr.read()), daemon=True)
     drain.start()
@@ -154,7 +153,7 @@ def run_counted(cmd: list[str], total: int, stage: str, cwd: str | None = None,
         rc = p.wait()
         killer.cancel()
         drain.join(5)
-    return subprocess.CompletedProcess(cmd, rc, "", "".join(err))
+    return PROC.CompletedProcess(cmd, rc, "", "".join(err))
 
 
 # ---------------------------------------------------------------------------

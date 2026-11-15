@@ -755,11 +755,11 @@ def shell_line(cmd: list[str]) -> str:
     a character cmd or PowerShell would read (a version spec's < or >) is
     quoted too, which list2cmdline leaves bare."""
     import shlex
-    import subprocess
+    from seriesmith import proc as PROC
     if os.name != "nt":
         return shlex.join(cmd)
     return " ".join(f'"{a}"' if any(c in a for c in '<>|&^') and " " not in a
-                    else subprocess.list2cmdline([a]) for a in cmd)
+                    else PROC.list2cmdline([a]) for a in cmd)
 
 
 def pip_command(item: Item, python: str | None) -> str:

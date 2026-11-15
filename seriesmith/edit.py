@@ -75,7 +75,6 @@ import contextvars
 import copy
 import os
 import re
-import subprocess
 import sys
 
 from seriesmith import proc as PROC
@@ -2763,7 +2762,7 @@ def run_tool(script: str, args: list[str], cwd: str, timeout: int,
     try:
         r = PROC.run(tool_cmd(script, args), capture_output=True, cwd=cwd, env=env,
                            timeout=timeout)
-    except subprocess.TimeoutExpired:
+    except PROC.TimeoutExpired:
         return 1, "", f"{script} took longer than {timeout}s and was stopped"
     out, err = (b.decode("utf-8", "replace").replace("\r\n", "\n")
                 for b in (r.stdout, r.stderr))
@@ -2776,7 +2775,7 @@ def _stream_tool(cmd: list[str], script: str, cwd: str, env: dict, timeout: int,
     neither pipe fills and stalls the script)."""
     import json
     import threading
-    p = PROC.popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = PROC.popen(cmd, cwd=cwd, env=env, stdout=PROC.PIPE, stderr=PROC.PIPE)
     err_chunks: list[bytes] = []
     drain = threading.Thread(target=lambda: err_chunks.append(p.stderr.read()), daemon=True)
     drain.start()

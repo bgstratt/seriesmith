@@ -69,7 +69,6 @@ import argparse
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import wave
@@ -94,7 +93,7 @@ NOT_RENDERED = "not rendered"
 PROGRESS = "##assemble "
 
 
-def run(cmd: list[str], timeout: int = 900) -> subprocess.CompletedProcess:
+def run(cmd: list[str], timeout: int = 900) -> PROC.CompletedProcess:
     return PROC.run(cmd, capture_output=True, timeout=timeout)
 
 
@@ -1415,7 +1414,7 @@ def main(argv: list[str] | None = None) -> int:
             shutil.copy(src, norm)
         return norm
 
-    def write(sel, tmp: str, made: dict[int, str]) -> tuple[subprocess.CompletedProcess, list]:
+    def write(sel, tmp: str, made: dict[int, str]) -> tuple[PROC.CompletedProcess, list]:
         layout = pick_layout(sel)
         listing = os.path.join(tmp, "concat.txt")
         clips = []
@@ -1571,7 +1570,7 @@ def main(argv: list[str] | None = None) -> int:
         say(args.progress, "checks", text="checking the picture")
         try:
             ck = CK.check(out_path, check_clips(plan, fps), fps, total / fps)
-        except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+        except (RuntimeError, OSError, PROC.TimeoutExpired) as e:
             print(f"  ! checks: the picture couldn't be read ({str(e).strip()[-200:]})")
             if os.path.isfile(side):
                 os.remove(side)

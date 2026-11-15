@@ -30,7 +30,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tarfile
 import tempfile
@@ -523,7 +522,7 @@ def python_has(python: str | None, module: str) -> bool | None:
         r = PROC.run(PROC.module(python, "helpers.probe", f"{module}={module}"),
                      capture_output=True, timeout=30)
         ok = json.loads(r.stdout.decode("utf-8", "replace").strip().splitlines()[-1]).get(module) is not None
-    except (OSError, subprocess.TimeoutExpired, ValueError, IndexError):
+    except (OSError, PROC.TimeoutExpired, ValueError, IndexError):
         return None
     _PY_HAS[key] = (ok, time.monotonic())
     return ok

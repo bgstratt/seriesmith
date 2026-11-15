@@ -167,6 +167,11 @@ Each line: what could happen, then what stops it now.
   Jobs, the websocket, the fonts and icons): nothing blocked. Not yet looked at in a
   browser with an episode open (the player, the 360 viewer, the mix) or in Safari.
 
+- [x] **Only the runners import `subprocess`.** Twenty files still imported it for a pipe's,
+  a timeout's or a failed exit's name; those names come from `proc` (the node pack's from
+  `_ff`) now, so the import is in `proc.py`, `_ff.py` and the two helpers that run in
+  another Python (`helpers/colorstats.py`, `helpers/stills.py`). A test holds it.
+
 ## Open
 
 - [ ] **The containment check has two copies**: `core/paths.py` and the node pack's
