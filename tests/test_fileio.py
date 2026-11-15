@@ -5,6 +5,7 @@ a temp name between threads, some without the Windows retry).
 """
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -73,6 +74,35 @@ class FileioTest(unittest.TestCase):
         with mock.patch.object(os, "replace", busy), mock.patch.object(F, "SHARING_WAIT", 0):
             F.write_json(self.p("y.json"), {"v": 2})
         self.assertEqual((len(calls), F.read_json(self.p("y.json"))), (3, {"v": 2}))
+
+    def test_a_move_across_drives_is_copied_in(self):
+        # WinError 17: a take saved to the system temp folder on C:, its show on F:
+        real = os.replace
+
+        def other_drive(a, b):
+            if a == src:
+                e = OSError(errno.EXDEV, "The system cannot move the file to a different disk drive")
+                e.winerror = 17
+                raise e
+            return real(a, b)
+        src, dst = self.p("take.flac"), self.p("sound", "m01", "t01_raw.flac")
+        os.makedirs(os.path.dirname(dst))
+        with open(src, "wb") as fh:
+            fh.write(b"fLaC take")
+        with mock.patch.object(os, "replace", other_drive):
+            F.replace(src, dst)
+        self.assertEqual(self.raw(dst), b"fLaC take")
+        self.assertFalse(os.path.exists(src))
+        self.assertEqual(self.leftovers(os.path.dirname(dst)), [])
+
+    def test_any_other_failed_move_still_raises(self):
+        def denied(a, b):
+            raise OSError(errno.EACCES, "denied")
+        with open(self.p("a"), "wb") as fh:
+            fh.write(b"x")
+        with mock.patch.object(os, "replace", denied), self.assertRaises(OSError):
+            F.replace(self.p("a"), self.p("b"))
+        self.assertTrue(os.path.exists(self.p("a")))
 
     def test_temp_names_are_each_writers_own(self):
         names = {F.temp_beside(self.p("same.json")) for _ in range(50)}

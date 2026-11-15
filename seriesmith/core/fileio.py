@@ -7,7 +7,7 @@ only: the build uses it.
     write_json(path, data)           atomic; UTF-8, LF, a trailing newline
     write_text(path, text) / write_bytes(path, data) / copy(src, dst)
     append_text(path, text)          added to the end of a log (one write, LF)
-    replace(src, dst)                os.replace, waiting out a file in use
+    replace(src, dst)                os.replace, waiting out a file in use; copied across drives
     temp_beside(path)                a temp name of its own beside `path`
     read_json(path, default)         `default` when the file isn't there
     read_json_kept(path)             parsed once while the file is unchanged (shared)
@@ -17,6 +17,7 @@ only: the build uses it.
 from __future__ import annotations
 
 import copy as _copy
+import errno
 import hashlib
 import json
 import os
@@ -44,9 +45,30 @@ def shared(fn):
             time.sleep(SHARING_WAIT)
 
 
+def _other_drive(e: OSError) -> bool:
+    """Whether a rename failed because `src` and `dst` are on different drives
+    (Windows' ERROR_NOT_SAME_DEVICE, 17; EXDEV elsewhere)."""
+    return getattr(e, "winerror", None) == 17 or e.errno == errno.EXDEV
+
+
 def replace(src: str, dst: str) -> None:
-    """os.replace, waiting out a reader holding `dst` open (Windows)."""
-    shared(lambda: os.replace(src, dst))
+    """os.replace, waiting out a reader holding `dst` open (Windows). A rename
+    can't cross drives (a file saved to the system temp folder on C:, the project
+    on F:, or behind a junction to it): then `src` is copied in beside `dst`,
+    renamed into place from there, and removed."""
+    try:
+        shared(lambda: os.replace(src, dst))
+    except OSError as e:
+        if not _other_drive(e):
+            raise
+        part = temp_beside(dst, os.path.splitext(dst)[1])
+        try:
+            shutil.copyfile(src, part)
+            shared(lambda: os.replace(part, dst))
+        finally:
+            if os.path.exists(part):
+                os.remove(part)
+        os.remove(src)
 
 
 def temp_beside(path: str, suffix: str | None = None) -> str:
