@@ -114,6 +114,17 @@ class NotDrawnTest(_Episode):
         by = {r.id: r for r in R.series_refs(s)}
         self.assertIsNone(R.cut_not_drawn(by["location:alcove"]))
 
+    def test_refs_all_lists_the_master_not_its_crop(self):
+        import subprocess
+        os.remove(self.master)
+        r = subprocess.run([sys.executable, "-m", "seriesmith.kreagen", "--project-root", self.ep,
+                            "--all", "--list", "--comfy", "http://127.0.0.1:0", "--no-workflow"],
+                           capture_output=True, text=True, encoding="utf-8",
+                           env=dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8"))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("alcove.png", r.stdout)
+        self.assertNotIn("alcove_left.png", r.stdout)
+
 
 class MakeTest(_Episode):
     def test_made_then_current(self):

@@ -101,7 +101,7 @@ def collect(s: R.Series, todo: list | None, only: set[str] | None,
     picked += [(r, len(usage[r.id]["final"])) for r in heard + beds]
     out = []
     for r, blocks in picked:
-        if R.cut_not_drawn(r) and not args.only:
+        if R.cut_not_drawn(r) and not only:
             continue                  # cut from its master's plate at the end (make_crops)
         why = R.can_generate(s, r)
         if why:
