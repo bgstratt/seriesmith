@@ -299,6 +299,12 @@ seriesmith render Shows\ep05 --only sh040 --target seedance_2_5 --dry-run  # the
   `--allow-missing-refs` renders it against flat grey stand-ins.
 - Other flags: `--panel-mode`, `--save-frames`, `--latent` / `--no-latent`, `--size WxH`,
   `--allow-model-mismatch`.
+- `--dub-track` renders each shot as a dub track instead of a take: tiny, for its spoken lines
+  only, kept in `<episode>\dub\<shot>\` (the editor's **Generate a dub track**). Its voices are
+  cloned from their samples; `--dub-voice generate` makes them from each character's `voice`
+  line instead, which is how a voice sample is made on H3: render a shot where the character
+  speaks alone that way, then import its `<shot>_tNN_h3.wav` as the character's voice candidate
+  (the Refs tab's voice row, **Upload…**).
 - Each target's workflow comes from the running ComfyUI's saved workflows (the name in its
   `target.json` binding: `H3_Ref2VA_Shotlist_v1.json` for H3, `krea2_refs_t2i.json` for
   reference images), so it always matches your ComfyUI's node versions; failing that,

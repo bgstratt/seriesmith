@@ -97,6 +97,11 @@ def parse_args(argv):
     ap.add_argument("--model", help="model file for this run")
     ap.add_argument("--steps", type=int, help="sampler steps for this run")
     ap.add_argument("--size", metavar="WxH", help="render at this size for this run")
+    ap.add_argument("--dub-track", action="store_true",
+                    help="a dub track: each shot rendered tiny for its sound only, kept in <episode>/dub/")
+    ap.add_argument("--dub-voice", choices=("clone", "generate"), default="clone",
+                    help="with --dub-track: the voices cloned from their samples (default), or made "
+                         "from their `voice` lines (a voice sample on the video model)")
     ap.add_argument("--note", default="", help="free text stored in each take's record")
     ap.add_argument("--target", metavar="TARGET", help="render on this video target for this run")
     ap.add_argument("--allow-missing-refs", action="store_true",
@@ -191,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
         model=args.model or None, loras=loras, steps=args.steps, note=args.note,
         allow_missing_refs=args.allow_missing_refs, target=args.target,
         allow_model_mismatch=args.allow_model_mismatch, save_latent=args.save_latent,
-        size=args.size)
+        size=args.size, dub_track=args.dub_track, dub_voice=args.dub_voice)
     only = {s.strip() for s in args.only.split(",")} if args.only else None
 
     try:

@@ -237,7 +237,8 @@ turn in words; left out, Qwen 2.1 + angles when it's installed, else `edit_targe
 (`ambience_target` makes the places' ambience beds: `mmaudio_ambience`, the default, or
 `sa3_sfx_ambience`. `voice_target` can also name a video model that renders a dub track,
 `minimax_h3_ref2va`, `fasth3_omni` or `ltx2`: the editor's dub tracks then start on it, and
-voice samples stay on `ltx2_voice`. Three voice models clone a character's sample rather than
+voice samples stay on `ltx2_voice`; a voice sample can still come from H3, as a dub track whose
+voices are made from their descriptions (seriesmith's commands guide, `render --dub-track --dub-voice generate`). Three voice models clone a character's sample rather than
 continue it: `drama3` and `qwen3_tts` on your GPU, `fishaudio_drama3` hosted and paid; each
 is sent the words alone, and without a sample makes the voice from the `voice` line.)
 

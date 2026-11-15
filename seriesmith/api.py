@@ -1659,6 +1659,11 @@ def post_render(ctx: Context, body):
     then_render = body.get("then_render", False)
     if not isinstance(then_render, bool):
         raise ApiError(400, "then_render must be true or false")
+    dub_voice = body.get("dub_voice", "clone")
+    if dub_voice not in ("clone", "generate"):
+        raise ApiError(400, "dub_voice is clone or generate")
+    if dub_voice == "generate" and not dub_track:
+        raise ApiError(400, "dub_voice says how a dub track's voices are made: ask with dub_track true")
     if then_render and not dub_track:
         raise ApiError(400, "then_render follows a dub track: ask with dub_track true")
     if then_render and ctx.runner is None:
@@ -1703,7 +1708,8 @@ def post_render(ctx: Context, body):
         note=_opt_str(body, "note") or "", allow_missing_refs=allow_missing,
         target=_opt_target(body.get("target")), allow_model_mismatch=allow_mismatch,
         negative=_opt_negative(body.get("negative")), save_latent=save_latent,
-        size=_opt_size(body.get("size")), dub_track=dub_track, redo_range=redo_range)
+        size=_opt_size(body.get("size")), dub_track=dub_track, dub_voice=dub_voice,
+        redo_range=redo_range)
     J.load_shotlist(ep, pass_)                           # 404 before anything else
     if body.get("from_draft") is not None:
         # finals made from Seedance drafts: {shot: its proxy draft take}

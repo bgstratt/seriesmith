@@ -113,6 +113,17 @@ class SoundTest(unittest.TestCase):
         T.save_overrides(self.root, ov)
         self.assertEqual(self.plan("sh020", dub_track=True).target, "fasth3_omni")
 
+    def test_a_dub_track_can_generate_its_voices_for_a_voice_sample(self):
+        """dub_voice "generate": the voices made from their `voice` lines (a voice sample
+        made on the video model, cut from the dub track), still tiny and speech only."""
+        job = self.plan("sh020", dub_track=True, dub_voice="generate")
+        self.assertEqual((job.width, job.height, job.folder), (64, 64, T.DUB_FOLDER))
+        self.assertEqual(job.shot["audio_policy"], "generate")
+        sections = {x.split(":", 1)[0]: x for x in job.prompt}
+        self.assertEqual(sections["overall_soundscape"], f"overall_soundscape: {J.VOICE_SOUND}")
+        self.assertEqual(J.sidecar_for(job)["dub_voice"], "generate")
+        self.assertNotIn("dub_voice", J.sidecar_for(self.plan("sh020", dub_track=True)))
+
     # -- generate / clone --------------------------------------------------
 
     def test_generate_or_clone_recompiles_the_shot_when_its_policy_differs(self):
