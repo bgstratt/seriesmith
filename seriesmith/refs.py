@@ -110,7 +110,7 @@ from seriesmith.targets.image.krea2.graph import (  # noqa: E402,F401
 from seriesmith.targets.image.krea2.prompt import (  # noqa: E402,F401
     VIEW_DESC, VIEW_TAGS, VIEW_TMPL, VIEWS, angle_prompt, group_prompt, object_prompt,
     plate_prompt, sheet_prompt, view_edit_prompt, view_prompt)
-from seriesmith.core.series_config import members  # noqa: E402
+from seriesmith.core.series_config import members, members_are  # noqa: E402
 from seriesmith.core import fileio as F
 
 IMAGE_TARGET = TG.load_target(TG.DEFAULT_IMAGE_TARGET, "image")
@@ -847,7 +847,7 @@ def _reference_parts(s: Series, sh, sq) -> list[dict]:
         kind = e.get("kind", "character")
         d = {"role": "subject", "subject": sid, "name": e.get("name", sid), "kind": kind}
         if members(e):
-            d["members"] = members(e)
+            d["members"], d["members_are"] = members(e), members_are(e)
         if kind == "character" and not members(e):
             p = picked_view_file(s, sid, view)
             if p:
@@ -944,7 +944,8 @@ def built_prompt(s: Series, ref: Ref, view: str | None = None,
     told = MOD.moderated_config(s.series_cfg) if moderated else s.series_cfg
     design = MOD.moderate(e["design"]) if moderated else e["design"]
     if ref.kind == "character" and members(e):
-        return group_prompt(design, s.look, members(e), *gen_size(ref, target=target))
+        return group_prompt(design, s.look, members(e), *gen_size(ref, target=target),
+                            what=members_are(e))
     if ref.kind == "character":
         if view is None:
             # a variant's hand-made-sheet description says where to start from
@@ -3115,7 +3116,7 @@ def _picture_of(s: Series, ref: Ref, view: str | None, take: int | None,
     if take is not None:
         d["take"] = take
     if members(ref.entry):
-        d["members"] = members(ref.entry)
+        d["members"], d["members_are"] = members(ref.entry), members_are(ref.entry)
     return d
 
 

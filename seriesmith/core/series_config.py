@@ -333,10 +333,21 @@ def members(entry: dict) -> int:
     return n if isinstance(n, int) and not isinstance(n, bool) and n >= 2 else 0
 
 
+def members_are(entry: dict) -> str:
+    """What a group's members are, as a plural noun (`members_are`: "horses", "geese"): what
+    every prompt calls them. "people" when left out."""
+    v = entry.get("members_are") if isinstance(entry, dict) else None
+    return " ".join(v.split()) if isinstance(v, str) and v.strip() else "people"
+
+
 def _check_groups(subjects: dict) -> None:
     """A group (`members: N`) is a character whose picture is one whole image
     of N people: give it `sheet_panels: 1`, and refuse what can't be one."""
     for sid, e in subjects.items():
+        if "members_are" in e and (not isinstance(e["members_are"], str) or not e["members_are"].strip()
+                                   or "members" not in e):
+            raise ValueError(f"subject '{sid}' has `members_are`: it says what a group's members "
+                             f"are (\"horses\"), as words, beside `members`")
         if "members" not in e:
             continue
         n = e["members"]

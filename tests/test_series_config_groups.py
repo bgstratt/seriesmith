@@ -52,6 +52,37 @@ class LoadTest(unittest.TestCase):
         self.assertEqual(c["subjects"]["ladies_cloaks"]["sheet_panels"], 1)
 
 
+class MembersAreTest(unittest.TestCase):
+    """`members_are`: what a group's members are, in every prompt. A pair of horses was called
+    "2 different people", and the picture model drew people with them (2026-11-15)."""
+
+    def test_people_by_default_and_the_groups_own_word(self):
+        from seriesmith.core.series_config import members_are
+        self.assertEqual(members_are(series_config_from(cfg())["subjects"]["ladies"]), "people")
+        horses = series_config_from(cfg(design="two matched black carriage horses",
+                                         members=2, members_are="horses"))["subjects"]["ladies"]
+        self.assertEqual(members_are(horses), "horses")
+
+    def test_checked(self):
+        for bad in ("", 3, ["horses"]):
+            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, "members_are"):
+                series_config_from(cfg(members_are=bad))
+        c = cfg()
+        c["subjects"]["ada"]["members_are"] = "horses"         # not a group
+        with self.assertRaisesRegex(ValueError, "members_are"):
+            series_config_from(c)
+
+    def test_every_prompt_says_it(self):
+        from seriesmith.targets import prose
+        from seriesmith.targets.image.krea2.prompt import group_prompt
+        e = series_config_from(cfg(design="two matched black carriage horses", members=2,
+                                   members_are="horses"))["subjects"]["ladies"]
+        self.assertIn("a group of 2 different horses", group_prompt(e["design"], "claymation", 2,
+                                                                    what="horses"))
+        self.assertIn("are 2 different horses", prose.subject_sentence("Duke and Duchess", e["design"], e))
+        self.assertNotIn("people", group_prompt(e["design"], "claymation", 2, what="horses"))
+
+
 class RefTest(unittest.TestCase):
     def test_the_ref_is_one_wide_picture(self):
         from seriesmith import refs as R
