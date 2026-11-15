@@ -5901,10 +5901,12 @@ def get_preset_image(ctx: Context, query: dict):
     """A preset's sample (a JPEG, a camera move's an mp4), by the name GET
     /seriesmith/presets gave."""
     from seriesmith import presets as PR
-    path = PR.image_path(str(query.get("name") or ""))
+    path = PR.image_path(str(query.get("name") or ""))       # a checked name: its kind, a plain file
     if path is None:
         raise ApiError(404, f"no preset picture {query.get('name')!r}")
-    return 200, {"path": path, "content_type": "video/mp4" if path.endswith(".mp4") else "image/jpeg"}
+    # served(): the server streams nothing else (the 2026-11-14 security pass), and this route
+    # still answered a plain dict, so every look, relight and framing picture was a 500
+    return 200, served(path, "video/mp4" if path.endswith(".mp4") else "image/jpeg")
 
 
 # ---------------------------------------------------------------------------
