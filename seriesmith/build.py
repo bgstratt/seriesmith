@@ -365,9 +365,10 @@ def appearing_cuts(story: ir.Episode, person, name) -> list[str]:
             out.append(
                 f"sequence {sq.id}: {a.id} -> {b.id} keeps the view ({plate}, "
                 f"{framing.term(a.size)} to {framing.term(b.size)}) and {what}: a jump cut, "
-                f"unless the action has them come in or go. Change the size by two or more "
-                f"steps, give {b.id} another `plate:`, put an insert between them, or have them "
-                f"walk into frame (docs/AUTHORING.md, \"Cutting within a location\").")
+                f"unless the action has them come in or go. Continue it (`continuous: latent`: "
+                f"{b.id} opens on {a.id}'s last frames, and whoever comes in walks in), change the "
+                f"size by two or more steps, give {b.id} another `plate:`, or put an insert between "
+                f"them (docs/AUTHORING.md, \"Cutting within a location\").")
     return out
 
 
