@@ -25,6 +25,7 @@ interface SettingsView {
     local_url: string; comfyui_url: string; cloud_url: string; api_key: "set" | null; deployments: Record<string, string>;
     path: string | null; paid_limit?: number | null; local_via?: "comfyui" | "proxy";
     hf_token?: "set" | null; ffmpeg_dir?: string | null; comfyui_dir?: string | null;
+    comfyui_key_url?: string | null;
     default_targets?: Record<string, string>; detected_targets?: Record<string, string>;
   };
   file: string;
@@ -143,6 +144,20 @@ function ServerSection() {
   );
 }
 
+// whether a ComfyUI address is another machine's (not this PC's own)
+function onAnotherMachine(address: string): boolean {
+  try {
+    const host = new URL(address.trim()).hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    return !(host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".localhost"));
+  } catch {
+    return false;
+  }
+}
+
+function sameAddress(a: string, b: string): boolean {
+  return a.trim().replace(/\/+$/, "") === b.trim().replace(/\/+$/, "");
+}
+
 function SettingsBody({ server }: { server: boolean }) {
   const targets = useApp((s) => s.targets);
   const [view, setView] = useState<SettingsView | null>(null);
@@ -160,6 +175,8 @@ function SettingsBody({ server }: { server: boolean }) {
   const [deps, setDeps] = useState<{ target: string; url: string }[]>([]);
   const [limit, setLimit] = useState("");
   const [viaProxy, setViaProxy] = useState(false);
+  // a ComfyUI on another machine trusted with the Comfy API key (a partner node's job carries it)
+  const [keyTrust, setKeyTrust] = useState(false);
   const [defaults, setDefaults] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [sdk, setSdk] = useState<SdkState | null>(null);
@@ -172,6 +189,7 @@ function SettingsBody({ server }: { server: boolean }) {
     setDeps(Object.entries(v.settings.deployments).map(([target, url]) => ({ target, url })));
     setLimit(v.settings.paid_limit == null ? "" : String(v.settings.paid_limit));
     setViaProxy(v.settings.local_via === "proxy");
+    setKeyTrust(!!v.settings.comfyui_key_url && sameAddress(v.settings.comfyui_key_url, v.settings.comfyui_url));
     setDefaults({ ...(v.settings.default_targets ?? {}) });
     if (v.sdk) setSdk(v.sdk);
     setKey("");
@@ -194,6 +212,8 @@ function SettingsBody({ server }: { server: boolean }) {
       if (key.trim() && !view?.from_env.api_key) body.api_key = key.trim();
       if (hfToken.trim() && !view?.from_env.hf_token) body.hf_token = hfToken.trim();
       for (const k of ["ffmpeg_dir", "comfyui_dir"] as const) body[k] = dirs[k].trim() || null;
+      // only for the address it was ticked for: a new address starts untrusted
+      body.comfyui_key_url = keyTrust && onAnotherMachine(urls.comfyui_url) ? urls.comfyui_url.trim().replace(/\/+$/, "") : null;
       body.paid_limit = limit.trim() === "" ? null : Math.max(0, Math.floor(Number(limit)));
       if (!view?.from_env.local_via) body.local_via = viaProxy ? "proxy" : null;
       body.default_targets = Object.fromEntries(Object.entries(defaults).filter(([, v]) => v));
@@ -272,6 +292,16 @@ function SettingsBody({ server }: { server: boolean }) {
           </div>
           <div className="h3-form">
             {url("comfyui_url", "ComfyUI", "Your ComfyUI: local renders go to it, and model lists and node checks come from it. No ComfyUI yet? Features says how to get one, and finds it once it runs.")}
+            {onAnotherMachine(urls.comfyui_url) && (
+              <>
+                <span />
+                <label className="h3-small" style={{ display: "flex", gap: 6, alignItems: "flex-start" }}
+                  title="A Comfy partner node (a paid model inside a local workflow) reads your Comfy API key from the job it runs in. This ComfyUI is on another machine, so the key would be sent there with those jobs. Off: such a job is refused, and everything else on this ComfyUI still runs. It can be changed only on the PC running seriesmith, and applies to this address only.">
+                  <input type="checkbox" checked={keyTrust} onChange={(e) => setKeyTrust(e.target.checked)} />
+                  <span>Send my Comfy API key to this ComfyUI for paid partner nodes (it's on another machine)</span>
+                </label>
+              </>
+            )}
             {defaultPick("video", video, "minimax_h3_ref2va")}
             {defaultPick("image", images, "krea2")}
           </div>

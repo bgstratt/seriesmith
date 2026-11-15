@@ -12,6 +12,9 @@ targets use it.
     episode_files(root)        (series.json, script), or ValueError saying what's missing
     safe_id(text, fallback)    an id made safe for a file or folder name
     show_file(base, p)         a path a show's own files name, kept inside the show
+    inside(path, roots)        whether a path is in one of this PC's folders
+    real(p), is_network(p)     a path with its links resolved; a network path elsewhere is
+                               never looked at (Windows would sign in to its host)
 
 A path a show's own files name (a sheet or plate, the recording, a theme, a mix item, a
 take record's file) is followed only inside the show: the folder holding the episode
@@ -82,23 +85,66 @@ class OutsideShow(ValueError):
 # The project folders, as the editor's server knows them (api.load_roots keeps this
 # current); the command line has none, so there a show's paths stay in the show.
 _project_roots: list[str] = []
+_network_roots: list[str] = []          # the project folders that are on a network share, as written
 
 
-def _real(p: str) -> str:
+def _lexical(p: str) -> str:
+    """`p` whole and normalised by its text alone: the disk and the network aren't touched."""
+    return os.path.normcase(os.path.normpath(os.path.abspath(p)))
+
+
+def is_network(p: str) -> bool:
+    r"""Whether `p` is a Windows network or device path (`\\host\share`, `//host/share`,
+    `\\?\`, `\\.\`), by its text. Looking at such a path at all (a stat, resolving its links)
+    makes Windows sign in to that host, which hands it the user's NTLM hash."""
+    return os.name == "nt" and isinstance(p, str) and _lexical(p).startswith("\\\\")
+
+
+def real(p: str, trusted=()) -> str:
+    """`p` with its links resolved, for comparing folders. A network path is resolved only
+    under a project folder or one of `trusted` that is itself on that share; any other is
+    returned as written, untouched, so it compares as outside every folder on this PC."""
+    if foreign(p, trusted):
+        return _lexical(p)
     return os.path.normcase(os.path.realpath(os.path.abspath(p)))
 
 
-def _inside(path: str, root: str) -> bool:
-    try:
-        return os.path.commonpath([path, root]) == root
-    except ValueError:                                    # another drive
+def foreign(p: str, trusted=()) -> bool:
+    """Whether `p` is a network path that isn't this PC's to look at: not under a project
+    folder on that share, nor one of `trusted`."""
+    if not is_network(p):
         return False
+    lex = _lexical(p)
+    own = [*_network_roots, *(_lexical(t) for t in trusted if t and is_network(t))]
+    return not any(_inside(lex, t) for t in own)
+
+
+def _real(p: str) -> str:
+    return real(p)
+
+
+def _inside(path: str, root: str) -> bool:
+    """Whether `path` is `root` or under it; both as real() gives them (whole, normalised).
+    By their text, a folder at a time: os.path.commonpath refuses a network share's own
+    root, so a project folder that was one never matched."""
+    root = root.rstrip("\\/")
+    return path.rstrip("\\/") == root or path.startswith(root + os.sep)
+
+
+def inside(path: str, roots) -> bool:
+    """Whether `path` is in one of the folders `roots` (each trusted: this PC's own), links
+    resolved; a network path under none of them is refused without being looked at."""
+    roots = [r for r in roots or () if r]
+    got = real(path, roots)
+    return any(_inside(got, real(r, [r])) for r in roots)
 
 
 def set_project_roots(roots) -> None:
     """The project folders a show's paths may also lead into."""
-    global _project_roots
-    _project_roots = [_real(r) for r in roots or () if isinstance(r, str) and r]
+    global _project_roots, _network_roots
+    roots = [r for r in roots or () if isinstance(r, str) and r]
+    _network_roots = [_lexical(r) for r in roots if is_network(r)]
+    _project_roots = [real(r, [r]) for r in roots]
 
 
 def show_folder(base: str) -> str:
@@ -129,10 +175,11 @@ def show_file(base: str, p: str, also=()) -> str:
     if not isinstance(p, str) or not p or "\x00" in p:
         raise OutsideShow(f"not a path: {p!r}")
     full = os.path.normpath(p if os.path.isabs(p) else os.path.join(base, p))
-    real = _real(full)
     show = show_folder(base)
-    for root in (_real(show), *_project_roots, *(_real(a) for a in also if a)):
-        if _inside(real, root):
+    own = [show, *(a for a in also if a)]
+    got = real(full, own)                                 # a network path elsewhere: never touched
+    for root in (*(real(r, [r]) for r in own), *_project_roots):
+        if _inside(got, root):
             return full
     raise OutsideShow(f"{p} is outside the show ({show}): import it, or move it into "
                       "the show's folder or a project folder")
@@ -140,5 +187,7 @@ def show_file(base: str, p: str, also=()) -> str:
 
 def safe_id(text: str, fallback: str = "") -> str:
     """`text` with anything but letters, digits, `_`, `.` and `-` made `_`, for
-    a file or folder name; `fallback` when that leaves nothing."""
-    return re.sub(r"[^A-Za-z0-9_.-]", "_", str(text)) or fallback
+    a file or folder name; `fallback` when that leaves nothing, or only dots (`.`, `..`:
+    a folder's own name for itself or its parent, never an id)."""
+    out = re.sub(r"[^A-Za-z0-9_.-]", "_", str(text))
+    return out if out.strip(".") else fallback

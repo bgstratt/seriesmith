@@ -94,11 +94,72 @@ def drop_uploads(form) -> None:
 
 
 LOOPBACK_ADDRS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+# on every answer: a file is the type the server says, never one the browser guesses
+CLIENT_HEADER = "X-Seriesmith-Client"
+SAFE_HEADERS = {"X-Content-Type-Options": "nosniff"}
+# on the standalone server's answers too: its page isn't framed by another site, loads no
+# plugin, keeps its own base address, and runs and loads only what the server itself sends
+PAGE_POLICY = (
+    "default-src 'self'",
+    # the page's own script files, and the inline ones the built page has (by their hashes:
+    # the theme, set before first paint). Text that reaches the page as markup runs nothing.
+    "script-src 'self'{hashes}",
+    # React writes style attributes, and the page's own <style>: styles run no code
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:", "media-src 'self' data: blob:", "font-src 'self' data:",
+    # its own API and its own websocket (named: 'self' doesn't cover ws: in every browser)
+    "connect-src 'self'{sockets}",
+    "worker-src 'self' blob:", "form-action 'self'",
+    "frame-ancestors 'self'", "object-src 'none'", "base-uri 'self'")
+PAGE_HEADERS = {**SAFE_HEADERS, "X-Frame-Options": "SAMEORIGIN", "Referrer-Policy": "no-referrer",
+                "Content-Security-Policy": "; ".join(PAGE_POLICY).format(hashes="", sockets="")}
+_INLINE: dict[str, tuple[float, tuple[str, ...]]] = {}
+
+
+def inline_script_hashes(html: str) -> tuple[str, ...]:
+    """The CSP hash of each inline script in a page ('sha256-...'): a <script> with no src."""
+    import base64
+    import hashlib
+    import re
+    out = []
+    for attrs, body in re.findall(r"<script\b([^>]*)>(.*?)</script>", html, re.S | re.I):
+        if not re.search(r"\bsrc\s*=", attrs, re.I) and body.strip():
+            out.append("'sha256-" + base64.b64encode(hashlib.sha256(body.encode("utf-8")).digest()).decode() + "'")
+    return tuple(out)
+
+
+def page_policy(page: str | None, host: str | None) -> str:
+    """The Content-Security-Policy for the built page at `page`, answered as `host`."""
+    import re
+    hashes: tuple[str, ...] = ()
+    if page:
+        try:
+            when = os.path.getmtime(page)
+            if _INLINE.get(page, (None,))[0] != when:
+                with open(page, encoding="utf-8", newline="") as fh:    # the bytes the browser hashes
+                    _INLINE[page] = (when, inline_script_hashes(fh.read()))
+            hashes = _INLINE[page][1]
+        except OSError:
+            pass
+    sockets = ""
+    if host and re.fullmatch(r"[A-Za-z0-9.\-]+(:\d+)?|\[[0-9A-Fa-f:]+\](:\d+)?", host):
+        sockets = f" ws://{host} wss://{host}"
+    return "; ".join(PAGE_POLICY).format(hashes="".join(" " + h for h in hashes), sockets=sockets)
+
+
+async def page_headers(request, response) -> None:
+    """aiohttp's on_response_prepare: PAGE_HEADERS on every answer of the standalone server."""
+    for k, v in PAGE_HEADERS.items():
+        response.headers.setdefault(k, v)
+    response.headers["Content-Security-Policy"] = page_policy(request.app.get("page"),
+                                                              request.headers.get("Host"))
 
 
 def is_local(request: web.Request) -> bool:
-    """Whether a request came from the PC the server runs on (its address, never a header)."""
-    return (request.remote or "") in LOOPBACK_ADDRS
+    """Whether a request is the PC's own: from its address, and addressed to it as localhost
+    (guard.from_this_pc: never a forwarding header)."""
+    from seriesmith.server.guard import from_this_pc
+    return from_this_pc(request.remote, request.headers.get("Host"))
 
 
 def json_type(request: web.Request) -> bool:
@@ -143,7 +204,11 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str):
             arg = dict(request.query)
         ctx = make_context()
         ctx.sweep_later = True             # a server answers first, then tidies (get_refs)
-        ctx.local = is_local(request)      # this PC, or another device (api.check_source)
+        # this PC, or another device (api.check_source). The MCP server says who it is: a model
+        # client reads scripts and pages, so its calls aren't the person's at the PC: no
+        # PC-only setting, and from outside the project folders only pictures, video and sound
+        ctx.mcp = is_local(request) and request.headers.get(CLIENT_HEADER, "") == "mcp"
+        ctx.local = is_local(request) and not ctx.mcp
         loop = asyncio.get_running_loop()
         # a request that queues work is kept with its jobs (runner.ASKED), so
         # one still waiting when the server stops can be asked for again
@@ -166,8 +231,12 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str):
         finally:
             drop_uploads(arg)
         if is_file and status == 200:
-            return web.FileResponse(data["path"], headers={
-                "Cache-Control": "no-cache", "Content-Type": data["content_type"]})
+            if not isinstance(data, A.Served):            # only a path a route checked (api.served)
+                return _json(500, {"error": "that route didn't name a file to send"})
+            headers = {"Cache-Control": "no-cache", "Content-Type": data["content_type"], **SAFE_HEADERS}
+            if data["content_type"] == "application/octet-stream":
+                headers["Content-Disposition"] = "attachment"   # a kind the page doesn't show: saved, never opened
+            return web.FileResponse(data["path"], headers=headers)
         return _json(status, data)
     view.__name__ = f"seriesmith_{fn.__name__}"
     return view

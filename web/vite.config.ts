@@ -22,11 +22,27 @@ const COMFY_EXTERNALS: Record<string, string> = {
   "comfyui/api": "../../scripts/api.js",
 };
 
+// PrimeIcons ships its font five times over (eot, woff2, woff, ttf, svg: 630 KB); every
+// browser the page runs in reads woff2 (35 KB), so the stylesheet names that one only.
+const woff2Only = {
+  name: "seriesmith-primeicons-woff2",
+  enforce: "pre" as const,
+  transform(code: string, id: string) {
+    if (!id.replace(/\\/g, "/").includes("/primeicons/primeicons.css")) return null;
+    let first = true;
+    return code.replace(/^\s*src:[^;]*;\s*$/gm, () => {
+      if (!first) return "";
+      first = false;
+      return "    src: url('./fonts/primeicons.woff2') format('woff2');";
+    });
+  },
+};
+
 export default defineConfig(({ command, mode }) => {
   const standalone = mode === "standalone";
   const extension = command === "build" && mode !== "devpage" && !standalone;
   return {
-    plugins: [react()],
+    plugins: [woff2Only, react()],
     define: extension ? { "process.env.NODE_ENV": JSON.stringify("production") } : {},
     // the mock reads the kitchen_sink series config from tests/fixtures (outside web/)
     // No `open`: npm run dev must never pop a browser window (open http://localhost:<port>/dev.html yourself).

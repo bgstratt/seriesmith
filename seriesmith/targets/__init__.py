@@ -529,11 +529,19 @@ class Target:
         self.template = Template(spec.get("template") or {}, self.short)
         self.recipe: dict = dict(spec.get("recipe") or {})
         b = dict(spec.get("binding") or {})
+        # a target.json is data (a show's own comes with the show): its workflow is a file in
+        # its own folder by name, never a path elsewhere, and the variable that can point at
+        # another is a workflow's by its name, never any variable of the environment
         wf = b.get("workflow", "")
+        if not isinstance(wf, str) or wf != os.path.basename(wf.replace("\\", "/")) or wf in (".", ".."):
+            wf = ""
+        env = b.get("env", "")
+        if not isinstance(env, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]*WORKFLOW", env):
+            env = ""
         self.binding = Binding(
             workflow=os.path.join(folder, wf) if wf else "",
             workflow_name=b.get("workflow_name") or wf,
-            env=b.get("env", ""), loader=dict(b.get("loader") or {}),
+            env=env, loader=dict(b.get("loader") or {}),
             saver=dict(b.get("saver") or {}), params=dict(b.get("params") or {}),
             review_nodes=list(b.get("review_nodes") or []), prune=bool(b.get("prune")),
             bypass={str(k): str(v) for k, v in (b.get("bypass_if_missing") or {}).items()})
@@ -797,9 +805,18 @@ class Target:
     @property
     def downloads(self) -> dict[str, dict]:
         """target.json `downloads`: {file name: {"folder", "url" (None: no
-        trustworthy record), "source"}}."""
-        return {k: dict(v) for k, v in (self.spec.get("downloads") or {}).items()
-                if not k.startswith("_") and isinstance(v, dict)}
+        trustworthy record), "source"}}. A record the Features window mustn't act on
+        (core.downloads: a URL that isn't Hugging Face's or Civitai's, a folder that isn't a
+        models folder, a file that isn't a model) keeps its name and loses its URL and
+        folder, with why in `source`."""
+        from seriesmith.core import downloads as DL
+        out = {}
+        for k, v in (self.spec.get("downloads") or {}).items():
+            if k.startswith("_") or not isinstance(v, dict):
+                continue
+            why = DL.download_problem(k, v)
+            out[k] = {**v, "url": None, "folder": "", "source": why} if why else dict(v)
+        return out
 
     @property
     def fetches(self) -> dict[str, dict]:
@@ -809,8 +826,10 @@ class Target:
         there (seriesmith.hubcache): {Hugging Face repo: {"into": "hf" (its
         cache) | a models folder (the repo's files in <folder>/<repo>/),
         "files": [the patterns it reads], "extra"?: [more to fetch]}}."""
+        from seriesmith.core import downloads as DL
         return {k: dict(v) for k, v in (self.spec.get("fetches") or {}).items()
-                if not k.startswith("_") and isinstance(v, dict) and v.get("into")}
+                if not k.startswith("_") and isinstance(v, dict) and v.get("into")
+                and not DL.fetch_problem(k, v)}
 
     @property
     def nodes(self) -> dict[str, dict]:

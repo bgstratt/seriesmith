@@ -11,9 +11,9 @@ Stdlib only.
 from __future__ import annotations
 
 import os
-import subprocess
 import wave
 
+from seriesmith import proc as PROC
 from seriesmith import ff as FF
 
 
@@ -63,7 +63,7 @@ def _ffmpeg_slice(src: str, dst: str, start: float | None, end: float | None) ->
     if end is not None:
         cmd += ["-t", f"{end - (start or 0.0):.3f}"]
     cmd += ["-ac", "2", "-acodec", "pcm_s16le", dst]
-    r = subprocess.run(cmd, capture_output=True, timeout=300)
+    r = PROC.run(cmd, capture_output=True, timeout=300)
     if r.returncode or not os.path.isfile(dst):
         raise AudioError(f"ffmpeg could not cut {os.path.basename(src)}: "
                          f"{r.stderr.decode('utf-8', 'replace')[-200:]}")

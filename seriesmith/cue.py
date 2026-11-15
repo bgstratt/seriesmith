@@ -74,10 +74,10 @@ import json
 import math
 import os
 import re
-import subprocess
 import threading
 import wave
 
+from seriesmith import proc as PROC
 from seriesmith.core.paths import show_file
 from seriesmith import beats as B
 from seriesmith import edit as E
@@ -405,6 +405,10 @@ def meter_beats(spec: dict) -> int:
 
 
 def cue_dir(root: str, cid: str) -> str:
+    """A cue's folder. FileNotFoundError for an id that isn't one (a path, `..`): the id
+    comes from a request or a mix, and is a folder's name here."""
+    if not isinstance(cid, str) or not _ID_RX.match(cid):
+        raise FileNotFoundError(f"no cue {cid!r} in {root}")
     return os.path.join(root, SOUND_DIR, cid)
 
 
@@ -1351,7 +1355,7 @@ def stretch_file(src: str, dst: str, factor: float) -> None:
     """`src` played `factor` times faster (atempo: the pitch kept) as a 24-bit wav."""
     af = [] if abs(factor - 1.0) < 1e-4 else ["-af", f"atempo={factor:.6f}"]
     tmp = F.temp_beside(dst, ".wav")
-    r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src, *af, "-ar", str(MX.RATE),
+    r = PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src, *af, "-ar", str(MX.RATE),
                         "-ac", "2", "-c:a", "pcm_s24le", tmp], capture_output=True, timeout=600)
     if r.returncode != 0:
         if os.path.exists(tmp):

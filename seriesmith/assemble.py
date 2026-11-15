@@ -69,13 +69,13 @@ import argparse
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import wave
 
 # Sibling modules: ComfyUI's embedded Python (a ._pth install) doesn't put a
 # script's own folder on sys.path, so do it here.
+from seriesmith import proc as PROC
 from seriesmith import checks as CK  # noqa: E402
 from seriesmith import color as COL  # noqa: E402
 from seriesmith import jobs as J  # noqa: E402
@@ -93,8 +93,8 @@ NOT_RENDERED = "not rendered"
 PROGRESS = "##assemble "
 
 
-def run(cmd: list[str], timeout: int = 900) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, timeout=timeout)
+def run(cmd: list[str], timeout: int = 900) -> PROC.CompletedProcess:
+    return PROC.run(cmd, capture_output=True, timeout=timeout)
 
 
 def say(on: bool, stage: str, done: int | None = None, total: int | None = None,
@@ -396,7 +396,7 @@ def rejoin_sound(out: str, clips: list[tuple[str, int]], fps: float, tmp: str) -
     joined = os.path.join(tmp, "rejoin.wav")
     listing = os.path.join(tmp, "rejoin.txt")
     with open(listing, "w", encoding="utf-8") as fh:
-        fh.writelines(f"file '{p.replace(os.sep, '/')}'\n" for p in parts)
+        fh.writelines(FF.concat_line(p) for p in parts)
     r = run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", listing,
              "-c:a", "pcm_s16le", joined])
     if r.returncode != 0:
@@ -1414,7 +1414,7 @@ def main(argv: list[str] | None = None) -> int:
             shutil.copy(src, norm)
         return norm
 
-    def write(sel, tmp: str, made: dict[int, str]) -> tuple[subprocess.CompletedProcess, list]:
+    def write(sel, tmp: str, made: dict[int, str]) -> tuple[PROC.CompletedProcess, list]:
         layout = pick_layout(sel)
         listing = os.path.join(tmp, "concat.txt")
         clips = []
@@ -1447,7 +1447,7 @@ def main(argv: list[str] | None = None) -> int:
                     parts.append((norm, p["used"]))
                 for path, frames in parts:
                     clips.append((path, frames))
-                    fh.write(f"file '{path.replace(os.sep, '/')}'\n")
+                    fh.write(FF.concat_line(path))
                 say(args.progress, "clips", i + 1, len(plan), p["id"])
         say(args.progress, "join", text=os.path.basename(out_path))
         return run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-f", "concat", "-safe", "0",
@@ -1570,7 +1570,7 @@ def main(argv: list[str] | None = None) -> int:
         say(args.progress, "checks", text="checking the picture")
         try:
             ck = CK.check(out_path, check_clips(plan, fps), fps, total / fps)
-        except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
+        except (RuntimeError, OSError, PROC.TimeoutExpired) as e:
             print(f"  ! checks: the picture couldn't be read ({str(e).strip()[-200:]})")
             if os.path.isfile(side):
                 os.remove(side)

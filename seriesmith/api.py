@@ -25,6 +25,7 @@ import threading
 # the pipeline
 # ---------------------------------------------------------------------------
 
+from seriesmith import proc as PROC
 from seriesmith import cue as CU  # noqa: E402
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import inspector as IN  # noqa: E402
@@ -111,6 +112,10 @@ class Context:
         # request's address; a direct caller is that PC). Only that PC may change the project
         # folders, or browse and import beyond them (check_source, put_config, get_browse).
         self.local = True
+        # the MCP server's calls (a server sets it): not `local`, since a model client can be
+        # steered by what it reads, but it works on the PC for the person there, so it may
+        # import a picture, a video or a sound from anywhere on the PC (check_source)
+        self.mcp = False
 
     @property
     def runner(self):
@@ -313,20 +318,16 @@ def config_json(ctx: Context) -> dict:
             "review_copy": review_copy(ctx), "version": CONFIG_VERSION}
 
 
-def _real(p: str) -> str:
-    return os.path.normcase(os.path.realpath(os.path.abspath(p)))
-
-
-def _inside(path: str, root: str) -> bool:
-    try:
-        return os.path.commonpath([path, root]) == root
-    except ValueError:                                    # another drive
-        return False
+# core.paths' own: a network path outside the project folders is compared as written,
+# never looked at (Windows would sign in to its host)
+_real = PA.real
+_inside = PA._inside
 
 
 def in_roots(ctx: Context, path: str) -> bool:
+    roots = load_roots(ctx)                               # first: which network folders are ours
     real = _real(path)
-    return any(_inside(real, _real(r)) for r in load_roots(ctx))
+    return any(_inside(real, _real(r)) for r in roots)
 
 
 def too_wide(path: str) -> bool:
@@ -334,6 +335,16 @@ def too_wide(path: str) -> bool:
     holds the user's own folder (the Users folder, the home folder itself)."""
     real = _real(path)
     return os.path.dirname(real) == real or _inside(_real(os.path.expanduser("~")), real)
+
+
+class Served(dict):
+    """A file a route answers with ({"path", "content_type"}), for the server to stream. Made
+    only by served(), by the routes that have checked the path (ep_file, a zip's id): the
+    server streams nothing else, whatever a handler returns."""
+
+
+def served(path: str, content_type: str) -> Served:
+    return Served(path=path, content_type=content_type)
 
 
 def from_this_pc(ctx: Context, what: str) -> None:
@@ -349,9 +360,26 @@ def check_source(ctx: Context, path, what: str = "source_path") -> str:
     if not os.path.isabs(path):
         raise ApiError(400, f"{what} must be an absolute path, not {path!r}")
     if not ctx.local and not in_roots(ctx, path):
-        raise ApiError(403, f"from another device, {what} must be inside a project folder: "
-                            "drag the file in instead")
+        if not ctx.mcp:
+            raise ApiError(403, f"from another device, {what} must be inside a project folder: "
+                                "drag the file in instead")
+        if not mcp_may_read(path, MCP_SOURCE_EXTS):
+            raise ApiError(403, f"{what}: outside the project folders, the MCP server imports "
+                                "pictures, video and sound on this PC only (and an edit's .xml), "
+                                f"not {os.path.basename(path)!r}")
     return path
+
+
+MCP_SOURCE_EXTS = (".xml",)
+
+
+def mcp_may_read(path: str, also: tuple = ()) -> bool:
+    """Whether the MCP server may import `path` from outside the project folders: a picture,
+    a video or a sound by its name (never a key, a document, a settings file), on this PC's
+    own disks (a network path is never looked at)."""
+    from seriesmith import xmlimport as XI
+    ext = os.path.splitext(path)[1].lower()
+    return ext in XI.MEDIA_EXTS + tuple(also) and not PA.is_network(path)
 
 
 def check_ep(ctx: Context, ep) -> str:
@@ -366,8 +394,9 @@ def check_ep(ctx: Context, ep) -> str:
         raise ApiError(400, "ep is required: the episode's absolute folder path")
     if not os.path.isabs(ep):
         raise ApiError(400, f"ep must be an absolute path, not {ep!r}")
+    roots = load_roots(ctx)                               # first: which network folders are ours
     real = _real(ep)
-    if not any(_inside(real, _real(r)) for r in load_roots(ctx)):
+    if not any(_inside(real, _real(r)) for r in roots):
         raise ApiError(403, f"{ep} is not inside a configured root "
                             "(set them with PUT /seriesmith/config)")
     if not os.path.isdir(ep):
@@ -1212,7 +1241,7 @@ def check_folder(ctx: Context, path, what: str = "folder") -> str:
         raise ApiError(400, f"{what} is required: an absolute folder path")
     if not os.path.isabs(path):
         raise ApiError(400, f"{what} must be an absolute path, not {path!r}")
-    if not any(_inside(_real(path), _real(r)) for r in load_roots(ctx)):
+    if not in_roots(ctx, path):
         raise ApiError(403, f"{path} is not inside a configured root "
                             "(set them with PUT /seriesmith/config)")
     if not os.path.isdir(path):
@@ -1230,7 +1259,7 @@ def get_file(ctx: Context, query: dict):
     ep = check_ep(ctx, query.get("ep"))
     full, rel = ep_file(ctx, ep, query.get("path"))
     ext = os.path.splitext(full)[1].lower()
-    return 200, {"path": full, "content_type": CONTENT_TYPES.get(ext, "application/octet-stream")}
+    return 200, served(full, CONTENT_TYPES.get(ext, "application/octet-stream"))
 
 
 # a selection's zip (the gallery's Download): kept this long, then swept
@@ -1313,7 +1342,7 @@ def get_download(ctx: Context, query: dict):
     path = os.path.join(_zips_dir(ctx), zid + ".zip")
     if not os.path.isfile(path):
         raise ApiError(404, "that zip is gone (they're kept an hour): select and download again")
-    return 200, {"path": path, "content_type": "application/zip"}
+    return 200, served(path, "application/zip")
 
 
 THUMB_WIDTHS = (128, 256, 512, 1024)
@@ -1339,8 +1368,8 @@ def get_thumb(ctx: Context, query: dict):
     ext = os.path.splitext(full)[1].lower()
     small = thumb_file(ctx, full, width) if ext in THUMB_EXT else None
     if small is None:
-        return 200, {"path": full, "content_type": CONTENT_TYPES.get(ext, "application/octet-stream")}
-    return 200, {"path": small, "content_type": "image/jpeg"}
+        return 200, served(full, CONTENT_TYPES.get(ext, "application/octet-stream"))
+    return 200, served(small, "image/jpeg")
 
 
 def thumb_file(ctx: Context, full: str, width: int) -> str | None:
@@ -2895,7 +2924,11 @@ def get_titles(ctx: Context, query: dict):
     cfg = E.episode_series_config(ep)
     if cfg:
         with open(cfg, encoding="utf-8") as fh:
-            out["subtitle"] = PUB.publish_config(json.load(fh))["subtitle"]
+            raw = json.load(fh)
+        try:
+            out["subtitle"] = PUB.publish_config(raw)["subtitle"]
+        except PUB.PublishError as e:                     # a title setting that isn't what it says
+            return 200, {**out, "error": str(e)}
     script = E.episode_script(ep)
     return 200, {**out, "intro": rel(intro), "outro": rel(outro),
                  "title": PUB.episode_title(script) if script else ""}
@@ -4908,6 +4941,7 @@ def put_provider(ctx: Context, body):
     wrong with it."""
     from seriesmith import providers as PR
     from seriesmith import settings as S
+    from_this_pc(ctx, "a provider (where your files and its key are sent)")
     d = body_dict(body).get("definition")
     if not isinstance(d, dict):
         raise ApiError(400, "definition must be the provider's definition, as an object")
@@ -4918,7 +4952,8 @@ def put_provider(ctx: Context, body):
         raise ApiError(400, str(e))
     # a key saved for it goes to the hosts it was saved for, never to new ones: typed again
     dropped = False
-    if PR.moves_key(d, before) and (S.load_settings().provider_keys or {}).get(d["id"]):
+    # (nor to a new provider that takes the name of one removed)
+    if (before is None or PR.moves_key(d, before)) and (S.load_settings().provider_keys or {}).get(d["id"]):
         try:
             S.save_settings({"provider_keys": {d["id"]: None}})
             dropped = True
@@ -4933,7 +4968,16 @@ def put_provider(ctx: Context, body):
 def delete_provider(ctx: Context, query: dict):
     """Remove this machine's definition of a provider. Query {id}."""
     from seriesmith import providers as PR
-    gone = PR.delete(query.get("id") or "")
+    from seriesmith import settings as S
+    from_this_pc(ctx, "a provider (where your files and its key are sent)")
+    pid = query.get("id") or ""
+    gone = PR.delete(pid)
+    # its key goes with it: a provider of that name added later never inherits it
+    if gone and pid not in PR.definitions() and (S.load_settings().provider_keys or {}).get(pid):
+        try:
+            S.save_settings({"provider_keys": {pid: None}})
+        except (OSError, ValueError) as e:
+            raise ApiError(500, f"the settings couldn't be saved: {e}")
     _refresh_providers(ctx)
     return 200, {"ok": True, "deleted": gone, "providers": PR.listing()}
 
@@ -4943,6 +4987,7 @@ def put_provider_key(ctx: Context, body):
     """Set a provider's key, write-only; a null removes it. Body {id, key}."""
     from seriesmith import providers as PR
     from seriesmith import settings as S
+    from_this_pc(ctx, "a provider's key")
     body = body_dict(body)
     pid, key = _opt_str(body, "id") or "", body.get("key")
     if pid not in PR.definitions():
@@ -4957,7 +5002,7 @@ def put_provider_key(ctx: Context, body):
     return 200, {"ok": True, "id": pid, "providers": PR.listing()}
 
 
-def _reference_at(address: str) -> dict:
+def _reference_at(address: str, local: bool = False) -> dict:
     """What an address gives of a provider's API: {"text": an OpenAPI document or a cURL, "doc"?: the
     document that goes with that cURL, "poll"?: the cURL that checks on a job}. A docs page counts,
     when its HTML has them. SpecError saying what to do."""
@@ -4970,10 +5015,12 @@ def _reference_at(address: str) -> dict:
     from seriesmith.backends.http import USER_AGENT
 
     def fetched(url: str) -> str:
-        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-        ctx_ = tls() if url.startswith("https") else None
-        with urllib.request.urlopen(req, timeout=30.0, context=ctx_) as r:
-            return r.read(8 * 1024 * 1024).decode("utf-8", "replace")
+        # an address a request names, and the links its page names: public https only, each
+        # redirect too (seriesmith.net), never this PC's network; an address on this PC only
+        # when the PC itself asks (`local`), never for another device
+        from seriesmith import net as NET
+        return NET.read(url, 8 * 1024 * 1024, 30.0, {"User-Agent": USER_AGENT},
+                        local=local, context=tls()).decode("utf-8", "replace")
 
     def as_document(raw: str) -> dict | None:
         try:
@@ -5037,7 +5084,7 @@ def post_provider_draft(ctx: Context, body):
         try:
             found: dict = {}
             if re.fullmatch(r"https?://\S+", text.strip()):
-                found = _reference_at(text.strip())
+                found = _reference_at(text.strip(), ctx.local)
                 text = found["text"]
             out = PD.draft(text, body.get("answer") or found.get("answer"), body.get("poll") or found.get("poll"),
                            body.get("poll_answer") or found.get("poll_answer"), _opt_str(body, "path"), doc=found.get("doc"))
@@ -5231,7 +5278,6 @@ def _line_up_task(ctx: Context, params: dict):
 
     def work(qjob, report, stop) -> str:
         import shutil
-        import subprocess
         import tempfile
         from seriesmith import ff as FF
         from seriesmith import lines as LN
@@ -5239,7 +5285,7 @@ def _line_up_task(ctx: Context, params: dict):
         def heard(path: str, tmp: str, name: str, at: float = 0.0) -> float:
             """When a sound's first word starts, in seconds."""
             wav = os.path.join(tmp, name + ".wav")
-            subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", path, "-ss", f"{at:.3f}", "-vn", "-ac", "1", "-ar", "16000", wav], check=True)
+            PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", path, "-ss", f"{at:.3f}", "-vn", "-ac", "1", "-ar", "16000", wav], check=True)
             words = K.transcribe_file(wav, tmp, " ".join(x["text"] for x in LN.shot_lines(ep, shot)), stop=stop)
             if not words:
                 raise ValueError(f"no words could be heard in {os.path.basename(path)}")
@@ -5417,7 +5463,7 @@ def post_provider_read_spec(ctx: Context, body):
     service, model = _opt_str(body, "service") or "", (_opt_str(body, "model") or "").strip()
     try:
         if re.fullmatch(r"https?://\S+", text.strip()):
-            found = _reference_at(text.strip())
+            found = _reference_at(text.strip(), ctx.local)
             text = json.dumps(found["doc"]) if found.get("doc") else found["text"]
             steps = (PR.definitions().get(service) or {}).get("steps") or [{}]
             if not model and AS.curl_in(found["text"]) and "{model}" in str(steps[0].get("url")):
@@ -7154,8 +7200,9 @@ def post_import_xml(ctx: Context, body):
     if handles in (None, ""):
         handles = XI.HANDLES_S
     in_show = _flag(body.get("in_show"))
-    # from another device, the media it names come from the project folders only
-    allow = None if ctx.local else (lambda p: in_roots(ctx, p))
+    # from another device, the media it names come from the project folders only (the MCP
+    # server: any picture, video or sound on this PC)
+    allow = None if ctx.local else (lambda p: in_roots(ctx, p) or (ctx.mcp and mcp_may_read(p)))
     if _flag(body.get("dry_run")):
         return 200, XI.public(XI.plan(text, parent, xml_name, name, media, handles, base, in_show,
                                       allow))

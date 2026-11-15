@@ -18,9 +18,11 @@ from seriesmith import sdk as SDK  # noqa: E402
 
 class SdkTest(unittest.TestCase):
     def test_the_command_is_this_pythons_pip(self):
-        cmd = SDK.command()
-        self.assertEqual(cmd[:4], [sys.executable, "-m", "pip", "install"])
-        self.assertEqual(cmd[-1], SDK.REQUIREMENT)
+        cmd = SDK.command()                               # a line to show, never run
+        self.assertIsInstance(cmd, str)
+        self.assertIn(sys.executable, cmd)
+        self.assertIn(" -m pip install ", cmd)
+        self.assertIn(SDK.REQUIREMENT, cmd)
 
     def test_state_says_whether_it_is_here_and_how(self):
         with mock.patch.object(SDK, "have", lambda: False):

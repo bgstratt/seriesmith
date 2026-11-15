@@ -9,6 +9,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -103,7 +104,10 @@ class LinkTest(unittest.TestCase):
             ran.append(cmd)
             return ""
         place = INS.Place({}, cn, None)
-        ins = INS.Installer(lambda: place, runner=runner, downloader=None)
+        p = mock.patch.object(INS.PROC, "run", side_effect=lambda cmd, **kw: ran.append(cmd))
+        p.start()
+        self.addCleanup(p.stop)
+        ins = INS.Installer(lambda: place, downloader=None)
         dest = os.path.join(cn, "seriesmith")
         st = ins.wait(ins.start([FT.OWN_PACK]) and 10)
         self.assertEqual(st["tasks"][0]["status"], "done", st)
@@ -118,7 +122,7 @@ class LinkTest(unittest.TestCase):
             os.unlink(dest)
         # already there: nothing done
         os.makedirs(dest, exist_ok=True)
-        ins = INS.Installer(lambda: place, runner=runner, downloader=None)
+        ins = INS.Installer(lambda: place, downloader=None)
         st = ins.wait(ins.start([FT.OWN_PACK]) and 10)
         self.assertEqual(st["tasks"][0]["note"], "already there")
 

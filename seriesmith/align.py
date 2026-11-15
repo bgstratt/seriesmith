@@ -61,9 +61,9 @@ import json
 import math
 import os
 import re
-import subprocess
 import sys
 
+from seriesmith import proc as PROC
 from seriesmith import build as BLD  # noqa: E402  (parse_script, parse_story)
 from seriesmith import source as HS  # noqa: E402  (the editor's read/save: _history, atomic writes)
 from seriesmith import ff as FF  # noqa: E402
@@ -114,7 +114,7 @@ def load_pcm(path: str) -> "np.ndarray":
     import numpy as np
     if not FF.have("ffmpeg"):
         sys.exit("  !! ffmpeg not found on PATH")
-    r = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-i", path, "-ac", "1", "-ar", str(SR),
+    r = PROC.run([*FF.tool("ffmpeg"), "-v", "error", "-i", path, "-ac", "1", "-ar", str(SR),
                         "-f", "f32le", "-"], capture_output=True)
     if r.returncode != 0:
         sys.exit(f"  !! could not decode {path}: {r.stderr.decode('utf-8', 'replace')[-300:]}")

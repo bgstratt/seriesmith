@@ -37,6 +37,7 @@ import threading
 import time
 import wave
 
+from seriesmith import proc as PROC
 from seriesmith.backends import BackendError, File, HTTPFailure, http_json
 from seriesmith.core import paths as P
 
@@ -268,12 +269,11 @@ def sound(spec: dict, path: str) -> str:
         w = wave.open(src, "rb")
     except (wave.Error, EOFError):
         tmp = path + ".src.wav"
-        import subprocess
         try:
-            subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src,
+            PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src,
                             "-acodec", "pcm_s16le", tmp], check=True, capture_output=True,
                            timeout=300)
-        except (OSError, subprocess.CalledProcessError) as e:
+        except (OSError, PROC.CalledProcessError) as e:
             raise RuntimeError(f"can't decode {os.path.basename(src)}: {e}") from None
         w = wave.open(tmp, "rb")
     with w:

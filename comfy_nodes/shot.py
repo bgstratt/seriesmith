@@ -42,7 +42,6 @@ import json
 import math
 import os
 import re
-import subprocess
 import tempfile
 import time
 
@@ -228,7 +227,7 @@ def _ffmpeg_decode(path: str) -> tuple[torch.Tensor, int]:
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, "decoded.wav")
         try:
-            subprocess.run(
+            _ff.run(
                 [*_ff.tool("ffmpeg"), "-y", "-v", "error", "-i", path,
                  "-acodec", "pcm_s16le", out],
                 check=True, capture_output=True, timeout=300)
@@ -237,7 +236,7 @@ def _ffmpeg_decode(path: str) -> tuple[torch.Tensor, int]:
                 f"cannot decode {os.path.basename(path)}: it is not a plain PCM wav "
                 f"and ffmpeg is not on PATH. Convert it to 16-bit wav, or install "
                 f"ffmpeg.") from None
-        except subprocess.CalledProcessError as exc:
+        except _ff.CalledProcessError as exc:
             raise RuntimeError(
                 f"ffmpeg could not decode {os.path.basename(path)}: "
                 f"{exc.stderr.decode('utf-8', 'replace')[-200:]}") from None
@@ -635,7 +634,7 @@ class SeriesmithSaveTake:
             return blocked
         try:
             with tempfile.TemporaryDirectory() as tmp:
-                subprocess.run(
+                _ff.run(
                     [sys.executable, "-m", "demucs", "--two-stems", "vocals",
                      "-o", tmp, wav_path],
                     check=True, capture_output=True, timeout=600, env=_hub.demucs_env(),
@@ -649,13 +648,13 @@ class SeriesmithSaveTake:
             return "demucs ran but produced no no_vocals.wav"
         except FileNotFoundError:
             return "demucs not installed - foley bed skipped (pip install demucs)"
-        except subprocess.CalledProcessError as exc:
+        except _ff.CalledProcessError as exc:
             err = exc.stderr.decode("utf-8", "replace")
             if "No module named demucs" in err:
                 return (f"demucs not installed in ComfyUI's Python - foley bed skipped "
                         f"(\"{sys.executable}\" -m pip install demucs)")
             return f"demucs failed: {err[:160]}"
-        except subprocess.TimeoutExpired:
+        except _ff.TimeoutExpired:
             return "demucs timed out - foley bed skipped"
 
     # -- main --------------------------------------------------------------
@@ -937,13 +936,13 @@ class SeriesmithSaveTake:
         proc = None
         try:
             if pipe:
-                proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE)
+                proc = _ff.popen(cmd, stdin=_ff.PIPE, stdout=_ff.PIPE,
+                                        stderr=_ff.PIPE)
                 _, err = proc.communicate(input=raw, timeout=900)
                 if proc.returncode:
-                    raise subprocess.CalledProcessError(proc.returncode, cmd, b"", err)
+                    raise _ff.CalledProcessError(proc.returncode, cmd, b"", err)
             else:
-                subprocess.run(cmd, check=True, capture_output=True, timeout=900)
+                _ff.run(cmd, check=True, capture_output=True, timeout=900)
             result = f"mp4 written ({'with audio' if audio_path else 'mute'})"
         except FileNotFoundError:
             # no ffmpeg on PATH: PyAV, which every ComfyUI has (its requirements)
@@ -954,9 +953,9 @@ class SeriesmithSaveTake:
                 result = "ffmpeg not found - mp4 skipped"
             except Exception as exc:                      # noqa: BLE001  said in the record
                 result = f"ffmpeg not found, and PyAV failed: {exc}"
-        except subprocess.CalledProcessError as exc:
+        except _ff.CalledProcessError as exc:
             result = f"ffmpeg failed: {(exc.stderr or b'').decode('utf-8', 'replace')[-160:]}"
-        except subprocess.TimeoutExpired:
+        except _ff.TimeoutExpired:
             if proc is not None:
                 proc.kill()
                 proc.communicate()

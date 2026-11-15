@@ -357,6 +357,14 @@ class ComfyUIBackend(Backend):
             if not self.api_key:
                 raise BackendError("this job runs a Comfy partner node (paid per run): set a Comfy "
                                    "API key in Settings")
+            # the key rides in the job itself, so it goes where the job goes: this PC only
+            # (or the one ComfyUI Settings names as trusted with it: backends.available)
+            from seriesmith.settings import comfy_key_ok, comfy_key_refused
+            if not (comfy_key_ok(self.base_url) or getattr(self, "key_ok", False)):
+                raise BackendError("this job runs a Comfy partner node, which needs the Comfy API key "
+                                   f"sent with it: {comfy_key_refused(self.base_url)}. Run it on Comfy "
+                                   "Cloud or on a ComfyUI on this PC, or in Settings on the PC allow the "
+                                   "key to be sent to this ComfyUI")
             body["extra_data"] = {"api_key_comfy_org": self.api_key}
         try:
             got = comfy._json("/prompt", body)

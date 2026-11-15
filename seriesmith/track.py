@@ -26,12 +26,12 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import threading
 import time
 
+from seriesmith import proc as PROC
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import source as H  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
@@ -100,15 +100,14 @@ def probe(python: str) -> dict:
         return dict(hit[1])
     found = None
     try:
-        r = subprocess.run([python, PROBE, *(f"{d}={m}" for d, m in PACKAGES)],
-                           capture_output=True, timeout=120,
-                           env=E.tool_env())
+        r = PROC.run(PROC.module(python, "helpers.probe", *(f"{d}={m}" for d, m in PACKAGES)),
+                     capture_output=True, timeout=120, env=E.tool_env())
         out = r.stdout.decode("utf-8", "replace").strip().splitlines()
         if out:
             got = json.loads(out[-1])
             if isinstance(got, dict):
                 found = {k: got.get(k) for k, _ in PACKAGES}
-    except (OSError, ValueError, subprocess.SubprocessError):
+    except (OSError, ValueError, PROC.SubprocessError):
         found = None
     if found is None:                                     # this interpreter, then
         import importlib.util
@@ -430,8 +429,8 @@ def _stream(cmd: list[str], cwd: str, timeout: float, on_progress,
     is handed what kills it (a queue job's cancel)."""
     log: list[str] = []
     stopped: list[bool] = []
-    p = subprocess.Popen(cmd, cwd=cwd, env=E.tool_env(),
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    p = PROC.popen(cmd, cwd=cwd, env=E.tool_env(),
+                         stdout=PROC.PIPE, stderr=PROC.STDOUT)
 
     def kill():
         stopped.append(True)

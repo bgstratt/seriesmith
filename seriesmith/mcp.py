@@ -146,8 +146,11 @@ class Client:
         url = self.url + path + ("?" + urllib.parse.urlencode(q) if q else "")
         data = None if body is None else json.dumps(
             {k: v for k, v in body.items() if v is not None}).encode("utf-8")
+        # says it's the MCP server: the API then holds a path it's given to the project folders
+        # and refuses the settings only the PC changes (server/views.py CLIENT_HEADER)
         req = urllib.request.Request(url, data=data, method=method,
-                                     headers={"Content-Type": "application/json"} if data else {})
+                                     headers={"X-Seriesmith-Client": "mcp",
+                                              **({"Content-Type": "application/json"} if data else {})})
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
                 payload = r.read()

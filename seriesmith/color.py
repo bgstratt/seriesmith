@@ -39,8 +39,8 @@ import json
 import math
 import os
 import random
-import subprocess
 import sys
+from seriesmith import proc as PROC
 
 RANGES = {"exposure": (-2.0, 2.0), "contrast": (-1.0, 1.0), "black": (-0.25, 0.25),
           "saturation": (-1.0, 1.0), "warmth": (-1.0, 1.0), "tint": (-1.0, 1.0)}
@@ -144,8 +144,8 @@ def match(base: dict, clips: list[dict], by: str = "frame", python: str | None =
     if by not in MATCH_BY:
         raise ValueError(f"by must be one of {', '.join(MATCH_BY)}")
     job = {"base": base, "clips": clips, "by": by}
-    r = subprocess.run([python or sys.executable, HELPER, json.dumps(FF.tool("ffmpeg"))],
-                       input=json.dumps(job), capture_output=True, text=True, timeout=timeout)
+    r = PROC.run(PROC.module(python, "helpers.colorstats", json.dumps(FF.tool("ffmpeg"))),
+                 input=json.dumps(job), capture_output=True, text=True, timeout=timeout)
     if r.returncode != 0:
         raise ValueError((r.stderr or r.stdout or "matching the clips failed").strip()[-600:])
     return json.loads(r.stdout.strip().splitlines()[-1])
@@ -172,7 +172,7 @@ def look(mp4: str, frames: int | None) -> dict:
     picks = sample_frames(0, max(0, (frames or 1) - 1))
     sel = "+".join(f"eq(n\\,{n})" for n in picks)
     w, h = LOOK_SIZE
-    r = subprocess.run([*FF.tool("ffmpeg"), "-v", "error", "-i", mp4, "-vf",
+    r = PROC.run([*FF.tool("ffmpeg"), "-v", "error", "-i", mp4, "-vf",
                         f"select='{sel}',scale={w}:{h}:in_color_matrix=bt709:in_range=tv:"
                         "out_range=pc,format=rgb24", "-fps_mode", "passthrough", "-f", "rawvideo",
                         "-"], capture_output=True, timeout=300)
@@ -258,7 +258,7 @@ def record_look(take) -> dict | None:
         lk = look(take.paths.mp4, sc.get("frames"))
         take.sidecar = T.update_sidecar(take.paths.sidecar, look=lk)
         return lk
-    except (OSError, ValueError, subprocess.SubprocessError):
+    except (OSError, ValueError, PROC.SubprocessError):
         return None
 
 

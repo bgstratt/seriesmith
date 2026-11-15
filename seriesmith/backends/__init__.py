@@ -92,7 +92,11 @@ def http_json(url: str, method: str = "GET", body=None, headers: dict | None = N
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         hdrs.setdefault("Content-Type", "application/json")
+    # a key goes to the address asked, never on to wherever it redirects
+    keys = {k: hdrs.pop(k) for k in list(hdrs) if k.lower() in ("x-api-key", "authorization")}
     req = urllib.request.Request(url, data=data, method=method, headers=hdrs)
+    for k, v in keys.items():
+        req.add_unredirected_header(k, v)
     try:
         with urllib.request.urlopen(req, timeout=timeout,
                                     context=tls() if url.startswith("https") else None) as r:
@@ -173,6 +177,14 @@ class Progress:
     message: str | None = None
 
 
+def output_name(name) -> str:
+    """`name` as a file name only: no folder, drive or stream part ("output" when that
+    leaves nothing), so joining it to a folder stays in that folder."""
+    base = str(name or "").replace(chr(92), "/").rsplit("/", 1)[-1].replace(":", "_").strip()
+    base = "".join(ch for ch in base if ch >= " ").rstrip(". ")
+    return base if base.strip(".") else "output"
+
+
 @dataclass
 class Output:
     """One file a run produced: the node that saved it (or "" for a hosted
@@ -182,6 +194,11 @@ class Output:
     name: str
     type: str
     fetch: Callable[[str], None] = field(repr=False)
+
+    def __post_init__(self):
+        # the name comes from whoever ran the job (a ComfyUI, a provider's URL) and is joined
+        # into a take's folder: a bare file name, never a path of theirs
+        self.name = output_name(self.name)
 
     def save(self, path: str) -> str:
         """Write the output to `path` (folders made as needed); returns it."""
@@ -316,6 +333,8 @@ def available(settings=None) -> dict[str, Backend]:
         from seriesmith.backends.native import ComfyUIBackend
         out["local"] = ComfyUIBackend("local", s.local_comfyui)
         out["local"].api_key = s.api_key          # for a partner node's job (partner)
+        from seriesmith.settings import key_goes_to
+        out["local"].key_ok = key_goes_to(s.local_comfyui, s)   # this PC's, or the one Settings trusts
     if s.api_key:
         out["cloud"] = ComfyBackend("cloud", "cloud", s.cloud_url, s.api_key)
         from seriesmith.backends.router import RouterBackend

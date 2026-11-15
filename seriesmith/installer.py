@@ -30,7 +30,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import subprocess
 import sys
 import tarfile
 import tempfile
@@ -42,8 +41,11 @@ import zipfile
 from dataclasses import dataclass, field
 from typing import Callable
 
+from seriesmith import proc as PROC
 from seriesmith import features as FT
+from seriesmith.core import downloads as DL
 from seriesmith.core import fileio as F
+from seriesmith.core import paths as P
 
 CHUNK = 1 << 20
 FFMPEG_BUILDS = {
@@ -72,7 +74,10 @@ class Place:
     def models_dir(self, folder: str) -> str | None:
         """Where a new file of `folder` goes: the path named after the folder
         (diffusion_models, not the legacy unet ComfyUI lists first), else
-        the first; None when ComfyUI's folders aren't known."""
+        the first; None when ComfyUI's folders aren't known, or `folder` isn't
+        a models folder's name (core.downloads: never a path, never custom_nodes)."""
+        if DL.folder_problem(folder):
+            return None
         paths = self.model_dirs.get(folder) or []
         for p in paths:
             if os.path.basename(os.path.normpath(p)).lower() == folder.lower():
@@ -128,17 +133,20 @@ def place_in_comfyui() -> Place:
 
 def place_from_url(comfyui_url: str, comfyui_dir: str | None = None) -> Place:
     """The standalone server: ComfyUI's /internal/folder_paths when it runs on
-    this machine, else settings comfyui_dir."""
+    this machine, else settings comfyui_dir. Only a ComfyUI on this PC is asked: the answer
+    says where downloads are written and which Python is run, so another machine's is never
+    taken (nor a folder on a network share, which Windows would sign in to)."""
     from urllib.parse import urlparse
     host = urlparse(comfyui_url).hostname or ""
     dirs: dict = {}
-    if host in ("127.0.0.1", "localhost", "::1") or comfyui_dir:
+    if host in ("127.0.0.1", "localhost", "::1"):
         try:
             with urllib.request.urlopen(comfyui_url.rstrip("/") + "/internal/folder_paths",
                                         timeout=10) as r:
                 got = json.loads(r.read() or b"{}")
-            dirs = {k: [p for p in (v if isinstance(v, list) else []) if isinstance(p, str)]
-                    for k, v in got.items()}
+            dirs = {k: [p for p in (v if isinstance(v, list) else [])
+                        if isinstance(p, str) and os.path.isabs(p) and not P.is_network(p)]
+                    for k, v in (got.items() if isinstance(got, dict) else ())}
             if dirs and not all(os.path.isdir(p) for p in (dirs.get("custom_nodes") or ["?"])):
                 dirs = {}                                 # another machine's paths
         except (OSError, ValueError):
@@ -216,20 +224,6 @@ def download(url: str, dest: str, token: str | None = None,
     F.replace(part, dest)
 
 
-def run(cmd: list[str], cwd: str | None = None, timeout: int = 1800) -> str:
-    """A command to its end; InstallError with the end of its output if it fails."""
-    try:
-        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
-    except FileNotFoundError:
-        raise InstallError(f"{cmd[0]} isn't installed") from None
-    except subprocess.TimeoutExpired:
-        raise InstallError(f"{os.path.basename(cmd[0])} took longer than {timeout}s") from None
-    if r.returncode:
-        tail = "\n".join((r.stderr or r.stdout or "").strip().splitlines()[-5:])
-        raise InstallError(f"{os.path.basename(cmd[0])} failed: {tail[-600:]}")
-    return r.stdout
-
-
 def extract_ffmpeg(archive: str, into: str) -> None:
     """ffmpeg and ffprobe out of a build's archive, into `into` (flat)."""
     want = {"ffmpeg", "ffprobe", "ffmpeg.exe", "ffprobe.exe"}
@@ -256,6 +250,15 @@ def extract_ffmpeg(archive: str, into: str) -> None:
         raise InstallError(f"the build had no ffmpeg and ffprobe (found {sorted(got) or 'nothing'})")
 
 
+def file_sha256(path: str) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(CHUNK), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 # ---------------------------------------------------------------------------
 # the queue
 # ---------------------------------------------------------------------------
@@ -265,11 +268,10 @@ class Installer:
     Hugging Face token at the moment it's needed (the settings can change)."""
 
     def __init__(self, place: Callable[[], Place], token: Callable[[], str | None] = lambda: None,
-                 runner=run, downloader=download, on_change: Callable[[], None] | None = None,
+                 downloader=download, on_change: Callable[[], None] | None = None,
                  listing=None):
         self._place = place
         self._token = token
-        self._run = runner
         self._download = downloader
         self._listing = listing             # a repo's files (hubcache.repo_listing; tests)
         self._on_change = on_change
@@ -389,14 +391,30 @@ class Installer:
     def _model(self, item: FT.Item, place: Place) -> str | None:
         if not item.url:
             raise InstallError("no recorded download for it")
+        why = DL.folder_problem(item.folder)
+        if why or item.name != os.path.basename(item.name.replace("\\", "/")):
+            raise InstallError(why or f"{item.name!r} isn't a file name")
         d = place.models_dir(item.folder)
         if not d:
             raise InstallError(place.why_not or "ComfyUI's models folders aren't known here")
         dest = os.path.join(d, item.name)
+        if place.custom_nodes and P.inside(dest, [place.custom_nodes]):
+            raise InstallError(f"{item.folder} is where ComfyUI keeps code, not models")
         if os.path.isfile(dest):
             return "already there"
-        self._download(item.url, dest, self._token(), self._progress(item.key), lambda: self._cancel)
-        return f"saved in {d}"
+        if not item.sha256:
+            self._download(item.url, dest, self._token(), self._progress(item.key), lambda: self._cancel)
+            return f"saved in {d}"
+        # its record names the file's sha256: downloaded beside its place, checked, then kept
+        held = dest + ".check"
+        self._download(item.url, held, self._token(), self._progress(item.key), lambda: self._cancel)
+        got = file_sha256(held)
+        if got != item.sha256:
+            os.remove(held)
+            raise InstallError(f"{item.name} isn't the file its record names (sha256 {got[:12]}..., "
+                               f"expected {item.sha256[:12]}...): not kept")
+        F.replace(held, dest)
+        return f"saved in {d} (sha256 checked)"
 
     def _hub(self, item: FT.Item, place: Place) -> str | None:
         """A hub item into the place its package reads it from (hubcache):
@@ -501,10 +519,10 @@ def python_has(python: str | None, module: str) -> bool | None:
     if hit and time.monotonic() - hit[1] < 60:
         return hit[0]
     try:
-        probe = os.path.join(os.path.dirname(os.path.abspath(__file__)), "helpers", "probe.py")
-        r = subprocess.run([python, probe, f"{module}={module}"], capture_output=True, timeout=30)
+        r = PROC.run(PROC.module(python, "helpers.probe", f"{module}={module}"),
+                     capture_output=True, timeout=30)
         ok = json.loads(r.stdout.decode("utf-8", "replace").strip().splitlines()[-1]).get(module) is not None
-    except (OSError, subprocess.TimeoutExpired, ValueError, IndexError):
+    except (OSError, PROC.TimeoutExpired, ValueError, IndexError):
         return None
     _PY_HAS[key] = (ok, time.monotonic())
     return ok

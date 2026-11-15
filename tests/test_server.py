@@ -26,7 +26,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 
 from seriesmith import api as A  # noqa: E402
-from seriesmith.server import comfyui, standalone  # noqa: E402
+from seriesmith.server import comfyui, guard, standalone  # noqa: E402
 from seriesmith.settings import Settings  # noqa: E402
 from test_render import FIXTURE, build_episode  # noqa: E402
 
@@ -223,13 +223,13 @@ class StandaloneTest(unittest.TestCase):
                 r = await client.post("/seriesmith/server/stop", json={"restart": True})
                 ok = (r.status, await r.json(), app["exit_code"])
                 await asyncio.sleep(0.5)
-            with mock.patch.object(standalone, "LOOPBACK", ()):
+            with mock.patch.object(guard, "LOOPBACK_ADDRS", ()):
                 far = (await client.post("/seriesmith/server/stop", json={})).status
             return ok, far
         (status, data, code), far = self.run_app(body)
         self.assertEqual((status, data, code), (200, {"ok": True, "restart": True}, standalone.RESTART))
         self.assertEqual(stops, [True])
-        self.assertEqual(far, 403)
+        self.assertEqual(far, 401)                        # not this PC: asked to pair, before anything
 
     def test_a_stop_closes_the_pages_connection(self):
         """The editor's live connection is closed as the server shuts down:

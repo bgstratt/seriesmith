@@ -24,6 +24,10 @@ def input_file(name: str) -> str:
     name = (name or "").strip()
     if not name:
         return ""
+    # a bare name in those folders, by its text, before anything looks at it: an absolute
+    # path wins a join, and a network path (\\host\share) makes Windows sign in to that host
+    if name.startswith(("/", "\\")) or os.path.isabs(name) or os.path.splitdrive(name)[0]:
+        raise ValueError(f"{name!r} isn't a file in ComfyUI's input, output or temp folder")
     import folder_paths
     path = folder_paths.get_annotated_filepath(name)
     allowed = [folder_paths.get_input_directory(), folder_paths.get_output_directory(),

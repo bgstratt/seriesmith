@@ -62,10 +62,10 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 
+from seriesmith import proc as PROC
 from seriesmith import assemble as ASM  # noqa: E402
 from seriesmith import edit as E  # noqa: E402
 from seriesmith import takes as T  # noqa: E402
@@ -108,8 +108,8 @@ class PublishError(Exception):
     pass
 
 
-def run(cmd: list[str], cwd: str | None = None, timeout: int = 3600) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+def run(cmd: list[str], cwd: str | None = None, timeout: int = 3600) -> PROC.CompletedProcess:
+    return PROC.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
 
 
 _progress = False
@@ -124,14 +124,14 @@ def say(stage: str, done: int | None = None, total: int | None = None, text: str
 
 
 def run_counted(cmd: list[str], total: int, stage: str, cwd: str | None = None,
-                timeout: int = 3600) -> subprocess.CompletedProcess:
+                timeout: int = 3600) -> PROC.CompletedProcess:
     """`run`, with ffmpeg's frame count sent as progress lines as it goes (only
     when --progress asked for them; otherwise it is `run`)."""
     if not _progress:
         return run(cmd, cwd, timeout)
     import threading
     cmd = cmd[:1] + ["-progress", "pipe:1", "-nostats"] + cmd[1:]
-    p = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    p = PROC.popen(cmd, cwd=cwd, stdout=PROC.PIPE, stderr=PROC.PIPE, text=True)
     err: list[str] = []
     drain = threading.Thread(target=lambda: err.append(p.stderr.read()), daemon=True)
     drain.start()
@@ -153,7 +153,7 @@ def run_counted(cmd: list[str], total: int, stage: str, cwd: str | None = None,
         rc = p.wait()
         killer.cancel()
         drain.join(5)
-    return subprocess.CompletedProcess(cmd, rc, "", "".join(err))
+    return PROC.CompletedProcess(cmd, rc, "", "".join(err))
 
 
 # ---------------------------------------------------------------------------
@@ -243,12 +243,43 @@ def title_font(font: str, named: bool, home: str | None = None) -> str:
     return got
 
 
+COLOR_RX = re.compile(r"(#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|0x[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?|[A-Za-z]{3,24})"
+                      r"(@(0|1|0?\.[0-9]{1,4}|1\.0{1,4}))?\Z")
+FONT_EXTS = (".ttf", ".otf", ".ttc")
+
+
+def subtitle_checked(sub: dict) -> dict:
+    """The title's settings, each what it says it is. They're written into ffmpeg's filter
+    graph, where a `,` or `:` in a value would start a filter or an option of its own, so a
+    colour is a colour (#RRGGBB or a name, `@opacity`), a size or time a number and the font
+    a font file. PublishError saying which isn't."""
+    out = dict(sub)
+    for key in ("color", "glow"):
+        if not isinstance(out[key], str) or not COLOR_RX.match(out[key]):
+            raise PublishError(f"publish.subtitle.{key} {out[key]!r} isn't a colour: #RRGGBB or a "
+                               f"colour's name, with @0.8 for its opacity")
+    for key in ("size", "y", "glow_size"):
+        if isinstance(out[key], bool) or not isinstance(out[key], (int, float)) or not 0 <= out[key] <= 4:
+            raise PublishError(f"publish.subtitle.{key} {out[key]!r} isn't a number (a fraction "
+                               f"of the frame's height)")
+    for key in ("intro_in", "outro_in", "outro_out"):
+        pair = out[key]
+        if (not isinstance(pair, (list, tuple)) or len(pair) != 2
+                or any(isinstance(v, bool) or not isinstance(v, (int, float)) or abs(v) > 86400 for v in pair)):
+            raise PublishError(f"publish.subtitle.{key} {pair!r} isn't two times in seconds")
+        out[key] = [float(v) for v in pair]
+    if not isinstance(out["font"], str) or not out["font"].lower().endswith(FONT_EXTS):
+        raise PublishError(f"publish.subtitle.font {out['font']!r} isn't a font file "
+                           f"({', '.join(FONT_EXTS)})")
+    return out
+
+
 def publish_config(series_cfg: dict) -> dict:
     """The series config's `publish` block with the subtitle defaults filled in (`_named`:
     what the config set itself)."""
     block = dict(series_cfg.get("publish") or {})
     block["_named"] = dict(block.get("subtitle") or {})
-    block["subtitle"] = {**SUBTITLE, **(block.get("subtitle") or {})}
+    block["subtitle"] = subtitle_checked({**SUBTITLE, **(block.get("subtitle") or {})})
     block["loudness"] = {**LEVEL, **(block.get("loudness") or {})}
     return block
 
@@ -575,7 +606,7 @@ def publish_copy(src: str, cut: dict, intro: str | None, outro: str | None, sub:
     infos = {p: (cut if p == pic_only else probe(p)) for p in order}
     with open(os.path.join(tmp, "join.txt"), "w", encoding="utf-8") as f:
         for p in order:
-            f.write(f"file '{p.replace(os.sep, '/')}'\n")
+            f.write(FF.concat_line(p))
     pieces = []
     for i, (pic, snd, kind) in enumerate(parts, 1):
         if kind == "tail":

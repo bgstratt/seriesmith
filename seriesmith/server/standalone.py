@@ -23,6 +23,7 @@ import sys
 
 from aiohttp import ClientSession, WSMsgType, web
 
+from seriesmith import proc as PROC
 from seriesmith import api as A
 from seriesmith.settings import load_settings, settings_path
 
@@ -35,7 +36,6 @@ RESTART = 3
 # how long a stop waits for requests in flight (aiohttp's own is 60 s, spent
 # waiting on the editor's live connection: Ctrl+C looked hung, then was killed)
 SHUTDOWN_WAIT = 5.0
-LOOPBACK = ("127.0.0.1", "::1", "localhost")
 # what the page listens for from ComfyUI (web/src/host.ts HostEvent)
 COMFY_EVENTS = {"progress", "executing", "execution_start", "execution_success",
                 "execution_error", "execution_interrupted", "execution_cached"}
@@ -254,6 +254,9 @@ def make_app(roots: list[str] | None = None, settings=None,
     local_only = host not in ("0.0.0.0", "::", "")
     app = web.Application(client_max_size=A.MAX_UPLOAD + (1 << 20),
                           middlewares=[guard_middleware(local_only, allow_hosts)])
+    from seriesmith.server.views import page_headers
+    app.on_response_prepare.append(page_headers)
+    app["page"] = os.path.join(STATIC, "standalone.html")     # its inline scripts' hashes
     app["events"], app["settings"], app["comfy_connected"] = events, settings, False
     app["queue"], app["runner"], app["backends"] = queue, runner, backends
     app["make_context"] = make_context
@@ -288,6 +291,12 @@ def make_app(roots: list[str] | None = None, settings=None,
         node offers: the model and LoRA pickers), passed on."""
         folder = request.match_info.get("folder")
         node = request.match_info.get("node")
+        # a folder's or a node class's name, never a path that climbs to another of ComfyUI's
+        # routes (its /queue and /history are passed on only as comfy_queue trims them)
+        import re
+        if any(x is not None and not re.fullmatch(r"[A-Za-z0-9_.+ -]+", x) or x in (".", "..")
+               for x in (folder, node)):
+            return web.json_response({"error": "not a folder's or a node's name"}, status=400)
         url = settings.comfyui_url + (f"/object_info/{node}" if node else
                                       "/models" + (f"/{folder}" if folder else ""))
         try:
@@ -334,13 +343,20 @@ def make_app(roots: list[str] | None = None, settings=None,
         app.router.add_get(p, comfy_queue)
     app.router.add_get("/", index)
     if os.path.isdir(os.path.join(STATIC, "assets")):
+        # the types said here, not left to this PC's registry (Windows' can have .js or .css
+        # as text/plain, which a browser then refuses)
+        import mimetypes
+        for ext, kind in ((".js", "text/javascript"), (".css", "text/css"), (".woff2", "font/woff2"),
+                          (".png", "image/png")):
+            mimetypes.add_type(kind, ext)
         app.router.add_static("/assets", os.path.join(STATIC, "assets"))
 
     async def stop_view(request: web.Request) -> web.Response:
         """POST /seriesmith/server/stop {restart?}: stop this server cleanly
         (the editor's Stop / Restart, `seriesmith stop`). Only from this
         machine: a paired device can't stop it either."""
-        if request.remote not in LOOPBACK:
+        from seriesmith.server.guard import from_this_pc
+        if not from_this_pc(request.remote, request.headers.get("Host")):
             return web.json_response({"error": "the server can be stopped from its own machine only"},
                                      status=403)
         try:
@@ -393,7 +409,6 @@ def ensure_proxy(settings) -> str:
     up. Otherwise there is nothing to start: local renders go straight to
     ComfyUI. Returns what happened."""
     import shutil
-    import subprocess
     from urllib.parse import urlparse
 
     from seriesmith.backends.comfy import health
@@ -419,7 +434,7 @@ def ensure_proxy(settings) -> str:
     state = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
                          "seriesmith", "proxy")
     os.makedirs(state, exist_ok=True)
-    r = subprocess.run([exe, "start", "--comfyui", settings.comfyui_url, "--port",
+    r = PROC.run([exe, "start", "--comfyui", settings.comfyui_url, "--port",
                         str(u.port or 8189), "--state-dir", state],
                        capture_output=True, text=True, timeout=60)
     return "comfy-api-proxy: " + ((r.stdout or r.stderr).strip().splitlines() or ["started"])[-1]

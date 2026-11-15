@@ -589,8 +589,11 @@ class ModelIdCache:
 
 
 def temp_cache() -> ModelIdCache:
-    """The CLI's cache: seriesmith_modelid_cache.json in the temp folder."""
-    return ModelIdCache(os.path.join(tempfile.gettempdir(), "seriesmith_modelid_cache.json"))
+    """The CLI's cache: modelid_cache.json in the settings folder's cache/ (the user's own
+    folder: the temp folder is shared, and a file of a known name there is anyone's to
+    write). The tests' scratch folder under them (diskcache._file)."""
+    from seriesmith import diskcache
+    return ModelIdCache(diskcache._file("modelid_cache"))
 
 
 def user_cache(user_dir: str) -> ModelIdCache:

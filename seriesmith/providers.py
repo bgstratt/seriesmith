@@ -108,6 +108,12 @@ def problems(d: dict) -> list[str]:
         out.append("base_url must be a web address")
     elif u.scheme == "http" and u.hostname not in ("127.0.0.1", "localhost"):
         out.append("base_url must be https: the key goes to it")
+    # the links the editor shows (its docs, where a key is made, its voices): web pages only
+    links = {"docs": d.get("docs"), "key_url": d.get("key_url"),
+             "voices.browse": (d.get("voices") or {}).get("browse") if isinstance(d.get("voices"), dict) else None}
+    for name, link in links.items():
+        if link and not (isinstance(link, str) and re.match(r"https://[^\s/]+", link)):
+            out.append(f"{name} must be an https address")
     auth = d.get("auth")
     if not isinstance(auth, dict) or auth.get("type") not in AUTH_TYPES:
         out.append(f"auth.type must be one of {', '.join(AUTH_TYPES)}")

@@ -39,6 +39,7 @@ import urllib.parse
 import urllib.request
 from typing import Callable
 
+from seriesmith.core import downloads as DL
 from seriesmith.core import fileio as F
 
 HF = "https://huggingface.co"
@@ -178,6 +179,11 @@ def fetch_repo(item, into: str | None, download, token: str | None = None,
     token, progress, cancelled)` is installer.download. Returns the folder.
     ValueError when the repo has no file for one of `item.files`."""
     sha, sibs = listing(item.name, token)
+    # the Hub's answer names the folder and every file written: a commit and names inside
+    # the repo, or nothing is fetched
+    if not DL.commit_ok(sha):
+        raise ValueError(f"the Hub named no commit for {item.name}")
+    sibs = [(p, s) for p, s in sibs if DL.repo_file_ok(p)]
     pats = list(item.files) + list(item.extra)
     want = [(p, s) for p, s in sibs if any(fnmatch.fnmatch(p, pat) for pat in pats)]
     for pat in item.files:

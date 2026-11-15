@@ -37,10 +37,10 @@ from __future__ import annotations
 
 import math
 import os
-import subprocess
 import tempfile
 import time
 
+from seriesmith import proc as PROC
 from seriesmith.core.paths import show_file
 from seriesmith import edit as E
 from seriesmith import ff as FF
@@ -120,7 +120,7 @@ def stage(take: T.Take) -> tuple[str, dict]:
     sig = signature(src)
     fd, tmp = tempfile.mkstemp(prefix="seriesmith_voice_", suffix=".wav")
     os.close(fd)
-    r = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src, "-vn", "-map", "0:a:0",
+    r = PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", src, "-vn", "-map", "0:a:0",
                         "-c:a", "pcm_s24le", tmp], capture_output=True, timeout=600)
     if r.returncode != 0 or not os.path.getsize(tmp):
         os.remove(tmp)

@@ -55,6 +55,10 @@ class Settings:
     api_key: str | None = None
     # Hugging Face, for the gated downloads (FLUX, LTX-2.5) the installer makes
     hf_token: str | None = None
+    # a ComfyUI on another machine that may be sent the Comfy API key with a partner node's
+    # job (the key rides in the job): its address, exactly as comfyui_url has it. None: only
+    # a ComfyUI on this PC is
+    comfyui_key_url: str | None = None
     # a folder holding your own ffmpeg and ffprobe, used before anything else
     ffmpeg_dir: str | None = None
     # ComfyUI's own folder (the one with main.py), when it can't be asked
@@ -94,7 +98,7 @@ class Settings:
                 "cloud_url": self.cloud_url, "api_key": "set" if self.api_key else None,
                 "hf_token": "set" if self.hf_token else None, "ffmpeg_dir": self.ffmpeg_dir,
                 "provider_keys": sorted(self.provider_keys),
-                "comfyui_dir": self.comfyui_dir,
+                "comfyui_dir": self.comfyui_dir, "comfyui_key_url": self.comfyui_key_url,
                 "deployments": dict(self.deployments), "path": self.path,
                 "paid_limit": self.paid_limit, "enabled_drafts": list(self.enabled_drafts),
                 "target_limits": dict(self.target_limits), "local_via": self.local_via,
@@ -139,6 +143,7 @@ def load_settings(path: str | None = None, env: dict | None = None) -> Settings:
         provider_keys={str(k): str(v) for k, v in (data.get("provider_keys") or {}).items() if v},
         ffmpeg_dir=data.get("ffmpeg_dir") or None,
         comfyui_dir=data.get("comfyui_dir") or None,
+        comfyui_key_url=(data.get("comfyui_key_url") or "").rstrip("/") or None,
         deployments={str(k): str(v).rstrip("/") for k, v in deployments.items()},
         path=path,
         paid_limit=_paid_limit(data.get("paid_limit")),
@@ -166,7 +171,7 @@ def _paid_limit(v) -> int | None:
 
 
 FIELDS = ("local_url", "comfyui_url", "cloud_url", "api_key", "hf_token", "ffmpeg_dir",
-          "comfyui_dir", "deployments", "paid_limit",
+          "comfyui_dir", "comfyui_key_url", "deployments", "paid_limit",
           "enabled_drafts", "target_limits", "local_via", "default_targets", "detected_targets",
           "provider_keys")
 ENV_NAMES = {"local_url": "SERIESMITH_LOCAL_URL", "comfyui_url": "SERIESMITH_COMFYUI_URL",
@@ -196,10 +201,84 @@ def comfy_key_ok(url: str) -> bool:
     return u.scheme == "https" and any(host == d or host.endswith("." + d) for d in COMFY_KEY_DOMAINS)
 
 
+def key_comfyui_problem(url: str) -> str | None:
+    """Why a ComfyUI at `url` can't be trusted with the Comfy API key (None: it can). The key
+    rides in the job, so over https, or over http only on a private network (an address
+    there, a `.local` / `.lan` / tailnet name, a bare machine name): never in the clear across
+    the internet."""
+    import ipaddress
+    from urllib.parse import urlsplit
+    u = urlsplit(url or "")
+    host = (u.hostname or "").lower()
+    if u.scheme not in ("http", "https") or not host:
+        return "a ComfyUI's address starts with http:// or https://"
+    if u.scheme == "https":
+        return None
+    try:
+        ip = ipaddress.ip_address(host)
+        private = ip.is_private or ip.is_loopback or ip.is_link_local or ip in ipaddress.ip_network("100.64.0.0/10")
+    except ValueError:
+        private = "." not in host or host.endswith((".local", ".lan", ".home.arpa", ".ts.net", ".localhost"))
+    return None if private else (f"{host} is on the internet: the key would cross it in the clear. "
+                                 "Use an https address")
+
+
+def key_goes_to(url: str, settings: "Settings") -> bool:
+    """Whether the Comfy API key may ride in a job sent to the ComfyUI at `url`: this PC's,
+    Comfy's own, or the one address Settings names (comfyui_key_url, set on the PC only)."""
+    if comfy_key_ok(url):
+        return True
+    trusted = (getattr(settings, "comfyui_key_url", None) or "").rstrip("/")
+    return bool(trusted) and (url or "").rstrip("/") == trusted and key_comfyui_problem(trusted) is None
+
+
 def comfy_key_refused(url: str) -> str:
     from urllib.parse import urlsplit
     return (f"the Comfy API key goes only to Comfy's own addresses (https, comfy.org or comfy.app) "
             f"or this machine, not {urlsplit(url or '').netloc or url!r}")
+
+
+def changed(updates: dict, settings: "Settings", fields=None) -> list[str]:
+    """The fields of `updates` (of `fields`, when given) that saving would change from what
+    `settings` holds, read the way save_settings and load_settings read them: an empty value
+    is the default, an address is the same with or without its last `/`. The page sends
+    every field on a save, so this is what says whether a save touches one."""
+    defaults = {"local_url": LOCAL_URL, "comfyui_url": COMFYUI_URL, "cloud_url": CLOUD_URL}
+
+    def text(v):
+        return v.strip() if isinstance(v, str) else v
+
+    out = []
+    for k, v in updates.items():
+        if fields is not None and k not in fields:
+            continue
+        now = getattr(settings, k, None)
+        if k == "provider_keys":
+            if not isinstance(v, dict) or any((key or None) != (now or {}).get(str(pid))
+                                              for pid, key in v.items()):
+                out.append(k)
+            continue
+        if k == "paid_limit":
+            new = None if v in (None, "") else v            # 0 is a limit, not none
+        elif k == "local_via":
+            new = LOCAL_VIA[0] if v in (None, "") else v
+        elif k == "deployments":
+            new = ({str(t): str(u).rstrip("/") for t, u in v.items()} if isinstance(v, dict)
+                   else ({} if v is None else v))
+            now = now or {}
+        elif k in defaults or k == "comfyui_key_url":
+            v = text(v)
+            new = v.rstrip("/") if isinstance(v, str) and v else defaults.get(k)
+            now = now or None
+        elif k in ("ffmpeg_dir", "comfyui_dir"):
+            v = text(v)
+            new = os.path.normcase(os.path.abspath(v)) if isinstance(v, str) and v else None
+            now = os.path.normcase(os.path.abspath(now)) if now else None
+        else:
+            new, now = text(v) or None, now or None
+        if new != now or type(new) is not type(now):
+            out.append(k)
+    return out
 
 
 def save_settings(updates: dict, path: str | None = None) -> str:
@@ -303,6 +382,8 @@ def save_settings(updates: dict, path: str | None = None) -> str:
             continue
         if k not in ("api_key", "hf_token") and not v.startswith(("http://", "https://")):
             raise ValueError(f"{k}: a URL starting with http:// or https://")
+        if k == "comfyui_key_url" and key_comfyui_problem(v):
+            raise ValueError(f"{k}: {key_comfyui_problem(v)}")
         if k == "cloud_url" and not comfy_key_ok(v):
             raise ValueError(f"{k}: {comfy_key_refused(v)}")
         data[k] = v if k in ("api_key", "hf_token") else v.rstrip("/")

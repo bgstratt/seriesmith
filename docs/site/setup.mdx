@@ -186,6 +186,12 @@ The other keys, most of them written by the editor rather than by hand:
   (`seriesmith/ff.py`).
 - `comfyui_dir`: ComfyUI's folder (the one with `main.py`), for the Features window to
   install into when the standalone server can't ask ComfyUI (`/internal/folder_paths`).
+- `comfyui_key_url`: a ComfyUI on another machine that may be sent your Comfy API key. A
+  Comfy partner node (a paid model inside a local workflow) reads the key from the job it
+  runs in, so by default such a job goes only to a ComfyUI on this PC. Tick **Send my
+  Comfy API key to this ComfyUI** under the ComfyUI address in Settings (on the PC running
+  seriesmith) and the key goes to that address too: https, or http on your own network.
+  Changing the ComfyUI address clears it.
 - `local_via`: `"comfyui"` (the default: local renders straight to ComfyUI) or
   `"proxy"` (through comfy-api-proxy at `local_url`, default `http://127.0.0.1:8189`).
 - `paid_limit`: how many paid runs one server session may queue (none: no cap).

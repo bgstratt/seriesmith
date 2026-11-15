@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 
+from seriesmith import proc as PROC
 from seriesmith import color as COL
 from seriesmith import ff as FF
 from seriesmith import finish as F
@@ -86,8 +86,8 @@ def encode(src: str, dst: str) -> None:
            "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-fps_mode", "cfr",
            "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", tmp]
     try:
-        subprocess.run(cmd, check=True, capture_output=True, timeout=ENCODE_TIMEOUT)
-    except subprocess.CalledProcessError as e:
+        PROC.run(cmd, check=True, capture_output=True, timeout=ENCODE_TIMEOUT)
+    except PROC.CalledProcessError as e:
         _drop(tmp)
         raise TakeImportError("ffmpeg couldn't convert it: "
                            + (e.stderr or b"").decode("utf-8", "replace")[-300:]) from None
@@ -178,9 +178,9 @@ PROXY_MAX_W = 1920
 def _ffmpeg(cmd: list[str], dst: str, what: str) -> None:
     tmp = fileio.temp_beside(dst, ".mp4")
     try:
-        subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", *cmd, tmp], check=True,
+        PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", *cmd, tmp], check=True,
                        capture_output=True, timeout=ENCODE_TIMEOUT)
-    except subprocess.CalledProcessError as e:
+    except PROC.CalledProcessError as e:
         _drop(tmp)
         raise TakeImportError(f"ffmpeg couldn't {what}: "
                               + (e.stderr or b"").decode("utf-8", "replace")[-300:]) from None
@@ -263,6 +263,12 @@ def master_file(take: T.Take) -> str | None:
     from. None for any other take, or an original that moved or changed."""
     m = (take.sidecar or {}).get("master")
     if not isinstance(m, dict) or not isinstance(m.get("path"), str):
+        return None
+    from seriesmith.core import paths as P
+    # the take's record names it, and a show can be handed over: a path on this PC's disks
+    # only. One on a network share isn't looked at (Windows would sign in to its host),
+    # unless the share is a project folder
+    if not os.path.isabs(m["path"]) or P.foreign(m["path"]):
         return None
     try:
         st = os.stat(m["path"])

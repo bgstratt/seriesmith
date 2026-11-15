@@ -172,6 +172,8 @@ class Item:
     label: str = ""                # hub: what it is, in words
     alt: str = ""                  # model: the same file in torch's hub folder (its path
                                    # there), which counts as installed too
+    sha256: str = ""               # model: the file's sha256, when its record has one: checked
+                                   # before the download is kept (installer)
     dir: str = ""                  # hub (into a models folder): the folder the repo goes
                                    # in there, when its pack doesn't read it by the repo's
                                    # name (ComfyUI-Qwen-TTS: models/qwen-tts/<model>/)
@@ -753,17 +755,24 @@ def shell_line(cmd: list[str]) -> str:
     a character cmd or PowerShell would read (a version spec's < or >) is
     quoted too, which list2cmdline leaves bare."""
     import shlex
-    import subprocess
+    from seriesmith import proc as PROC
     if os.name != "nt":
         return shlex.join(cmd)
     return " ".join(f'"{a}"' if any(c in a for c in '<>|&^') and " " not in a
-                    else subprocess.list2cmdline([a]) for a in cmd)
+                    else PROC.list2cmdline([a]) for a in cmd)
 
 
 def pip_command(item: Item, python: str | None) -> str:
     """The pip line that puts `item` in `python` ("python" when it isn't
     known), quoted for this system's shell."""
-    return shell_line([python or "python", "-m", "pip", "install", item.name, *item.pip_args])
+    return pip_line(python or "python", item.name, *item.pip_args)
+
+
+def pip_line(python: str, *what: str) -> str:
+    """The line of text that installs `what` with `python`'s pip, quoted for this system's
+    shell: shown for the user to run. seriesmith never runs it (the Comfy Registry's rule,
+    and its own: nothing installs a package at runtime)."""
+    return f"{shell_line([python])} -m pip install {shell_line(list(what))}"
 
 
 KEY_HOW = ("Set your Comfy API key (platform.comfy.org) in Settings › Comfy API key, or in "
@@ -863,6 +872,7 @@ def known_files(features: list[Feature] | None = None) -> dict[str, Item]:
     """Every model file with a recorded download, by name, and every hub
     item, by its repo or path: what the What's missing window may ask for by
     name (the server never takes a URL from the page)."""
+    import re
     from seriesmith import targets as TG
     out: dict[str, Item] = {}
     for f in features or catalog():
@@ -873,7 +883,9 @@ def known_files(features: list[Feature] | None = None) -> dict[str, Item]:
         for name, d in t.downloads.items():
             if d.get("url") and d.get("folder"):
                 base = name.replace("\\", "/").rsplit("/", 1)[-1]
-                out.setdefault(base, Item("model", base, folder=d["folder"], url=d["url"], target=t.id))
+                sha = d.get("sha256") if isinstance(d.get("sha256"), str) else ""
+                out.setdefault(base, Item("model", base, folder=d["folder"], url=d["url"], target=t.id,
+                                          sha256=sha.lower() if re.fullmatch(r"[0-9a-fA-F]{64}", sha) else ""))
     return out
 
 
@@ -975,5 +987,5 @@ def managed_ffmpeg_dir() -> str:
 
 __all__ = ["CORE_CLASSES", "Env", "Feature", "GROUPS", "Item", "PACKS", "catalog",
            "feature_label_of", "fetch_items", "how", "item_status", "known_files",
-           "managed_ffmpeg_dir", "nodes_hub", "pack_for_class", "pip_command", "resolve",
+           "managed_ffmpeg_dir", "nodes_hub", "pack_for_class", "pip_command", "pip_line", "resolve",
            "shell_line", "status", "whisper_item"]

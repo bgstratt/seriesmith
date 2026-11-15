@@ -96,8 +96,25 @@ route does, as ComfyUI serves its own).
 - **`source_path`** (an import's file on this machine: a take, a ref, a video, a
   recording, a character's lines, an FCP7 XML and the media it names) is an absolute
   path, anywhere from the PC running seriesmith and inside a root from another device
-  (403: send it as a multipart upload instead). `ffmpeg_dir` and `comfyui_dir` in
-  `PUT /seriesmith/settings` change from that PC only.
+  (403: send it as a multipart upload instead).
+- **From the PC only** (403 from another device): in `PUT /seriesmith/settings`, a change
+  to `ffmpeg_dir`, `comfyui_dir`, `comfyui_url`, `comfyui_key_url`, `local_url`, `cloud_url`, `local_via`,
+  `deployments`, `api_key`, `hf_token`, `provider_keys` or `paid_limit` (the same values
+  sent back unchanged pass); `PUT` / `DELETE /seriesmith/providers` and
+  `PUT /seriesmith/providers/key`; `POST /seriesmith/jobs/paid-reset`. The PC is a request
+  from its own address that is addressed to it as localhost or 127.0.0.1; under any other
+  name it is another device (401 until paired). A request with the header
+  `X-Seriesmith-Client: mcp` (the MCP server's) needs no pairing from the PC but isn't the
+  PC's own either: no PC-only change, and a `source_path` outside the project folders must
+  be a picture, a video or a sound by its extension (an edit's `.xml` for the XML import),
+  on this PC's own disks.
+- **`PUT /seriesmith/settings`** from another device may carry the PC-only fields as long
+  as each is what the setting already is (the page sends every field): only one that would
+  change answers 403.
+- **The standalone server's answers** carry a `Content-Security-Policy`: the page runs the
+  server's own script files and loads and connects to nothing else.
+- **A file route** (`GET /seriesmith/file`, `/thumb`, a zip) answers with
+  `X-Content-Type-Options: nosniff`, and a type the page doesn't show as a download.
 - **Who it answers** (`seriesmith serve`, `server/guard.py`): a request with an `Origin`
   must come from the server's own page (the Origin's host and port are the request's
   `Host`), and one the browser marks `Sec-Fetch-Site: cross-site` is refused; a request with

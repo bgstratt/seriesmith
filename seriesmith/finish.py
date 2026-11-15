@@ -9,8 +9,8 @@ Needs ffmpeg and ffprobe on PATH. Stdlib otherwise.
 """
 from __future__ import annotations
 
-import subprocess
 
+from seriesmith import proc as PROC
 from seriesmith import ff as FF
 from seriesmith.takes import STRIP_FRAMES
 
@@ -25,10 +25,10 @@ class FinishError(RuntimeError):
 
 def _run(cmd: list[str]) -> bytes:
     try:
-        return subprocess.run(cmd, check=True, capture_output=True, timeout=600).stdout
+        return PROC.run(cmd, check=True, capture_output=True, timeout=600).stdout
     except FileNotFoundError:
         raise FinishError(f"{cmd[0]} is not on PATH") from None
-    except subprocess.CalledProcessError as e:
+    except PROC.CalledProcessError as e:
         raise FinishError(f"{cmd[0]} failed: {(e.stderr or b'').decode('utf-8', 'replace')[-200:]}") \
             from None
 

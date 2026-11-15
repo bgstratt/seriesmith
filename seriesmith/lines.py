@@ -30,11 +30,11 @@ import hashlib
 import io
 import json
 import os
-import subprocess
 import tempfile
 import threading
 import wave
 
+from seriesmith import proc as PROC
 from seriesmith.core.paths import show_file
 from seriesmith import build as BLD
 from seriesmith import ff as FF
@@ -294,7 +294,7 @@ def _to_wav(source: str, dest: str) -> None:
     """Any recording as what the episode's recording is laid from: 44.1 kHz, mono, 16 bit."""
     if not FF.have("ffmpeg"):
         raise LinesError("laying lines needs ffmpeg")
-    got = subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", source, "-ac", "1", "-ar", str(RATE),
+    got = PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-i", source, "-ac", "1", "-ar", str(RATE),
                           "-c:a", "pcm_s16le", dest], capture_output=True, text=True)
     if got.returncode != 0 or not os.path.isfile(dest):
         raise LinesError(f"that take's sound couldn't be read: {(got.stderr or '').strip()[:300]}")

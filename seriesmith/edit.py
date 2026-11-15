@@ -75,9 +75,9 @@ import contextvars
 import copy
 import os
 import re
-import subprocess
 import sys
 
+from seriesmith import proc as PROC
 from seriesmith import color as COL
 from seriesmith import hold as HO
 from seriesmith import jobs as J
@@ -1140,14 +1140,16 @@ def sweep(root: str, pass_: str, comfy_url: str, folder: str | None = None) -> i
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOL_ENV = {"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
+HUB_TOKENS = ("HF_TOKEN", "HUGGING_FACE_HUB_TOKEN", "HUGGINGFACE_HUB_TOKEN")
 
 
 def tool_env() -> dict[str, str]:
     """The environment a pipeline tool runs in: this one, less the keys it never needs (the
-    Comfy API key, a provider's SERIESMITH_KEY_*), with TOOL_ENV."""
-    keep = {k: v for k, v in os.environ.items()
-            if k != "COMFY_API_KEY" and not k.startswith("SERIESMITH_KEY_")}
-    return {**keep, **TOOL_ENV}
+    Comfy API key, a provider's SERIESMITH_KEY_*: proc.clean_env), with TOOL_ENV. The
+    Hugging Face token stays: align is seriesmith's own code and may fetch Whisper's models
+    with it; ffmpeg and every other program get none."""
+    hub = {k: v for k, v in os.environ.items() if k.upper() in HUB_TOKENS}
+    return PROC.clean_env({**hub, **TOOL_ENV})
 
 
 class NotUsable(Exception):
@@ -2758,9 +2760,9 @@ def run_tool(script: str, args: list[str], cwd: str, timeout: int,
         return _stream_tool(tool_cmd(script, args), script, cwd, env, timeout,
                             progress or (lambda tool, ev: None), stop)
     try:
-        r = subprocess.run(tool_cmd(script, args), capture_output=True, cwd=cwd, env=env,
+        r = PROC.run(tool_cmd(script, args), capture_output=True, cwd=cwd, env=env,
                            timeout=timeout)
-    except subprocess.TimeoutExpired:
+    except PROC.TimeoutExpired:
         return 1, "", f"{script} took longer than {timeout}s and was stopped"
     out, err = (b.decode("utf-8", "replace").replace("\r\n", "\n")
                 for b in (r.stdout, r.stderr))
@@ -2773,7 +2775,7 @@ def _stream_tool(cmd: list[str], script: str, cwd: str, env: dict, timeout: int,
     neither pipe fills and stalls the script)."""
     import json
     import threading
-    p = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = PROC.popen(cmd, cwd=cwd, env=env, stdout=PROC.PIPE, stderr=PROC.PIPE)
     err_chunks: list[bytes] = []
     drain = threading.Thread(target=lambda: err_chunks.append(p.stderr.read()), daemon=True)
     drain.start()

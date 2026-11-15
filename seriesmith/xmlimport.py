@@ -65,9 +65,11 @@ import re
 import xml.etree.ElementTree as ET
 from urllib.parse import unquote, urlparse
 
+from seriesmith import proc as PROC
 from seriesmith import mix as MX
 from seriesmith import takes as T
 from seriesmith.core import fileio
+from seriesmith.core import paths as PA
 
 MEDIA = ("handles", "reference", "proxies")
 HANDLES_S = 1.0
@@ -78,6 +80,10 @@ IMPORT_DIR = "_import"
 PLAN_FILE = "xml_media.json"
 PROXY_DIR = "_proxies"
 AUDIO_DIR = "audio"
+# what an edit's clips are: video, sound and stills. A <pathurl> naming anything else is left out
+MEDIA_EXTS = (".mp4", ".m4v", ".mov", ".webm", ".mkv", ".avi", ".mxf", ".mts", ".m2ts", ".mpg", ".mpeg",
+              ".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".opus", ".aif", ".aiff", ".wma",
+              ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp", ".exr", ".dpx", ".psd", ".gif")
 NTSC_BASES = {24: 23.976, 30: 29.97, 48: 47.952, 60: 59.94}
 SHOT_ID = re.compile(r"^[A-Za-z]{1,4}\d{2,5}[a-z]?$")
 SEQ_ID = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,39}$")
@@ -104,7 +110,11 @@ def local_path(url: str | None, base_dir: str | None = None) -> str | None:
     """A <pathurl> as a path on this machine: file://localhost/C%3a/My%20Show/a.mov,
     file:///C:/a.mov and file:///Users/me/a.mov (decoded, a drive letter kept),
     file://server/share/a.mov as a UNC path; a plain path as it is. When it isn't there
-    and `base_dir` is given, the same name beside the XML (a project moved whole)."""
+    and `base_dir` is given, the same name beside the XML (a project moved whole).
+
+    The XML is a file from outside, and looking at a network path signs Windows in to its
+    host: one on a share is followed only when the share is a project folder (core.paths),
+    else it's as if it weren't there (the same name beside the XML still counts)."""
     if not url:
         return None
     url = url.strip()
@@ -119,11 +129,12 @@ def local_path(url: str | None, base_dir: str | None = None) -> str | None:
         path = os.path.normpath(p)
     else:
         path = os.path.normpath(unquote(url))
-    if not os.path.isfile(path) and base_dir:
+    foreign = PA.foreign(path)                            # on a share that isn't a project folder
+    if (foreign or not os.path.isfile(path)) and base_dir:
         beside = os.path.join(base_dir, os.path.basename(path))
         if os.path.isfile(beside):
             return os.path.abspath(beside)
-    return path
+    return None if foreign else path
 
 
 def _int(el, tag: str, default: int | None = None) -> int | None:
@@ -859,6 +870,15 @@ def plan(text: str, parent: str, xml_name: str = "edit.xml", name: str | None = 
         for p in sorted(refused):
             warnings.append(f"{p} is outside the project folders, so it isn't used from another "
                             "device: import the XML on the PC running seriesmith to bring it in")
+    # what an edit brings in is picture and sound: a file of another kind the XML names (a
+    # key, a document) is never copied into the show
+    other = set()
+    for c in ed["v1"] + ed["audio"]:
+        if c.get("path") and os.path.splitext(c["path"])[1].lower() not in MEDIA_EXTS:
+            other.add(c["path"])
+            c["path"] = None
+    for p in sorted(other):
+        warnings.append(f"{p} isn't a video or sound file, so it isn't brought in")
     fps = ed["fps"]
     shots = _lay_shots(ed, warnings)
     if not any(not s["black"] for s in shots):
@@ -1036,19 +1056,18 @@ def keyframe(ep: str, shot: str, mp4: str, frame: int, fps: float) -> str | None
     take, the first the cut plays, unless it has one: what `hold` (the imported series'
     model) holds, and where an image-to-video model starts when the shot is rendered
     again. The path, or None when there was one or ffmpeg couldn't."""
-    import subprocess
     from seriesmith import ff as FF
     dst = os.path.join(ep, "refs", "shots", T.safe_id(shot), "first.png")
     if os.path.isfile(dst):
         return None
     tmp = fileio.temp_beside(dst, ".png")
     try:
-        subprocess.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-ss",
+        PROC.run([*FF.tool("ffmpeg"), "-y", "-v", "error", "-ss",
                         f"{max(0.0, (frame - 0.25) / fps):.6f}", "-i", mp4, "-frames:v", "1", tmp],
                        check=True, capture_output=True, timeout=300)
         fileio.replace(tmp, dst)
         return dst
-    except (subprocess.SubprocessError, OSError):
+    except (PROC.SubprocessError, OSError):
         try:
             os.remove(tmp)
         except OSError:

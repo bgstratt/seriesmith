@@ -5,6 +5,11 @@
 // middle, the timeline along the bottom. The floating windows (inspector,
 // dialogs, Issues, Script) float over it as they do in ComfyUI.
 
+// the page's icons and typefaces, built into its own files (seriesmith/server/static/assets):
+// the page asks no other site for anything. Inside ComfyUI the icons are ComfyUI's own.
+import "primeicons/primeicons.css";
+import "@fontsource-variable/dm-sans/opsz.css";
+import "@fontsource-variable/newsreader/opsz.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { openJobs, openSettings, pushToast, setBackends, start } from "./actions";

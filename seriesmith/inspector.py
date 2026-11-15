@@ -45,6 +45,7 @@ import re
 
 from seriesmith import jobs as J
 from seriesmith import targets as TG
+from seriesmith.core import downloads as DL
 from seriesmith.core import fileio as F
 
 KIND = "video"                       # the only kind this proposes, for now
@@ -853,9 +854,13 @@ def detect_downloads(ui_graph: dict | None) -> dict:
             name, url = m.get("name"), m.get("url")
             if not name or name in out:
                 continue
-            out[name] = {"folder": m.get("directory") or "", "url": url or None,
-                         "source": "the workflow's own properties.models"
-                                   if url else "no URL in the workflow; search for its name"}
+            rec = {"folder": m.get("directory") or "", "url": url or None,
+                   "source": "the workflow's own properties.models"
+                             if url else "no URL in the workflow; search for its name"}
+            why = DL.download_problem(name, rec) if isinstance(name, str) else "not a file name"
+            if why:                                   # listed, never downloaded (core.downloads)
+                rec = {"folder": "", "url": None, "source": f"not downloaded: {why}"}
+            out[str(name)] = rec
     return out
 
 
@@ -1190,6 +1195,7 @@ def validate_spec(spec: dict, graph: dict | None = None,
             continue                                     # a Router model binds no workflow
         if not spec.get(key):
             out.append(f"target.json needs a {key}")
+    out += DL.spec_problems(spec)
     tid = spec.get("id") or ""
     if tid and not ID_RE.match(tid):
         out.append(f"id {tid!r} must be lowercase letters, digits and underscores, "
@@ -1274,6 +1280,8 @@ def delete_spec(root: str, target_id: str) -> bool:
     """Remove a show's own target, or one for every show (the user folder):
     its target.json, and its folder if nothing else is in it. False when
     there was none."""
+    if not isinstance(target_id, str) or not ID_RE.match(target_id):
+        return False                                      # an id, never a path to remove
     path = target_path(root, target_id)
     if not os.path.isfile(path):
         path = os.path.join(TG.user_folder(), target_id, "target.json")
