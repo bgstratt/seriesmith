@@ -24,8 +24,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
+
+from seriesmith import proc as PROC  # stdlib: the one place a program is started (_run.py finds it)
 
 
 def _cmd(tool: str) -> list[str]:
@@ -49,7 +50,7 @@ def _checked(cmd: list[str]) -> list[str]:
 
 
 def probe(ffprobe: str, path: str) -> tuple[int, int, float]:
-    out = subprocess.run([*_cmd(ffprobe), "-v", "error", "-select_streams", "v:0", "-show_entries",
+    out = PROC.run([*_cmd(ffprobe), "-v", "error", "-select_streams", "v:0", "-show_entries",
                           "stream=width,height,r_frame_rate", "-of", "json", path],
                          capture_output=True, text=True, check=True).stdout
     st = json.loads(out)["streams"][0]
@@ -60,8 +61,8 @@ def probe(ffprobe: str, path: str) -> tuple[int, int, float]:
 def frames(ffmpeg: str, path: str, w: int, h: int):
     import numpy as np
     # passthrough: frame n is the file's nth (a late first frame isn't copied to fill the gap)
-    p = subprocess.Popen([*_cmd(ffmpeg), "-v", "error", "-i", path, "-fps_mode", "passthrough",
-                          "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE)
+    p = PROC.popen([*_cmd(ffmpeg), "-v", "error", "-i", path, "-fps_mode", "passthrough",
+                    "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=PROC.PIPE)
     size = w * h * 3
     try:
         while True:

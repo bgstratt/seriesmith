@@ -304,14 +304,15 @@ class ProgramsTest(unittest.TestCase):
             self.assertEqual(set(keys) & set(E.tool_env()), {"HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"})
 
     def test_nothing_else_starts_one(self):
-        """No module of the package but proc (and the helpers, which run in another Python)
-        calls subprocess to start a program; the node pack's go through _ff."""
+        """No module of the package but proc calls subprocess to start a program (the
+        helpers, which run in another Python, go through it too); the node pack's go
+        through _ff."""
         import re
         starts = re.compile(r"\bsubprocess\.(run|Popen|call|check_call|check_output)\(|\bos\.(system|popen|startfile)\(")
         found = []
         for top, own in (("seriesmith", ("proc.py",)), ("comfy_nodes", ("_ff.py",))):
             for d, _, names in os.walk(os.path.join(ROOT, top)):
-                if os.path.basename(d) in ("helpers", "__pycache__", "static"):
+                if os.path.basename(d) in ("__pycache__", "static"):
                     continue
                 for n in names:
                     if n.endswith(".py") and n not in own:
@@ -329,9 +330,9 @@ class ProgramsTest(unittest.TestCase):
 
 class ImportsTest(unittest.TestCase):
     def test_only_the_runners_import_subprocess(self):
-        """seriesmith/proc.py and the node pack's _ff.py are the files that import it; the
-        helpers, which run in another Python, are the exception. Everything else takes a
-        pipe, a timeout or a failed exit's name from the runner."""
+        """seriesmith/proc.py and the node pack's _ff.py are the files that import it.
+        Everything else, the helpers that run in another Python too, takes a pipe, a
+        timeout or a failed exit's name from the runner."""
         rx = re.compile(r"^\s*(import subprocess|from subprocess\b)", re.M)
         found = []
         for top in ("seriesmith", "comfy_nodes"):
@@ -343,7 +344,7 @@ class ImportsTest(unittest.TestCase):
                             if rx.search(fh.read()):
                                 found.append(os.path.relpath(path, ROOT).replace(os.sep, "/"))
         allowed = {"seriesmith/proc.py", "comfy_nodes/_ff.py"}
-        self.assertEqual(sorted(f for f in found if f not in allowed and "/helpers/" not in f), [])
+        self.assertEqual(sorted(f for f in found if f not in allowed), [])
 
 
 class FfmpegInputsTest(unittest.TestCase):

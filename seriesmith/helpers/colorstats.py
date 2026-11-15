@@ -39,13 +39,13 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from seriesmith import color as C  # noqa: E402  (stdlib: the same maths as the export)
+from seriesmith import proc as PROC  # noqa: E402  (stdlib: the one place a program is started)
 
 WIDTH, HEIGHT = 160, 90
 PIXELS = 12000                                # sampled for the search
@@ -78,7 +78,7 @@ def frames(ffmpeg: str, path: str, picks: list[int]) -> np.ndarray:
     """The frames `picks` of `path` as one (n * h * w, 3) float array, 0..1."""
     sel = "+".join(f"eq(n\\,{int(n)})" for n in picks)
     # a fixed size: percentiles and means don't mind the aspect
-    r = subprocess.run([*_cmd(ffmpeg), "-v", "error", "-i", path, "-vf",
+    r = PROC.run([*_cmd(ffmpeg), "-v", "error", "-i", path, "-vf",
                         f"select='{sel}',scale={WIDTH}:{HEIGHT}:in_color_matrix=bt709:in_range=tv:"
                         "out_range=pc,format=rgb24", "-fps_mode", "passthrough",
                         "-f", "rawvideo", "-"], capture_output=True, check=True)
@@ -257,7 +257,7 @@ def main() -> int:
         try:
             out.append(match(base, pick(frames(ffmpeg, c["path"], c["frames"])), by,
                              c.get("color")))
-        except (subprocess.CalledProcessError, ValueError) as e:
+        except (PROC.CalledProcessError, ValueError) as e:
             err = getattr(e, "stderr", b"") or b""
             out.append({"error": (str(e) + " " + err.decode("utf-8", "replace"))[-300:]})
     print(json.dumps(out))

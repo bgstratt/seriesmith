@@ -169,8 +169,11 @@ Each line: what could happen, then what stops it now.
 
 - [x] **Only the runners import `subprocess`.** Twenty files still imported it for a pipe's,
   a timeout's or a failed exit's name; those names come from `proc` (the node pack's from
-  `_ff`) now, so the import is in `proc.py`, `_ff.py` and the two helpers that run in
-  another Python (`helpers/colorstats.py`, `helpers/stills.py`). A test holds it.
+  `_ff`) now, so the import is in `proc.py` and `_ff.py` alone. The two helpers that start
+  ffmpeg from another Python (`helpers/colorstats.py`, `helpers/stills.py`) go through
+  `proc` as well: `_run.py` puts the package on their path, and `proc` needs only the
+  standard library. So what they read is limited as every other ffmpeg command is
+  (`ff.limited`), which it wasn't before. A test holds both.
 
 ## Open
 
