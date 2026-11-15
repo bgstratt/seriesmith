@@ -123,13 +123,13 @@ def queue_routes(settings, runner, connected=lambda: False,
         from it (a job already running keeps the one it started on)."""
         from seriesmith import ff as FF
         from seriesmith.backends import available
-        from seriesmith.settings import FIELDS, from_env, save_settings
+        from seriesmith.settings import FIELDS, changed, from_env, save_settings
         body = A.body_dict(body)
         # which ffmpeg and which ComfyUI folder (its Python) seriesmith runs, where jobs and
         # downloads go, the keys and what may be spent: this PC only
-        for k, what in PC_ONLY.items():
-            if k in body and (body[k] or None) != (getattr(settings, k, None) or None):
-                A.from_this_pc(ctx, f"{k} ({what})")
+        # (the page sends every field on a save: only one that would change is the PC's)
+        for k in changed(body, settings, PC_ONLY):
+            A.from_this_pc(ctx, f"{k} ({PC_ONLY[k]})")
         try:
             save_settings({k: v for k, v in body.items() if k in FIELDS})
             fresh = load_settings()

@@ -159,9 +159,10 @@ def make_view(make_context: Callable[[], "A.Context"], fn, takes: str):
         ctx = make_context()
         ctx.sweep_later = True             # a server answers first, then tidies (get_refs)
         # this PC, or another device (api.check_source). The MCP server says who it is: a model
-        # client reads scripts and pages, so its calls get a paired device's reach (files
-        # inside the project folders, no PC-only setting), not the person's at the PC
-        ctx.local = is_local(request) and request.headers.get(CLIENT_HEADER, "") != "mcp"
+        # client reads scripts and pages, so its calls aren't the person's at the PC: no
+        # PC-only setting, and from outside the project folders only pictures, video and sound
+        ctx.mcp = is_local(request) and request.headers.get(CLIENT_HEADER, "") == "mcp"
+        ctx.local = is_local(request) and not ctx.mcp
         loop = asyncio.get_running_loop()
         # a request that queues work is kept with its jobs (runner.ASKED), so
         # one still waiting when the server stops can be asked for again

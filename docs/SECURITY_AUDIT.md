@@ -143,8 +143,15 @@ Each line: what could happen, then what stops it now.
 - [x] **The page asks no other site for anything.** PrimeIcons (woff2 only, 35 KB) and the
   two typefaces (DM Sans, Newsreader: 340 KB) are built into the page's own files.
 - [x] **MCP ran with the PC's rights.** Its calls say who they are (`X-Seriesmith-Client:
-  mcp`) and get a paired device's reach: an imported file must be inside a project folder,
-  and no PC-only setting changes.
+  mcp`) and change no PC-only setting. From outside the project folders they import a
+  picture, a video or a sound by its extension (an edit's `.xml`), on this PC's own disks:
+  bringing a file in from anywhere is what the import tools are for, so the bound is the
+  kind of file, not the folder. (First drawn as the project folders only; widened the same
+  day.)
+- [x] **A paired device couldn't save Settings at all.** The page sends every field, and
+  the PC-only check compared them as written (`local_via` null against "comfyui"), so an
+  untouched save was refused. `settings.changed` compares them as they are saved; it also
+  tells a limit of 0 from no limit, which the first check didn't.
 - [x] **A show's own `target.json`**: `binding.workflow` is a file name in the target's
   folder; `binding.env` a variable whose name ends in `WORKFLOW`.
 - [x] **A provider's links** (`docs`, `key_url`, `voices.browse`) are https addresses.

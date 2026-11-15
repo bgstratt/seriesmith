@@ -36,7 +36,8 @@ don't open a public issue for it.
   the project folders, choose which ffmpeg or ComfyUI folder to use, change where jobs are
   sent (the ComfyUI and Comfy Cloud addresses, deployments), set or change a key, add, change
   or remove a provider, and raise or reset the paid jobs' limit. A paired device works on the
-  shows; it can't redirect your files or keys.
+  shows and can save the other settings (which model each kind starts on, a model's limits);
+  it can't redirect your files or keys.
 
 ## Files
 
@@ -64,9 +65,11 @@ don't open a public issue for it.
   with its type stated (`X-Content-Type-Options: nosniff`); a kind the page doesn't show is
   sent as a download, never opened in the browser.
 - **The MCP server** (`seriesmith mcp`) works for a model client, which reads scripts and
-  pages that may try to steer it. Its calls have a paired device's reach, not yours at the
-  PC: a file it imports must be inside a project folder, and it can change none of the
-  PC-only settings.
+  pages that may try to steer it. So its calls aren't yours at the PC: it can change none
+  of the PC-only settings, and from outside the project folders it imports only what a
+  show is made of, by the file's name: a picture, a video, a sound (or an edit's `.xml`)
+  on this PC's own disks. A key, a document or a settings file is refused, as is a
+  network path.
 - **The node pack's inputs** (`comfy_nodes/_inputs.py`). A file a node is given must be inside
   ComfyUI's input, output or temp folder.
 - **Writes** go through `seriesmith/core/fileio.py`: atomic, never a partial file.

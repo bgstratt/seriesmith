@@ -112,6 +112,10 @@ class Context:
         # request's address; a direct caller is that PC). Only that PC may change the project
         # folders, or browse and import beyond them (check_source, put_config, get_browse).
         self.local = True
+        # the MCP server's calls (a server sets it): not `local`, since a model client can be
+        # steered by what it reads, but it works on the PC for the person there, so it may
+        # import a picture, a video or a sound from anywhere on the PC (check_source)
+        self.mcp = False
 
     @property
     def runner(self):
@@ -356,9 +360,26 @@ def check_source(ctx: Context, path, what: str = "source_path") -> str:
     if not os.path.isabs(path):
         raise ApiError(400, f"{what} must be an absolute path, not {path!r}")
     if not ctx.local and not in_roots(ctx, path):
-        raise ApiError(403, f"from another device, {what} must be inside a project folder: "
-                            "drag the file in instead")
+        if not ctx.mcp:
+            raise ApiError(403, f"from another device, {what} must be inside a project folder: "
+                                "drag the file in instead")
+        if not mcp_may_read(path, MCP_SOURCE_EXTS):
+            raise ApiError(403, f"{what}: outside the project folders, the MCP server imports "
+                                "pictures, video and sound on this PC only (and an edit's .xml), "
+                                f"not {os.path.basename(path)!r}")
     return path
+
+
+MCP_SOURCE_EXTS = (".xml",)
+
+
+def mcp_may_read(path: str, also: tuple = ()) -> bool:
+    """Whether the MCP server may import `path` from outside the project folders: a picture,
+    a video or a sound by its name (never a key, a document, a settings file), on this PC's
+    own disks (a network path is never looked at)."""
+    from seriesmith import xmlimport as XI
+    ext = os.path.splitext(path)[1].lower()
+    return ext in XI.MEDIA_EXTS + tuple(also) and not PA.is_network(path)
 
 
 def check_ep(ctx: Context, ep) -> str:
@@ -7179,8 +7200,9 @@ def post_import_xml(ctx: Context, body):
     if handles in (None, ""):
         handles = XI.HANDLES_S
     in_show = _flag(body.get("in_show"))
-    # from another device, the media it names come from the project folders only
-    allow = None if ctx.local else (lambda p: in_roots(ctx, p))
+    # from another device, the media it names come from the project folders only (the MCP
+    # server: any picture, video or sound on this PC)
+    allow = None if ctx.local else (lambda p: in_roots(ctx, p) or (ctx.mcp and mcp_may_read(p)))
     if _flag(body.get("dry_run")):
         return 200, XI.public(XI.plan(text, parent, xml_name, name, media, handles, base, in_show,
                                       allow))

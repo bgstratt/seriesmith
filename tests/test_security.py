@@ -457,6 +457,40 @@ class DataTest(unittest.TestCase):
             M.Client("http://127.0.0.1:8190").call("GET", "/seriesmith/config")
         self.assertEqual(seen[0].get_header(V.CLIENT_HEADER.capitalize()), "mcp")
 
+    def test_the_mcp_server_imports_media_from_anywhere_on_the_pc(self):
+        from seriesmith import api as A
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = A.Context(tmp, "http://127.0.0.1:0", lambda *a: None, env={"SERIESMITH_ROOTS": ""})
+            ctx.local, ctx.mcp = False, True
+            pic = os.path.join(tmp, "elsewhere", "face.PNG")
+            self.assertEqual(A.check_source(ctx, pic), pic)
+            self.assertEqual(A.check_source(ctx, os.path.join(tmp, "edit.xml"), "path"),
+                             os.path.join(tmp, "edit.xml"))
+            for bad in (os.path.join(tmp, ".ssh", "id_rsa"), os.path.join(tmp, "settings.json"),
+                        os.path.join(tmp, "notes.txt"), UNC):
+                with self.assertRaises(A.ApiError) as e:
+                    A.check_source(ctx, bad)
+                self.assertEqual(e.exception.status, 403, bad)
+            ctx.mcp = False                                 # a paired device: the project folders
+            with self.assertRaises(A.ApiError):
+                A.check_source(ctx, pic)
+
+    def test_a_save_that_changes_nothing_of_the_pcs_is_anyones(self):
+        from seriesmith.server import queue_views as QV
+        s = S.Settings(comfyui_url="http://127.0.0.1:8188", deployments={"t": "https://x.run.comfy.app"},
+                       paid_limit=0)
+        # what the page sends when Save is pressed with nothing touched
+        same = {"comfyui_url": "http://127.0.0.1:8188/", "local_url": s.local_url, "cloud_url": s.cloud_url,
+                "deployments": {"t": "https://x.run.comfy.app/"}, "ffmpeg_dir": None, "comfyui_dir": None,
+                "comfyui_key_url": None, "paid_limit": 0, "local_via": None, "default_targets": {"video": "x"}}
+        self.assertEqual(S.changed(same, s, QV.PC_ONLY), [])
+        for k, v in (("local_via", "proxy"), ("paid_limit", None), ("paid_limit", 5), ("deployments", {}),
+                     ("comfyui_url", "http://10.0.0.5:8188"), ("api_key", "k"), ("hf_token", "t"),
+                     ("comfyui_key_url", "http://10.0.0.5:8188"), ("provider_keys", {"fal": "k"}),
+                     ("cloud_url", "")):
+            want = [] if (k, v) == ("cloud_url", "") else [k]       # empty: the default it has
+            self.assertEqual(S.changed({k: v}, s, QV.PC_ONLY), want, (k, v))
+
     def test_a_module_of_seriesmiths_is_the_only_python_started(self):
         cmd = PROC.module(None, "helpers.probe", "a=b")
         self.assertEqual(cmd[:3], [sys.executable, PROC.RUNNER, "seriesmith.helpers.probe"])

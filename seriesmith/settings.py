@@ -238,6 +238,49 @@ def comfy_key_refused(url: str) -> str:
             f"or this machine, not {urlsplit(url or '').netloc or url!r}")
 
 
+def changed(updates: dict, settings: "Settings", fields=None) -> list[str]:
+    """The fields of `updates` (of `fields`, when given) that saving would change from what
+    `settings` holds, read the way save_settings and load_settings read them: an empty value
+    is the default, an address is the same with or without its last `/`. The page sends
+    every field on a save, so this is what says whether a save touches one."""
+    defaults = {"local_url": LOCAL_URL, "comfyui_url": COMFYUI_URL, "cloud_url": CLOUD_URL}
+
+    def text(v):
+        return v.strip() if isinstance(v, str) else v
+
+    out = []
+    for k, v in updates.items():
+        if fields is not None and k not in fields:
+            continue
+        now = getattr(settings, k, None)
+        if k == "provider_keys":
+            if not isinstance(v, dict) or any((key or None) != (now or {}).get(str(pid))
+                                              for pid, key in v.items()):
+                out.append(k)
+            continue
+        if k == "paid_limit":
+            new = None if v in (None, "") else v            # 0 is a limit, not none
+        elif k == "local_via":
+            new = LOCAL_VIA[0] if v in (None, "") else v
+        elif k == "deployments":
+            new = ({str(t): str(u).rstrip("/") for t, u in v.items()} if isinstance(v, dict)
+                   else ({} if v is None else v))
+            now = now or {}
+        elif k in defaults or k == "comfyui_key_url":
+            v = text(v)
+            new = v.rstrip("/") if isinstance(v, str) and v else defaults.get(k)
+            now = now or None
+        elif k in ("ffmpeg_dir", "comfyui_dir"):
+            v = text(v)
+            new = os.path.normcase(os.path.abspath(v)) if isinstance(v, str) and v else None
+            now = os.path.normcase(os.path.abspath(now)) if now else None
+        else:
+            new, now = text(v) or None, now or None
+        if new != now or type(new) is not type(now):
+            out.append(k)
+    return out
+
+
 def save_settings(updates: dict, path: str | None = None) -> str:
     """Write `updates` into the settings file (made if missing; its other keys
     kept). A field absent from `updates` is left as it is; an empty URL or

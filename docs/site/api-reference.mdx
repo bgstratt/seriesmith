@@ -108,8 +108,13 @@ route does, as ComfyUI serves its own).
   `PUT /seriesmith/providers/key`; `POST /seriesmith/jobs/paid-reset`. The PC is a request
   from its own address that is addressed to it as localhost or 127.0.0.1; under any other
   name it is another device (401 until paired). A request with the header
-  `X-Seriesmith-Client: mcp` (the MCP server's) is answered as another device's too, though
-  it needs no pairing from the PC: a `source_path` inside a project folder, no PC-only change.
+  `X-Seriesmith-Client: mcp` (the MCP server's) needs no pairing from the PC but isn't the
+  PC's own either: no PC-only change, and a `source_path` outside the project folders must
+  be a picture, a video or a sound by its extension (an edit's `.xml` for the XML import),
+  on this PC's own disks.
+- **`PUT /seriesmith/settings`** from another device may carry the PC-only fields as long
+  as each is what the setting already is (the page sends every field): only one that would
+  change answers 403.
 - **A file route** (`GET /seriesmith/file`, `/thumb`, a zip) answers with
   `X-Content-Type-Options: nosniff`, and a type the page doesn't show as a download.
 - **Who it answers** (`seriesmith serve`, `server/guard.py`): a request with an `Origin`
