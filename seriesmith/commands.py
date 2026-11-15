@@ -124,7 +124,11 @@ def stage(name: str, ep: str, extra: list[str], skip_build: bool = False) -> int
         series_cfg, md = episode_files(ep)
         base = [series_cfg, md]
         if name == "check":
-            rc = call("check", _check, base + ["--check"]) or call("check", _check, base + ["--pace"])
+            # -o: the references are counted on disk from the episode, as build counts them
+            # (without it, from wherever the command was run: "0/69 on disk" with all 69 there)
+            here = ["-o", ep]
+            rc = (call("check", _check, base + here + ["--check"])
+                  or call("check", _check, base + here + ["--pace"]))
             # the plates' pictures, which build (standard library only) can't open
             from seriesmith import refs
             for w in refs.letterboxed_plates(ep):
