@@ -56,8 +56,8 @@ def make_crops(ep: str, only: list[str] | None = None) -> list[dict]:
             out.append({"id": lid, "status": "waiting", "path": None,
                         "why": f"'{e['of']}' has no plate yet"})
             continue
-        path = R.ref_file(s.ep, e["plate"])
-        src = R.ref_file(s.ep, master["plate"])
+        path = R.ref_file(s.home, e["plate"])
+        src = R.ref_file(s.home, master["plate"])
         item = {"id": lid, "path": path}
         if not os.path.isfile(src):
             out.append(dict(item, status="waiting", why=f"'{e['of']}' has no plate yet"))
@@ -127,12 +127,12 @@ def crop_of(ep: str, cid: str) -> dict:
     if not e or e.get("crop") is None:
         raise ValueError(f"{cid!r} isn't a crop (a location with `of` and `crop`)")
     master = locs.get(e["of"]) or {}
-    src = R.ref_file(s.ep, master["plate"]) if master.get("plate") else None
+    src = R.ref_file(s.home, master["plate"]) if master.get("plate") else None
     if not src or not os.path.isfile(src):
         raise ValueError(f"'{e['of']}' has no plate yet")
     with Image.open(src) as im:
         size = im.size
-    return {"id": cid, "path": R.ref_file(s.ep, e["plate"]), "master": src, "size": size,
+    return {"id": cid, "path": R.ref_file(s.home, e["plate"]), "master": src, "size": size,
             "want": {"of": e["of"], "crop": e["crop"], "zoom": float(e.get("zoom") or ZOOM),
                      "master_sha1": F.file_digest(src)}}
 

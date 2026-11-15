@@ -982,10 +982,10 @@ def _ref_namer(root: str, shot_id: str):
     from seriesmith.core.series_config import variant_of
     variants = variant_of(cfg)
     plates = {}
+    home = P.series_home(root) or root
     for lid, loc in (cfg.get("locations") or {}).items():
         if isinstance(loc, dict) and loc.get("plate"):
-            # the episode's path, as the shot's slot names its file
-            plates[os.path.normcase(os.path.normpath(os.path.join(root, loc["plate"])))] = lid
+            plates[os.path.normcase(os.path.normpath(os.path.join(home, loc["plate"])))] = lid
 
     def which(r: dict, full: str) -> tuple[str | None, str | None]:
         if r.get("role") in ("first", "last"):

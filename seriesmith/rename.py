@@ -88,8 +88,8 @@ def _move_with_prefix(move: _Moves, src_dir: str, dst_dir: str, old: str, new: s
             move(os.path.join(dst_dir, name), os.path.join(dst_dir, new + name[len(old):]))
 
 
-def _move_live(move: _Moves, base: str, path: str, renamed: str, old: str, new: str) -> None:
-    src, dst = R.ref_file(base, path), R.ref_file(base, renamed)
+def _move_live(move: _Moves, home: str, path: str, renamed: str, old: str, new: str) -> None:
+    src, dst = R.ref_file(home, path), R.ref_file(home, renamed)
     if src is None or dst is None or not os.path.isfile(src) or src == dst:
         return
     folder = os.path.dirname(src)
@@ -151,7 +151,7 @@ def rename(s: R.Series, old: str, new: str) -> None:
             path = entry.get(field)
             if isinstance(path, str) and path:
                 renamed = _renamed_path(path, old, new)
-                _move_live(move, s.ep, path, renamed, old, new)
+                _move_live(move, s.home, path, renamed, old, new)
                 entry[field] = renamed
         raw[block] = {new if k == old else k: v for k, v in raw[block].items()}
         H.write_source(src, P.dump_series(raw, src.text))

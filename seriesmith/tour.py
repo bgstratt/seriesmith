@@ -107,7 +107,7 @@ def tour_source(s: R.Series, ref: R.Ref) -> str | None:
     of = (ref.entry or {}).get("of")
     master = ((s.series_cfg.get("locations") or {}).get(of) or {}) if of else {}
     if master.get("plate"):
-        p = R.ref_file(s.ep, master["plate"])
+        p = R.ref_file(s.home, master["plate"])
         if os.path.isfile(p):
             return p
     return None

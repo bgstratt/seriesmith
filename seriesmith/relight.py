@@ -108,7 +108,7 @@ def plan(s: R.Series, locations: list[str], relight: str, suffix: str | None = N
             continue
         seen.add(src)
         plate = e.get("plate")
-        if not (plate and os.path.isfile(R.ref_file(s.ep, plate))):
+        if not (plate and os.path.isfile(R.ref_file(s.home, plate))):
             raise RelightError(f"{src!r} has no plate yet: generate or import it first")
         vid = f"{src}_{suffix}"
         have = locs.get(vid)

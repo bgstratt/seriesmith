@@ -390,19 +390,8 @@ class ParentSeriesConfigApiTest(ApiTest):
 
     def setUp(self):
         super().setUp()
-        # the series config moves up into the series folder (Shows/), its paths the
-        # episode's as build hands them to the renders: refs/... becomes ../refs/...
-        with open(os.path.join(self.ep, "series.json"), encoding="utf-8") as fh:
-            cfg = json.load(fh)
-        for block in ("subjects", "locations"):
-            for e in cfg[block].values():
-                if isinstance(e, dict):
-                    for k in ("sheet", "plate"):
-                        if str(e.get(k) or "").startswith("refs/"):
-                            e[k] = "../" + e[k]
-        with open(os.path.join(self.shows, "series.json"), "w", encoding="utf-8") as fh:
-            json.dump(cfg, fh)
-        os.remove(os.path.join(self.ep, "series.json"))
+        # the series config moves up into the series folder (Shows/)
+        shutil.move(os.path.join(self.ep, "series.json"), os.path.join(self.shows, "series.json"))
         self.assertTrue(E.build_episode(self.ep)["ok"])
 
     def test_refs_live_in_the_series_folder(self):
