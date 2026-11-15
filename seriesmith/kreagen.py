@@ -500,7 +500,7 @@ def main(argv: list[str] | None = None) -> int:
     todo_now = []
     for j in jobs:
         r = j["ref"]
-        live = r.file or (R.ref_file(r.home, R.voice_sample_path(r)) if r.is_audio else None)
+        live = r.file or (R.ref_file(r.root, R.voice_sample_path(r)) if r.is_audio else None)
         j["out"] = os.path.join(root, os.path.relpath(live, ep)) if live else r.id
         have = bool(r.file) and os.path.isfile(r.file)
         j["had"] = have

@@ -30,9 +30,13 @@ from refs_todo, so a character nobody uses yet can still be generated:
 
 Where things live. Series refs belong to the folder holding series.json (the
 episode, or its parent when the series config is shared by a series); shot
-keyframes belong to the episode. Call that folder the ref's home:
+keyframes belong to the episode. Call that folder the ref's home. A path the
+series config names is the episode's, though, as build hands it to the renders:
+a config the show's episodes share names `../refs/...` (Ref.root, the episode;
+before 2026-11-15 it was read from home, and every picture went one folder
+above the show):
 
-    <home>/<path series.json names>                 the live file renders read
+    <episode>/<path series.json names>              the live file renders read
     <home>/refs/_takes/<key>/<key>[_<view>]_tNN.png  a candidate (take)
     <home>/refs/_takes/<key>/<key>[_<view>]_tNN.json its sidecar
     <home>/refs/_picks.json                         which take is live
@@ -207,18 +211,25 @@ class Ref:
     scope: str              # series | shot
     kind: str               # character | prop | vehicle | ... | location | voice | ambience | keyframe
     name: str
-    path: str               # as the series config names it (relative to `home`); "" if none
-    home: str
+    path: str               # as the series config names it (relative to `base`); "" if none
+    home: str               # where its takes, picks and overrides live (<home>/refs/...)
     entry: dict = field(default_factory=dict)
     subject: str | None = None
+    base: str = ""          # the folder `path` is relative to: the episode, as build and
+                            # the renders read the series config; "" for `home`
 
     @property
     def key(self) -> str:
         return ref_key(self.id)
 
     @property
+    def root(self) -> str:
+        """The folder the ref's `path` is relative to."""
+        return self.base or self.home
+
+    @property
     def file(self) -> str | None:
-        return ref_file(self.home, self.path) if self.path else None
+        return ref_file(self.root, self.path) if self.path else None
 
     @property
     def has_views(self) -> bool:
@@ -253,10 +264,10 @@ def _series_refs(s: Series) -> list[Ref]:
     for sid, e in book.items():
         kind = e.get("kind", "character")
         out.append(Ref(f"subject:{sid}", "series", kind, e.get("name", sid),
-                       e.get("sheet") or "", s.home, e, sid))
+                       e.get("sheet") or "", s.home, e, sid, base=s.ep))
     for lid, e in s.series_cfg["locations"].items():
         out.append(Ref(f"location:{lid}", "series", "location", e.get("name", lid),
-                       e.get("plate") or "", s.home, e))
+                       e.get("plate") or "", s.home, e, base=s.ep))
     for sid, e in book.items():
         # A voice ref for every character, not only those the series config
         # already gives a `voice_sample`: an audio target generates one
@@ -272,11 +283,11 @@ def _series_refs(s: Series) -> list[Ref]:
             continue
         if e.get("voice_sample") or e.get("kind", "character") == "character":
             out.append(Ref(f"voice:{sid}", "series", "voice", e.get("name", sid),
-                           e.get("voice_sample") or "", s.home, e, sid))
+                           e.get("voice_sample") or "", s.home, e, sid, base=s.ep))
     # a place's ambience bed: only where the series config says what's heard there
     for bid, b in SC.ambience_beds(s.series_cfg).items():
         out.append(Ref(f"ambience:{bid}", "series", "ambience", b["name"], b["path"], s.home,
-                       {"ambience": b["words"], "locations": list(b["locations"])}))
+                       {"ambience": b["words"], "locations": list(b["locations"])}, base=s.ep))
     return out
 
 
@@ -285,9 +296,14 @@ VOICE_DIR = "refs/voices"               # where a picked voice with no `voice_sa
 
 def voice_sample_path(ref: Ref) -> str:
     """Where a voice ref's live file belongs: the series config's
-    `voice_sample`, else refs/voices/<subject>.wav (which picking it writes
-    into the series config). Relative to the ref's home, forward slashes."""
-    return ref.path or f"{VOICE_DIR}/{T.safe_id(ref.subject or ref.id)}.wav"
+    `voice_sample`, else refs/voices/<subject>.wav under the ref's home (which
+    picking it writes into the series config). Relative to the ref's `root` (the
+    episode, as the series config's paths are read: `../refs/voices/...` under a
+    series config the show's episodes share), forward slashes."""
+    if ref.path:
+        return ref.path
+    live = os.path.join(ref.home, *VOICE_DIR.split("/"), f"{T.safe_id(ref.subject or ref.id)}.wav")
+    return os.path.relpath(live, ref.root).replace(os.sep, "/")
 
 
 KEYFRAME_ENDS = ("first", "last")
@@ -740,8 +756,8 @@ def variant_reference_images(s: Series, ref: Ref, view: str | None,
     picked = picked_view_file(s, base_id, view)
     if picked:
         d["path"] = picked
-    elif base.get("sheet") and os.path.isfile(ref_file(s.home, base["sheet"])):
-        d["path"] = ref_file(s.home, base["sheet"])
+    elif base.get("sheet") and os.path.isfile(ref_file(s.ep, base["sheet"])):
+        d["path"] = ref_file(s.ep, base["sheet"])
         if panels_of(s, base) == len(VIEW_TAGS):       # a whole picture is never cut
             d["crop"] = {"panels": len(VIEW_TAGS), "index": VIEW_TAGS.index(view)}
     else:
@@ -762,10 +778,10 @@ def angle_reference_images(s: Series, ref: Ref, target=None,
     if not limit or ref.kind != "location" or not of:
         return []
     master = (s.series_cfg.get("locations") or {}).get(of) or {}
-    if not (master.get("plate") and os.path.isfile(ref_file(s.home, master["plate"]))):
+    if not (master.get("plate") and os.path.isfile(ref_file(s.ep, master["plate"]))):
         return []
     return [{"role": "plate", "location": of, "name": master.get("name", of), "kind": "plate",
-             "path": ref_file(s.home, master["plate"])}]
+             "path": ref_file(s.ep, master["plate"])}]
 
 
 COMPOSITE_FIGURES = 4       # at most this many figures in a composed reference
@@ -836,8 +852,8 @@ def _reference_parts(s: Series, sh, sq) -> list[dict]:
             p = picked_view_file(s, sid, view)
             if p:
                 d.update(view=view, path=p)
-            elif e.get("sheet") and os.path.isfile(ref_file(s.home, e["sheet"])):
-                d.update(view=view, path=ref_file(s.home, e["sheet"]))
+            elif e.get("sheet") and os.path.isfile(ref_file(s.ep, e["sheet"])):
+                d.update(view=view, path=ref_file(s.ep, e["sheet"]))
                 # a 4-panel sheet gives that view's panel; a whole picture
                 # (`sheet_panels: 1`) goes as it is: cut, it was a blank strip
                 if panels_of(s, e) == len(VIEW_TAGS):
@@ -845,15 +861,15 @@ def _reference_parts(s: Series, sh, sq) -> list[dict]:
             else:
                 continue
         else:
-            if not (e.get("sheet") and os.path.isfile(ref_file(s.home, e["sheet"]))):
+            if not (e.get("sheet") and os.path.isfile(ref_file(s.ep, e["sheet"]))):
                 continue
-            d["path"] = ref_file(s.home, e["sheet"])
+            d["path"] = ref_file(s.ep, e["sheet"])
         out.append(d)
     loc_key = sh.plate or sq.location
     loc = s.series_cfg["locations"].get(loc_key) or {}
-    if loc.get("plate") and os.path.isfile(ref_file(s.home, loc["plate"])):
+    if loc.get("plate") and os.path.isfile(ref_file(s.ep, loc["plate"])):
         out.append({"role": "plate", "location": loc_key, "name": loc.get("name", loc_key),
-                    "kind": "plate", "path": ref_file(s.home, loc["plate"])})
+                    "kind": "plate", "path": ref_file(s.ep, loc["plate"])})
     return out
 
 
@@ -1732,7 +1748,7 @@ def _pick_new_voice(s: Series, ref: Ref, t: RefTake) -> PickResult:
     ext = os.path.splitext(t.paths.image)[1].lower()
     if ext and os.path.splitext(rel)[1].lower() != ext:
         rel = os.path.splitext(rel)[0] + ext
-    live = ref_file(ref.home, rel)
+    live = ref_file(ref.root, rel)
     _atomic_copy(t.paths.image, live)
     picks = load_picks(ref.home)
     block = picks["refs"].setdefault(ref.id, {})
@@ -4950,7 +4966,7 @@ def _slot_json(slot: dict) -> dict:
     ref = slot["ref"]
     return {"ref": ref.id, "view": slot["view"], "name": ref.name,
             "kind": ref.kind, "audio": bool(slot["audio"]),
-            "path": ep_rel(ref.home, ref.file) if ref.file else None}
+            "path": ep_rel(ref.root, ref.file) if ref.file else None}
 
 
 def match_files(s: Series, names: list[str], refs: list[Ref] | None = None) -> dict:

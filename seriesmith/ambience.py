@@ -25,7 +25,6 @@ import os
 from seriesmith.core.paths import show_file
 from seriesmith import mix as MX
 from seriesmith.core import fileio as F
-from seriesmith.core import paths as P
 from seriesmith.core import series_config as SC
 
 BED_LUFS = -32.0          # room tone well under the lines at the fader's 0 dB
@@ -88,12 +87,6 @@ def shot_locations(root: str) -> dict[str, str]:
     return out
 
 
-def series_home(root: str) -> str | None:
-    """The folder holding the episode's series config (bed paths start there)."""
-    p = P.series_config_path(root)
-    return os.path.dirname(os.path.abspath(p)) if p else None
-
-
 def runs(layout: list[dict], beds_of: dict[str, dict | None]) -> list[dict]:
     """Runs of consecutive clips of the cut (`layout`: [{"id", "trim_in", "used",
     "dissolve_in"}] as assemble lays them) that play over one bed: [{"bed": its dict,
@@ -126,7 +119,6 @@ def laid(root: str, layout: list[dict], series_cfg: dict | None, mix: dict | Non
     (the mix's `beds`)}]. Nothing decoded: cheap enough for every GET of the mix."""
     if not series_cfg or not layout:
         return []
-    home = series_home(root) or root
     locs = shot_locations(root)
     cache: dict[str, dict | None] = {}
 
@@ -140,7 +132,7 @@ def laid(root: str, layout: list[dict], series_cfg: dict | None, mix: dict | Non
     out = []
     for r in runs(layout, beds_of):
         b = r["bed"]
-        full = show_file(home, b["path"])
+        full = show_file(root, b["path"])     # the episode's, as the series config's paths are read
         try:
             rel = os.path.relpath(full, root).replace(os.sep, "/")
         except ValueError:                                # another drive
