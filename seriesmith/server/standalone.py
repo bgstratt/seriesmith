@@ -112,7 +112,7 @@ def recover(runner, ask=None, rebuild=None, local=None) -> list[str]:
     Returns what was done."""
     from seriesmith.runner import requeue_plan
     out, waiting, steps = [], [], []
-    for job_id, entry in runner.queue.read_journal().items():
+    for job_id, entry in runner.queue.take_last_session().items():
         if not isinstance(entry, dict):
             continue
         if (entry.get("resume") or {}).get("kind") == "local":
