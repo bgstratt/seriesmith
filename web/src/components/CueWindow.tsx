@@ -516,19 +516,26 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
     const hi = el.scrollLeft + el.clientWidth - 16;
     if (px < lo || px > hi) el.scrollLeft = Math.max(0, px - LAB_W - (el.clientWidth - LAB_W) * 0.1);
   };
-  const play = (t: CueTake) => {
+  // `at`: pixels into the take's lane (its waveform starts at its downbeat): play from there, or
+  // jump there when it's already playing; without it, the button's play from the start / stop
+  const play = (t: CueTake, at?: number) => {
     const a = audio.current ?? (audio.current = new Audio());
-    if (playing?.take === t.take) {
-      a.pause();
-      setPlaying(null);
-      return;
-    }
     if (!t.file || !t.measured) return;
     const m = t.measured;
+    const from = m.downbeat + Math.max(0, at ?? 0) / latest.current.pps;
+    if (playing?.take === t.take) {
+      if (at == null) {
+        a.pause();
+        setPlaying(null);
+      } else {
+        a.currentTime = from;
+      }
+      return;
+    }
     a.src = api().fileUrl(ep, t.file);
-    a.currentTime = m.downbeat;
+    a.currentTime = from;
     void a.play().catch(() => setPlaying(null));
-    setPlaying({ take: t.take, tau: -g.preroll });
+    setPlaying({ take: t.take, tau: from - m.downbeat - g.preroll });
     let raf = 0;
     const tick = () => {
       if (a.paused || a.ended || audio.current !== a) {
@@ -550,9 +557,19 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
     e.preventDefault();
     const left = e.currentTarget.getBoundingClientRect().left;
     const x0 = e.clientX - left;
+    const was = range;
+    let moved = false;
     setRange({ take: t.take, bars: barSpan(g, x0, x0, pps) });
-    trackPointer((ev) => setRange({ take: t.take, bars: barSpan(g, x0, ev.clientX - left, pps) }), (cancelled) => {
+    trackPointer((ev) => {
+      moved ||= Math.abs(ev.clientX - left - x0) > 3;
+      setRange({ take: t.take, bars: barSpan(g, x0, ev.clientX - left, pps) });
+    }, (cancelled) => {
       if (cancelled) setRange(null);
+      else if (!moved) {
+        // a click, not a drag: the take played from there; the selection as it was
+        setRange(was);
+        play(t, x0);
+      }
     });
   };
 
@@ -654,7 +671,7 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
 
       {tab !== "arc" && takes.map((t, i) => (
         <TakeRow key={t.take} ep={ep} t={t} rank={order[i]} g={g} pps={pps} W={W} viewW={viewW} plan={plan} pass={v.pass}
-          playing={playing?.take === t.take} onPlay={() => play(t)}
+          playing={playing?.take === t.take} onPlay={() => play(t)} onSeek={(px) => play(t, px)}
           select={tab === "orch" ? {
             bars: range?.take === t.take ? range.bars : null, onDown: (e) => onRangeDown(e, t), clear: () => setRange(null),
             takes, spec, t0,
@@ -1018,8 +1035,9 @@ interface TakeSelect {
 }
 
 /** A take: its waveform on the grid with its loudness per bar over the arc, then what was measured. */
-function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, select }: {
+function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, onSeek, select }: {
   ep: string; t: CueTake; rank: number | null; g: Grid; pps: number; W: number; viewW: number; plan: CuePlan; pass: string; playing: boolean; onPlay: () => void;
+  onSeek: (px: number) => void;
   select?: TakeSelect;
 }) {
   const m = t.measured;
@@ -1044,9 +1062,11 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, s
   );
   return (
     <div className={`h3-cue-take${placed ? " h3-on" : ""}`}>
-      <Lane label={label} h={TAKE_H} W={W} cls={`h3-cue-wave${select && ok ? " h3-cue-selectable" : ""}`}
-        onPointerDown={select && ok ? select.onDown : undefined}
-        title={ok ? `${name}: its waveform from its first bar line, its loudness per bar (white) over the arc${select ? ". Drag across bars to select them: repaint them, comp them from another take, or lower them in the mix" : ""}` : t.error ?? t.status}>
+      <Lane label={label} h={TAKE_H} W={W} cls={`h3-cue-wave${ok ? " h3-cue-selectable" : ""}`}
+        onPointerDown={!ok ? undefined : select ? select.onDown : (e) => {
+          if (e.button === 0) onSeek(e.clientX - e.currentTarget.getBoundingClientRect().left);
+        }}
+        title={ok ? `${name}: its waveform from its first bar line, its loudness per bar (white) over the arc. Click to play from there${select ? "; drag across bars to select them: repaint them, comp them from another take, or lower them in the mix" : ""}` : t.error ?? t.status}>
         {ok && <PeaksCanvas peaks={peaks?.ok ? peaks.data.peaks : EMPTY} width={tw} height={TAKE_H - 4} />}
         {ok && (
           <svg width={W} height={TAKE_H} className="h3-cue-svg">
