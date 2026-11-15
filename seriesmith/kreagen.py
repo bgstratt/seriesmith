@@ -101,6 +101,8 @@ def collect(s: R.Series, todo: list | None, only: set[str] | None,
     picked += [(r, len(usage[r.id]["final"])) for r in heard + beds]
     out = []
     for r, blocks in picked:
+        if R.cut_not_drawn(r) and not args.only:
+            continue                  # cut from its master's plate at the end (make_crops)
         why = R.can_generate(s, r)
         if why:
             if r.kind == "character":
@@ -578,7 +580,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  !! {j['name']}: {e}")
             failed.append(j["name"])
 
+    # the crops of the plates just made, cut from them (a bulk run draws no crop)
+    from seriesmith import plates as PL
+    try:
+        cut = [c for c in PL.make_crops(ep) if c["status"] == "made"]
+    except Exception as e:                              # noqa: BLE001  said, the run still counts
+        cut = []
+        print(f"  ! the crops weren't cut: {e}")
     print(f"\n  done. {len(todo_now) - len(failed)} written"
+          + (f", {len(cut)} crop(s) cut from their plates" if cut else "")
           + (f", {len(failed)} failed: {', '.join(failed)}" if failed else "")
           + "\n  re-run build to confirm the count.\n")
     return 1 if failed else 0

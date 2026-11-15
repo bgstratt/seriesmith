@@ -4219,6 +4219,17 @@ def _waiting(takes: list[RefTake]) -> str | None:
     return None
 
 
+def cut_not_drawn(ref: Ref) -> str | None:
+    """Why a bulk generate leaves `ref` alone when it is a crop (a location with `crop`: its
+    picture is its master's plate cut and enlarged, plates.make_crops), else None. A crop can
+    still be drawn on purpose, one at a time (the Refs tab, an edit model); in a bulk run one
+    whose master had no picture yet looked missing and was drawn from its words, and a drawn
+    crop is one of yours, never cut again (2026-11-15: 188 of One Horse Open Sleigh's)."""
+    if ref.kind == "location" and ref.entry.get("crop") is not None:
+        return f"a crop of {ref.entry.get('of')}: cut from its plate, not drawn"
+    return None
+
+
 def missing_series(s: Series, pass_: str = "proxy", unused: bool = False
                    ) -> tuple[list[tuple[Ref, str | None]], list[dict]]:
     """The series refs "generate missing" queues: every one this episode
@@ -4235,7 +4246,7 @@ def missing_series(s: Series, pass_: str = "proxy", unused: bool = False
         used = usage.get(ref.id, {}).get(pass_) or (unused and ref_target_kind(ref) == "image")
         if not used or not ref.path or os.path.isfile(ref.file):
             continue
-        why = can_generate(s, ref)
+        why = cut_not_drawn(ref) or can_generate(s, ref)
         if why:
             skipped.append({"ref": ref.id, "reason": why})
             continue
