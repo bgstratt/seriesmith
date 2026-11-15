@@ -171,3 +171,19 @@ they moved here when PLAN.md was retired (2026-11-11).
       Jobs: Cancel all, and a finished job opens what it made. A camera tour now saves when
       the project is on a different drive from the system's temp folder (#120 to #123).
       Published by the merge's version bump.
+- [x] **0.1.25** (2026-11-14, `release-0.1.25`): a security pass over what seriesmith
+      reaches (docs/SECURITY_AUDIT.md; SECURITY.md says what bounds each). A show someone
+      hands you, or a web page, can't make seriesmith read a file from elsewhere on your PC,
+      a network share or an address on your network, and a model's definition can only
+      download a model file from Hugging Face or Civitai into a models folder. Programs
+      (ffmpeg and the tools) start from one place with your keys left out of their
+      environment, and ffmpeg reads files on this PC and only video, sound and pictures.
+      Only the PC changes where jobs and keys go; a phone or laptop you've paired can still
+      work on the shows and save the other settings, and the MCP server can import pictures,
+      video and sound from anywhere on the PC. The page loads nothing from another site (its
+      icons and typefaces are built in) and runs only its own scripts. A ComfyUI on another
+      machine can be trusted with your Comfy API key in Settings, for paid partner nodes in
+      a local workflow. Also the editor's layout pass (the episode and pass in the top bar,
+      a folding Shots panel, the viewer following the selection), a shorter script-writing
+      skill (a core and six references), and 480p-class proxies by default (#125 to #127).
+      Published by the merge's version bump.
