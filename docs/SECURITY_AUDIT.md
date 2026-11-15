@@ -158,11 +158,17 @@ Each line: what could happen, then what stops it now.
 - [x] **Smaller**: the ComfyUI passthrough routes take a folder's or a node's name only; a
   concat list escapes `'` (`ff.concat_line`); `modelid`'s cache is beside the settings.
 
+- [x] **The page runs only its own scripts.** `views.page_policy`: `default-src 'self'`,
+  `script-src 'self'` plus the hash of each inline script the built page has (the theme,
+  before first paint; read from `static/standalone.html`, so a rebuild needs nothing),
+  pictures, media and fonts from the server (and `data:` / `blob:`), connections to the
+  server and its websocket by name. Styles keep `'unsafe-inline'`: React writes style
+  attributes, and a style runs no code. Loaded in headless Chrome (the page, Settings,
+  Jobs, the websocket, the fonts and icons): nothing blocked. Not yet looked at in a
+  browser with an episode open (the player, the 360 viewer, the mix) or in Safari.
+
 ## Open
 
-- [ ] **A stricter Content-Security-Policy** (`script-src 'self'`). The page has one inline
-  script (the theme, before first paint) and inline styles; it needs each given a hash or
-  moved, then checking in a browser.
 - [ ] **The containment check has two copies**: `core/paths.py` and the node pack's
   `_inputs.py`, which must work in a pack copied without seriesmith.
 - [ ] **A take's `master` stamps live in the show.** A forged show supplies the path, size

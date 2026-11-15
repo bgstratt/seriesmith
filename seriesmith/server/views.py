@@ -98,15 +98,61 @@ LOOPBACK_ADDRS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 CLIENT_HEADER = "X-Seriesmith-Client"
 SAFE_HEADERS = {"X-Content-Type-Options": "nosniff"}
 # on the standalone server's answers too: its page isn't framed by another site, loads no
-# plugin and keeps its own base address
+# plugin, keeps its own base address, and runs and loads only what the server itself sends
+PAGE_POLICY = (
+    "default-src 'self'",
+    # the page's own script files, and the inline ones the built page has (by their hashes:
+    # the theme, set before first paint). Text that reaches the page as markup runs nothing.
+    "script-src 'self'{hashes}",
+    # React writes style attributes, and the page's own <style>: styles run no code
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:", "media-src 'self' data: blob:", "font-src 'self' data:",
+    # its own API and its own websocket (named: 'self' doesn't cover ws: in every browser)
+    "connect-src 'self'{sockets}",
+    "worker-src 'self' blob:", "form-action 'self'",
+    "frame-ancestors 'self'", "object-src 'none'", "base-uri 'self'")
 PAGE_HEADERS = {**SAFE_HEADERS, "X-Frame-Options": "SAMEORIGIN", "Referrer-Policy": "no-referrer",
-                "Content-Security-Policy": "frame-ancestors 'self'; object-src 'none'; base-uri 'self'"}
+                "Content-Security-Policy": "; ".join(PAGE_POLICY).format(hashes="", sockets="")}
+_INLINE: dict[str, tuple[float, tuple[str, ...]]] = {}
+
+
+def inline_script_hashes(html: str) -> tuple[str, ...]:
+    """The CSP hash of each inline script in a page ('sha256-...'): a <script> with no src."""
+    import base64
+    import hashlib
+    import re
+    out = []
+    for attrs, body in re.findall(r"<script\b([^>]*)>(.*?)</script>", html, re.S | re.I):
+        if not re.search(r"\bsrc\s*=", attrs, re.I) and body.strip():
+            out.append("'sha256-" + base64.b64encode(hashlib.sha256(body.encode("utf-8")).digest()).decode() + "'")
+    return tuple(out)
+
+
+def page_policy(page: str | None, host: str | None) -> str:
+    """The Content-Security-Policy for the built page at `page`, answered as `host`."""
+    import re
+    hashes: tuple[str, ...] = ()
+    if page:
+        try:
+            when = os.path.getmtime(page)
+            if _INLINE.get(page, (None,))[0] != when:
+                with open(page, encoding="utf-8", newline="") as fh:    # the bytes the browser hashes
+                    _INLINE[page] = (when, inline_script_hashes(fh.read()))
+            hashes = _INLINE[page][1]
+        except OSError:
+            pass
+    sockets = ""
+    if host and re.fullmatch(r"[A-Za-z0-9.\-]+(:\d+)?|\[[0-9A-Fa-f:]+\](:\d+)?", host):
+        sockets = f" ws://{host} wss://{host}"
+    return "; ".join(PAGE_POLICY).format(hashes="".join(" " + h for h in hashes), sockets=sockets)
 
 
 async def page_headers(request, response) -> None:
     """aiohttp's on_response_prepare: PAGE_HEADERS on every answer of the standalone server."""
     for k, v in PAGE_HEADERS.items():
         response.headers.setdefault(k, v)
+    response.headers["Content-Security-Policy"] = page_policy(request.app.get("page"),
+                                                              request.headers.get("Host"))
 
 
 def is_local(request: web.Request) -> bool:

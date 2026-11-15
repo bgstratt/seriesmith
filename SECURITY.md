@@ -152,6 +152,11 @@ don't open a public issue for it.
 
 - **It asks no other site for anything.** Its icons and typefaces are built into its own
   files; nothing is loaded from a CDN.
+- **It runs only its own scripts** (`Content-Security-Policy`, `seriesmith/server/views.py`):
+  the script files the server sends, and the one short script built into the page, by its
+  hash. If a show's text (a note, a name, an imported edit) ever reached the page as markup,
+  the browser would run nothing in it. Pictures, video, sound and typefaces come from the
+  server only, and the page connects only to it.
 - **It can't be framed by another site**, loads no plugin, and its links to a provider's
   docs or key page open https addresses only.
 

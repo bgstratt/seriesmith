@@ -111,6 +111,8 @@ route does, as ComfyUI serves its own).
 - **`PUT /seriesmith/settings`** from another device may carry the PC-only fields as long
   as each is what the setting already is (the page sends every field): only one that would
   change answers 403.
+- **The standalone server's answers** carry a `Content-Security-Policy`: the page runs the
+  server's own script files and loads and connects to nothing else.
 - **A file route** (`GET /seriesmith/file`, `/thumb`, a zip) answers with
   `X-Content-Type-Options: nosniff`, and a type the page doesn't show as a download.
 - **Who it answers** (`seriesmith serve`, `server/guard.py`): a request with an `Origin`

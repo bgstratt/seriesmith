@@ -256,6 +256,7 @@ def make_app(roots: list[str] | None = None, settings=None,
                           middlewares=[guard_middleware(local_only, allow_hosts)])
     from seriesmith.server.views import page_headers
     app.on_response_prepare.append(page_headers)
+    app["page"] = os.path.join(STATIC, "standalone.html")     # its inline scripts' hashes
     app["events"], app["settings"], app["comfy_connected"] = events, settings, False
     app["queue"], app["runner"], app["backends"] = queue, runner, backends
     app["make_context"] = make_context

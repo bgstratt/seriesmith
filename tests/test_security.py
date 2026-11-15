@@ -443,6 +443,32 @@ class DataTest(unittest.TestCase):
         self.assertEqual(V.PAGE_HEADERS["X-Content-Type-Options"], "nosniff")
         self.assertIn("frame-ancestors 'self'", V.PAGE_HEADERS["Content-Security-Policy"])
 
+    def test_the_page_runs_only_its_own_scripts(self):
+        import base64
+        import hashlib
+        from seriesmith.server import views as V
+        html = '<head><script>\n  go();\n</script><script type="module" src="/assets/a.js"></script></head>'
+        want = "'sha256-" + base64.b64encode(hashlib.sha256(b"\n  go();\n").digest()).decode() + "'"
+        self.assertEqual(V.inline_script_hashes(html), (want,))
+        with tempfile.TemporaryDirectory() as tmp:
+            page = os.path.join(tmp, "standalone.html")
+            with open(page, "w", encoding="utf-8", newline="") as fh:
+                fh.write(html)
+            policy = V.page_policy(page, "192.168.1.20:8190")
+        self.assertIn(f"script-src 'self' {want};", policy)
+        self.assertIn("connect-src 'self' ws://192.168.1.20:8190 wss://192.168.1.20:8190;", policy)
+        self.assertIn("default-src 'self'", policy)
+        for never in ("unsafe-eval", "script-src 'self' 'unsafe-inline'", "http:", "https:", " *"):
+            self.assertNotIn(never, policy)
+        # a Host that isn't a name and a port names no socket
+        self.assertIn("connect-src 'self';", V.page_policy(None, "x.example; script-src *"))
+        # the page seriesmith ships: every inline script it has is one the policy names
+        built = os.path.join(os.path.dirname(V.__file__), "static", "standalone.html")
+        if os.path.isfile(built):
+            with open(built, encoding="utf-8", newline="") as fh:
+                for h in V.inline_script_hashes(fh.read()):
+                    self.assertIn(h, V.page_policy(built, "127.0.0.1:8190"))
+
     def test_the_mcp_server_says_who_it_is(self):
         from seriesmith import mcp as M
         from seriesmith.server import views as V
