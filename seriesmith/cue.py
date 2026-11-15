@@ -1242,9 +1242,12 @@ def update(root: str, cid: str, n: int, **fields) -> dict:
     return sc
 
 
-def graph(target, p: dict, seed: int, pass_: str) -> dict:
+def graph(target, p: dict, seed: int, pass_: str, models=None) -> dict:
     """The API graph for one take: the target's workflow, its preset's model files,
-    steps, cfg, sampler and negative, the brief and the seed, pruned to the saver."""
+    steps, cfg, sampler and negative, the brief and the seed, pruned to the saver.
+    `models(target, pass_)` gives the installed files that stand in for the preset's
+    ({param: file}: api.cue_models, targets.resolve_models), else the preset's are sent
+    as named."""
     import copy
     base, _ = J.target_workflow(target, None, None, required=True, prefer_repo=True)
     g = copy.deepcopy(base)
@@ -1257,6 +1260,8 @@ def graph(target, p: dict, seed: int, pass_: str) -> dict:
         if preset.steps:
             vals["steps"] = preset.steps
         vals.update({k: v for k, v in preset.extra.items() if not k.startswith("_")})
+    if models is not None:
+        vals.update(models(target, pass_) or {})
     brief = p["prompt"]
     vals["prompt"] = brief["prompt"]
     if brief.get("negative") is not None:
@@ -1566,7 +1571,7 @@ def repaint_graph(g: dict, raw: str, seconds: float, span: tuple[float, float], 
 
 
 def repaint(root: str, pass_: str, cid: str, n: int, bars: tuple[int, int],
-            seed: int | None = None, fresh: bool = False) -> tuple[dict, dict, int]:
+            seed: int | None = None, fresh: bool = False, models=None) -> tuple[dict, dict, int]:
     """Bars [a, b) of take `n` (the cue's bars, 0 the pre-roll's first) to be made again:
     the take's own graph (its model, pass, prompt and theme), its raw file encoded and
     masked over those bars, sampled from `seed` (else the next of the cue's seeds), the
@@ -1620,7 +1625,7 @@ def repaint(root: str, pass_: str, cid: str, n: int, bars: tuple[int, int],
             raise CueError(f"t{n:02d} was made with the theme {sc['theme'].get('label')}, which the cue "
                            f"no longer has: render the cue again instead")
         theme = th
-    g = repaint_graph(graph(target, {"prompt": sc["prompt"], "theme": theme}, codes, take_pass),
+    g = repaint_graph(graph(target, {"prompt": sc["prompt"], "theme": theme}, codes, take_pass, models),
                       raw, seconds, span, seed)
     fit = (sc.get("plan") or {}).get("fit") or p["fit"]
     n2 = reserve(root, cid, {"pass": take_pass, "target": target.id, "seed": seed,
