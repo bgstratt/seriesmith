@@ -80,12 +80,10 @@ class SharedSeriesConfigCommandTest(unittest.TestCase):
             show = os.path.join(tmp, "Show")
             ep = os.path.join(show, "ep01")
             os.makedirs(ep)
-            # the starter's config sits in its episode, its refs one up ("../refs/"); a
-            # level up itself, in the show, they are the show's own "refs/"
-            with open(os.path.join(STARTER, "series.json"), encoding="utf-8") as f:
-                config = f.read().replace('"../refs/', '"refs/')
-            with open(os.path.join(show, "series.json"), "w", encoding="utf-8") as f:
-                f.write(config)
+            # the starter's config sits in its episode, its refs one up ("../refs/"); moved up
+            # into the show it reads the same: a series config's paths are the episode's,
+            # wherever the config is (docs/AUTHORING.md)
+            shutil.copy(os.path.join(STARTER, "series.json"), show)
             shutil.copy(os.path.join(STARTER, "ep01.md"), ep)
             os.makedirs(os.path.join(show, "refs"))                  # not an episode
             env = dict(os.environ)
@@ -104,7 +102,10 @@ class SharedSeriesConfigCommandTest(unittest.TestCase):
             show = os.path.join(tmp, "Show")
             ep = os.path.join(show, "ep01")
             os.makedirs(ep)
-            shutil.copy(os.path.join(STARTER, "series.json"), show)   # "../refs/": outside
+            with open(os.path.join(STARTER, "series.json"), encoding="utf-8") as f:
+                config = f.read().replace('"../refs/', '"../../refs/')   # above the show
+            with open(os.path.join(show, "series.json"), "w", encoding="utf-8") as f:
+                f.write(config)
             shutil.copy(os.path.join(STARTER, "ep01.md"), ep)
             r = subprocess.run([sys.executable, "-m", "seriesmith.commands", "check", ep],
                                capture_output=True, text=True, encoding="utf-8")

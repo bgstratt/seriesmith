@@ -28,6 +28,13 @@ shares one `refs` folder while each keeps a series config of its own (a config i
 episode wins, the one beside it is the fallback), which is what lets episode four add
 a character without touching the first three.
 
+A show can instead keep one `series.json` in its folder, beside the episodes, for every
+episode to use. Its paths read the same: a path in a series config is the episode's,
+wherever the config is, so the shared one names `../refs/...` too (a series theme's
+file is the exception, relative to the config: see **The episode's sound: the `sound` block**). An episode
+with a `series.json` of its own uses that one instead, whole: nothing is merged from
+the show's.
+
 Every file a series config or script names (a picture, the recording, a theme, a title
 clip, a font of the show's) is inside the show (the folder holding its episodes) or a
 project folder; a path that leads anywhere else is refused when it's used. A file from
