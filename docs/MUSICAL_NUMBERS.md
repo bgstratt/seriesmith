@@ -54,6 +54,11 @@ had more cheaply by the joins below.
 - [x] SoulX-Singer-SVC: installed, and its own example converted on the 5090 (2026-11-15: `F:\tools\SoulX-Singer`,
       the 51.5 s example in 14 s of inference, about 25 s more to load; out at 24 kHz, resampled when remixed;
       fp16 with `--auto_shift`)
-- [ ] the voice pass tried by hand on one line (Fanny, song 2), from a spoken voice sample
+- [x] the voice pass tried by hand, from spoken voice samples (2026-11-15/16): a picked take's vocals converted
+      per singer, a duet or ensemble spliced line by line from the lyric sheet's singer marks (Whisper's word
+      times matched to the sheet), the result kept as a new take of the cue; songs 1–6 done this way
+- [x] a number's recording starts about two bars before its first sung line (decided 2026-11-15): the take's
+      long band intros are cut from the number (faded in at a bar line), kept whole as `audio\song_full.wav`;
+      the act can carry the intro low under its last lines into the slot instead
 - [ ] the voice pass in seriesmith: a job (stem, the lines' windows, a conversion per singer, remixed)
 - [ ] the whole show as one cut (or say how in the docs)
