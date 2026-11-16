@@ -1659,6 +1659,11 @@ def post_render(ctx: Context, body):
     then_render = body.get("then_render", False)
     if not isinstance(then_render, bool):
         raise ApiError(400, "then_render must be true or false")
+    dub_voice = body.get("dub_voice", "clone")
+    if dub_voice not in ("clone", "generate"):
+        raise ApiError(400, "dub_voice is clone or generate")
+    if dub_voice == "generate" and not dub_track:
+        raise ApiError(400, "dub_voice says how a dub track's voices are made: ask with dub_track true")
     if then_render and not dub_track:
         raise ApiError(400, "then_render follows a dub track: ask with dub_track true")
     if then_render and ctx.runner is None:
@@ -1703,7 +1708,8 @@ def post_render(ctx: Context, body):
         note=_opt_str(body, "note") or "", allow_missing_refs=allow_missing,
         target=_opt_target(body.get("target")), allow_model_mismatch=allow_mismatch,
         negative=_opt_negative(body.get("negative")), save_latent=save_latent,
-        size=_opt_size(body.get("size")), dub_track=dub_track, redo_range=redo_range)
+        size=_opt_size(body.get("size")), dub_track=dub_track, dub_voice=dub_voice,
+        redo_range=redo_range)
     J.load_shotlist(ep, pass_)                           # 404 before anything else
     if body.get("from_draft") is not None:
         # finals made from Seedance drafts: {shot: its proxy draft take}
@@ -3678,6 +3684,27 @@ def delete_cue(ctx: Context, query: dict):
     return 200, out
 
 
+def cue_models(ctx: Context, notes: list | None = None):
+    """models(target, pass_) for cue.graph: the installed files that stand in for the preset's
+    (targets.resolve_models, as a render, a ref or a line resolves them: another file of the
+    family when the preset's isn't installed), its notes added to `notes`. A required file
+    with none of its family installed is a 409, before anything is reserved. Without it a
+    take's graph named the preset's files as they were, and ComfyUI refused one that wasn't
+    there (2026-11-15: MiniMax Music 3's proxy DiT, the int8, with only the fp16 installed)."""
+    listing = J.model_lister(ctx.comfy, ctx.model_choices)
+
+    def models(target, pass_: str) -> dict:
+        r = TG.resolve_models(target, pass_, TG.wanted_files(target, pass_), listing,
+                              ctx.model_resolve, None, ctx.model_cache)
+        if r["blocked"]:
+            raise ApiError(409, "model files not installed: "
+                           + "; ".join(TG.missing_message(m) for m in r["blocked"]))
+        if notes is not None:
+            notes.extend(n for n in r["notes"] if n not in notes)
+        return r["files"]
+    return models
+
+
 @handler
 def post_cue_render(ctx: Context, body):
     """Render a cue's takes on seriesmith's queue: `{ep, pass, cue, takes?, backend?}`
@@ -3721,15 +3748,20 @@ def post_cue_render(ctx: Context, body):
         except Exception as e:                                # noqa: BLE001  said, not fatal
             raise ApiError(400, f"cue {spec['id']}: the theme couldn't be fitted to the cue: {e}")
         p["melody"] = backend == "local" and _have_sheetsage(ctx)
+    notes: list = []
+    models = None if hosted else cue_models(ctx, notes)
+    if models is not None:
+        models(target, pass_)                  # a missing file refused before a take is reserved
     queued = []
     for seed in CU.seeds(ep, spec, count, len(CU.list_takes(ep, spec["id"]))):
-        g = None if hosted else CU.graph(target, p, seed, pass_)
+        g = None if hosted else CU.graph(target, p, seed, pass_, models)
         k = CU.reserve(ep, spec["id"], {"pass": pass_, "target": target.id, "seed": seed,
                                         "prompt": p["prompt"], "rendered_for": CU.fingerprint(p),
                                         "plan": {
                                             k2: p[k2] for k2 in ("fit", "bars", "bar", "preroll",
                                                                  "seconds", "ask_seconds")},
-                                        **({"theme": CU.theme_record(p["theme"])} if p.get("theme") else {})})
+                                        **({"theme": CU.theme_record(p["theme"])} if p.get("theme") else {}),
+                                        **({"notes": list(notes)} if notes else {})})
         job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend,
                                      call=CU.hosted_call(target, p, seed) if hosted else None,
                                      tracks=int(TG.hosted_block(target.spec).get("tracks") or 1))
@@ -3822,7 +3854,7 @@ def post_cue_repaint(ctx: Context, body):
         raise ApiError(409, f"{backend}'s ComfyUI hasn't seriesmith's {CU.REPAINT_NODE} node: restart "
                             f"ComfyUI to load it (seriesmith's node pack, updated)")
     try:
-        g, p, k = CU.repaint(ep, pass_, spec["id"], n, (bars[0], bars[1]), seed, fresh)
+        g, p, k = CU.repaint(ep, pass_, spec["id"], n, (bars[0], bars[1]), seed, fresh, cue_models(ctx))
     except CU.CueError as e:
         raise ApiError(409, str(e))
     job = ctx.runner.enqueue_cue(ep, spec["id"], k, g, p, backend)
@@ -5875,10 +5907,12 @@ def get_preset_image(ctx: Context, query: dict):
     """A preset's sample (a JPEG, a camera move's an mp4), by the name GET
     /seriesmith/presets gave."""
     from seriesmith import presets as PR
-    path = PR.image_path(str(query.get("name") or ""))
+    path = PR.image_path(str(query.get("name") or ""))       # a checked name: its kind, a plain file
     if path is None:
         raise ApiError(404, f"no preset picture {query.get('name')!r}")
-    return 200, {"path": path, "content_type": "video/mp4" if path.endswith(".mp4") else "image/jpeg"}
+    # served(): the server streams nothing else (the 2026-11-14 security pass), and this route
+    # still answered a plain dict, so every look, relight and framing picture was a 500
+    return 200, served(path, "video/mp4" if path.endswith(".mp4") else "image/jpeg")
 
 
 # ---------------------------------------------------------------------------

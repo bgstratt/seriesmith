@@ -23,6 +23,13 @@ shares one `refs` folder while each keeps a series config of its own (a config i
 episode wins, the one beside it is the fallback), which is what lets episode four add
 a character without touching the first three.
 
+A show can instead keep one `series.json` in its folder, beside the episodes, for every
+episode to use. Its paths read the same: a path in a series config is the episode's,
+wherever the config is, so the shared one names `../refs/...` too (a series theme's
+file is the exception, relative to the config: see **The episode's sound: the `sound` block**). An episode
+with a `series.json` of its own uses that one instead, whole: nothing is merged from
+the show's.
+
 Every file a series config or script names (a picture, the recording, a theme, a title
 clip, a font of the show's) is inside the show (the folder holding its episodes) or a
 project folder; a path that leads anywhere else is refused when it's used. A file from
@@ -535,7 +542,8 @@ turn in words; left out, Qwen 2.1 + angles when it's installed, else `edit_targe
 (`ambience_target` makes the places' ambience beds: `mmaudio_ambience`, the default, or
 `sa3_sfx_ambience`. `voice_target` can also name a video model that renders a dub track,
 `minimax_h3_ref2va`, `fasth3_omni` or `ltx2`: the editor's dub tracks then start on it, and
-voice samples stay on `ltx2_voice`. Three voice models clone a character's sample rather than
+voice samples stay on `ltx2_voice`; a voice sample can still come from H3, as a dub track whose
+voices are made from their descriptions (COMMANDS.md, `render --dub-track --dub-voice generate`). Three voice models clone a character's sample rather than
 continue it: `drama3` and `qwen3_tts` on your GPU, `fishaudio_drama3` hosted and paid; each
 is sent the words alone, and without a sample makes the voice from the `voice` line.)
 
@@ -630,6 +638,14 @@ drawable, and it crowds out detail that is.
 Lead with who they are (*"a young woman"*), then hair, then wardrobe and accessories; keep the
 body to build and silhouette (*tall*, *stocky*, *slight*). A design that leads with clothes
 and hair reads the same on every model, a hosted one behind its provider's filter included.
+
+<!-- skill:ref series_config -->
+**A character much smaller or bigger than the rest** (a squirrel, a mouse, a giant) gets a
+`scale` line: `"scale": "small: a squirrel no taller than a grown person's knee"`. A sheet fills
+its frame whatever the character's size, so without it they come out the size of whoever they
+stand beside. It follows their picture in every shot's prompt on H3 (a wardrobe variant keeps
+its subject's). Size in the `design` sentence doesn't do it: the shots with a sheet don't send it.
+<!-- /skill:ref -->
 
 <!-- skill:omit -->
 Hosted models (Seedance, Kling, Veo, Seedream, …) run behind their provider's content filter,
@@ -1734,6 +1750,19 @@ the same people, the same plate, sizes less than two steps apart, the second not
 continuing the first (`continuous:`). It can't see a cutaway or a cut on
 action in the action text, so treat it as a question to answer, not an error.
 
+<!-- skill:ref continuity -->
+**Nobody pops in or out.** On the same plate at sizes less than two steps apart, someone who
+wasn't in the shot before has to come into frame in the action ("walks in from the left",
+"steps up behind her"), and someone who leaves has to go out of frame in the shot before
+("hurries out of frame", "slides away out of frame"). An empty room and then the same view with
+someone standing in it is a jump cut, and so is a shot of two people followed by one of them
+alone. `seriesmith check` warns about both. The surest fix is to continue the shot
+(`continuous: latent`): it opens on the last frames of the one before, so whoever comes in has
+to walk in rather than be placed half in frame. An insert between them works too: an extreme
+close-up, or a close shot of a prop with nobody in it, is what the next shot looks at, not the
+same view.
+<!-- /skill:ref -->
+
 Worked through: Ada at the counter, then closer for her line. As written, a jump cut:
 
 ```
@@ -1924,6 +1953,9 @@ is what keeps H3 from drawing the same woman twice. Put where they are in the ac
   and outfit visible, since a person half-hidden in the reference is one the model invents.
 - **Describe each member** in `design`, with differences in age, build, hair and colour. A group
   of four identical gowns is read as one person four times.
+- **A group that isn't people** says what its members are: `"members_are": "horses"` (a team of
+  horses, a flock of geese). Every prompt calls them that instead of "people"; left out, a
+  pair of carriage horses is drawn with a driver beside them.
 - It works on every target. H3 Ref2VA defines it in the headcount. LTX-2, Wan and H3 from
   keyframes call it "N different people, each appearing once" in their prose, and their
   reference sheets carry its picture whole, never cut to one panel.

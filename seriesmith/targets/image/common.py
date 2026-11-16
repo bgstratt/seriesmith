@@ -29,7 +29,7 @@ import copy
 import re
 
 from seriesmith.core import framing as sizes   # this module has its own framing()
-from seriesmith.core.series_config import members
+from seriesmith.core.series_config import members, members_are
 from seriesmith.targets.image.krea2 import prompt as KP
 from seriesmith.targets.prose import sentence as _sentence, join_and as _and, article as _article  # noqa: F401
 from seriesmith.targets.graph import consumers as _consumers  # noqa: F401
@@ -121,7 +121,7 @@ def reference_intro(refs: list[dict], word: str = "image") -> str:
                        f"colours and light for the scene.")
         elif r.get("members"):
             out.append(f"{n.capitalize()} is {ref_label(r)}, a group of {r['members']} different "
-                       f"people: draw each of them exactly as in {n} (the same faces, bodies, "
+                       f"{r.get('members_are') or 'people'}: draw each of them exactly as in {n} (the same faces, bodies, "
                        f"clothes and colours), each one once, posed for this shot.")
         else:
             what = "character" if r.get("kind", "character") == "character" else "object"
@@ -206,7 +206,7 @@ def keyframe_prompt(shot, seq, series_cfg: dict, which: str,
         design = ((book.get(s) or {}).get("design") or "").strip().rstrip(".")
         n = members(book.get(s) or {})
         if design and n:
-            parts.append(_sentence(f"{name_of(s)} are {n} different people, each drawn once: "
+            parts.append(_sentence(f"{name_of(s)} are {n} different {members_are(book.get(s) or {})}, each drawn once: "
                                    f"{design}"))
         elif design:
             parts.append(_sentence(f"{name_of(s)} is {design}"))

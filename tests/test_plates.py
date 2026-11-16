@@ -100,6 +100,32 @@ class _Episode(unittest.TestCase):
         return [(c["id"], c["status"]) for c in PL.make_crops(self.ep)]
 
 
+class NotDrawnTest(_Episode):
+    def test_a_bulk_generate_cuts_a_crop_rather_than_draw_it(self):
+        """Before its master had a picture, a crop looked missing and a bulk generate drew it
+        from its words; a drawn crop is one of yours, never cut (2026-11-15)."""
+        from seriesmith import refs as R
+        os.remove(self.master)
+        s = R.load_series(self.ep)
+        todo, skipped = R.missing_series(s, unused=True)
+        self.assertEqual([r.id for r, _ in todo], ["location:alcove"])
+        why = {k["ref"]: k["reason"] for k in skipped}
+        self.assertIn("cut from its plate", why["location:alcove_left"])
+        by = {r.id: r for r in R.series_refs(s)}
+        self.assertIsNone(R.cut_not_drawn(by["location:alcove"]))
+
+    def test_refs_all_lists_the_master_not_its_crop(self):
+        import subprocess
+        os.remove(self.master)
+        r = subprocess.run([sys.executable, "-m", "seriesmith.kreagen", "--project-root", self.ep,
+                            "--all", "--list", "--comfy", "http://127.0.0.1:0", "--no-workflow"],
+                           capture_output=True, text=True, encoding="utf-8",
+                           env=dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8"))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("alcove.png", r.stdout)
+        self.assertNotIn("alcove_left.png", r.stdout)
+
+
 class MakeTest(_Episode):
     def test_made_then_current(self):
         from PIL import Image

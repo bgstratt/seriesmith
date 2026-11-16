@@ -31,7 +31,7 @@
     "values": {"endpoint": "generateAudio", "type": "audio"},
     "arguments": {"custom": true},
     "inputs": {
-      "prompt": "style",
+      "prompt": {"name": "style", "max_chars": 1000, "_note": "Atlas refuses a style over 1000 characters (400, `tags` must be a string of at most 1000 characters)"},
       "lyrics": "prompt",
       "seconds": {"name": "duration", "min": 10, "max": 360},
       "instrumental": "instrumental"

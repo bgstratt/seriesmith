@@ -103,3 +103,14 @@ dur: 1.62
   without its pictures.
 - **Sound is generated**: a dubbed or cloned shot can't be in a group.
 - It is no fix for a jump cut: two near-identical shots in one generation still cut as one.
+
+**Nobody pops in or out.** On the same plate at sizes less than two steps apart, someone who
+wasn't in the shot before has to come into frame in the action ("walks in from the left",
+"steps up behind her"), and someone who leaves has to go out of frame in the shot before
+("hurries out of frame", "slides away out of frame"). An empty room and then the same view with
+someone standing in it is a jump cut, and so is a shot of two people followed by one of them
+alone. `seriesmith check` warns about both. The surest fix is to continue the shot
+(`continuous: latent`): it opens on the last frames of the one before, so whoever comes in has
+to walk in rather than be placed half in frame. An insert between them works too: an extreme
+close-up, or a close shot of a prop with nobody in it, is what the next shot looks at, not the
+same view.

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from seriesmith.core.series_config import members
+from seriesmith.core.series_config import members, members_are
 from seriesmith.targets.prose import clause
 
 # A character sheet is generated as four square views and stitched (a 4096x1024
@@ -188,14 +188,15 @@ def object_prompt(design: str, look: str) -> str:
             f"{look}. Output 1024x1024 or larger.")
 
 
-def group_prompt(design: str, look: str, n: int, w: int = 1344, h: int = 768) -> str:
+def group_prompt(design: str, look: str, n: int, w: int = 1344, h: int = 768,
+                 what: str = "people") -> str:
     """A group subject's one picture (`members: N`): all N side by side,
     whole, apart and facing the viewer, so every face and outfit is readable
     and a video model can tell the people apart. A group picture is what keeps
     the same extras from scene to scene; one figure hidden behind another is
     one the model will invent fresh."""
     design, look = clause(design), clause(look)
-    return (f"A reference picture of a group of {n} different people standing side by "
+    return (f"A reference picture of a group of {n} different {what} standing side by "
             f"side in one row on a plain flat neutral background, no scene and no props, "
             f"every whole figure from head to feet inside the frame, a little space between "
             f"each, nobody overlapping or hidden, all facing the viewer. {design}. Each of "
@@ -231,7 +232,7 @@ def ref_prompt(target, req, series_cfg: dict) -> str:
     config missing one reports the same key."""
     e = req.entry
     if members(e):
-        return group_prompt(e['design'], series_cfg['style']['look'], members(e))
+        return group_prompt(e['design'], series_cfg['style']['look'], members(e), what=members_are(e))
     if req.shape == "plate":
         return plate_prompt(look=series_cfg['style']['look'], description=e['description'])
     if req.shape == "sheet":

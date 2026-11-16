@@ -176,10 +176,25 @@ class ListingTest(RefsTest):
         self.assertEqual({q["seed"] for q in out["queued"]}, {R.seed_for("zed")})
 
     def test_parent_folder_series_config(self):
+        """One series config for the show, in the episodes' parent. Its paths are the
+        episode's, as build hands them to the renders (`../refs/...`, docs/AUTHORING.md);
+        a ref's takes and picks live with the config. Before 2026-11-15 refs read the
+        paths from the config's own folder: every picture went one folder above the
+        show, where no render looked."""
+        from seriesmith.targets.graph import abs_path
         shows = os.path.join(self.tmp, "Show")
         ep = os.path.join(shows, "ep01")
         os.makedirs(ep)
-        shutil.copy(os.path.join(FIXTURE, "series.json"), shows)
+        cfg = json.load(open(os.path.join(FIXTURE, "series.json"), encoding="utf-8"))
+        for block in ("subjects", "locations"):
+            for e in cfg[block].values():
+                if not isinstance(e, dict):
+                    continue                              # a note in the fixture
+                for k in ("sheet", "plate"):
+                    if str(e.get(k) or "").startswith("refs/"):
+                        e[k] = "../" + e[k]
+        with open(os.path.join(shows, "series.json"), "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh)
         shutil.copy(os.path.join(FIXTURE, "script.md"), os.path.join(ep, "ep01.md"))
         self.assertTrue(E.build_episode(ep)["ok"])
         s = R.load_series(ep)
@@ -188,6 +203,15 @@ class ListingTest(RefsTest):
         kitchen = refs["location:kitchen"]
         self.assertEqual(kitchen["path"], "../refs/_bg/kitchen.png")
         self.assertTrue(kitchen["used_by"]["final"])
+        # the live file is the one the render reads: the shotlist's path under the episode
+        shotlist = json.load(open(os.path.join(ep, "shotlist", "shotlist.json"), encoding="utf-8"))
+        bg = next(sh["background"] for sh in shotlist["shots"] if "kitchen" in (sh.get("background") or ""))
+        self.assertEqual(os.path.normcase(R.find_ref(s, "location:kitchen").file),
+                         os.path.normcase(abs_path(ep, bg)))
+        # a voice picked with no voice_sample goes to the show's refs/voices, named from the episode
+        voice = next(r for r in R.series_refs(s) if r.kind == "voice" and not r.path)
+        self.assertTrue(R.voice_sample_path(voice).startswith("../refs/voices/"),
+                        R.voice_sample_path(voice))
         # takes, picks and the live file all live in the series folder
         t = R.import_take(s, R.find_ref(s, "location:kitchen"), None, self.png())
         self.assertTrue(t.paths.sidecar.startswith(os.path.join(shows, "refs", "_takes",

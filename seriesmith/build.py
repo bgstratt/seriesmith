@@ -197,6 +197,7 @@ def story_warnings(story: ir.Episode, series_cfg: dict | None = None) -> list[st
                 f"the cut reads as a single camera rather than a reverse angle. Give the "
                 f"location an angle per speaker and name it with `plate:`.")
     out += jump_cuts(story, person, name)
+    out += appearing_cuts(story, person, name)
     out += recurring_extras(story)
     out += uncropped_warnings(story, series_cfg or {})
     out += undescribed_warnings(story, series_cfg or {})
@@ -290,6 +291,83 @@ def jump_cuts(story: ir.Episode, person, name) -> list[str]:
                 f"sequence {sq.id}: {a.id} -> {b.id} cuts between {sizes} of {listed} on the "
                 f"same plate ({plate}): a jump cut, everyone re-posed in place. Change the size "
                 f"by two or more steps, give {b.id} another `plate:`, or put a cutaway between "
+                f"them (docs/AUTHORING.md, \"Cutting within a location\").")
+    return out
+
+
+# an action that brings someone into the frame: a person who walks in is no jump cut, one
+# who is simply there is ("Barnaby shuffles in from the left" against "Fanny stands at the
+# anvil")
+COMES_IN = re.compile(
+    r"\b(up behind|up beside|over to)\b"
+    r"|\bfrom (the )?(left|right|behind|off)\b|\benters?\b|\binto (the )?(frame|shot|view)\b"
+    r"|\b(walks?|steps?|shuffles?|runs?|hurries|bursts?|comes?|trots?|marches|strides?|"
+    r"wanders?|stumbles?|tumbles?|scurries|scrambles?|creeps?|slips?|dashes|races?|rushes|"
+    r"skids?|crawls?|charges?|swoops?|climbs?|arrives?|appears?|rides?|drives?|pops?)\b"
+    r"[^.]{0,30}\b(in|into|onto|up|over|through|past|across|down|out of)\b", re.I)
+
+
+# an action that takes someone out of the frame (eyelines, "off to frame left", don't count)
+GOES_OUT = re.compile(
+    r"\bout of (the )?(frame|shot|view|sight)\b|\bexits?\b|\bleaves?\b|\boff ?screen\b"
+    r"|\b(walks?|steps?|shuffles?|runs?|hurries|bursts?|trots?|marches|strides?|wanders?|"
+    r"stumbles?|tumbles?|scurries|scrambles?|creeps?|slips?|dashes|races?|rushes|skids?|"
+    r"crawls?|charges?|swoops?|climbs?|rides?|drives?|flies|fly|flew|disappears?|vanish(es)?|"
+    r"backs?|ducks?|dives?|jumps?|hops?|gallops?|pulls?|sweeps?)\b[^.]{0,30}\b(off|out|away)\b"
+    r"(?! to frame)", re.I)
+
+
+def appearing_cuts(story: ir.Episode, person, name) -> list[str]:
+    """Consecutive shots on the same plate at sizes less than two steps apart where the
+    people change: someone appears without coming into frame in that shot, or disappears
+    without going out of frame in the shot before (the rule: on one plate, nobody pops in or
+    out). jump_cuts covers the same people; this is the rest. An insert either side (an
+    extreme close-up, or a close shot of a prop with nobody in it) is a cutaway, the fix for
+    a jump, and two singles are the same-plate singles warning's: neither is said. One of these opened One Horse Open Sleigh: the empty den, then Barnaby in it from
+    the same view (2026-11-15). A warning: the check reads the action's words, not the
+    picture (docs/AUTHORING.md, "Cutting within a location")."""
+    out = []
+    for sq in story.sequences:
+        if sq.continuous in ir.CHAINS:
+            continue
+        for a, b in zip(sq.shots, sq.shots[1:]):
+            if (b.continues(sq) in ir.CHAINS
+                    or (b.keyframe("first", sq) or "").strip().lower() == "continuity"):
+                continue
+            who_a, who_b = {person(s) for s in a.cast}, {person(s) for s in b.cast}
+            if who_a == who_b:
+                continue
+            if len(who_a) == 1 and len(who_b) == 1:
+                continue                    # two singles: the same-plate singles warning's
+            plate = a.plate or sq.location
+            if plate != (b.plate or sq.location):
+                continue
+            apart = framing.steps_apart(a.size, b.size)
+            if apart is None or apart >= 2 or "ecu" in (framing.canonical(a.size),
+                                                       framing.canonical(b.size)):
+                continue
+            # an insert of a thing (nobody in it, a prop close): what the other shot looks at
+            if any(not s.cast and s.props and framing.canonical(s.size) in ("ecu", "cu", "mcu")
+                   for s in (a, b)):
+                continue
+            came, went = sorted(who_b - who_a), sorted(who_a - who_b)
+            # each change shown: who appears comes in, in the shot they appear in; who
+            # disappears goes out, in the shot before
+            if came and COMES_IN.search(b.action or ""):
+                came = []
+            if went and GOES_OUT.search(a.action or ""):
+                went = []
+            if not came and not went:
+                continue
+            listed = lambda ws: ", ".join(name(w) for w in ws)             # noqa: E731
+            what = "; ".join(x for x in (f"{listed(came)} in it without coming in" if came else "",
+                                         f"{listed(went)} gone without going out" if went else "") if x)
+            out.append(
+                f"sequence {sq.id}: {a.id} -> {b.id} keeps the view ({plate}, "
+                f"{framing.term(a.size)} to {framing.term(b.size)}) and {what}: a jump cut, "
+                f"unless the action has them come in or go. Continue it (`continuous: latent`: "
+                f"{b.id} opens on {a.id}'s last frames, and whoever comes in walks in), change the "
+                f"size by two or more steps, give {b.id} another `plate:`, or put an insert between "
                 f"them (docs/AUTHORING.md, \"Cutting within a location\").")
     return out
 

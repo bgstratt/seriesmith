@@ -274,8 +274,10 @@ def plan_shot(doc: dict, index: int, panel_mode: str, fps: float,
 
     else:  # dub / dub_keep_foley
         # ONE clip: the slice of the recorded mix, which already contains
-        # every voice in the shot.
-        src = shot.get("audio_file") or defaults.get("master_track", "")
+        # every voice in the shot. A song's vocal stem when the series dubs
+        # from it (`dub_track`: held_audio.dub_recording, the file uploaded).
+        src = (shot.get("audio_file") or defaults.get("dub_track")
+               or defaults.get("master_track", ""))
         src = resolve(src)
         if (not src or not os.path.isfile(src)) and render_anyway:
             blanked.append("Audio 1")

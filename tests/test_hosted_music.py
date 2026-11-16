@@ -88,6 +88,15 @@ class TheCall(WithEpisode):
         self.assertEqual(args["prompt"], "[Verse]\nporch light on\nleave it on\n\n[Chorus]\ncome on home")
         self.assertNotIn("instrumental", args)
 
+    def test_suno_style_is_cut_to_its_1000_characters_keeping_its_start(self):
+        p, _, _ = self.call("suno_chirp_v6")
+        first = p["prompt"]["prompt"]
+        p["prompt"]["prompt"] = first + " " + " ".join(f"Then section {i} builds with the brass band and the sleigh bells." for i in range(40))
+        _, args = CU.hosted_call(TG.load_target("suno_chirp_v6"), p, 2 ** 40 + 3)
+        self.assertLessEqual(len(args["style"]), 1000)
+        self.assertTrue(args["style"].startswith(first))         # the style and tempo kept, the story cut
+        self.assertTrue(args["style"].endswith("."))
+
     def test_suno_length_is_whole_seconds_in_its_range(self):
         p, _, args = self.call("suno_chirp_v6")
         self.assertTrue(10 <= args["duration"] <= 360)

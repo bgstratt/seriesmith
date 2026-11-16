@@ -355,7 +355,9 @@ a take on a 5090) and is measured as it does:
 The list is **ranked**: #1 best lands the must-land hits and follows the arc. It can't hear
 whether the music is any good, so **listen to the top two or three** (▶) and **Pick** the one you
 like. ▶ plays the whole take, the playhead running over the grid and the window scrolling with it
-when you've zoomed in; a take longer than the cue (a YuE2 song runs as long as the song it
+when you've zoomed in; click anywhere on a take's waveform to play it from there (or jump there
+while it plays; a drag across it selects bars instead, see **Fix part of a take**). Each take's
+waveform names the model that made it in its top-left corner. A take longer than the cue (a YuE2 song runs as long as the song it
 writes) is shown whole, its part past the cue's out point hatched. Picking puts it on the Music
 track from the cue's in point to its out point, with volume
 points that pull its loudness toward the arc (a drop really drops). Render again for eight more
@@ -367,7 +369,7 @@ ranking and by the volume points, not by the words alone.
 
 ## 6. Fix part of a take
 
-On **Orchestration & takes**, drag across bars on a take:
+On **Score** or **Orchestration & takes**, drag across bars on a take:
 
 - **Comp bars a-b from…** another take: a new take, this one with those bars from the other,
   spliced on bar lines. It's measured and ranked like the rest.

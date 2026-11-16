@@ -193,6 +193,47 @@ class JumpCutTest(unittest.TestCase):
         self.assertEqual(self.warnings(("ada", "ms", ""), ("ada, bo", "ms", "")), [])
 
 
+class AppearingCutTest(unittest.TestCase):
+    """build.appearing_cuts: on one plate, nobody pops in or out. Someone who appears comes
+    into frame in that shot, and someone who disappears goes out of frame in the shot
+    before; an insert (an extreme close-up) either side is a cutaway. One opened One Horse
+    Open Sleigh's act 1 and five more were in its script (2026-11-15)."""
+
+    def warnings(self, *shots):
+        from seriesmith import build
+        from seriesmith.core.story import parse_story
+        text = "= ep01  Test\n\n# sq01  kitchen\n"
+        for i, (who, size, action) in enumerate(shots, 1):
+            text += f"\n## sh{i}0\n" + (f"who: {who}\n" if who else "") + f"size: {size}\ndur: 3.04\n\n{action}\n"
+        story = parse_story(text, {"ada", "bo"}, {"ada", "bo"})
+        return build.appearing_cuts(story, lambda s: s, lambda s: s.title())
+
+    def test_someone_appearing_or_vanishing_in_place(self):
+        got = self.warnings(("", "ws", "The kitchen is empty."), ("ada", "ws", "Ada stands at the stove."))
+        self.assertEqual(len(got), 1)
+        self.assertIn("Ada in it without coming in", got[0])
+        got = self.warnings(("ada, bo", "ms", "They talk."), ("ada", "mcu", "Ada sighs."))
+        self.assertIn("Bo gone without going out", got[0])
+        got = self.warnings(("ada", "ws", "Ada stirs."), ("", "ws", "The pot boils over."))
+        self.assertIn("Ada gone without going out", got[0])
+
+    def test_coming_in_and_going_out_are_cuts(self):
+        self.assertEqual(self.warnings(("", "ws", "The kitchen is empty."),
+                                       ("ada", "ws", "Ada walks in from the left.")), [])
+        self.assertEqual(self.warnings(("ada", "ws", "Ada hurries out of frame."),
+                                       ("", "ws", "The pot boils over.")), [])
+        self.assertEqual(self.warnings(("ada", "ms", "Ada steps up to the counter."),
+                                       ("ada, bo", "ms", "Bo steps up behind Ada.")), [])
+
+    def test_what_else_fixes_it(self):
+        self.assertEqual(self.warnings(("ada", "cu", "Ada stares."),
+                                       ("", "ecu", "An extreme close-up of the shadow.")), [])   # insert
+        self.assertEqual(self.warnings(("", "ws", "The kitchen."), ("ada", "mcu", "Ada stares.")), [])  # 4 steps
+        # an eyeline isn't an exit: "off to frame left" keeps her in the shot
+        self.assertEqual(len(self.warnings(("ada, bo", "ms", "Bo looks off to frame left."),
+                                           ("ada", "ms", "Ada sighs."))), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
 

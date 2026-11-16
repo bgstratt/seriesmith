@@ -121,6 +121,32 @@ class QueueResilienceTest(unittest.TestCase):
         wait_for(lambda: self.q.jobs[step].status in DONE, 5)
         self.assertEqual(ran, [1])
 
+    def test_a_job_before_recovery_keeps_the_last_sessions_jobs(self):
+        """ComfyUI's host recovers once its backends answer; a job submitted and
+        finished before then rewrote the journal from the new queue's own jobs, and
+        the last session's waiting takes were lost (2026-11-14)."""
+        from seriesmith.server.standalone import recover
+        last = {"old1": {"kind": "cue", "lane": "local", "title": "songbook m05 t01",
+                         "record": "t01.json", "resume": {"kind": "step", "step": "x"},
+                         "status": "queued", "created": 1.0}}
+        with open(self.journal, "w", encoding="utf-8") as fh:
+            json.dump(last, fh)
+        q2 = Queue(journal=self.journal)               # the host started again
+        g = Gate()
+        early = q2.submit(Job(kind="render", lane="local", title="early", work=g.work(),
+                              record="r.json", resume={"kind": "render"}))
+        g.started.wait(5)
+        self.assertEqual(set(q2.read_journal()), {"old1", early.id})   # kept on disk meanwhile
+        g.go.set()
+        wait_for(lambda: early.status in DONE, 5)
+        self.assertEqual(set(q2.read_journal()), {"old1"})
+        made = []
+        out = recover(Runner(q2, {}, lambda e, d: None), None, made.append)
+        self.assertEqual(made, [last["old1"]["resume"]])
+        self.assertIn("songbook m05 t01", " ".join(out))
+        self.assertEqual(q2.read_journal(), {})          # recovered: the journal is the live queue
+        self.assertEqual(q2.take_last_session(), {})     # handed over once
+
     def test_long_local_work_is_journaled_and_handed_back_after_a_restart(self):
         """A master or align (Runner.local_job) is journaled; after a restart
         recover hands each entry to `local` (api.rebuild_local), saying which

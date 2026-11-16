@@ -460,6 +460,18 @@ class DataTest(unittest.TestCase):
         from seriesmith import api as A
         self.assertIsInstance(A.served("x.mp4", "video/mp4"), A.Served)
         self.assertNotIsInstance({"path": "C:/Windows/win.ini", "content_type": "text/plain"}, A.Served)
+        # every route that replies with a file answers with served(): the server streams nothing
+        # else, so one that returned a plain dict was a 500 for every request (the preset pictures,
+        # broken from this pass until 2026-11-15)
+        import inspect
+        import re as _re
+        file_routes = [f for _m, _p, f, _t in A.ROUTES if getattr(f, "reply", "json") == "file"]
+        self.assertTrue(file_routes)
+        for fn in file_routes:
+            src = inspect.getsource(fn)
+            for ret in _re.findall(r"return 200,\s*([^\n]+)", src):
+                with self.subTest(route=fn.__name__):
+                    self.assertTrue(ret.startswith("served("), f"{fn.__name__}: return 200, {ret}")
         from seriesmith.server import views as V
         self.assertEqual(V.PAGE_HEADERS["X-Content-Type-Options"], "nosniff")
         self.assertIn("frame-ancestors 'self'", V.PAGE_HEADERS["Content-Security-Policy"])

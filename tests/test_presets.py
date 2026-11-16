@@ -146,6 +146,7 @@ class ListingTest(unittest.TestCase):
         self.assertEqual(A.get_presets(ctx, {"kind": "nope"})[0], 400)
         status, data = A.get_preset_image(ctx, {"name": "look/neon_noir.jpg"})
         self.assertEqual((status, data["content_type"]), (200, "image/jpeg"))
+        self.assertIsInstance(data, A.Served)        # else the server sends a 500 (2026-11-15)
         self.assertTrue(data["path"].endswith("neon_noir.jpg"))
         # only a made picture, by its name: nothing else under the package
         for name in ("look/anime.jpg", "../look.json", "look/../relight.json", "img/look/neon_noir.jpg",

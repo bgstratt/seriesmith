@@ -1242,9 +1242,12 @@ def update(root: str, cid: str, n: int, **fields) -> dict:
     return sc
 
 
-def graph(target, p: dict, seed: int, pass_: str) -> dict:
+def graph(target, p: dict, seed: int, pass_: str, models=None) -> dict:
     """The API graph for one take: the target's workflow, its preset's model files,
-    steps, cfg, sampler and negative, the brief and the seed, pruned to the saver."""
+    steps, cfg, sampler and negative, the brief and the seed, pruned to the saver.
+    `models(target, pass_)` gives the installed files that stand in for the preset's
+    ({param: file}: api.cue_models, targets.resolve_models), else the preset's are sent
+    as named."""
     import copy
     base, _ = J.target_workflow(target, None, None, required=True, prefer_repo=True)
     g = copy.deepcopy(base)
@@ -1257,6 +1260,8 @@ def graph(target, p: dict, seed: int, pass_: str) -> dict:
         if preset.steps:
             vals["steps"] = preset.steps
         vals.update({k: v for k, v in preset.extra.items() if not k.startswith("_")})
+    if models is not None:
+        vals.update(models(target, pass_) or {})
     brief = p["prompt"]
     vals["prompt"] = brief["prompt"]
     if brief.get("negative") is not None:
@@ -1290,17 +1295,18 @@ def graph(target, p: dict, seed: int, pass_: str) -> dict:
 def hosted_call(target, p: dict, seed: int) -> tuple[str, dict]:
     """A hosted music model's take as one call: (model, arguments) from the target's `router`
     or `api` block -- its fixed `arguments`, then each of the brief's values at the field `inputs`
-    names it: "prompt", "lyrics" (left out when empty), "instrumental" (set when there are no
+    names it: "prompt" (cut to its `max_chars` by sentences from the end), "lyrics" (left out when empty), "instrumental" (set when there are no
     lyrics), "seconds" ({"name", "min", "max", "scale"}: whole seconds, clamped, then scaled: a
     field in milliseconds) and "seed" ({"name", "max"}). The block's `values` ride along for
     the provider's request (its address, which of its ways)."""
-    from seriesmith.targets.generic.request_map import ceil_seconds, field_name, place, put, put_seed
+    from seriesmith.targets.generic.request_map import ceil_seconds, field_name, fit_head, max_chars, place, put, put_seed
     r = TG.hosted_block(target.spec)
     ins = r.get("inputs") or {}
     args = json.loads(json.dumps(r.get("arguments") or {}))
     brief = p["prompt"]
     vals = brief.get("values") or {}
-    place(args, ins["prompt"], prompt=brief["prompt"])
+    most = max_chars(ins["prompt"])
+    place(args, ins["prompt"], prompt=fit_head(brief["prompt"], most) if most else brief["prompt"])
     sung = (vals.get("lyrics") or "").strip()
     if ins.get("lyrics") and sung:
         place(args, ins["lyrics"], lyrics=vals["lyrics"])
@@ -1566,7 +1572,7 @@ def repaint_graph(g: dict, raw: str, seconds: float, span: tuple[float, float], 
 
 
 def repaint(root: str, pass_: str, cid: str, n: int, bars: tuple[int, int],
-            seed: int | None = None, fresh: bool = False) -> tuple[dict, dict, int]:
+            seed: int | None = None, fresh: bool = False, models=None) -> tuple[dict, dict, int]:
     """Bars [a, b) of take `n` (the cue's bars, 0 the pre-roll's first) to be made again:
     the take's own graph (its model, pass, prompt and theme), its raw file encoded and
     masked over those bars, sampled from `seed` (else the next of the cue's seeds), the
@@ -1620,7 +1626,7 @@ def repaint(root: str, pass_: str, cid: str, n: int, bars: tuple[int, int],
             raise CueError(f"t{n:02d} was made with the theme {sc['theme'].get('label')}, which the cue "
                            f"no longer has: render the cue again instead")
         theme = th
-    g = repaint_graph(graph(target, {"prompt": sc["prompt"], "theme": theme}, codes, take_pass),
+    g = repaint_graph(graph(target, {"prompt": sc["prompt"], "theme": theme}, codes, take_pass, models),
                       raw, seconds, span, seed)
     fit = (sc.get("plan") or {}).get("fit") or p["fit"]
     n2 = reserve(root, cid, {"pass": take_pass, "target": target.id, "seed": seed,

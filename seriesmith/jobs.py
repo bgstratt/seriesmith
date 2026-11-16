@@ -1236,6 +1236,10 @@ class RenderRequest:
     # VOICE_SIZE unless asked otherwise; its voices cloned), its prompt asking
     # for the dialogue alone, kept in <episode>/dub/<shot>/ (takes.DUB_FOLDER)
     dub_track: bool = False
+    # how a dub track's voices are made: "clone" (each speaker's voice_sample, as Ref2VA
+    # does best) or "generate" (the model makes each voice from its `voice` line: a voice
+    # sample made on the video model, cut from the dub track: docs/EDITOR.md)
+    dub_voice: str = "clone"
     # frames of one take made again, the rest of its latent and its sound held
     # (range_latent): {"take": n, "first": frame, "last": frame}, and `prompt`
     # when those frames should ask something else than the take did. A take with
@@ -1830,7 +1834,7 @@ def plan_job(root: str, pass_: str, doc: dict, index: int, req: RenderRequest,
     if req.redo_range and job.runs:
         plan_range(job, req.redo_range, takes)
     if req.dub_track and job.runs:
-        apply_sound(job, {"mode": "clone"})
+        apply_sound(job, {"mode": "generate" if req.dub_voice == "generate" else "clone"})
         job.prompt = voice_only_prompt(job.prompt)
         job.notes.append(f"a dub track: the shot rendered for its sound only, at "
                          f"{job.width}x{job.height}, kept apart from its takes")
@@ -2186,6 +2190,7 @@ def sidecar_for(job: Job) -> dict:
         # a dub track; the sound overrides.json set (a dub's source), which the
         # take is stale against when it changes
         **({"dub_track": True} if job.dub_track else {}),
+        **({"dub_voice": "generate"} if job.dub_track and (job.sound or {}).get("mode") == "generate" else {}),
         **({"sound": dict(job.sound)} if job.sound else {}),
         **_dub_lines_field(job),
         **({"redo_range": {k: job.redo_range[k] for k in ("take", "first", "last", "via")}}

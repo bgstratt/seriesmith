@@ -132,6 +132,12 @@ class Queue:
         # how many at once a lane takes, when its backend says (a provider's own limit)
         self.lane_limit: Callable[[str], int | None] = lambda lane: None
         self.journal = journal
+        # the last session's jobs, read now: the host recovers them only once its
+        # backends answer, and a job submitted or finished before then rewrites the
+        # journal from this queue's own jobs, which lost them (2026-11-14: a ComfyUI
+        # restart dropped 10 queued song takes). Written back with the live jobs
+        # until recovery takes them (take_last_session).
+        self._carried: dict = F.read_json_or(journal, {}, want=dict) if journal else {}
         self.paid_count = 0
         self.paid_limit: int | None = None
         self._lock = threading.RLock()
@@ -191,6 +197,7 @@ class Queue:
                     for j in self.jobs.values()
                     if j.status not in DONE and (j.record or (j.resume or {}).get("step")
                                                  or (j.resume or {}).get("kind") == "local")}
+            live = {**self._carried, **live}
         if not live and not os.path.exists(self.journal):
             return                                        # nothing to keep: no file made for it
         try:
@@ -218,10 +225,17 @@ class Queue:
                 pass
 
     def read_journal(self) -> dict:
-        """What the journal listed when the server last stopped ({} if none)."""
+        """What the journal lists now ({} if none)."""
         if not self.journal:
             return {}
         return F.read_json_or(self.journal, {}, want=dict)
+
+    def take_last_session(self) -> dict:
+        """The jobs the journal listed when this queue was made (the last session's),
+        handed to recovery once: after this, the journal is this queue's own jobs."""
+        with self._lock:
+            out, self._carried = self._carried, {}
+        return out
 
     def arm_cancel(self, job: Job, cancel: Callable[[], None]) -> None:
         """What stops a running job, given once the work has started its run. A

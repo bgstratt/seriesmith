@@ -790,6 +790,31 @@ class RouteTest(unittest.TestCase):
         self.assertIn("no finished take", self.call(
             A.post_cue_pick, {"ep": self.ep, "pass": "final", "cue": "m01", "take": 1}, 409)["error"])
 
+    def test_a_preset_file_not_installed_is_resolved_before_a_take_is_queued(self):
+        """MiniMax Music 3's proxy preset names the int8 DiT; with only the fp16 installed
+        ComfyUI refused the take (2026-11-15). Now the installed file of the family stands
+        in, said on the take; with none of the family, nothing is reserved. (The final pass
+        here, the episode having no proxy cut: its preset's fp16, only the int8 installed.)"""
+        installed = {"diffusion_models": ["minimax_music3_dit_int8_convrot.safetensors"],
+                     "text_encoders": ["minimax_music3_text_encoder_pruned_int8_convrot.safetensors"],
+                     "vae": ["minimax_music3_dav.safetensors"]}
+        self.ctx.model_choices = lambda folder, ctype, field: list(installed.get(folder, []))
+        self.call(A.put_cue, {"ep": self.ep, "cue": {
+            "id": "m01", "kind": "song", "model": "minimax_music3", "in": anchor("sh010"),
+            "out": anchor("sh020", 60), "bpm": 92,
+            "sections": [{"name": "verse", "lyrics": "Quiet as snow, quiet as snow"}]}})
+        body = {"ep": self.ep, "pass": "final", "cue": "m01", "takes": 1}
+        self.call(A.post_cue_render, body)
+        _, n, g, _ = self.ctx.runner.asked[-1]
+        unet = next(v["inputs"]["unet_name"] for v in g.values() if v["class_type"] == "UNETLoader")
+        self.assertEqual(unet, "minimax_music3_dit_int8_convrot.safetensors")
+        sc = CU.list_takes(self.ep, "m01")[-1]
+        self.assertIn("minimax_music3_dit_fp16 isn't installed", " ".join(sc.get("notes") or []))
+        installed["diffusion_models"] = []
+        err = self.call(A.post_cue_render, body, 409)["error"]
+        self.assertIn("model files not installed", err)
+        self.assertEqual(len(CU.list_takes(self.ep, "m01")), 1)          # nothing reserved
+
     def test_a_hosted_model_renders_as_router_calls(self):
         self.call(A.put_cue, {"ep": self.ep, "cue": {"id": "m01", "in": anchor("sh010"),
                                                      "out": anchor("sh020", 60), "bpm": 92,

@@ -237,7 +237,8 @@ turn in words; left out, Qwen 2.1 + angles when it's installed, else `edit_targe
 (`ambience_target` makes the places' ambience beds: `mmaudio_ambience`, the default, or
 `sa3_sfx_ambience`. `voice_target` can also name a video model that renders a dub track,
 `minimax_h3_ref2va`, `fasth3_omni` or `ltx2`: the editor's dub tracks then start on it, and
-voice samples stay on `ltx2_voice`. Three voice models clone a character's sample rather than
+voice samples stay on `ltx2_voice`; a voice sample can still come from H3, as a dub track whose
+voices are made from their descriptions (seriesmith's commands guide, `render --dub-track --dub-voice generate`). Three voice models clone a character's sample rather than
 continue it: `drama3` and `qwen3_tts` on your GPU, `fishaudio_drama3` hosted and paid; each
 is sent the words alone, and without a sample makes the voice from the `voice` line.)
 
@@ -313,6 +314,12 @@ episode's **`negative.txt`** (a text file beside the script), the series config'
 `"negative": "..."`, then the model's own. The take records which one it used. Turbo and
 distilled models sample without guidance (cfg 1): there a negative does nothing, and the
 take says so.
+
+**A character much smaller or bigger than the rest** (a squirrel, a mouse, a giant) gets a
+`scale` line: `"scale": "small: a squirrel no taller than a grown person's knee"`. A sheet fills
+its frame whatever the character's size, so without it they come out the size of whoever they
+stand beside. It follows their picture in every shot's prompt on H3 (a wardrobe variant keeps
+its subject's). Size in the `design` sentence doesn't do it: the shots with a sheet don't send it.
 
 ### Writing the `look` line
 

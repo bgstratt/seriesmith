@@ -7,7 +7,7 @@ and those change.
 from __future__ import annotations
 
 from seriesmith.core import framing
-from seriesmith.core.series_config import members
+from seriesmith.core.series_config import members, members_are
 
 
 def sentence(text: str) -> str:
@@ -44,7 +44,7 @@ def subject_sentence(name: str, design: str, entry: dict) -> str:
     different people, each appearing once: <design>"."""
     n = members(entry)
     if n:
-        return f"{name} are {n} different people, each appearing once: {design}"
+        return f"{name} are {n} different {members_are(entry)}, each appearing once: {design}"
     return f"{name} is {design}"
 
 
