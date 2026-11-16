@@ -43,8 +43,38 @@ had more cheaply by the joins below.
    subprocess. Open: how well it sings from a *spoken* sample (test a line per character; then the best
    converted line can be that singer's reference), children's voices, chorus lines (several singers: left as
    sung).
-5. **The whole show as one cut.** Acts and numbers are exported each, and joined in order (an NLE from each
-   episode's `assemble --xml`, or the exports back to back).
+5. **The whole show as one cut**, outside seriesmith (decided 2026-11-16; FILM.md, shelved). Each act and
+   number is exported with its stems and its `assemble --xml`, and joined in order in an NLE. A number's
+   whole song, `audio/song_full.wav`, is there to lay its band intro under the act's last lines.
+
+## Outside seriesmith (decided 2026-11-16)
+
+seriesmith makes the song: a Song cue in the songbook, rendered on a music model that sings (MiniMax Music 3,
+YuE2, ACE-Step), a take picked. Everything after that is done by hand, outside seriesmith, and stays
+that way. It's a show's own craft work, and too particular to each song to make into a job.
+
+- **The voice pass** (piece 4): SoulX-Singer-SVC in its own environment, converting the take's vocal stem to
+  each singer's voice. Its fixes, found on songs 1–6:
+  - **Octave errors.** The pitch tracker's octave jumps are folded back, and the spans they changed are
+    converted again.
+  - **Groups.** A group section can't be converted into one voice. A chorus sung by a group keeps the take's
+    original vocals at a matched level.
+- **A song from its sheet music** (Jingle Bells, song 7):
+  - The tune is laid out from the score on the cue's grid, and each character's sections are sung from it by
+    SoulX-Singer (singing voice synthesis, the words' pronunciations given where its dictionary guesses).
+  - The band is an instrumental cue in the songbook (m10) on Stable Audio 3, which takes no lyrics and so is
+    no Song model. A plain arrangement of the tune (the guide) is its theme: the latent it starts from, so the
+    band plays that tune in its own instruments.
+  - The voices are laid over the band, the band 8 dB under them.
+- **A recording cut to the script's form.** Long band intros are cut at a bar line, and passes the script
+  doesn't have are cut out. The transcript is fixed by hand where Whisper heard what isn't sung.
+
+Each result is kept as a new take of its cue, so the songbook and the number pick it as any take.
+
+Considered and set aside (2026-11-16): the voice pass as a seriesmith job. The pieces around it are there (the
+vocal stem, the lines' windows, the singers' voice samples, a cue's takes), but SoulX-Singer would have to be
+ported into ComfyUI's Python as a node of the pack, and its group sections still need an ear. It works as a
+standalone tool already, and a take it makes comes back into seriesmith as any take does.
 
 ## Checklist
 
@@ -60,5 +90,5 @@ had more cheaply by the joins below.
 - [x] a number's recording starts about two bars before its first sung line (decided 2026-11-15): the take's
       long band intros are cut from the number (faded in at a bar line), kept whole as `audio\song_full.wav`;
       the act can carry the intro low under its last lines into the slot instead
-- [ ] the voice pass in seriesmith: a job (stem, the lines' windows, a conversion per singer, remixed)
-- [ ] the whole show as one cut (or say how in the docs)
+- [x] ~~the voice pass in seriesmith: a job~~: stays outside seriesmith, done by hand (decided 2026-11-16)
+- [x] ~~the whole show as one cut in seriesmith~~: joined in an NLE (decided 2026-11-16; FILM.md, shelved)
