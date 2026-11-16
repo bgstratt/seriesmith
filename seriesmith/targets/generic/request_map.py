@@ -237,6 +237,19 @@ def ceil_seconds(seconds: float, spec: dict) -> int:
     return max(spec.get("min", 1), min(spec.get("max", 3600), math.ceil(float(seconds))))
 
 
+def fit_head(text: str, most: int) -> str:
+    """`text` in at most `most` characters, by whole sentences kept from the start: for a
+    description whose first sentences matter most (a music cue's: its style and tempo first,
+    the sections' story last). Cut mid-sentence only when the first alone is longer."""
+    if len(text) <= most:
+        return text
+    sents = [s.strip() for s in re.findall(r"[^.!?]*[.!?]+[\"”')]*|[^.!?]+$", text) if s.strip()]
+    while len(sents) > 1 and len(" ".join(sents)) > most:
+        sents.pop()
+    out = " ".join(sents)
+    return out if len(out) <= most else out[:most].rstrip()
+
+
 def fit(text: str, most: int) -> str:
     """`text` in at most `most` characters, by whole sentences: the style line
     goes first, then sentences from the start (the place, then the people's

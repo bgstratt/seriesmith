@@ -1295,17 +1295,18 @@ def graph(target, p: dict, seed: int, pass_: str, models=None) -> dict:
 def hosted_call(target, p: dict, seed: int) -> tuple[str, dict]:
     """A hosted music model's take as one call: (model, arguments) from the target's `router`
     or `api` block -- its fixed `arguments`, then each of the brief's values at the field `inputs`
-    names it: "prompt", "lyrics" (left out when empty), "instrumental" (set when there are no
+    names it: "prompt" (cut to its `max_chars` by sentences from the end), "lyrics" (left out when empty), "instrumental" (set when there are no
     lyrics), "seconds" ({"name", "min", "max", "scale"}: whole seconds, clamped, then scaled: a
     field in milliseconds) and "seed" ({"name", "max"}). The block's `values` ride along for
     the provider's request (its address, which of its ways)."""
-    from seriesmith.targets.generic.request_map import ceil_seconds, field_name, place, put, put_seed
+    from seriesmith.targets.generic.request_map import ceil_seconds, field_name, fit_head, max_chars, place, put, put_seed
     r = TG.hosted_block(target.spec)
     ins = r.get("inputs") or {}
     args = json.loads(json.dumps(r.get("arguments") or {}))
     brief = p["prompt"]
     vals = brief.get("values") or {}
-    place(args, ins["prompt"], prompt=brief["prompt"])
+    most = max_chars(ins["prompt"])
+    place(args, ins["prompt"], prompt=fit_head(brief["prompt"], most) if most else brief["prompt"])
     sung = (vals.get("lyrics") or "").strip()
     if ins.get("lyrics") and sung:
         place(args, ins["lyrics"], lyrics=vals["lyrics"])
