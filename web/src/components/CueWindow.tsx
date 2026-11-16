@@ -81,7 +81,7 @@ const HELP: Record<CueTab, { steps: string[]; anchor: string }> = {
       "Mark the hits first: double-click the timeline's Hits lane where the music must answer (accent, arrive, drop or turn); Must land fits the tempo to put it on its line.",
       "Shape the sections: drag an edge (whole bars), double-click to split one, right-click to merge (or reset them from the hits); click one for its words and energy from and to. Drag the green energy line's points.",
       "No idea where to start? Pick a Preset in the inspector (romantic swell, chase, pop ballad…): it fills the style, tempo, sections and orchestration; then adjust. Render 8 takes: each is measured against the hits and the arc, best first.",
-      "Listen to the top few (the playhead runs over the grid), then Pick one: it goes on the Music lane, its level fitted to the arc.",
+      "Listen to the top few (click a waveform to play from there; its corner names the model that made it), then Pick one: it goes on the Music lane, its level fitted to the arc. A drag across a take's bars selects them to fix.",
     ],
   },
   arc: {
@@ -672,10 +672,10 @@ function GridView({ g, pps, W, viewW, plan, ep, v, items, t0, spec, sections, se
       {tab !== "arc" && takes.map((t, i) => (
         <TakeRow key={t.take} ep={ep} t={t} rank={order[i]} g={g} pps={pps} W={W} viewW={viewW} plan={plan} pass={v.pass}
           playing={playing?.take === t.take} onPlay={() => play(t)} onSeek={(px) => play(t, px)}
-          select={tab === "orch" ? {
+          select={{
             bars: range?.take === t.take ? range.bars : null, onDown: (e) => onRangeDown(e, t), clear: () => setRange(null),
             takes, spec, t0,
-          } : undefined} />
+          }} />
       ))}
       {tab !== "arc" && !takes.length && (
         <Lane label="Takes" h={TAKE_H} W={W}>
@@ -1054,6 +1054,8 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, o
   const stale = t.stale ?? [];
   const placed = t.placed === pass;
   const range = select?.bars ?? null;
+  const targets = useMusicTargets();
+  const model = t.target ? targets.find((x) => x.id === t.target) : undefined;
   const label = (
     <span className="h3-col" style={{ gap: 0 }}>
       <b>{rank != null ? `#${rank} ` : ""}{name}</b>
@@ -1076,6 +1078,7 @@ function TakeRow({ ep, t, rank, g, pps, W, viewW, plan, pass, playing, onPlay, o
         )}
         {range && <div className="h3-cue-range" style={{ left: range[0] * g.bar * pps, width: (range[1] - range[0]) * g.bar * pps }} />}
         {ok && t.song && <div className="h3-cue-songrow"><SongStrip song={t.song} g={g} pps={pps} /></div>}
+        {t.target && <span className="h3-cue-model" title={`${name} was made on ${model?.label ?? t.target}`}>{model?.label ?? t.target}</span>}
         {t.status === "queued" && <span className="h3-muted h3-small" style={{ padding: 8 }}><i className="pi pi-spin pi-spinner" /> queued</span>}
         {t.status === "failed" && <span className="h3-err h3-small" style={{ padding: 8 }}>{t.error ?? "failed"}</span>}
       </Lane>

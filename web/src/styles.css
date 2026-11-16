@@ -964,6 +964,12 @@
 }
 .h3-cue-fixes { position: sticky; left: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 8px 6px; border-top: 1px dashed var(--h3-border); }
 .h3-cue-comp { color: var(--h3-accent); }
+/* the model a take was made on, over its waveform's top-left corner */
+.h3-cue-model {
+  position: absolute; left: 4px; top: 3px; z-index: 3; pointer-events: none; padding: 0 5px; border-radius: 3px;
+  font-size: 10px; line-height: 15px; white-space: nowrap; color: var(--h3-fg);
+  background: color-mix(in srgb, var(--h3-bg) 82%, transparent); border: 1px solid var(--h3-border);
+}
 .h3-b-drift { color: var(--h3-stale); border-color: var(--h3-stale); cursor: help; }
 .h3-cut-strip {
   position: relative; height: 34px; border-radius: 3px; background-color: #000; background-size: 100% 100%;
