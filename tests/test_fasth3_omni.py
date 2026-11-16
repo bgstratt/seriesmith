@@ -175,6 +175,19 @@ class ShotPlanTest(unittest.TestCase):
         self.files.pop("s4.png", None)
         self.assertEqual(self.plan(doc)["blanked"], ["Picture 5"])
 
+    def test_a_dub_from_the_vocals_reads_the_stem(self):
+        # audio.dub_from "vocals": the stem is the file the render uploads, the
+        # recording isn't (jobs.shot_files via held_audio.dub_recording)
+        stem = os.path.join(self._tmp.name, "song.wav.vocals.wav")
+        self.files["audio/song.wav.vocals.wav"] = stem
+        open(stem, "wb").close()
+        doc = self.doc(1, None)
+        doc["defaults"].update(master_track="audio/song.wav", dub_track="audio/song.wav.vocals.wav")
+        doc["shots"][0].update(audio_policy="dub_keep_foley", audio_in=1.0, audio_out=4.0)
+        p = self.plan(doc)
+        self.assertEqual(p["audio"][0]["path"], stem)
+        self.assertEqual(p["audio"][0]["end"], 4.0)
+
     def test_an_old_omni_shotlist_keeps_its_plate_at_picture_9(self):
         p = self.plan(self.doc(2, 8))
         self.assertEqual(len(p["refs"]), 8)
