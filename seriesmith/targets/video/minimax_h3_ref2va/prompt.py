@@ -122,6 +122,14 @@ def subject_defs(book: dict, subjects: list[str], subj: dict, pic: dict, unref: 
     # than one figure. Said outright -- N different people, each once -- the
     # model reads the extra figures as the group rather than as duplicates.
     group = {s: members(book[s]) for s in subjects if members(book[s])}
+
+    def scale(s: str) -> str:
+        # how big they are beside the others (`scale`, the variant's or its subject's): a sheet
+        # fills its frame whatever the character's size, so a squirrel's came out person-sized
+        e = book[s]
+        said = str(e.get("scale") or (book.get(e.get("of") or "") or {}).get("scale") or "").strip().rstrip(".")
+        return f" Beside the others, {e['name']} is {said}." if said else ""
+
     for s in subjects:
         e = book[s]
         if s in group:
@@ -131,14 +139,14 @@ def subject_defs(book: dict, subjects: list[str], subj: dict, pic: dict, unref: 
                 f"a GROUP of {n} different {members_are(e)}, the whole picture of them. Exactly {n} "
                 f"{members_are(e)} appear in that image, each a distinct individual, and none of them "
                 f"is ever drawn twice. Preserve the exact reference styling: "
-                f"{clause(e['design'])}.")
+                f"{clause(e['design'])}.{scale(s)}")
         elif e.get("kind", "character") == "character":
             # The picture is the character: their design in words as well had H3
             # draw what it lists whether the framing has room or not (a close-up
             # on a gurney grew a second pair of legs in the jeans and bracelet the
             # design named), and leaving it out lost nothing the sheet shows.
             picture = whole if int(e.get("sheet_panels") or 0) == 1 else ref_clause
-            defs.append(f"{subj[s]} is {e['name']}, defined by {pic[s]} — {picture}")
+            defs.append(f"{subj[s]} is {e['name']}, defined by {pic[s]} — {picture}{scale(s)}")
         else:
             defs.append(
                 f"{subj[s]} is {e['name']}, defined by {pic[s]} — a single reference image "

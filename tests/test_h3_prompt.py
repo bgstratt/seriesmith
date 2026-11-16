@@ -32,6 +32,9 @@ SERIES = {
         "bo": {"kind": "character", "name": "Bo", "design": "a stocky boy"},
         "cy": {"kind": "character", "name": "Cy", "design": "a small girl"},
         "rex": {"name": "Rex", "design": "a scruffy terrier"},      # no kind: a character
+        "nut": {"kind": "character", "name": "Nut", "design": "a gray squirrel",
+                "scale": "small: a squirrel no taller than a grown person's knee"},
+        "nut_hat": {"kind": "character", "of": "nut", "name": "Nut", "design": "a gray squirrel in a hat"},
         "kettle": {"kind": "prop", "name": "the kettle", "design": "a dented kettle"},
         "ladies": {"kind": "character", "name": "the ladies", "members": 4,
                    "sheet_panels": 1, "design": "four women in Regency ball gowns"},
@@ -214,3 +217,18 @@ class OrbitTest(unittest.TestCase):
              "sound": "", "music": "", "extras": "", "text": "", "plate": "kitchen"},
             {"location_key": "kitchen"}, SERIES, panels=1) if "The camera" in ln][0]
         self.assertIn("The camera arcs around <Subject 1>.", line)
+
+
+class ScaleTest(unittest.TestCase):
+    """A sheet fills its frame whatever the character's size: `scale` says how big they are."""
+
+    def test_scale_follows_the_picture(self):
+        line = next(ln for ln in defs_of(["ada", "nut"]) if ln.startswith("<Subject 2> is Nut"))
+        self.assertTrue(line.endswith("Beside the others, Nut is small: a squirrel no taller than a grown person's knee."))
+
+    def test_a_variant_keeps_its_subjects_scale(self):
+        line = next(ln for ln in defs_of(["nut_hat"]) if ln.startswith("<Subject 1> is Nut"))
+        self.assertIn("no taller than a grown person's knee", line)
+
+    def test_no_scale_says_nothing(self):
+        self.assertFalse(any("Beside the others" in ln for ln in defs_of(["ada", "bo"])))

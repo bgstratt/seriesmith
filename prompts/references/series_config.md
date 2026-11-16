@@ -315,6 +315,12 @@ episode's **`negative.txt`** (a text file beside the script), the series config'
 distilled models sample without guidance (cfg 1): there a negative does nothing, and the
 take says so.
 
+**A character much smaller or bigger than the rest** (a squirrel, a mouse, a giant) gets a
+`scale` line: `"scale": "small: a squirrel no taller than a grown person's knee"`. A sheet fills
+its frame whatever the character's size, so without it they come out the size of whoever they
+stand beside. It follows their picture in every shot's prompt on H3 (a wardrobe variant keeps
+its subject's). Size in the `design` sentence doesn't do it: the shots with a sheet don't send it.
+
 ### Writing the `look` line
 
 `style.look` is the first sentence of every shot's description, so it is the series'

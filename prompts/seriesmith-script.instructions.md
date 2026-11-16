@@ -609,6 +609,12 @@ Lead with who they are (*"a young woman"*), then hair, then wardrobe and accesso
 body to build and silhouette (*tall*, *stocky*, *slight*). A design that leads with clothes
 and hair reads the same on every model, a hosted one behind its provider's filter included.
 
+**A character much smaller or bigger than the rest** (a squirrel, a mouse, a giant) gets a
+`scale` line: `"scale": "small: a squirrel no taller than a grown person's knee"`. A sheet fills
+its frame whatever the character's size, so without it they come out the size of whoever they
+stand beside. It follows their picture in every shot's prompt on H3 (a wardrobe variant keeps
+its subject's). Size in the `design` sentence doesn't do it: the shots with a sheet don't send it.
+
 Location descriptions work the same way and must include the light: time of day, direction,
 quality. The plate is generated from that sentence. **Name the sources**: the pendant lamp
 over the table, the chandeliers, the TV's glow, the streetlight through the blinds. A room
