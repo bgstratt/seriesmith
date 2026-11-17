@@ -87,8 +87,18 @@
       /* the queue: top bar controls, the Jobs window */
       #sm-queue { display: flex; align-items: center; gap: 10px; }
       @media (max-width: 760px) {
-        #sm { grid-template-columns: 1fr; grid-template-rows: 40px 45vh minmax(0, 1fr) 30vh;
-              grid-template-areas: "top" "view" "side" "time"; }
+        /* minmax(0, 1fr), not 1fr: a bare 1fr column grows to its widest content, and the
+           timeline is as wide as every shot in the episode, so the page was that wide too and
+           the viewer sat centred far off to the right. Each part scrolls inside its own box. */
+        /* dvh: the height a phone's browser leaves once its address bar is shown (vh where it's unknown) */
+        #sm { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "view" "side" "time";
+              grid-template-rows: 40px 45vh minmax(0, 1fr) 30vh; grid-template-rows: 40px 45dvh minmax(0, 1fr) 30dvh;
+              height: 100vh; height: 100dvh; }
+        #sm > * { min-width: 0; }
+        #sm-time { overflow: hidden; }
+        /* the top bar scrolls sideways when its controls don't fit a phone's width */
+        #sm-top { overflow-x: auto; overflow-y: hidden; }
+        #sm-top > * { flex-shrink: 0; }
       }
     </style>
   </head>
