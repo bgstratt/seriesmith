@@ -292,8 +292,11 @@ function JobsBody() {
         {!q.jobs.length && <div className="h3-empty-state">No jobs yet. What you generate from this page waits here.</div>}
         {lanes.map((name) => {
           const lane = q.lanes[name];
-          const jobs = q.jobs.filter((j) => j.lane === name);
           const waiting = lane?.waiting ?? [];
+          // in the lane's order: running, then waiting as it will run (a move shows where it went), then the rest
+          const order = (j: (typeof q.jobs)[number]) => (j.status === "running" ? -1 : waiting.indexOf(j.id) >= 0 ? waiting.indexOf(j.id) : waiting.length);
+          const jobs = q.jobs.filter((j) => j.lane === name).map((j, i) => ({ j, i }))
+            .sort((a, b) => order(a.j) - order(b.j) || a.i - b.i).map((x) => x.j);
           return (
             <section key={name} className="sm-lane">
               <header>
@@ -340,6 +343,9 @@ function JobsBody() {
                         )}
                         {j.error && <div className="h3-small" style={{ color: "var(--h3-failed)" }}>{j.error}</div>}
                       </div>
+                      {j.status === "queued" && w > 1 && (
+                        <button className="h3-btn h3-icon" title="To the front: next to run" onClick={() => void act("move", { id: j.id, index: 0 })}><i className="pi pi-angle-double-up" /></button>
+                      )}
                       {j.status === "queued" && w > 0 && (
                         <button className="h3-btn h3-icon" title="Earlier" onClick={() => void act("move", { id: j.id, index: w - 1 })}><i className="pi pi-arrow-up" /></button>
                       )}

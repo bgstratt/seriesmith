@@ -1307,7 +1307,7 @@ queue:
   take it made, or the ref in Refs.
 - **Cancel** stops a running job or takes a waiting one off the queue (its take is marked
   failed, `canceled`). **Cancel all**, at the top, does that to every job once you confirm: the
-  waiting ones leave first, so none of them starts as the running ones stop. **Earlier** / **Later** reorder a waiting job; a lane can be
+  waiting ones leave first, so none of them starts as the running ones stop. Each lane lists its jobs in the order they'll run: the running ones, then the waiting ones in turn. **Earlier** / **Later** move a waiting job one place, and **To the front** makes it the next to run; a lane can be
   **paused** (**Pause** / **Resume**), which lets the running job finish and starts nothing
 new.
 - **Again** runs a finished job once more, as a new take with the same settings. On a
