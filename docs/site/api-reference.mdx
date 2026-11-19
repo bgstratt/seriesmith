@@ -2432,6 +2432,26 @@ keyframe ref.
 - **Not yet:** there is no route to unpick or delete a ref take, so the editor has no
   "Clear" for a keyframe.
 
+### `POST /seriesmith/frame/save` (2026-11-19)
+Cuts one frame out of a shot's video take and keeps it as a picture in the episode's
+`refs/stills/`, where a script's `first:` / `last:` line, an import into another shot's
+keyframe, or a download can use it (`refs.save_frame`).
+```json
+{"ep": "…", "pass": "final", "shot": "sh2012", "take": 4, "frame": 0, "name": null}
+```
+- **`take`**: default the take the shot's cut entry uses, as for `/refs/keyframe`'s
+  `source_take`.
+- **`frame`**: a frame number (0-based, exact, as for `/refs/keyframe`; negative counts from
+  the end), `"first"` (the default) or `"last"`.
+- **`name`**: the file's stem, default `<shot>_tNN_f<frame>`. Anything but letters, numbers,
+  `-`, `_` and `.` becomes `_`, and a folder or an extension is dropped: it is always a PNG
+  in `refs/stills/`. A file of that name with other bytes is kept and the new one numbered
+  after it (`-2`, `-3`); the same bytes are reused.
+- **Returns** `{"path"` (from the episode, for `GET /seriesmith/file`), `"name", "shot",   "take", "pass", "frame"` (the index used), `"frames", "width", "height", "reused"}`.
+- **Errors:** 400 for a bad `frame` or `name`, or a frame outside the take; 404 for a shot
+  in no build or a `take` that doesn't exist; 409 when the shot has no usable take; 500
+  without ffmpeg / ffprobe.
+
 ## The `ltx2_ingredients` target (as built)
 
 A third video target: LTX-2.3 with the IC-LoRA "ingredients", which keeps characters,

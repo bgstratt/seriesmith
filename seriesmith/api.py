@@ -6638,6 +6638,38 @@ def post_refs_keyframe(ctx: Context, body):
     return 200, seeds_out(R.ref_json(s, res.ref, R.used_by(s, [res.ref])))
 
 
+@handler
+def post_frame_save(ctx: Context, body):
+    """A frame of a shot's video take saved as a picture in the episode's refs/stills/
+    (refs.save_frame): to download, or for a `first:` / `last:` line to name."""
+    body = body_dict(body)
+    ep = check_ep(ctx, body.get("ep"))
+    pass_ = check_pass(body.get("pass"))
+    shot = check_shot(body.get("shot"))
+    take = check_take(body.get("take"), "take", nullable=True)
+    frame = body.get("frame")
+    if isinstance(frame, str) and re.fullmatch(r"\s*-?\d+\s*", frame):
+        frame = int(frame)
+    if frame is not None and frame not in ("first", "last") and (
+            isinstance(frame, bool) or not isinstance(frame, int)):
+        raise ApiError(400, "frame must be a frame number, \"first\", \"last\" or null")
+    name = body.get("name")
+    if name is not None and not isinstance(name, str):
+        raise ApiError(400, "name must be a file name or null")
+    s = _series(ep)
+    try:
+        res = R.save_frame(s, shot, take, pass_, frame, name)
+    except R.RefError as e:
+        raise ApiError(400, str(e))
+    except R.UnknownRef as e:
+        raise ApiError(404, str(e))
+    except R.NotUsable as e:
+        raise ApiError(409, str(e))
+    except R.FfmpegMissing as e:
+        raise ApiError(500, str(e))
+    return 200, res
+
+
 def _span(body: dict, key: str):
     """One end of a span in seconds, or None (`start` then means 0, `end` the
     end of the take)."""
@@ -7505,6 +7537,7 @@ ROUTES = [
     ("POST", "/seriesmith/refs/discard", post_refs_discard, "body"),
     ("POST", "/seriesmith/refs/generate-missing", post_refs_generate_missing, "body"),
     ("POST", "/seriesmith/refs/keyframe", post_refs_keyframe, "body"),
+    ("POST", "/seriesmith/frame/save", post_frame_save, "body"),
     ("POST", "/seriesmith/render/fallback", post_render_fallback, "body"),
     ("POST", "/seriesmith/refs/voice-from-take", post_refs_voice_from_take, "body"),
     ("PUT", "/seriesmith/refs/override", put_refs_override, "body"),

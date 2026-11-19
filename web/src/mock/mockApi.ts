@@ -2268,6 +2268,23 @@ export function createMockApi(emit: Emit, opts: MockOptions = {}): Api & { outsi
     async renderFallback(req) {
       return { did: `on minimax_h3_fl2va from ${req.shot}'s first frame`, frame: "take", target: "minimax_h3_fl2va", lines: [] };
     },
+    async frameSave(req) {
+      await wait(150);
+      need(req.ep);
+      const src = st(req.pass).shots.find((s) => s.shot === req.shot);
+      if (!src) throw new MockError(`${req.shot} is not in the ${req.pass} cut and has no takes`, 404);
+      const takeNo = req.take ?? src.cut.take;
+      if (takeNo == null) throw new MockError(`${src.shot} has no usable ${req.pass} take to take a frame from (render it first)`, 409);
+      const t = src.takes.find((x) => x.take === takeNo);
+      if (!t) throw new MockError(`${src.shot} has no ${req.pass} take ${takeNo}`, 404);
+      const frames = src.length ?? 73;
+      const spec = req.frame ?? "first";
+      const frame = spec === "first" ? 0 : spec === "last" ? frames - 1 : spec < 0 ? spec + frames : spec;
+      if (!Number.isInteger(frame) || frame < 0 || frame >= frames) throw new MockError(`frame ${String(spec)} is outside the take (${frames} frames: 0 to ${frames - 1})`, 400);
+      const stem = (req.name?.trim().replace(/\.[^.]*$/, "") || `${src.shot}_t${String(takeNo).padStart(2, "0")}_f${frame}`).replace(/[^A-Za-z0-9_.-]+/g, "_");
+      return { path: `refs/stills/${stem}.png`, name: `${stem}.png`, shot: src.shot, take: takeNo, pass: req.pass,
+        frame, frames, width: 1344, height: 768, reused: false };
+    },
     async refsKeyframe(req) {
       await wait(250);
       need(req.ep);

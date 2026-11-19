@@ -2478,6 +2478,55 @@ def keyframe_from_take(s: Series, shot: str, which: str = "first",
     return KeyframeResult(ref, t, picked, source)
 
 
+STILLS_DIR = os.path.join("refs", "stills")
+
+
+def save_frame(s: Series, shot: str, take: int | None = None, pass_: str = "proxy",
+               frame=None, name: str | None = None) -> dict:
+    """A frame of `shot`'s video take (`take`, else the one its cut entry uses) saved as a
+    picture in the episode's refs/stills/, where a script's `first:` / `last:` line, the
+    Refs tab's imports and a shot of another episode can name it. `frame` is "first"
+    (the default), "last" or an index (negative from the end). `name` is the file's stem
+    (default <shot>_tNN_f<frame>); a file of that name with other bytes is kept and the
+    new one numbered after it, the same bytes are reused. Returns {path (from the
+    episode), name, shot, take, pass, frame, frames, width, height, reused}."""
+    if pass_ not in T.PASSES:
+        raise RefError(f"pass must be final or proxy, not {pass_!r}")
+    src, src_pass = keyframe_source(s, shot, "first", pass_, shot, take)
+    count = video_frames(src.paths.mp4)
+    idx = frame_index("first" if frame is None else frame, count)
+    stem = os.path.splitext(name.strip())[0] if isinstance(name, str) and name.strip() else \
+        f"{src.shot}_t{src.take:02d}_f{idx}"
+    stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", stem).strip("._")
+    if not stem:
+        raise RefError("the picture needs a name of letters, numbers, - or _")
+    d = os.path.join(s.ep, STILLS_DIR)
+    os.makedirs(d, exist_ok=True)
+    tmp = os.path.join(d, f".tmp_{uuid.uuid4().hex}.png")
+    try:
+        extract_frame(src.paths.mp4, idx, tmp)
+        sha = T.file_sha1(tmp)
+        out, n, reused = os.path.join(d, stem + ".png"), 1, False
+        while os.path.isfile(out):
+            if T.file_sha1(out) == sha:
+                reused = True
+                break
+            n += 1
+            out = os.path.join(d, f"{stem}-{n}.png")
+        if not reused:
+            F.replace(tmp, out)
+    finally:
+        if os.path.isfile(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+    wh = image_size(out) or (None, None)
+    return {"path": ep_rel(s.ep, out), "name": os.path.basename(out), "shot": src.shot,
+            "take": src.take, "pass": src_pass, "frame": idx, "frames": count,
+            "width": wh[0], "height": wh[1], "reused": reused}
+
+
 def keyframe_freshness(s: Series, shot: str, which: str, pass_: str) -> dict:
     """Whether a keyframe cut from a video take (continuity) still shows the take
     the pass's cut uses now: {"state", "why", "cut_from", "wants"}. state:
