@@ -221,12 +221,14 @@ def framing_sentence(shot: dict, subjects: list[str], subj: dict, unref: list[st
     wide = framing.family(shot["size"]) == "wide"
     if close:
         fill = "" if ext and not ext.startswith("from") else ", filling most of the frame"
-        # A close-up's or an extreme close-up's background is the plate cropped tight and blurred
-        # away, not a place to draw: the room's description would ask for the
-        # room, so with a plate it is named by its picture alone.
+        # A close-up's or an extreme close-up's background is the plate cropped tight and out of
+        # focus, not a place to draw: the room's whole description would ask for the room, so
+        # with a plate it is named by its picture and the description's first clause, as a
+        # medium names it. Its colours and light are the plate's: told only "soft bokeh", an
+        # insert of a prop or a part of someone took the sheet's plain backdrop instead (2026-11-17).
         if framing.canonical(shot["size"]) in ("ecu", "cu"):
-            soft = (f"a tightly cropped portion of {env if no_plate else bg_subj + ', the background plate'}"
-                    f", completely blurred into soft bokeh")
+            soft = (f"a tightly cropped portion of {env if no_plate else named}, softly out of focus, "
+                    f"its colors and light as they are in the plate")
         else:
             soft = f"a magnified, softly focused part of {place}, recognizably the same place"
         where = (f"{frame} frames {who}{held}{fill}. Behind them, the frame "
@@ -309,13 +311,15 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
     defs = ["subject_definitions:"] + subject_defs(book, subjects, subj, pic, unref, extras,
                                                      panels, panel_view)
     if not no_plate and framing.canonical(shot["size"]) in ("ecu", "cu"):
-        # A close-up's background is the plate blurred away: the location's
+        # A close-up's background is the plate out of focus: the location's
         # description (its fireplace, its stairs) and "the layout ... of the
         # space" were drawn as a sharp room behind the face, so neither is said.
+        # It is still the background, its colours, light and shapes: "only soft
+        # color and light" lost to a sheet's plain backdrop (2026-11-17).
         defs.append(
             f"{bg_subj} is the background, defined by <{plate_slot}> — a tightly cropped, "
-            f"magnified portion of the background behind the subject, thrown completely out of "
-            f"focus. It gives only soft color and light behind the subject.")
+            f"magnified portion of the location directly behind the subject, softly out of "
+            f"focus. It is the background in every frame: its colors, light and soft shapes, blurred.")
     elif not no_plate:
         defs.append(
             f"{bg_subj} is the location, defined by <{plate_slot}> — a background plate of {env}. "
@@ -399,8 +403,8 @@ def build_prompt(shot: dict, seq: dict, series_cfg: dict, panels: int,
         ret.append(
             f"{bg_subj} (appears in [Shot 1]): partially_preserved - the background is a "
             f"tightly cropped, zoomed-in part of the location directly behind the subject: its "
-            f"color palette and lighting direction are retained at close range, completely "
-            f"blurred into soft bokeh, while the rest of the space falls outside the frame.")
+            f"color palette, lighting and soft shapes are retained at close range, softly out "
+            f"of focus, while the rest of the space falls outside the frame.")
     elif close:
         ret.append(
             f"{bg_subj} (appears in [Shot 1]): partially_preserved - the background is a "
