@@ -79,6 +79,20 @@ class EditTest(unittest.TestCase):
         self.assertIn("Image 2 is Ada:", job.prompt)
         self.assertEqual(job.edit["with"], [{"ref": "subject:ada", "view": "01_threequarter"}])
 
+    def test_a_character_with_no_picked_view_comes_as_its_sheet(self):
+        bo = R.find_ref(self.s, "subject:bo")
+        with self.assertRaisesRegex(R.RefError, "no picture yet|no picked take"):
+            self.plan(edit={"take": 1, "with": [{"ref": "subject:bo"}]})
+        os.makedirs(os.path.dirname(bo.file), exist_ok=True)
+        with open(bo.file, "wb") as fh:                     # a sheet put in by hand
+            fh.write(png_bytes(256, 64))
+        (job,) = self.plan(edit={"take": 1, "with": [{"ref": "subject:bo"}]}, prompt="put Bo at the counter")
+        self.assertEqual(job.references[1]["path"], bo.file)
+        self.assertNotIn("view", job.references[1])
+        # a view named is that view, or refused
+        with self.assertRaisesRegex(R.RefError, "no picked take"):
+            self.plan(edit={"take": 1, "with": [{"ref": "subject:bo", "view": "02_side"}]})
+
     def test_a_character_view_is_edited_one_view_at_a_time(self):
         (job,) = self.plan("subject:ada", "02_side", prompt="give her a red scarf")
         self.assertEqual(job.view, "02_side")

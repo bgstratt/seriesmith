@@ -525,7 +525,11 @@ pictures to pick from, and pointing at a name shows it larger.
   picked from what it can load; continuity
   (**Continues**: its own line, or *the sequence's (latent)* when the `#` header sets it,
   with a line under it saying how it carries on and on what model); first and last frames (the default, generate, import, none, or **a
-  picture you have…**, picked in the folder browser and kept relative to the episode); the
+  picture you have…**, picked in the folder browser and kept relative to the episode; on
+  save that picture becomes the shot's live keyframe, a new take of it), each
+  with its candidates under it once the shot is saved: every finished take of that keyframe
+  small (larger on hover), the live one ringed, and a click on another makes it live, as
+  picking it on the Refs tab does (none shown when it's set to none or has no takes); the
   audio policy, pace and profile.
 - **LoRAs** is a chain: one row per LoRA with its strength, **+ LoRA** for another, applied
   in order (it writes `lora: a.safetensors:0.6, b.safetensors`). A hosted model has no
@@ -1025,8 +1029,10 @@ script call for is listed here.
   silence the cue in this pass's mix and Play all without taking it out (Ctrl+Z undoes it).
   The **trash** button deletes the cue (below). **Effects** lists every shot with effects made in this pass
   (picked or not): its takes, which one plays and whether it's stale. A row opens to its takes
-  (fetched then): play one alone, **Pick** it, **Make again** (on a model of your choice),
-  **Mute**, or **No effects**. Then the files on that lane of the pass's mix, where each starts
+  (fetched then): its **sound line** (the shot's `sound:` line, what the effects are made from:
+  edit it and **Save** writes only that line into the script and rebuilds, **Save and make**
+  then makes a take from it), play one alone, **Pick** it, **Make again** (on a model of your
+  choice), **Mute**, or **No effects**. Then the files on that lane of the pass's mix, where each starts
   (it moves with its shot) and its level, with a button to show the lanes and one to take it out
   of the mix (the file stays).
   **Ambience** lists each place's **ambience bed** first: the place (a location, with its

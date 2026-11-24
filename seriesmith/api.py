@@ -6894,10 +6894,18 @@ def put_source(ctx: Context, body):
     rebuild = body.get("rebuild", True)
     if not isinstance(rebuild, bool):
         raise ApiError(400, "rebuild must be true or false")
+    lines = R.script_keyframe_lines(ep) if file == "script" and rebuild else None
     saved = P.H.save_source(ep, file, body.get("text"), base_hash)
     build = E.build_episode(ep) if rebuild else None
+    # a first:/last: line now naming a picture: that picture is the shot's keyframe
+    keyframes = (R.sync_script_keyframes(ep, lines)
+                 if lines is not None and build and build.get("ok") else [])
+    for k in keyframes:
+        if "take" in k:
+            ref_event(ctx, ep, k["ref"], None, k["take"], "picked")
     episode_event(ctx, ep)
-    return 200, {"hash": saved["hash"], "check": saved["check"], "build": build}
+    return 200, {"hash": saved["hash"], "check": saved["check"], "build": build,
+                 "keyframes": keyframes}
 
 
 @handler

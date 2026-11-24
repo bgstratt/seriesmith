@@ -3314,11 +3314,15 @@ def plan_edit(s: Series, ref: Ref, req: GenRequest, overrides: dict | None = Non
             raise RefError(f'edit.with[{i}] must be {{"ref": id, "view"?, "take"?}}')
         other = find_ref(s, w["ref"])
         oview = check_view(other, w.get("view"))
-        if other.has_views and oview is None:
-            oview = VIEW_TAGS[0]            # a character comes as its three-quarter body
         wt = w.get("take")
         if wt is not None and (isinstance(wt, bool) or not isinstance(wt, int) or wt < 1):
             raise RefError(f"edit.with[{i}].take must be a take number")
+        if other.has_views and oview is None:
+            oview = VIEW_TAGS[0]            # a character comes as its three-quarter body
+            # ... or, with no view of it picked (a sheet put in by hand), its sheet as it is
+            if (wt is None and other.subject and not picked_view_file(s, other.subject, oview)
+                    and other.file and os.path.isfile(other.file)):
+                oview = None
         refs.append(_picture_of(s, other, oview, wt, f"image {i + 2}"))
     limit = int(target.capabilities().get("max_refs") or 0)
     if len(refs) > limit:
@@ -4192,6 +4196,43 @@ def import_keyframe(s: Series, ref: Ref, plan: KeyframePlan) -> RefTake:
     t = import_take(s, ref, None, plan.path, note="from the script's line")
     pick_take(s, ref, None, t.take)
     return t
+
+
+def script_keyframe_lines(ep: str) -> dict[tuple[str, str], str | None]:
+    """{(shot, which): the script's first:/last: line} for every keyframe
+    keyframe_needs lists: what sync_script_keyframes compares across a save."""
+    try:
+        return {k: n.get("script") for k, n in keyframe_needs(ep).items()}
+    except Exception:
+        return {}
+
+
+def sync_script_keyframes(ep: str, before: dict[tuple[str, str], str | None]
+                          ) -> list[dict]:
+    """After a script save: every keyframe whose line became a picture's path
+    (a new path, or a path where there was none) has that picture imported and
+    picked, so the render uses the picture the script now names. Before this, a
+    keyframe with a live file kept it, and a new path in the line did nothing
+    until the file was removed. A line that didn't change is left alone, so a
+    candidate picked by hand on the Refs tab or under Edit shot stays live.
+    [{"ref", "take"} | {"ref", "error"}]."""
+    out: list[dict] = []
+    needs = keyframe_needs(ep)
+    changed = [(k, n) for k, n in needs.items()
+               if n.get("method") == "import" and n.get("import_path")
+               and before.get(k) != n.get("script")]
+    if not changed:
+        return out
+    s = load_series(ep)
+    for (shot, which), need in changed:
+        ref = keyframe_ref(ep, shot, which)
+        try:
+            plan = keyframe_plan(s, shot, which, need=need)
+            t = import_keyframe(s, ref, plan)
+            out.append({"ref": ref.id, "take": t.take})
+        except (RefError, UnknownRef, NotUsable, StitchError, OSError) as e:
+            out.append({"ref": ref.id, "error": str(e)[:400]})
+    return out
 
 
 def fill_keyframe(s: Series, shot: str, which: str, comfy=None, pass_: str = "proxy",

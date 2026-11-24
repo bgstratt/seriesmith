@@ -5,7 +5,7 @@
 // the order they were made.
 
 import { errText } from "./api";
-import { currentPlaylist, generateRef, onStatusLoaded, report } from "./actions";
+import { afterAuthoredWrite, currentPlaylist, generateRef, onStatusLoaded, report } from "./actions";
 import { pushEdit, setMixUndo } from "./cutActions";
 import { api, host } from "./host";
 import {
@@ -20,6 +20,7 @@ import { trackList as trackListOf } from "./lib/mix";
 import { levelRequestKey, type LevelClip } from "./lib/levels";
 import { statusKey, store, type AppState, type SoundAddAsk } from "./store";
 import { tn } from "./lib/format";
+import { withShotLine } from "./lib/shotForm";
 import type { Anchor, HitKind, Mix, MixBedSettings, MixFx, MixFxSettings, MixHit, MixItem, MixRegion, MixResult, MixTrack, Pass, TrackKind } from "./types";
 
 const set = store.set;
@@ -341,6 +342,31 @@ export async function makeEffects(shots: string[], target: string | null = null)
        "Each is made from the take the cut plays; pick it on the Effects lane when it lands."].filter(Boolean).join(" "));
   } catch (e) {
     host().toast("error", "No effects were queued", errText(e));
+  }
+}
+
+/** A shot's `sound:` line written into the script (only that line; empty takes it out) and
+ * the episode rebuilt, as the effects are made from it; false when it wasn't saved. */
+export async function setShotSoundLine(shot: string, text: string): Promise<boolean> {
+  const s = get();
+  if (!s.ep) return false;
+  try {
+    const doc = await api().source(s.ep, "script");
+    const span = doc.shots.find((x) => x.id === shot);
+    if (!span) {
+      host().toast("error", `${shot} isn't in the script`, "Its sound line can't be saved.");
+      return false;
+    }
+    const next = withShotLine(doc.text, span.line, span.end_line, "sound", text);
+    if (next === doc.text) return true;
+    const r = await api().putSource({ ep: s.ep, file: "script", text: next, base_hash: doc.hash, rebuild: true });
+    afterAuthoredWrite(r.build);
+    if (r.build && !r.build.ok) return false;              // the build said why
+    host().toast("success", `${shot}'s sound line saved`, "The episode was rebuilt.");
+    return true;
+  } catch (e) {
+    host().toast("error", `${shot}'s sound line wasn't saved`, errText(e));
+    return false;
   }
 }
 

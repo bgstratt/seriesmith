@@ -72,7 +72,7 @@ describe("the Refs tab's effects", () => {
     await act(async () => row.querySelector<HTMLElement>(".h3-row")!.click());
     await act(async () => {});
     expect(asked).toContain(`takes:${shot}`);
-    expect(row.textContent).toContain("From its action");
+    expect(row.textContent).toContain("Sound line (none yet: made from its action)");   // no sound: line yet
     expect(row.textContent).toContain("in the mix");
     const pick = [...row.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === "Pick")!;
     expect(pick).toBeTruthy();
