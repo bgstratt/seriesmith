@@ -13,7 +13,7 @@ import { api } from "../host";
 import { cueTitle } from "../lib/cue";
 import { tn } from "../lib/format";
 import { fileDrop } from "../dropAdd";
-import { currentMix, deleteMixItem, soundOnLane, loadMix, makeBed, makeEffects, makeVoiceStems, openSoundAdd, pickMixFx, setMixBed, setMixFx, setMixItemMute, setShotVoicesMix, setVoicesOnlyMix, toggleSound } from "../mixActions";
+import { currentMix, deleteMixItem, soundOnLane, loadMix, makeBed, makeEffects, makeVoiceStems, openSoundAdd, pickMixFx, setMixBed, setMixFx, setShotSoundLine, setMixItemMute, setShotVoicesMix, setVoicesOnlyMix, toggleSound } from "../mixActions";
 import { store, useApp } from "../store";
 import type { AmbienceBed, FxShot, FxShotSummary, FxTake, MixItem, MixVoice, Ref, TrackKind } from "../types";
 import { kindOf, voicePlays, voicesOnly } from "../lib/mix";
@@ -227,6 +227,9 @@ function FxRow({ ep, pass, s }: { ep: string; pass: "final" | "proxy"; s: FxShot
   const [why, setWhy] = useState<string | null>(null);
   const [model, setModel] = useState<string>("");
   const [playing, setPlaying] = useState<number | null>(null);
+  const [line, setLine] = useState<string | null>(null);   // the sound line as edited here (null: as saved)
+  const [saving, setSaving] = useState(false);
+  const [rev, setRev] = useState(0);                       // bumped when the line is saved: read it again
   const audio = useRef<HTMLAudioElement | null>(null);
   const mix = useApp((st) => currentMix(st));
   const own = mix?.mix.fx?.[s.shot];
@@ -242,7 +245,21 @@ function FxRow({ ep, pass, s }: { ep: string; pass: "final" | "proxy"; s: FxShot
     return () => {
       live = false;
     };
-  }, [ep, pass, s.shot, open, s.takes, s.ok, s.picked]);
+  }, [ep, pass, s.shot, open, s.takes, s.ok, s.picked, rev]);
+  const saved = info?.text_from === "sound" ? info.text : "";
+  const edited = line != null && line.trim() !== saved.trim();
+  // the line saved into the script (only it), then, with `make`, a new take from it
+  const save = async (make: boolean) => {
+    setSaving(true);
+    const ok = !edited || await setShotSoundLine(s.shot, line ?? "");
+    setSaving(false);
+    if (!ok) return;
+    if (edited) {
+      setLine(null);
+      setRev((n) => n + 1);
+    }
+    if (make) void makeEffects([s.shot], model || null);
+  };
   useEffect(() => () => audio.current?.pause(), []);
   const play = (t: FxTake) => {
     const a = audio.current ?? (audio.current = new Audio());
@@ -277,14 +294,32 @@ function FxRow({ ep, pass, s }: { ep: string; pass: "final" | "proxy"; s: FxShot
       {open && (
         <div className="h3-col h3-pad" style={{ gap: 6 }}>
           {info && (
-            <div className="h3-small h3-muted" title={info.text_from === "sound" ? "The shot's sound: line" : "The shot's action (it has no sound: line: give it one for a better prompt)"}>
-              From its {info.text_from === "sound" ? "sound: line" : "action"}: “{info.text}”
+            <div className="h3-col" style={{ gap: 2 }}>
+              <label className="h3-small h3-muted" htmlFor={`fx-sound-${s.shot}`}
+                title="What the effects are made from: the shot's sound: line in the script (its action when it has none)">
+                Sound line{info.text_from === "sound" ? "" : " (none yet: made from its action)"}
+              </label>
+              <div className="h3-row" style={{ gap: 6 }}>
+                <input id={`fx-sound-${s.shot}`} className="h3-in h3-grow" value={line ?? saved}
+                  placeholder={info.text_from === "sound" ? "" : info.text}
+                  onChange={(e) => setLine(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && edited) void save(false); if (e.key === "Escape") setLine(null); }} />
+                {edited && (
+                  <>
+                    <button className="h3-btn" disabled={saving} title="Write this sound: line into the script (only this line) and rebuild"
+                      onClick={() => void save(false)}>Save</button>
+                    <button className="h3-btn" disabled={saving} title="Put back the line the script has" onClick={() => setLine(null)}>
+                      <i className="pi pi-undo" />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           )}
           <div className="h3-row h3-small" style={{ gap: 6 }}>
-            <button className="h3-btn h3-primary" onClick={() => void makeEffects([s.shot], model || null)}
-              title="A new take of this shot's effects, from the take the cut plays now">
-              <i className="pi pi-sparkles" /> Make again
+            <button className="h3-btn h3-primary" disabled={saving} onClick={() => void save(true)}
+              title={edited ? "Save the sound line into the script, then make a new take of this shot's effects from it and the take the cut plays now" : "A new take of this shot's effects, from the take the cut plays now"}>
+              <i className="pi pi-sparkles" /> {edited ? "Save and make" : "Make again"}
             </button>
             {models.length > 1 && (
               <select className="h3-in" style={{ width: "auto" }} value={model} onChange={(e) => setModel(e.target.value)}

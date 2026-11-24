@@ -196,3 +196,58 @@ class PartnerTest(unittest.TestCase):
             with self.assertRaises(ValueError) as cm:
                 TG.shot_targets(st, cfg)
             self.assertIn("first_target", str(cm.exception))
+
+
+class EndFrameTest(unittest.TestCase):
+    """An H3 reference model ends a shot on a `last:` picture when the shot asks
+    (first_frame.py): anchored at frame -1 by MiniMaxH3AddGuide, chained after a
+    first frame's anchor when there is one, and a `continuous: latent` shot (its
+    held frames in the latent) can ask for one too."""
+
+    @staticmethod
+    def graph() -> dict:
+        return {"ref": {"class_type": "MiniMaxH3ReferenceToVideo",
+                        "inputs": {"vae": ["vae", 0]}},
+                "guider": {"class_type": "CFGGuider", "inputs": {"positive": ["ref", 0]}}}
+
+    def test_a_last_frame_alone_is_anchored_at_the_end(self):
+        from seriesmith.targets.video.minimax_h3_ref2va import first_frame as FF
+        g = self.graph()
+        FF.patch_first(g, {"last": "seriesmith/end.png"})
+        guide = g[g["guider"]["inputs"]["positive"][0]]
+        self.assertEqual(guide["class_type"], "MiniMaxH3AddGuide")
+        self.assertEqual((guide["inputs"]["frame_idx"], guide["inputs"]["positive"]), (-1, ["ref", 0]))
+        self.assertEqual(g[guide["inputs"]["image"][0]]["inputs"]["image"], "seriesmith/end.png")
+
+    def test_both_ends_chain(self):
+        from seriesmith.targets.video.minimax_h3_ref2va import first_frame as FF
+        g = self.graph()
+        FF.patch_first(g, {"first": "seriesmith/a.png", "last": "seriesmith/b.png"})
+        last = g["guider"]["inputs"]["positive"][0]
+        self.assertEqual(g[last]["inputs"]["frame_idx"], -1)
+        first = g[last]["inputs"]["positive"][0]
+        self.assertEqual((g[first]["inputs"]["frame_idx"], g[first]["inputs"]["positive"]), (0, ["ref", 0]))
+        self.assertEqual([g[g[k]["inputs"]["image"][0]]["inputs"]["image"] for k in (first, last)],
+                         ["seriesmith/a.png", "seriesmith/b.png"])
+
+    def test_nothing_asked_leaves_the_graph_alone(self):
+        from seriesmith.targets.video.minimax_h3_ref2va import first_frame as FF
+        g = self.graph()
+        FF.patch_first(g, {})
+        self.assertEqual(g, self.graph())
+
+    def test_a_latent_shot_asks_for_its_last_frame(self):
+        from seriesmith import targets as TG
+        from seriesmith.targets.video.minimax_h3_ref2va import first_frame as FF
+        st = story("# sq01  kitchen\n## sh010\nwho: ada\nAda waits.\n"
+                   "## sh020\ncontinuous: latent\nlast: refs/stills/end.png\nwho: ada\nAda runs.\n"
+                   "## sh030\nwho: ada\nAda stops.\n")
+        by = shots(st)
+        for tid in ("h3_hybrid", "h3_singularity", "minimax_h3_ref2va"):
+            with self.subTest(target=tid):
+                t = TG.load_target(tid, "video")
+                e = FF.keyframe_entry(t, *by["sh020"], {"id": "sh020"})
+                self.assertEqual(e["keyframes"], {"last": "refs/shots/sh020/last.png"})
+                self.assertEqual([s["role"] for s in FF.keyframe_slots(e)], ["last"])
+                # a shot that asks for neither has none
+                self.assertNotIn("keyframes", FF.keyframe_entry(t, *by["sh030"], {"id": "sh030"}))

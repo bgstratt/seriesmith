@@ -6,7 +6,7 @@ import {
   upscaleTake, postTake, removePost, openFrameUse, refocusAfterMenu, makeFinalsFromDrafts, renderSelected,
   generateDubTracks, openSound, setSound,
 } from "../actions";
-import { holdFrameAfter, pickTakeFile } from "../takeActions";
+import { frameToShot, holdFrameAfter, pickTakeFile, saveFrame } from "../takeActions";
 import { newCue } from "../cueActions";
 import { currentMix, makeEffects, makeVoiceStems, pickSoundFile, setShotVoicesMix, toggleSound } from "../mixActions";
 import { firstOf, voicePlays, voicesOnly } from "../lib/mix";
@@ -180,6 +180,30 @@ export function ContextMenu() {
         >
           <i className="pi pi-replay" /> Use this frame as this shot's first frame
           <span className="h3-muted"> ({menu.frame == null || menu.frame === "last" ? "first frame" : `frame ${menu.frame}`})</span>
+        </button>
+      )}
+      {take && (
+        <button
+          disabled={!usable}
+          title={usable
+            ? `${frameLabel} of ${menu.shot} ${tn(take.take)} as the first (or last) keyframe of a shot you name, picked: any shot of the episode, not only the next`
+            : "Only a finished take with video has frames"}
+          onClick={run(() => void frameToShot(menu.shot, take.take, menu.frame ?? "last", menu.pass))}
+        >
+          <i className="pi pi-directions" /> Use this frame as another shot's keyframe…
+          <span className="h3-muted"> ({frameLabel === "its last frame" ? "last frame" : frameLabel})</span>
+        </button>
+      )}
+      {take && (
+        <button
+          disabled={!usable}
+          title={usable
+            ? `${frameLabel} of ${menu.shot} ${tn(take.take)} as a PNG: kept in the episode's refs/stills/ (its path copied, for a first: or last: line) and downloaded`
+            : "Only a finished take with video has frames"}
+          onClick={run(() => void saveFrame(menu.shot, take.take, menu.frame ?? "last", menu.pass))}
+        >
+          <i className="pi pi-download" /> Save this frame as a picture
+          <span className="h3-muted"> ({frameLabel === "its last frame" ? "last frame" : frameLabel})</span>
         </button>
       )}
       {take && fallback && (

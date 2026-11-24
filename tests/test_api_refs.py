@@ -383,6 +383,42 @@ class KeyframeApiTest(ApiTest):
 
     def test_route_listed(self):
         self.assertIn(("POST", "/seriesmith/refs/keyframe"), {(m, p) for m, p, _, _ in A.ROUTES})
+        self.assertIn(("POST", "/seriesmith/frame/save"), {(m, p) for m, p, _, _ in A.ROUTES})
+
+    def save(self, **body):
+        return A.post_frame_save(self.ctx, dict({"ep": self.ep, "pass": "proxy"}, **body))
+
+    def test_save_frame(self):
+        from test_keyframes import make_take, rgb_frames
+        src = make_take(self.ep, "proxy", "sh010")
+        # the first frame by default, named for its shot, take and frame, in refs/stills/
+        r = self.ok(self.save(shot="sh010"))
+        self.assertEqual((r["path"], r["name"], r["shot"], r["take"], r["pass"], r["frame"], r["frames"],
+                          r["reused"]),
+                         ("refs/stills/sh010_t01_f0.png", "sh010_t01_f0.png", "sh010", 1, "proxy", 0, 17,
+                          False))
+        out = os.path.join(self.ep, r["path"])
+        (px,) = rgb_frames(out)
+        self.assertEqual(px, rgb_frames(src.paths.mp4)[0])
+        # the same frame again reuses the file; another under the same name is numbered after it
+        self.assertTrue(self.ok(self.save(shot="sh010", take=1, frame="first"))["reused"])
+        r2 = self.ok(self.save(shot="sh010", frame="last", name="sh010_t01_f0"))
+        self.assertEqual((r2["name"], r2["frame"], r2["reused"]), ("sh010_t01_f0-2.png", 16, False))
+        (px,) = rgb_frames(os.path.join(self.ep, r2["path"]))
+        self.assertEqual(px, rgb_frames(src.paths.mp4)[-1])
+        # a name is a file name: its folders and odd characters don't survive
+        r3 = self.ok(self.save(shot="sh010", frame="5", name="../../up there!.jpg"))
+        self.assertEqual((r3["path"], r3["frame"]), ("refs/stills/up_there.png", 5))
+        # nothing written, nothing taken from a shot with no take
+        self.err(self.save(shot="sh010", frame=99), 400)
+        self.err(self.save(shot="sh010", frame=1.5), 400)
+        self.err(self.save(shot="sh010", name=7), 400)
+        self.err(self.save(shot="sh010", name="!!"), 400)
+        self.err(self.save(shot="sh010", take=4), 404)
+        self.assertIn("no usable proxy take", self.err(self.save(shot="sh020"), 409))
+        self.err(A.post_frame_save(self.ctx, {"ep": os.path.join(self.tmp, "x"), "shot": "sh010"}), 403)
+        self.assertEqual(sorted(os.listdir(os.path.join(self.ep, "refs", "stills"))),
+                         ["sh010_t01_f0-2.png", "sh010_t01_f0.png", "up_there.png"])
 
 
 class ParentSeriesConfigApiTest(ApiTest):

@@ -367,6 +367,33 @@ class GenerateMissingTest(RefsHelpers):
                                           "method": "import"}])
         self.assertTrue(os.path.isfile(R.find_ref(s, "shot:sh010:first").file))
 
+    def test_changed_script_path_replaces_the_live_keyframe(self):
+        """A keyframe with a live picture: a save that points its line at another
+        picture makes that one live; a save that leaves the line alone keeps a
+        hand-picked candidate."""
+        from PIL import Image
+        E.set_episode_target(self.ep, "wan22_i2v")
+        s = R.load_series(self.ep)
+        ref = R.find_ref(s, "shot:sh010:first")
+        for name, colour in (("old.png", (200, 0, 0)), ("new.png", (0, 0, 200))):
+            p = os.path.join(self.ep, "stills", name)
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            Image.new("RGB", (64, 36), colour).save(p)
+        need = dict(R.keyframe_needs(self.ep)[("sh010", "first")], method="import")
+        new = dict(need, script="stills/new.png", import_path="stills/new.png")
+        R.import_keyframe(s, ref, R.KeyframePlan("import", path=os.path.join(self.ep, "stills", "old.png")))
+        live = lambda: Image.open(ref.file).convert("RGB").getpixel((5, 5))
+        self.assertEqual(live(), (200, 0, 0))
+        with mock.patch.object(R, "keyframe_needs", return_value={("sh010", "first"): new}):
+            out = R.sync_script_keyframes(self.ep, {("sh010", "first"): "stills/old.png"})
+        self.assertEqual(out, [{"ref": "shot:sh010:first", "take": 2}])
+        self.assertEqual(live(), (0, 0, 200))
+        # the line unchanged: nothing imported, the hand pick (take 1) stays live
+        R.pick_take(s, ref, None, 1)
+        with mock.patch.object(R, "keyframe_needs", return_value={("sh010", "first"): new}):
+            self.assertEqual(R.sync_script_keyframes(self.ep, {("sh010", "first"): "stills/new.png"}), [])
+        self.assertEqual(live(), (200, 0, 0))
+
     def test_errors(self):
         self.gm(400, kinds=["voices"])
         self.gm(400, kinds=[])

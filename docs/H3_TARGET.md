@@ -199,7 +199,11 @@ under half as much to try, and only the kept ones are upscaled. docs/FINISHING.m
 Ref2VA renders `continuous: latent`: the previous take's last frames (39 by default) are
 held at the head of the render, video and audio, by **SeriesmithChainLatent**, and trimmed
 off again before the saver (**SeriesmithChainTrim**). `continuous: first` needs a first
-keyframe, which Ref2VA doesn't read: such a shot builds on `minimax_h3_fl2va` instead.
+keyframe, which Ref2VA reads only when asked: such a shot builds on `minimax_h3_fl2va`
+unless the series config's `series.first_target` or the shot's own `target:` names Ref2VA.
+A shot that asks for keyframes (a `first:` or `last:` line) has them pinned with
+**MiniMaxH3AddGuide**, the first at frame 0 and the last at the final frame, its pictures
+kept; with `continuous: latent` that ends a chained shot on a chosen frame.
 [CONTINUOUS.md](CONTINUOUS.md) has how it works.
 
 ## What you get out

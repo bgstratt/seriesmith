@@ -19,7 +19,7 @@ import type {
   CutFile, CutWhat, DiscardResult, EpisodeStatus, EpisodeSummary, ClipQueueResult, EpisodeTargetResult, EpisodeTemplate, Issue, IssueAddRequest, IssueCategory, ModelList, NewEpisodeRequest,
   ImportSeriesRequest, ImportSeriesResult, XmlImportRequest, XmlImportSummary, XmlImportUpload, NewEpisodeResult, OverrideRequest, OverrideResult, Pass,
   PeaksResult, PickRequest, Ref, RefDefaults, RefDiscardRequest, RefGenerateMissingRequest, RefGenerateMissingResult, RefGenerateRequest,
-  RefGenerateResult, RefImportRequest, RefKeyframeRequest, RefList, RefMatchResult, RefOverrideInfo, RefOverrideRequest, RefPickRequest, RefPickResult,
+  FrameSaveRequest, FrameSaved, RefGenerateResult, RefImportRequest, RefKeyframeRequest, RefList, RefMatchResult, RefOverrideInfo, RefOverrideRequest, RefPickRequest, RefPickResult,
   RefTake, RefUploadRequest, RenderRequest, RenderResult, Seed, ShotDetail, TakeInfo, TakeRef, TargetKind, TargetList, TrackResult, VocalsResult,
   MasterJob, MasterResult, UpscaleOptions, UpscaleRequest, UpscaleResult,
   PostOptions, PostRequest, PostResult,
@@ -553,6 +553,8 @@ export interface Api {
   /** A shot's first / last keyframe from a frame of a video take (continuity);
    * returns the keyframe ref as `refs` lists it. */
   refsKeyframe(req: RefKeyframeRequest): Promise<Ref>;
+  /** POST /seriesmith/frame/save: a frame of a take kept as a picture in the episode's refs/stills/. */
+  frameSave(req: FrameSaveRequest): Promise<FrameSaved>;
   /** POST /seriesmith/render/fallback: the take's shot on its target's fallback (FL2VA) from a first frame. */
   renderFallback(req: { ep: string; pass: Pass; shot: string; take: number; backend?: string | null }): Promise<{ did: string; frame: string | null; target: string | null; lines: string[] }>;
   /** DELETE /seriesmith/refs/pick: unpick a ref (its live file is removed; its takes
@@ -1171,6 +1173,7 @@ export function createHttpApi(t: Transport): Api {
     refsMatch: (ep, names) => call("POST", "/seriesmith/refs/match", { ep, names }),
     refsDiscard: ({ ep, ref, view, take }) => call("POST", "/seriesmith/refs/discard", view ? { ep, ref, view, take } : { ep, ref, take }),
     refsKeyframe: (req) => call("POST", "/seriesmith/refs/keyframe", req),
+    frameSave: (req) => call("POST", "/seriesmith/frame/save", req),
     renderFallback: (req) => call("POST", "/seriesmith/render/fallback", req),
     refsUnpick: (ep, ref, view) => call("DELETE", `/seriesmith/refs/pick?${qs({ ep, ref, view: view || undefined })}`),
     putRefDefaults: (ep, fields) => call("PUT", "/seriesmith/refs/defaults", { ep, ...fields }),

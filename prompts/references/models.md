@@ -150,8 +150,9 @@ follows from the model:
 - `ltx2`, the FL2VA models, `wan22_ti2v` (first only), `wan22_vace` and the hosted models
   use them when they exist (a hosted model given a first frame is sent the keyframes instead
   of the character pictures);
-- H3 Ref2VA, H3 Singularity and H3 Hybrid read a first frame on a shot that asks for one
-  (**Continuous shots** says where such a shot renders), never a last;
+- H3 Ref2VA, H3 Singularity and H3 Hybrid read a first or last frame on a shot that asks for
+  one (a `first:` or `last:` line; **Continuous shots** says where a `continuous: first` shot
+  renders), their pictures kept; nothing when it asks for neither;
 - FastH3 Omni, `ltx2_ingredients` and `ltx2_msr` don't read them.
 
 How each is made, on the shot or under a `#` header for all its shots:
@@ -231,15 +232,15 @@ What each video model takes (generated from the models by `python tools/make_ref
 |---|---|---|---|---|---|
 | `fasth3_fl2va` | FastH3 FL2V | your ComfyUI | none | first and last | — |
 | `fasth3_omni` | Omni | your ComfyUI | 8 subjects + the plate | — | `<Subject N>` … `<Picture N>` |
-| `h3_hybrid` | H3 Hybrid | your ComfyUI | 8 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
-| `h3_singularity` | Singularity | your ComfyUI | 8 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
+| `h3_hybrid` | H3 Hybrid | your ComfyUI | 8 subjects + the plate | first and last, when the shot asks | `<Subject N>` … `<Picture N>` |
+| `h3_singularity` | Singularity | your ComfyUI | 8 subjects + the plate | first and last, when the shot asks | `<Subject N>` … `<Picture N>` |
 | `h3_singularity_fl2va` | Singularity FL2V | your ComfyUI | none | first and last | — |
 | `hold` | Hold | this machine | none | first | — |
 | `ltx2` | LTX-2 | your ComfyUI | none | first and last | — |
 | `ltx2_ingredients` | LTX+refs | your ComfyUI | one sheet tiled from the subjects and the plate | — | by their order |
 | `ltx2_msr` | LTX+MSR | your ComfyUI | 4 subjects + the plate | — | `Image N`, by their order |
 | `minimax_h3_fl2va` | H3 FL2V | your ComfyUI | none | first and last | — |
-| `minimax_h3_ref2va` | H3 | your ComfyUI | 8 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
+| `minimax_h3_ref2va` | H3 | your ComfyUI | 8 subjects + the plate | first and last, when the shot asks | `<Subject N>` … `<Picture N>` |
 | `pika_h3_flex` | Pika Flex | your ComfyUI | 8 subjects + the plate | first, when the shot asks | `<Subject N>` … `<Picture N>` |
 | `pika_h3_flex_fl2va` | Pika Flex FL2VA | your ComfyUI | none | first and last | — |
 | `wan22_i2v` | Wan I2V | your ComfyUI | none | first and last | — |

@@ -41,7 +41,10 @@ continuing H3 shots there instead).
 rest from there, so motion, sound and the camera carry across the join; the held frames are
 cut off again, so the take starts where the previous one ended. It keeps its own pictures.
 The previous shot can be on any model: when it isn't H3's, its last frames are encoded
-instead (a silent one, such as Wan, holds no sound).
+instead (a silent one, such as Wan, holds no sound). On H3 Ref2VA, H3 Singularity and H3
+Hybrid a `latent` shot can also end on a picture: give it a `last:` line, and it carries on
+from the shot before and lands on that frame (the next shot's first frame, say), so the
+join after it can match too.
 
 - **Keep the framing and the camera move the same across a latent chain**, and open each
   shot's action on what the held frames show. A shot that asks for a new size, a new move or

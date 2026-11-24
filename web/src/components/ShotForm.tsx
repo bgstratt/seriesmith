@@ -6,7 +6,8 @@
 // through PUT /seriesmith/source: the check, the history copy and the rebuild.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { afterAuthoredWrite, copyText, openShotForm, openSubjectCard, requestRender, select, showInScript } from "../actions";
+import { afterAuthoredWrite, copyText, openShotForm, openSubjectCard, pickRef, requestRender, select, showInScript } from "../actions";
+import { keyframeRefId } from "../lib/keyframes";
 import { api, host } from "../host";
 import { pictureOf } from "../lib/pictures";
 import { getPath, type Raw } from "../lib/seriesForm";
@@ -478,11 +479,11 @@ function ShotFormBody({ ep, shot, after, before = null, file = null, dur = null,
                       {contText && <span className="h3-small h3-muted">{contText}{dirty ? " (as saved)" : ""}</span>}
                     </div>
                   </Row>
-                  <Row label="First frame" help="The picture the shot opens on, for models that read keyframes (H3 FL2VA, LTX-2, Wan); others ignore it.">
-                    <KeyframeField ep={ep} k="first" value={form.keys.first ?? ""} onChange={(v) => set("first", v)} />
+                  <Row label="First frame" help="The picture the shot opens on, for models that read keyframes (H3 FL2VA, LTX-2, Wan); others ignore it. Its candidates show below it: click one to make it the live first frame.">
+                    <KeyframeField ep={ep} shot={isNew ? null : shot} k="first" value={form.keys.first ?? ""} onChange={(v) => set("first", v)} />
                   </Row>
-                  <Row label="Last frame" help="The picture it ends on, for the models that take one.">
-                    <KeyframeField ep={ep} k="last" value={form.keys.last ?? ""} onChange={(v) => set("last", v)} />
+                  <Row label="Last frame" help="The picture it ends on, for the models that take one. Its candidates show below it: click one to make it the live last frame.">
+                    <KeyframeField ep={ep} shot={isNew ? null : shot} k="last" value={form.keys.last ?? ""} onChange={(v) => set("last", v)} />
                   </Row>
                   <Row label="Sound" help="How this shot's next take sounds: the series' default, or generate, clone or dub for this shot alone, and what a dub is lip-synced to. What the cut plays over a take you already have is Replace audio… (its context menu).">
                     {!isNew && shot
@@ -631,8 +632,54 @@ function Tip({ label, help, htmlFor }: { label: string; help: string; htmlFor?: 
   );
 }
 
-/** A `first:` / `last:` value: the default, a method, or a picture (browsed for). */
-function KeyframeField({ ep, k, value, onChange }: { ep: string; k: "first" | "last"; value: string; onChange: (v: string) => void }) {
+/** A `first:` / `last:` value: the default, a method, or a picture (browsed for);
+ * a saved shot's candidates for it below (KeyframeTakes). */
+function KeyframeField({ ep, shot, k, value, onChange }: {
+  ep: string; shot: string | null; k: "first" | "last"; value: string; onChange: (v: string) => void;
+}) {
+  return (
+    <div className="h3-col" style={{ gap: 4 }}>
+      <KeyframeValue ep={ep} k={k} value={value} onChange={onChange} />
+      {shot && value.toLowerCase() !== "none" && <KeyframeTakes ep={ep} shot={shot} k={k} />}
+    </div>
+  );
+}
+
+/**
+ * The keyframe's candidates (`shot:<id>:first|last`, as GET /seriesmith/refs lists
+ * them): each finished one small, larger on hover, the live one ringed; a click
+ * makes another live (PUT /seriesmith/refs/pick), as the Refs tab's pick does.
+ * Nothing when it has none.
+ */
+function KeyframeTakes({ ep, shot, k }: { ep: string; shot: string; k: "first" | "last" }) {
+  const refs = useRefs(ep);
+  const id = keyframeRefId(shot, k);
+  const r = refs?.find((x) => x.id === id);
+  const busy = useApp((s) => !!s.busy[`refpick|${id}`]);
+  const takes = (r?.takes ?? []).filter((t) => t.image && t.status === "ok" && t.usable !== false);
+  if (!r || !takes.length) return null;
+  return (
+    <div className="h3-row h3-wrap" style={{ gap: 4, alignItems: "center" }}>
+      {takes.map((t) => {
+        const live = r.picked === t.take;
+        const pic = { path: t.image!, face: false, version: null };
+        return (
+          <Hover key={t.take} ep={ep} item={{ id: `${id} t${t.take}`, name: `${shot} ${k} frame, take ${t.take}${live ? " (live)" : ""}`, pic }} big={320}>
+            <button className="h3-btn" disabled={busy || live}
+              title={live ? `Take ${t.take} is ${shot}'s live ${k} frame` : `Make take ${t.take} ${shot}'s live ${k} frame`}
+              onClick={() => void pickRef(id, null, t.take)}
+              style={{ padding: 1, lineHeight: 0, outline: live ? "2px solid var(--h3-accent)" : undefined, outlineOffset: 1 }}>
+              <Thumb ep={ep} pic={pic} name={`t${t.take}`} size={40} />
+            </button>
+          </Hover>
+        );
+      })}
+      <span className="h3-small h3-muted">{r.picked != null ? `take ${r.picked} live` : "none live"}</span>
+    </div>
+  );
+}
+
+function KeyframeValue({ ep, k, value, onChange }: { ep: string; k: "first" | "last"; value: string; onChange: (v: string) => void }) {
   const isPath = !!value && !KEYFRAME_METHODS.includes(value.toLowerCase());
   const browse = usePictureBrowse(`shot:${k}`, k === "first" ? "the first frame" : "the last frame", onChange);
   return (

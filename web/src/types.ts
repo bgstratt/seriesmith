@@ -2099,6 +2099,34 @@ export interface RefKeyframeRequest {
   pick?: boolean | null;
 }
 
+/** POST /seriesmith/frame/save: a frame of a shot's take kept as a picture in refs/stills/. */
+export interface FrameSaveRequest {
+  ep: string;
+  pass: Pass;
+  shot: string;
+  /** default: the take the shot's cut entry uses */
+  take?: number | null;
+  /** a frame number (negative from the end), "first" or "last"; default "first" */
+  frame?: number | "first" | "last" | null;
+  /** the file's stem; default <shot>_tNN_f<frame> */
+  name?: string | null;
+}
+
+export interface FrameSaved {
+  /** from the episode, for GET /seriesmith/file */
+  path: string;
+  name: string;
+  shot: string;
+  take: number;
+  pass: Pass;
+  frame: number;
+  frames: number;
+  width: number | null;
+  height: number | null;
+  /** the same picture was there already under that name */
+  reused: boolean;
+}
+
 export interface RefOverrideRequest {
   ep: string;
   ref: string;

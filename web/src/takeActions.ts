@@ -180,6 +180,49 @@ export async function holdFrameAfter(shot: string, take: number, frame: number |
   }
 }
 
+/** A frame of a take kept as a picture in the episode's refs/stills/ (POST
+ * /seriesmith/frame/save), then downloaded to this computer too; its path, the
+ * one a script's `first:` / `last:` line names, is copied. */
+export async function saveFrame(shot: string, take: number, frame: number | "first" | "last", fromPass: "final" | "proxy"): Promise<void> {
+  const { ep } = get();
+  if (!ep) return;
+  try {
+    const r = await api().frameSave({ ep, pass: fromPass, shot, take, frame });
+    const a = document.createElement("a");
+    a.href = api().fileUrl(ep, r.path);
+    a.download = r.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    try {
+      await navigator.clipboard.writeText(r.path);
+    } catch {
+      /* not copied: the toast says it */
+    }
+    host().toast("success", `Frame ${r.frame} of ${shot} ${tn(r.take)} saved`,
+      `${r.reused ? "Already in the show as" : "In the show as"} ${r.path} (copied: a first: or last: line can name it), and downloaded.`);
+  } catch (e) {
+    host().toast("error", "Couldn't save the frame", errText(e));
+  }
+}
+
+/** A frame of a take as any shot's first or last keyframe (POST /seriesmith/refs/keyframe
+ * with this take as its source), picked: the shot is asked, "sh5012" or "sh5012 last". */
+export async function frameToShot(shot: string, take: number, frame: number | "first" | "last", fromPass: "final" | "proxy"): Promise<void> {
+  const what = `${frame === "last" ? "the last frame" : frame === "first" ? "the first frame" : `frame ${frame}`} of ${shot} ${tn(take)}`;
+  const raw = window.prompt(`Use ${what} as which shot's keyframe?\nA shot id for its first frame (sh5012), or add "last" for its last frame (sh5012 last).`, "");
+  if (raw == null) return;
+  const m = raw.trim().match(/^(\S+)(?:\s+(first|last))?$/i);
+  if (!m) {
+    host().toast("warn", "Not a shot", `"${raw}" isn't a shot id, or a shot id and first or last.`);
+    return;
+  }
+  await keyframeFromTake({
+    shot: m[1], which: (m[2]?.toLowerCase() as "first" | "last" | undefined) ?? "first",
+    sourceShot: shot, sourceTake: take, frame, pass: fromPass, pick: true,
+  });
+}
+
 /** A video file between two clips: the shot form there, its length the file's;
  * Save makes the shot, imports the file as its take and puts the clip there. */
 /** A file dropped on a shot's row or clip: a video becomes a take of it (in the

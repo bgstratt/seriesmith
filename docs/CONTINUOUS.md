@@ -156,6 +156,11 @@ which ends at the take's end; it says so in its notes.
 2. **Audio across a `latent` join.** obvpm crossfades held audio over 8 ticks (0.2 s). Check
    whether that's needed when the audio is generated, and confirm a dub shot ignores it.
 3. **FL2VA + `latent`.** Possibly useful later (keyframes *and* latent hold); not in scope.
+   The reference models got the half that mattered (2026-11-20): a `latent` shot on H3
+   Ref2VA, Singularity or Hybrid ends on a `last:` picture, anchored at frame -1 by
+   MiniMaxH3AddGuide in the conditioning while the hold stays in the latent
+   (`minimax_h3_ref2va/first_frame.py`). First tried on the opening's sh210 (a Seedance
+   take's frames encoded and held, ending on sh220's first frame).
 
 ## Checklist
 

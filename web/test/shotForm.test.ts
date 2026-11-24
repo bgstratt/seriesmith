@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cameraLine, dialogueText, insertAfter, listOf, parseShot, replaceLines, sequenceAt, sequencesOf, shotIdBetween,
-  writeShot,
+  withShotLine, writeShot,
 } from "../src/lib/shotForm";
 
 const SH020 = `## sh020
@@ -119,5 +119,31 @@ describe("a shot's lens", () => {
     f.keys.lens = "shallow";
     expect(writeShot(f)).toEqual(["## sh010", "size: ms", "lens: shallow", "dur: 3", "Ada waits."]);
     expect(parseShot(writeShot(f)).keys.lens).toBe("shallow");
+  });
+});
+
+describe("withShotLine", () => {
+  const script = ["# sq01  road", "", "## sh010", "who: ada", "Ada walks.", "sound: wind", "music: a soft theme", "",
+    "## sh020", "who: ada", "Ada stops.", "", "## sh030", "Ada waits.", "sound: rain"].join("\n");
+
+  it("replaces the shot's sound line and nothing else", () => {
+    const out = withShotLine(script, 3, 8, "sound", "  a  twinkle ");
+    expect(out).toBe(script.replace("sound: wind", "sound: a twinkle"));
+  });
+
+  it("puts a new line after the shot's last line, before the blank", () => {
+    const out = withShotLine(script, 9, 12, "sound", "boots on snow");
+    expect(out.split("\n").slice(8, 13)).toEqual(["## sh020", "who: ada", "Ada stops.", "sound: boots on snow", ""]);
+  });
+
+  it("puts a new line before music:", () => {
+    const s = script.replace("sound: wind\n", "");
+    const out = withShotLine(s, 3, 7, "sound", "wind");
+    expect(out).toBe(script);
+  });
+
+  it("takes the line out when empty, and reaches the last shot", () => {
+    expect(withShotLine(script, 3, 8, "sound", "")).toBe(script.replace("sound: wind\n", ""));
+    expect(withShotLine(script, 13, 15, "sound", "snow").endsWith("Ada waits.\nsound: snow")).toBe(true);
   });
 });

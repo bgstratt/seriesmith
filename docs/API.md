@@ -2049,7 +2049,8 @@ Queues one candidate per call. It returns without waiting, like `/render`.
   as fixed. `wrap: false` sends it exactly as typed, for a LoRA with its own trigger
   words (`<mva> left side view, eye-level shot`).
 - `with` adds other refs' pictures as image 2 onward. A character comes as its picked
-  three-quarter view unless `view` says otherwise.
+  three-quarter view unless `view` says otherwise; with no view of it picked and no `take`
+  (a sheet put in by hand), as its sheet whole.
 - The target must be an edit target (`capabilities.mode: "edit"`; 400 otherwise). It is
   the request's, else the first of the ref's own target, the episode's keyframe target
   and its refs target that can edit. The pictures must fit its `max_refs`.
@@ -2587,6 +2588,27 @@ keyframe ref.
   `--proxy`, like the other edit commands).
 - **Not yet:** there is no route to unpick or delete a ref take, so the editor has no
   "Clear" for a keyframe.
+
+### `POST /seriesmith/frame/save` (2026-11-19)
+Cuts one frame out of a shot's video take and keeps it as a picture in the episode's
+`refs/stills/`, where a script's `first:` / `last:` line, an import into another shot's
+keyframe, or a download can use it (`refs.save_frame`).
+```json
+{"ep": "…", "pass": "final", "shot": "sh2012", "take": 4, "frame": 0, "name": null}
+```
+- **`take`**: default the take the shot's cut entry uses, as for `/refs/keyframe`'s
+  `source_take`.
+- **`frame`**: a frame number (0-based, exact, as for `/refs/keyframe`; negative counts from
+  the end), `"first"` (the default) or `"last"`.
+- **`name`**: the file's stem, default `<shot>_tNN_f<frame>`. Anything but letters, numbers,
+  `-`, `_` and `.` becomes `_`, and a folder or an extension is dropped: it is always a PNG
+  in `refs/stills/`. A file of that name with other bytes is kept and the new one numbered
+  after it (`-2`, `-3`); the same bytes are reused.
+- **Returns** `{"path"` (from the episode, for `GET /seriesmith/file`), `"name", "shot",
+  "take", "pass", "frame"` (the index used), `"frames", "width", "height", "reused"}`.
+- **Errors:** 400 for a bad `frame` or `name`, or a frame outside the take; 404 for a shot
+  in no build or a `take` that doesn't exist; 409 when the shot has no usable take; 500
+  without ffmpeg / ffprobe.
 
 ## The `ltx2_ingredients` target (as built)
 
@@ -3459,8 +3481,14 @@ built" with [differs]/[added]/[settled].
     (the newest 30 per file are kept). The write is atomic (temp file + replace), keeping
     the file's existing line endings and encoding (UTF-8, BOM kept if present).
   - `rebuild: true` runs the same build as `POST /seriesmith/build` after a successful write.
-  - Returns `{"hash", "check": {...as above}, "build": {...as /build} | null}` and emits
-    `seriesmith.episode`.
+  - A script save that rebuilds cleanly also applies keyframe lines it changed: each
+    `first:` / `last:` that now names a picture (a new path, or a path where there was
+    none) has that picture imported as a new take of the shot's keyframe and picked, so
+    the next render reads it (`refs.sync_script_keyframes`). A line left as it was is
+    left alone, so a candidate picked by hand stays live.
+  - Returns `{"hash", "check": {...as above}, "build": {...as /build} | null, "keyframes":
+    [{"ref", "take"} | {"ref", "error"}]}` and emits `seriesmith.episode` (and
+    `seriesmith.ref` for each keyframe picked).
 
 ### Promote
 Moves overrides that the authored files can express into them, then drops those overrides.

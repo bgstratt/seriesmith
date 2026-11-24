@@ -224,6 +224,34 @@ export function replaceLines(text: string, start: number, end: number, block: st
   return [...lines.slice(0, start - 1), ...block, ...sep, ...tail].join("\n");
 }
 
+/** The script with one `key:` line of the shot at lines [start, end] (1-based, inclusive)
+ * set to `value`, every other line as it was: replaced where the shot has one, else put
+ * before its `music:` line or after its last line; an empty value takes it out. */
+export function withShotLine(text: string, start: number, end: number, key: string, value: string): string {
+  const lines = text.split("\n");
+  const v = value.replace(/\s+/g, " ").trim();
+  const is = (i: number, k: string) => {
+    const m = KEY_RE.exec(lines[i].trim());
+    return !!m && (ALIASES[m[1]] ?? m[1]) === k;
+  };
+  let at = -1;
+  for (let i = start; i < end && i < lines.length; i++) if (is(i, key)) at = i;
+  if (at >= 0) {
+    if (v) lines[at] = `${key}: ${v}`;
+    else lines.splice(at, 1);
+    return lines.join("\n");
+  }
+  if (!v) return text;
+  let put = -1;
+  for (let i = start; i < end && i < lines.length; i++) if (is(i, "music")) put = i;
+  if (put < 0) {
+    put = Math.min(end, lines.length);
+    while (put > start && lines[put - 1].trim() === "") put -= 1;
+  }
+  lines.splice(put, 0, `${key}: ${v}`);
+  return lines.join("\n");
+}
+
 /** The script with `block` inserted after line `after` (0: at the top), a
  * blank line on each side. */
 export function insertAfter(text: string, after: number, block: string[]): string {
