@@ -1130,10 +1130,29 @@ def set_chain(job: UpscaleJob) -> None:
                                         "unheld if it hasn't when this one runs)"))
 
 
+def frozen_steps(take: T.Take) -> int | None:
+    """The steps the take's frozen shotlist renders with (its shot's, else the
+    shotlist's defaults), for a take whose sidecar records none (an imported
+    one given a shotlist). The re-sample's graph is built from that shotlist, so
+    its schedule is that long: a start step worked out on 8 steps instead ran 13
+    of 20, and changed what happens in the shot (2026-11-20)."""
+    try:
+        doc = F.read_json_or(take.paths.shotlist, None)
+        if isinstance(doc, dict) and doc.get("shots"):
+            return int(J.built_values(doc["shots"][0], doc.get("defaults") or {})[2]) or None
+    except (OSError, ValueError, TypeError, KeyError):
+        pass
+    return None
+
+
 def take_seconds(take: T.Take) -> float:
-    """How long a take is, from its sidecar's frames and rate (0: unknown)."""
+    """How long a take is, from its sidecar's frames and rate (0: unknown): the
+    length it was rendered at (`length`), else the frames its file has
+    (`frames`). An imported take records only `frames`; read from `length`
+    alone it was 0 s, never windowed, and a 15 s import ran out of memory in
+    one pass at 2688x1536 (2026-11-20)."""
     sc = take.sidecar or {}
-    n, fps = int(sc.get("length") or 0), float(sc.get("fps") or 24)
+    n, fps = int(sc.get("length") or sc.get("frames") or 0), float(sc.get("fps") or 24)
     return n / fps if n and fps else 0.0
 
 
@@ -1345,7 +1364,8 @@ def _plan(root: str, take: T.Take, *, scale: float | None = None,
                          why="only the pixel and SeedVR2 methods run on top of an upscale")
         return job
     s = float(scale or spec.get("scale", 2))
-    own_steps = int(J.built_values(doc["shots"][0], doc.get("defaults") or {})[2] if via else (sc.get("steps") or 8))
+    own_steps = int(J.built_values(doc["shots"][0], doc.get("defaults") or {})[2] if via
+                    else (sc.get("steps") or frozen_steps(take) or 8))
     steps = schedule_steps(spec, own_steps) if spec else 8
     if start_step is not None:
         step = int(start_step)

@@ -7,6 +7,7 @@ length, and 0 turns it off.
 """
 from __future__ import annotations
 
+import json
 import os
 import sys
 import unittest
@@ -44,6 +45,28 @@ class WindowTest(ApiTest):
         self.assertEqual(guider["inputs"]["model"], ["up_windows", 0])
         self.assertNotEqual(w["inputs"]["model"], ["up_windows", 0])
         self.assertEqual(U.settings_of(up)["window"], [5.5, 1.25])
+
+    def test_an_imported_long_take_is_windowed_too(self):
+        """An imported take's sidecar has `frames` and no `length`: still windowed."""
+        t = self.final_take()
+        T.update_sidecar(t.paths.sidecar, length=None, frames=241, fps=24)
+        up = U.plan_upscale(self.ep, T.get_take(self.ep, "final", "sh010", 1))
+        self.assertEqual((up.window, up.window_overlap), (5.5, 1.25))
+
+    def test_an_imported_take_starts_on_its_shotlists_schedule(self):
+        """No `steps` in an imported take's sidecar: the start step comes from the
+        frozen shotlist's steps (what the graph samples), not 8."""
+        from seriesmith import jobs as J
+        t = self.final_take()
+        T.update_sidecar(t.paths.sidecar, steps=None)
+        t = T.get_take(self.ep, "final", "sh010", 1)
+        with open(t.paths.shotlist, encoding="utf-8") as f:
+            doc = json.load(f)
+        steps = J.built_values(doc["shots"][0], doc.get("defaults") or {})[2]
+        self.assertEqual(U.frozen_steps(t), steps)
+        up = U.plan_upscale(self.ep, t)
+        spec = U.upscale_spec(up.target)
+        self.assertEqual(up.start_step, U.start_of(U.schedule_steps(spec, steps), spec))
 
     def test_a_short_take_is_one_pass(self):
         up = U.plan_upscale(self.ep, self.take_of(5.2))     # a usual shot: one pass
