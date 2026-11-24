@@ -1,0 +1,186 @@
+---
+title: "Sound and score"
+description: "An episode's sound rebuilt under the cut: voices only, a bed of room tone for each place, a shot's effects, a score drafted from the script's beats, the mix and the export with its stems."
+---
+
+{/* Written by hand. No video yet. */}
+
+A model like H3 renders each shot with its own sound: the lines, footsteps, a room tone and often
+a bit of music, different in every take. Cut together, that sound changes at every cut. This
+tutorial rebuilds the episode's sound on four tracks under the picture, in the order that works:
+
+1. **Dialogue**: only the voices from each take.
+2. **Ambience**: one bed of room tone per place, under every shot set there.
+3. **Effects**: a shot's own sync sound, where it needs one.
+4. **Music**: a score drafted from the script's story beats, cue by cue.
+
+Then the mix, and the export with its stems. Do them in this order: the score is judged against
+the sound it sits on.
+
+This continues on the Dean episode from tutorial 13, with every shot rendered.
+
+<Note>
+  **Before you start:** open **Features** and install what you'll use under **Sound**: the voice
+  stems (Hybrid Demucs), ambience (MMAudio), effects (H3 FL2VA) and score (Stable Audio 3).
+  Then **Sound** in the timeline's header unfolds the hits lane and the four tracks under the
+  clips.
+</Note>
+
+## 1. Voices only
+
+<Steps>
+  <Step title="Turn it on">
+    Right-click the **Dialogue** lane → **Voices only**.
+  </Step>
+  <Step title="Make voice stems">
+    **Make voice stems**, beside it, splits every take the cut plays into its voices and the
+    rest: a job per take in Jobs, about a second each once loaded. It counts as it goes (*8/10
+    shots split*).
+  </Step>
+  <Step title="Play all">
+    Each take's own music and room tone is gone; only the lines are left. A shot not split yet
+    plays its whole sound, with a warning mark on the lane, never silence. A shot with no lines
+    in the script is silent on this track.
+  </Step>
+</Steps>
+
+<Tip>
+  A take whose own sound you want to keep (its music, a gasp the model added): its clip's
+  **Sound** menu → **Keep its whole sound**.
+</Tip>
+
+## 2. A bed for each place
+
+<Steps>
+  <Step title="Say what's heard there">
+    Refs tab → **Ambience** lists each place, its words, and how many shots it plays under.
+    Write a place's words as a sound designer would: the steady bed first, then a few sparse
+    events, never music or voices (*a low wind through pines, an owl far off now and then*).
+    They're saved as the location's `ambience` in the series config.
+  </Step>
+  <Step title="Make it">
+    Open the place's row → **Make it**. Listen to the takes and **Pick** one.
+  </Step>
+  <Step title="Hear it under the cut">
+    The bed lies on the **Ambience** lane as a dashed block named for its place, looped under
+    every shot there and crossfaded into the next place's at the cut. Right-click it for its
+    **level**, or **Mute this place**.
+  </Step>
+</Steps>
+
+## 3. A shot's effects
+
+With voices only on, a take's footsteps and doors went too. Put them back where you miss them.
+
+<Steps>
+  <Step title="Give the shot a sound: line">
+    In the script, or the shot's form: `sound: small boots crunching on snow, a branch creaking`.
+    The effects are made from it (else from the action, which can mislead: *about to sing* gets a
+    voice).
+  </Step>
+  <Step title="Make effects">
+    Right-click the clip → **Sound → Make effects** (several clips selected: one each). On H3,
+    about 10 seconds a shot. The new take is picked into the mix as it lands.
+  </Step>
+  <Step title="Trim and fade">
+    On the **Effects** lane, drag an edge to trim (a voice creeping in at the end), drag the corner
+    squares for fades, right-click for its level or another take.
+  </Step>
+</Steps>
+
+## 4. The score
+
+### Mark the story's beats
+
+The draft reads the script's story structure from comments, which no video model sees, so
+nothing renders again:
+
+```
+// structure: Pixar Story Spine
+
+// beat: Once upon a time…
+# sq01  ...
+// beat: Until one day…
+# sq02  ...
+```
+
+A script written with the script-writing skill has them already. One without: the Draft dialog's
+**Structure** list lays the beats out for you and writes them into the script.
+
+### Draft it
+
+<Steps>
+  <Step title="Open the spotting sheet">
+    **Scoring** in the timeline's header → the **Spotting** tab → **Draft…**.
+  </Step>
+  <Step title="Read the draft">
+    It shows the cues it would make. Each beat is scored, held low under the lines, a short
+    sting, or played dry, by the structure's Music table. Beats in a row with music are one cue,
+    so the score changes with the story rather than stopping at every beat. A bedtime story on
+    the Story Spine is often one cue across the episode.
+  </Step>
+  <Step title="Write">
+    **Write** adds the draft cues (`d01`, `d02`, ...) and their hits. Nothing is rendered yet.
+  </Step>
+</Steps>
+
+### Render and pick
+
+<Steps>
+  <Step title="Open a cue">
+    Double-click it on the spotting map. The **Score** tab shows its sections, hits and arc on
+    one bar grid.
+  </Step>
+  <Step title="Adjust">
+    The words (**Style**: *solo celesta and soft strings, no percussion*), the tempo, a section's
+    energy. Or **Start from a preset** (lullaby waltz, sad and tender, wonder and awe, ...).
+  </Step>
+  <Step title="Render 8 takes">
+    On Stable Audio 3, a few seconds a take on a 5090. Each is measured: how close its loudness
+    follows the arc, how near the music lands each hit. The list is ranked, but ranking can't
+    hear whether it's good: **listen to the top two or three** and **Pick** one.
+  </Step>
+  <Step title="Hear it under the picture">
+    The pick lands on the **Music** lane, from the cue's in point to its out point, its level
+    shaped to the arc. Play all.
+  </Step>
+</Steps>
+
+<Tip>
+  A moment the music must answer (a door slams, the music drops out): double-click the hits lane
+  to add a **hit**. A cue's tempo is fitted so its hits fall on bar lines. Render again after
+  adding one.
+</Tip>
+
+## 5. The mix
+
+- **Levels:** each lane's fader, **M** mute and **S** solo. Music starts at −12 dB, under the lines.
+- **Ducking:** music and ambience dip under speech by themselves (music −9 dB, ambience −6 dB).
+- **Level the lines** (the Dialogue lane's menu): a quiet take and a loud one brought together,
+  at most 9 dB either way.
+- **Score forward:** right-click a lane → **Duck region here**, for a stretch where the music
+  carries the scene over the lines.
+
+Play all plays the mix as the export will. Every change saves at once; Ctrl+Z undoes it.
+
+## 6. Export
+
+**Export ▾ → Export**. The episode comes out with its mix at the loudness target (−16 LUFS
+unless the series config says otherwise), and beside it:
+
+- `<cut>_stems/`: one file per track, `me` (music and effects, for a dub), and `mix`
+- a loudness report
+- the lines as subtitles, `.srt` and `.vtt`
+
+**Export ▾ → Premiere / Resolve XML** lays the same out on separate tracks, to finish in an editor.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Sound" icon="volume-high" href="/sound">
+    The full guide: every option for each track, themes across a show, the command line.
+  </Card>
+  <Card title="Scoring" icon="music" href="/scoring">
+    Cue by cue: hits, the cue window's tabs, fixing part of a take, the levels.
+  </Card>
+</CardGroup>
