@@ -187,3 +187,19 @@ they moved here when PLAN.md was retired (2026-11-11).
       a folding Shots panel, the viewer following the selection), a shorter script-writing
       skill (a core and six references), and 480p-class proxies by default (#125 to #127).
       Published by the merge's version bump.
+- [x] **0.1.26** (2026-11-24, `release-0.1.26`): an H3 shot can end on a picture (a `last:`
+      line on H3 Ref2VA, Singularity or Hybrid), a `continuous: latent` shot too, so a chained
+      shot lands on the next shot's first frame. Close-ups keep their plate's colours and light,
+      softly out of focus, rather than a plain backdrop. A take's frame can be saved as a
+      picture or used as any shot's keyframe; changing a `first:` / `last:` line makes its
+      picture the live keyframe, and Edit shot shows a keyframe's candidates to pick from. The
+      Sound tab edits a shot's effects line and makes a take from it. Musical numbers: dub
+      shots read a song's vocal stem when the series dubs from it (every one failed before), a
+      dub track can voice its lines from their descriptions, and a hosted music model's style
+      is cut to its limit. The check warns when people pop in or out on one plate and names
+      `continuous: latent` as the fix; a group can say what its members are, and a character's
+      scale beside the others reaches H3. Jobs list each lane in the order it runs, with To the
+      front. A take saved across drives is copied in, a shared series config's paths are the
+      episode's, the queue keeps waiting jobs over a restart, an imported take upscales in
+      windows on its own schedule, and the editor keeps a phone's width (#129 to #132).
+      Published by the merge's version bump.
