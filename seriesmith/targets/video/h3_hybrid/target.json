@@ -102,11 +102,12 @@
       "voice sample": "5-15 seconds of clean speech, mono wav"
     },
     "keyframes": [
-      "first"
+      "first",
+      "last"
     ],
     "keyframes_when_asked": true,
     "keyframe_path": "refs/shots/{shot}/{end}.png",
-    "_keyframes_note": "A first frame only when the shot asks for one (continuous: first, a first: line): anchored at frame 0 by MiniMaxH3AddGuide after the reference node, its pictures kept (minimax_h3_ref2va/first_frame.py). Not asked for: rendered as Ref2VA always is."
+    "_keyframes_note": "A first or last frame only when the shot asks for one (continuous: first, a first: line; a last: line): anchored by MiniMaxH3AddGuide after the reference node, the first at frame 0 and the last at frame -1, its pictures kept (minimax_h3_ref2va/first_frame.py). A continuous: latent shot can end on a last: picture too. Not asked for: rendered as Ref2VA always is."
   },
   "binding": {
     "workflow": "workflow.json",
