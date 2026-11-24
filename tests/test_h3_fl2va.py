@@ -241,7 +241,11 @@ class PromptTest(unittest.TestCase):
                 doc, _ = TG.load_target(tid).compile_episode(self.story, self.cfg, "final")
                 by = {s["id"]: s["prompt"] for s in doc["shots"]}
                 p = by["sh030"] if isinstance(by["sh030"], str) else "\n".join(by["sh030"])
-                self.assertEqual("completely blurred into soft bokeh" in p, tight, (size, tid))
+                # FL2VA blurs it into bokeh; Ref2VA keeps the plate's colours and light,
+                # softly out of focus (an insert told only "bokeh" took the sheet's backdrop)
+                soft = ("completely blurred into soft bokeh" if tid == FL
+                        else "softly out of focus, its colors and light as they are in the plate")
+                self.assertEqual(soft in p, tight, (size, tid))
                 self.assertEqual("tightly cropped portion of" in p, tight, (size, tid))
                 if tid == H3:
                     # Ref2VA has the plate as a picture: on a close-up the room's
