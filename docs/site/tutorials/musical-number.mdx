@@ -1,0 +1,179 @@
+---
+title: "A musical number"
+description: "A song sung on screen in a spoken show: the song made first in a songbook, the number cut as a music video of its own, the joins into and out of the act, and what's done outside seriesmith."
+---
+
+{/* Written by hand. No video yet. */}
+
+A song that characters sing on screen is cut **song-first**: the song is made before the picture,
+and the picture follows it. So a number isn't a block of the act's script. It's an **episode of
+its own** beside its act, cut as a music video, and the act cuts into it and out again.
+
+The example is *Ring Bright*, a spoken Christmas special with seven numbers. Its blacksmith's
+song, "Hammer, Strike and Ring", is `ep02_song5`, beside the act `ep02`.
+
+```
+one_horse_open_sleigh/
+  songbook/         a held picture per song, a Song cue over each
+  ep02/             the act
+  ep02_song5/       the number: its own series config, audio/song.wav, its script
+```
+
+## 1. The song first: a songbook
+
+Make the song before there's any picture for it, in a scratch episode of its own.
+
+<Steps>
+  <Step title="A held picture as long as the song">
+    A new episode, `songbook`, with one shot per song on the Hold model: a title card, as long as
+    the song should be.
+
+    ```
+    ## sh050
+    target: hold
+    size: ws
+    dur: 170
+    A title card: Song 5, Hammer, Strike and Ring.
+    ```
+
+    It renders in a moment, on this machine, so the episode has a cut of that length.
+  </Step>
+  <Step title="A Song cue over it">
+    Right-click the shot → **Sound → New music cue**. In the cue window's inspector set **Kind**
+    to **Song**, or **Start from a preset** (pop ballad, upbeat pop) and adjust.
+  </Step>
+  <Step title="Its style, tempo and model">
+    **Style** in words (*a rousing folk work song, anvil hits on the beat, fiddle and
+    concertina, a strong baritone lead*), **Tempo**, **Meter** and **Key**. **Model**: YuE2 (the
+    default, non-commercial weights), ACE-Step or MiniMax Music 3 (both fine for a commercial
+    release; MiniMax's words come through clearest).
+  </Step>
+  <Step title="The lyrics on its sections">
+    Click each section (verse, chorus, bridge) and type its **Lyrics**. A section with none isn't
+    sung. A song with no lyrics at all won't render.
+  </Step>
+  <Step title="Render and pick">
+    **Render** a few takes, listen to each whole, and **Pick** one. Each take is a wav in
+    `songbook\sound\<cue>\` (song 5's are in `sound\m05\`).
+  </Step>
+</Steps>
+
+<Tip>
+  Keep the song's whole take. The number will start about two bars before the first sung line,
+  and the long band intro you cut can play under the act's last lines into the song.
+</Tip>
+
+## 2. The number as a music video
+
+<Steps>
+  <Step title="A new episode beside the act">
+    `ep02_song5`, with its own `series.json`: a copy of the act's, with the song as its
+    recording.
+
+    ```json
+    "audio": {"mode": "source_track", "track": "audio/song.wav",
+              "default_policy": "dub", "retention": "fully_copy"}
+    ```
+
+    The act's own config stays on `generate`. Copy the picked take in as `audio\song.wav`, cut to
+    start a bar or two before the singing.
+  </Step>
+  <Step title="Every sung line as dialogue">
+    The script has every sung line in order, word for word. The lines that matter on camera are
+    sung there; the rest are `(V.O.)` over the action:
+
+    ```
+    ## sh040
+    who: fanny
+    size: mcu
+    plate: smithy_allnight_hearth_close
+    At the blazing hearth, Fanny tosses a dented kettle into the glowing crucible and grins, singing, her eyes off to frame right.
+    FANNY (singing): Melt the kettle, melt the nail,
+    sound: a kettle clanking into iron, the coals hissing
+
+    ## sh050
+    size: ecu
+    plate: smithy_allnight_hearth_close
+    An extreme close-up of a rusty door hinge and a battered tin pail tumbling into a glowing iron crucible and slumping into the white-hot coals.
+    FANNY (V.O., singing): Melt the hinge and the rusty pail,
+    sound: scrap clattering into iron, metal sizzling
+    ```
+
+    Keep a singing shot to about 6 seconds. Shots with no lines (the band, the forge, a
+    cutaway) fill the pauses.
+  </Step>
+  <Step title="Align">
+    **⋯ → Recording** → **Dry run**, then **Align**. Align hears the song, finds each line, and
+    gives every shot an `audio:` window, end to end through the song. Check `align_report.md`'s
+    coverage: a line sung over a loud band may need **from the vocal stem**.
+  </Step>
+  <Step title="Build, then render the proxies">
+    **Build** (render reads the built shotlist, so always build after editing the script), then
+    render. Singing shots dub to their window, with `retention: fully_copy`, so the lips follow
+    the song.
+  </Step>
+  <Step title="Cut on the beat">
+    Trims in the timeline snap to the song's beats (hold **Alt** to trim freely).
+  </Step>
+</Steps>
+
+<Warning>
+  **A singing shot with a long silent stretch at its end can drift out of sync**, even with
+  `fully_copy`: the model stretches the singing over the silence. Split the window instead: the
+  sung part as one shot, the rest as a second shot (`continuous: latent` keeps them one
+  movement). *Ring Bright*'s reprise needed this.
+</Warning>
+
+## 3. The joins
+
+The song should start and end mid-movement, as if the act carried straight on into it.
+
+<Steps>
+  <Step title="Into the song">
+    In the act, on the last shot before the song: right-click its take → **Frames → Save this
+    frame as a picture** on its last frame. In the number, drop that PNG on the first shot's
+    first keyframe (or save it as `refs\shots\sh010\first.png` and give the shot `first: import`).
+  </Step>
+  <Step title="Out of it">
+    The same the other way: the number's last frame as the first keyframe of the act's first
+    shot after the song.
+  </Step>
+</Steps>
+
+H3 Ref2VA, Singularity and Hybrid open a shot on its first keyframe, so the character walks into
+the song and out of it in one movement.
+
+## 4. Export and join
+
+Export the number with the song unbroken: **its song as it came**, `seriesmith assemble ep02_song5
+--audio master`, or the song on the Music lane at 0 dB with the Dialogue track muted (the export
+then brings it to the loudness target). Then join the acts and numbers in order in your editor:
+each one's `assemble --xml` lays it out on tracks, with its stems.
+
+## Singing in the characters' own voices
+
+The song models can't sing in a given voice: the take's singer is the model's. *Ring Bright*
+changed each take's singing into its characters' voices **outside seriesmith**, with
+SoulX-Singer (open source, zero-shot from a short voice sample):
+
+1. The take's vocal stem, cut at each sung line's window.
+2. Each piece converted to its singer's voice sample. Keep the pitch shift at 0 (or ±12): an
+   automatic shift can land off key.
+3. A chorus sung by a group can't become one voice: keep the take's own singing there, at a
+   matched level.
+4. The pieces laid back over the take's band, and the result used as the number's
+   `audio\song.wav`.
+
+Then align again with `--retranscribe` (the cached transcript belongs to the old file), build,
+and render the singing shots again.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Music video" icon="music" href="/music-video">
+    The song as the recording, align, the vocal stem and the export, in full.
+  </Card>
+  <Card title="Scoring" icon="sliders" href="/scoring">
+    The cue window: Song cues, their models and licences, takes and fixes.
+  </Card>
+</CardGroup>
