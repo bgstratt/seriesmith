@@ -1577,9 +1577,13 @@ It lists what it will do first.${planLabels.length ? `\n${planLabels.join(", ")}
               return (
                 <div key={g.id} className="h3-seq">
                   <div className="h3-seq-head" onClick={() => setCollapsed((c) => ({ ...c, [g.id]: !c[g.id] }))}
-                    // two clicks have toggled it back; voices have no pictures
-                    onDoubleClick={() => g.id !== "voices" && openGallery({ group: g.id as GalleryGroup })}
-                    title={g.id !== "voices" ? `Click to fold, double-click to see every ${g.label.toLowerCase()} picture in the gallery` : undefined}>
+                    // two clicks have toggled it back; voices open the gallery's Sound tab on its Voices chip
+                    onDoubleClick={() => g.id === "voices"
+                      ? openGallery({ kind: "sound", sound: "voices" })
+                      : openGallery({ group: g.id as GalleryGroup })}
+                    title={g.id === "voices"
+                      ? "Click to fold, double-click to hear every voice take in the gallery"
+                      : `Click to fold, double-click to see every ${g.label.toLowerCase()} picture in the gallery`}>
                     <span className="h3-chev">{isCollapsed ? "▶" : "▼"}</span>
                     <b>{g.label}</b>
                     <span className="h3-muted h3-small">{g.refs.length}{g.refs.length !== g.total ? ` of ${g.total}` : ""}</span>
